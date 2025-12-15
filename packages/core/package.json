@@ -1,0 +1,20 @@
+{
+	"name": "@qcms/core",
+	"type": "module",
+	"exports": {
+		".": "./src/exports/index.ts",
+		"./*": "./src/exports/*.ts"
+	},
+	"private": true,
+	"devDependencies": {
+		"@types/bun": "latest"
+	},
+	"peerDependencies": {
+		"typescript": "^5"
+	},
+	"dependencies": {
+		"convex": "^1.31.0",
+		"use-intl": "^4.6.0",
+		"zod": "^4.1.13"
+	}
+}
