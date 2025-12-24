@@ -36,7 +36,7 @@ import { KVService } from "#questpie/core/server/integrated/kv";
 import { LoggerService } from "#questpie/core/server/integrated/logger";
 import { MailerService } from "#questpie/core/server/integrated/mailer";
 import { Disk } from "flydrive";
-import { createDiskDriver } from "#questpie/core/server/integrated/storage/drivers/fs-driver";
+import { createDiskDriver } from "#questpie/core/server/integrated/storage/create-driver";
 
 // Helper type to extract collection from builder or collection
 type ExtractCollection<T> =
