@@ -1,95 +1,72 @@
-# Questpie CMS Project Context
+# QUESTPIE CMS
 
 ## Project Overview
 
-`questpie-cms` is a modern Content Management System (CMS) structured as a monorepo. It leverages **Turborepo** for build orchestration and **Bun** as the package manager and runtime. The project is built with a focus on full-stack TypeScript safety, utilizing **TanStack Start** for the frontend and **Convex** for the backend data layer.
+QUESTPIE CMS is a modern, type-safe Content Management System built as a monorepo using Turborepo and Bun. It aims to provide a "batteries-included" core for building content-heavy applications with a focus on developer experience and performance.
 
-## Architecture & Structure
+### Architecture
 
-The project is organized as a workspace with the following structure:
+The project is structured as a monorepo with the following key workspaces:
 
-### Applications (`apps/`)
+*   **`packages/core` (`@questpie/core`)**: The backend logic and CMS engine.
+    *   **Framework**: [ElysiaJS](https://elysiajs.com/) (high-performance web framework).
+    *   **Database**: [Drizzle ORM](https://orm.drizzle.team/).
+    *   **Auth**: [Better Auth](https://better-auth.com/).
+    *   **Storage**: [Flydrive](https://flydrive.dev/).
+    *   **Queues**: [pg-boss](https://github.com/timgit/pg-boss).
+    *   **DI**: TinyDI.
+*   **`apps/tanstackstart-admin` (`@qcms/tanstackstart-admin`)**: The administrative dashboard.
+    *   **Framework**: React 19 + Vite.
+    *   **Routing**: [TanStack Router](https://tanstack.com/router).
+    *   **SSR/Start**: [TanStack Start](https://tanstack.com/start).
+    *   **UI**: Tailwind CSS v4 + Shadcn UI.
+*   **`apps/docs` (`@qcms/docs`)**: The documentation website.
+    *   **Framework**: React + Vite + TanStack Start.
+    *   **Docs Engine**: [Fumadocs](https://fumadocs.vercel.app/).
 
-*   **`apps/docs` (`@qcms/docs`)**:
-    *   **Purpose**: The official documentation website for the project.
-    *   **Tech Stack**: [Vite](https://vitejs.dev/), [React](https://react.dev/), [TanStack Start](https://tanstack.com/start), [Fumadocs](https://fumadocs.vercel.app/).
-    *   **Key Scripts**: `dev`, `build`, `start`.
+## Building and Running
 
-*   **`apps/template` (`template`)**:
-    *   **Purpose**: A comprehensive template application, likely serving as a starter for users or the main admin interface.
-    *   **Tech Stack**: [Vite](https://vitejs.dev/), [React](https://react.dev/), [TanStack Start](https://tanstack.com/start), [Tailwind CSS v4](https://tailwindcss.com/), [Shadcn UI](https://ui.shadcn.com/), [Recharts](https://recharts.org/).
-    *   **Key Scripts**: `dev` (port 3000), `build`, `test` (Vitest).
-
-### Packages (`packages/`)
-
-*   **`packages/core` (`core`)**:
-    *   **Purpose**: The foundational library containing the core logic, schema definitions, and backend integration for the CMS.
-    *   **Tech Stack**: [Convex](https://www.convex.dev/), [Zod](https://zod.dev/), [use-intl](https://next-intl-docs.vercel.app/).
-    *   **Key Features**: Abstractions for collection definitions (`define-collection.ts`), configuration (`define-config.ts`), and CRUD operations.
-
-## Technology Stack
-
-*   **Languages**: TypeScript (100% usage across the repo).
-*   **Package Manager**: [Bun](https://bun.sh/) (v1.3.0).
-*   **Monorepo Tools**: [Turborepo](https://turbo.build/).
-*   **Frontend Framework**: React 19, Vite, TanStack Start (Router).
-*   **Styling**: Tailwind CSS v4.
-*   **Backend/Database**: Convex.
-*   **Validation**: Zod.
-*   **Linting/Formatting**: Biome, Prettier, ESLint.
-
-## Development Workflow
+This project uses **Bun** as the package manager and **Turborepo** for task orchestration.
 
 ### Prerequisites
-*   **Bun**: Ensure Bun is installed (`v1.3.0` or compatible).
-*   **Convex**: You may need a Convex account and local setup for backend development.
 
-### Common Commands
+*   **Bun**: v1.3.0 or later.
+*   **Node.js**: >= 18 (required by some tools).
 
-Run these commands from the root directory:
+### Key Commands
+
+Run these commands from the project root:
 
 *   **Install Dependencies**:
     ```bash
     bun install
     ```
-
 *   **Start Development Server** (starts all apps):
     ```bash
     bun run dev
-    # or
-    turbo dev
+    # or specifically for one app:
+    bun run dev --filter=@qcms/tanstackstart-admin
     ```
-
 *   **Build Project**:
     ```bash
     bun run build
-    # or
-    turbo build
     ```
-
-*   **Lint & Format**:
+*   **Linting & Formatting**:
     ```bash
-    bun run lint       # Runs linting via Turbo
-    bun run format     # Runs Prettier
-    bun run check-types # Runs TypeScript type checking
+    bun run lint
+    bun run format
+    ```
+*   **Type Checking**:
+    ```bash
+    bun run check-types
     ```
 
-### Specific App Development
+## Development Conventions
 
-To work on a specific app (e.g., `docs`), you can use Turbo's filtering or go into the directory:
-
-```bash
-# Using Turbo from root
-turbo dev --filter=@qcms/docs
-
-# Or navigate to directory
-cd apps/docs
-bun dev
-```
-
-## Conventions
-
-*   **Code Style**: The project enforces strict TypeScript rules. Prettier and Biome are used for formatting.
-*   **File Naming**: All file and directory names must use **kebab-case** (e.g., `my-component.tsx`, `user-profile/`). However, files within the `convex/` folder (e.g., `packages/core/convex/`) must use **camelCase** (e.g., `myFunction.ts`, `dataModel.ts`).
-*   **Component Library**: `apps/template` uses Shadcn UI. When adding new UI components, follow the existing patterns in `apps/template/src/components/ui`.
-*   **Backend Logic**: Core CMS logic belongs in `packages/core`. Do not duplicate business logic in the apps if it can be shared.
+*   **Language**: TypeScript is used exclusively across the entire monorepo.
+*   **Styling**: **Tailwind CSS v4** is the standard for styling.
+*   **UI Components**: The admin app uses **Shadcn UI** components.
+*   **Routing**: **TanStack Router** is used for client-side routing.
+*   **Linting**: The project largely uses **Biome** for fast linting and formatting (configured in `biome.json` at the root), though the admin app currently uses ESLint + Prettier.
+*   **Database**: Database schemas and queries should be managed via **Drizzle ORM**.
+*   **CMS Pattern**: Content models are defined using the `collection` pattern in `@questpie/core` (e.g., `collection("posts").fields(...)`).

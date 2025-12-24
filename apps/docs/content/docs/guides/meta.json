@@ -1,0 +1,12 @@
+{
+  "title": "Guides",
+  "pages": [
+    "collections",
+    "fields",
+    "relations",
+    "hooks",
+    "access-control",
+    "localization",
+    "modules"
+  ]
+}

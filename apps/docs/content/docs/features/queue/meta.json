@@ -1,0 +1,9 @@
+{
+  "title": "Queue System",
+  "pages": [
+    "jobs",
+    "workflows",
+    "workers",
+    "api"
+  ]
+}

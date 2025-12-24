@@ -1,0 +1,5 @@
+{
+  "name": "PayloadZero Admin",
+  "description": "A minimalist, sharp-edged admin panel with advanced filtering, saved views, and dynamic configuration.",
+  "requestFramePermissions": []
+}

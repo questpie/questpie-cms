@@ -1,34 +1,88 @@
 ---
-title: Hello World
-description: Your favourite docs framework.
+title: Introduction
+description: A modern, type-safe Content Management System built for the TypeScript ecosystem.
 icon: Rocket
 ---
 
-Hey there! Fumadocs is the docs framework that also works on Tanstack Start!
+# QUESTPIE CMS
 
-## Heading
+QUESTPIE CMS is a headless Content Management System engineered for modern TypeScript applications. It combines the flexibility of a code-first schema definition with the performance of a compiled runtime, providing developers with end-to-end type safety without the need for code generation.
 
-Hello World!
+## Core Features
 
 <Cards>
   <Card
-    title="Learn more about Tanstack Start"
-    href="https://tanstack.com/start"
+    title="Type-Safe Schema Definition"
+    description="Define content models using a fluent, builder-based API. QUESTPIE leverages advanced TypeScript inference to provide immediate feedback and autocomplete."
+    href="/docs/core-concepts/type-inference"
   />
-  <Card title="Learn more about Fumadocs" href="https://fumadocs.dev" />
+  <Card
+    title="Modular Architecture"
+    description="Extend core functionality through a robust plugin system. Compose complex applications by merging collection definitions and modules."
+    href="/docs/core-concepts/extensibility"
+  />
+  <Card
+    title="Drizzle ORM Integration"
+    description="Built on top of Drizzle ORM, offering direct access to the underlying database with zero abstraction overhead when you need it."
+    href="/docs/core-concepts/drizzle-integration"
+  />
+  <Card
+    title="Native Internationalization"
+    description="Built-in multi-language support. Define localized fields at the schema level and let the CMS handle data separation and fallback logic."
+    href="/docs/features/localization"
+  />
 </Cards>
 
-### CodeBlock
+## At a Glance
 
-```ts
-console.log('Hello World');
+QUESTPIE CMS defines content structures ("Collections") through code. This approach ensures that your database schema and application types are always in sync.
+
+```typescript
+import { collection, createCMS } from '@qcms/core'
+import { text, integer } from 'drizzle-orm/pg-core'
+
+// 1. Define your content model
+const products = collection('products')
+  .fields({
+    name: text('name').notNull(),
+    price: integer('price').notNull(),
+    description: text('description'),
+  })
+  .access({
+    read: () => true,
+    create: 'admin',
+  })
+
+// 2. Initialize the CMS
+const cms = createCMS({
+  collections: [products],
+  db: drizzle(process.env.DATABASE_URL!),
+})
+
+// 3. Query with full type safety
+const product = await cms.crud('products', ctx).findFirst({
+  where: { name: 'QUESTPIE Pro' }
+})
 ```
 
-#### Table
+## Documentation Structure
 
-| Head                            | Description                         |
-| ------------------------------- | ----------------------------------- |
-| `hello`                         | Hello World                         |
-| very **important**              | Hey                                 |
-| _Surprisingly_                  | Fumadocs                            |
-| very long text that looks weird | hello world hello world hello world |
+- **Getting Started**: Installation and setup guides.
+- **Core Concepts**: Deep dives into the Builder Pattern, Module System, and Type Inference.
+- **Guides**: Practical examples for creating collections, managing relations, and handling assets.
+- **API Reference**: Detailed documentation of the core library exports.
+
+## Next Steps
+
+<Cards>
+  <Card
+    title="Installation"
+    description="Add QUESTPIE CMS to your existing project."
+    href="/docs/getting-started/installation"
+  />
+  <Card
+    title="Quick Start"
+    description="Build your first CMS application in minutes."
+    href="/docs/getting-started/quick-start"
+  />
+</Cards>

@@ -1,95 +1,187 @@
-# Questpie CMS Project Context
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## Project Overview
 
-`questpie-cms` is a modern Content Management System (CMS) structured as a monorepo. It leverages **Turborepo** for build orchestration and **Bun** as the package manager and runtime. The project is built with a focus on full-stack TypeScript safety, utilizing **TanStack Start** for the frontend and **Convex** for the backend data layer.
+QUESTPIE CMS is a "Batteries Included" headless CMS built as a Turborepo monorepo using Bun as the package manager. It provides an opinionated, type-safe foundation for building content-heavy applications with integrated services for authentication, storage, queuing, and email.
 
-## Architecture & Structure
+## Common Commands
 
-The project is organized as a workspace with the following structure:
-
-### Applications (`apps/`)
-
-*   **`apps/docs` (`@qcms/docs`)**:
-    *   **Purpose**: The official documentation website for the project.
-    *   **Tech Stack**: [Vite](https://vitejs.dev/), [React](https://react.dev/), [TanStack Start](https://tanstack.com/start), [Fumadocs](https://fumadocs.vercel.app/).
-    *   **Key Scripts**: `dev`, `build`, `start`.
-
-*   **`apps/template` (`template`)**:
-    *   **Purpose**: A comprehensive template application, likely serving as a starter for users or the main admin interface.
-    *   **Tech Stack**: [Vite](https://vitejs.dev/), [React](https://react.dev/), [TanStack Start](https://tanstack.com/start), [Tailwind CSS v4](https://tailwindcss.com/), [Shadcn UI](https://ui.shadcn.com/), [Recharts](https://recharts.org/).
-    *   **Key Scripts**: `dev` (port 3000), `build`, `test` (Vitest).
-
-### Packages (`packages/`)
-
-*   **`packages/core` (`@qcms/core`)**:
-    *   **Purpose**: The foundational library containing the core logic, schema definitions, and backend integration for the CMS.
-    *   **Tech Stack**: [Convex](https://www.convex.dev/), [Zod](https://zod.dev/), [use-intl](https://next-intl-docs.vercel.app/).
-    *   **Key Features**: Abstractions for collection definitions (`define-collection.ts`), configuration (`define-config.ts`), and CRUD operations.
-
-## Technology Stack
-
-*   **Languages**: TypeScript (100% usage across the repo).
-*   **Package Manager**: [Bun](https://bun.sh/) (v1.3.0).
-*   **Monorepo Tools**: [Turborepo](https://turbo.build/).
-*   **Frontend Framework**: React 19, Vite, TanStack Start (Router).
-*   **Styling**: Tailwind CSS v4.
-*   **Backend/Database**: Convex.
-*   **Validation**: Zod.
-*   **Linting/Formatting**: Biome, Prettier, ESLint.
-
-## Development Workflow
-
-### Prerequisites
-*   **Bun**: Ensure Bun is installed (`v1.3.0` or compatible).
-*   **Convex**: You may need a Convex account and local setup for backend development.
-
-### Common Commands
-
-Run these commands from the root directory:
-
-*   **Install Dependencies**:
-    ```bash
-    bun install
-    ```
-
-*   **Start Development Server** (starts all apps):
-    ```bash
-    bun run dev
-    # or
-    turbo dev
-    ```
-
-*   **Build Project**:
-    ```bash
-    bun run build
-    # or
-    turbo build
-    ```
-
-*   **Lint & Format**:
-    ```bash
-    bun run lint       # Runs linting via Turbo
-    bun run format     # Runs Prettier
-    bun run check-types # Runs TypeScript type checking
-    ```
-
-### Specific App Development
-
-To work on a specific app (e.g., `docs`), you can use Turbo's filtering or go into the directory:
-
+### Development
 ```bash
-# Using Turbo from root
-turbo dev --filter=@qcms/docs
+# Install dependencies (must use Bun, not npm/yarn/pnpm)
+bun install
 
-# Or navigate to directory
-cd apps/docs
-bun dev
+# Start all apps in dev mode
+bun run dev
+
+# Start specific app (e.g., docs, tanstackstart-admin)
+turbo dev --filter=docs
+turbo dev --filter=tanstackstart-admin
+
+# Run core package in watch mode
+cd packages/core && bun run dev
 ```
 
-## Conventions
+### Type Checking & Linting
+```bash
+# Type check all packages
+bun run check-types
 
-*   **Code Style**: The project enforces strict TypeScript rules. Prettier and Biome are used for formatting.
-*   **File Naming**: All file and directory names must use **kebab-case** (e.g., `my-component.tsx`, `user-profile/`). However, files within the `convex/` folder (e.g., `packages/core/convex/`) must use **camelCase** (e.g., `myFunction.ts`, `dataModel.ts`).
-*   **Component Library**: `apps/template` uses Shadcn UI. When adding new UI components, follow the existing patterns in `apps/template/src/components/ui`.
-*   **Backend Logic**: Core CMS logic belongs in `packages/core`. Do not duplicate business logic in the apps if it can be shared.
+# Type check specific package
+turbo check-types --filter=@questpie/core
+
+# Lint with Biome (uses tabs, double quotes)
+turbo run lint
+
+# Format code
+bun run format
+```
+
+### Building
+```bash
+# Build all packages
+bun run build
+
+# Build specific package
+turbo build --filter=docs
+```
+
+## Architecture
+
+### Monorepo Structure
+
+**Apps:**
+- `apps/docs/` - Documentation site (Fumadocs + TanStack Start)
+- `apps/tanstackstart-admin/` - Admin UI (TanStack Start + TanStack Router)
+
+**Packages:**
+- `packages/core/` - The CMS engine with integrated services
+
+### Core Package Architecture (`packages/core/`)
+
+The core package uses a **client/server/shared split** accessed via subpath exports:
+- `@questpie/core/server` → Server-only code (CMS engine, collections, CRUD)
+- `@questpie/core/client` → Client-only code
+- `@questpie/core/shared` → Shared utilities and types
+
+**Internal structure:**
+```
+packages/core/src/
+├── server/
+│   ├── collection/      # Collection builder, field definitions, CRUD generator
+│   ├── global/          # Global settings (non-collection content)
+│   ├── config/          # CMS class, context types, configuration
+│   ├── elysia/          # Elysia plugin for route handling
+│   ├── integrated/      # "Batteries": auth, storage, queue, email, logger
+│   └── module/          # Module system for extensibility
+├── client/              # Client-side SDK
+├── shared/              # Shared utilities
+└── exports/             # Public API entry points
+```
+
+**Path aliases:** Use `#questpie/core/*` to import from `src/*` within the core package (configured in tsconfig.json).
+
+### Key Architectural Patterns
+
+**1. Collection Builder API**
+Collections use a fluent builder pattern for defining content schemas:
+```typescript
+collection("posts")
+  .fields({ title: fields.text("title") })
+  .title(t => t.title)
+  .hooks({ afterCreate: async ({ data, context }) => {} })
+  .access({ read: ({ user }) => true })
+```
+
+**2. Integrated Services**
+Rather than generic interfaces, specific best-in-class tools are integrated:
+- **Auth:** Better Auth (manages user/session/account tables)
+- **Storage:** Flydrive (S3, R2, Local) with `questpie_assets` collection
+- **Queue:** pg-boss (database-backed job processing)
+- **Email:** Nodemailer + React Email
+- **Logger:** Pino (structured JSON logging)
+- **Database:** Drizzle ORM with Postgres
+
+**3. Request Context (`CmsContext`)**
+Every operation receives a context object with:
+- Current user (from Better Auth)
+- Current locale
+- Service instances (queue, logger, storage, email, db, auth)
+
+**4. CRUD Engine**
+Abstraction over Drizzle ORM handling:
+- Complex queries with filters
+- Relations and eager loading
+- Localization support
+- Access control enforcement
+
+**5. Module System**
+CMS can be extended via modules that can:
+- Register collections
+- Add global settings
+- Define hooks
+- Extend services
+
+## Code Style
+
+- **Formatter:** Biome (tabs for indentation, double quotes for strings)
+- **TypeScript:** Strict mode enabled, ES2022 modules
+- **Imports:** Organize imports automatically via Biome assist
+
+## Important Conventions
+
+### Collections
+- Use builder pattern for type inference
+- Define field types explicitly for database schema
+- Hooks have access to `context` with all services
+- Access control is granular per operation (read, create, update, delete)
+
+### Field Types
+Standard fields available in `fields`:
+- `text()` - varchar(255)
+- `textarea()` - Long text
+- `richText()` - JSON storage
+- `number()` - Integer
+- `checkbox()` - Boolean
+- `timestamp()` - Date/time
+- `image()` - Single image (JSON with key/url)
+- `file()` - Single file (JSON with key/url/mime)
+- `gallery()` - Array of images
+
+### Assets & Storage
+- All uploads create records in `questpie_assets` collection
+- Upload endpoint: `POST /api/storage/upload`
+- Image/file fields store JSON references to assets
+- Multi-driver support (configure default disk and drivers)
+
+### Queue Jobs
+- Publish jobs in hooks: `context.queue.publish('job-name', payload)`
+- Register workers on app startup: `cms.queue.work('job-name', handler)`
+- Uses pg-boss (requires Postgres connection string)
+- In-memory fallback in development
+
+### Authentication
+- Better Auth integration creates managed tables
+- Auth routes: `/api/auth/*`
+- User access via `context.user` in all operations
+
+## Testing
+
+Currently no test suite is configured in the repository. Tests would need to be added using a test framework (e.g., Vitest, as seen in the tanstackstart-admin dependencies).
+
+## Package Manager
+
+**CRITICAL:** This project uses **Bun** as the package manager (defined in package.json: `"packageManager": "bun@1.3.0"`). Do NOT use npm, yarn, or pnpm. All commands must use `bun` or `bunx`.
+
+## Documentation
+
+The `packages/core/docs/` directory contains detailed documentation:
+- `architecture.md` - System overview
+- `collections.md` - Collection definitions
+- `auth.md` - Better Auth integration
+- `storage.md` - File management
+- `queue.md` - Background jobs
+
+The `apps/docs/` app is the user-facing documentation site built with Fumadocs.

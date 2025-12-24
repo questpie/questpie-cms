@@ -1,15 +1,39 @@
-# core
+# QUESTPIE CMS Core
 
-To install dependencies:
+The "Batteries Included" Core for QUESTPIE CMS.
 
-```bash
-bun install
+## Documentation
+
+*   **[Architecture](./docs/architecture.md)**: High-level overview of the system.
+*   **[Collections](./docs/collections.md)**: Defining content models.
+*   **[Authentication](./docs/auth.md)**: Better Auth integration.
+*   **[Storage & Assets](./docs/storage.md)**: File management.
+*   **[Queue System](./docs/queue.md)**: Background jobs.
+
+## Quick Start
+
+```typescript
+import { CMS, collection, fields } from "@questpie/core";
+
+// 1. Define Content
+const posts = collection("posts")
+  .fields({
+    title: fields.text("title"),
+    image: fields.image("cover"),
+  });
+
+// 2. Initialize CMS
+const cms = new CMS({
+  collections: [posts],
+  db: dbInstance,
+  auth: { /* ... */ },
+  storage: { /* ... */ },
+  queue: { /* ... */ },
+  email: { /* ... */ },
+});
+
+// 3. Connect to Elysia
+const app = new Elysia()
+  .use(qcms(cms.config))
+  .listen(3000);
 ```
-
-To run:
-
-```bash
-bun run index.ts
-```
-
-This project was created using `bun init` in bun v1.3.0. [Bun](https://bun.com) is a fast all-in-one JavaScript runtime.
