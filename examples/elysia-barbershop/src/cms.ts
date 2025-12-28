@@ -88,6 +88,7 @@ export const appointments = defineCollection("appointments")
 		cancellationReason: text("cancellation_reason"),
 	})
 	.title((t) => sql`Appointment at  ${t.scheduledAt}`)
+	// TODO: Support relation definitions that accept table/column refs (not just strings).
 	.relations(({ one, table }) => ({
 		// Note: customerId references Better Auth's users table
 		customer: one("questpie_users", {

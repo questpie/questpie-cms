@@ -198,12 +198,83 @@ export type NestedRelationMutation<TInsert = any> = {
 		| NestedRelationConnectOrCreate<TInsert>[]; // Create if doesn't exist
 };
 
+type RelationKeys<TRelations> = TRelations extends Record<string, any>
+	? keyof TRelations & string
+	: string;
+
+type RelationMutations<TRelations> = TRelations extends Record<string, any>
+	? { [K in keyof TRelations]?: NestedRelationMutation<any> }
+	: Record<string, NestedRelationMutation<any> | undefined>;
+
+type RelationIdKey<TInsert, K extends string> = Extract<
+	Extract<keyof TInsert, string>,
+	`${K}Id`
+>;
+
+type RelationForeignKeys<TInsert, TRelations> = RelationKeys<TRelations> extends
+	infer K
+	? K extends string
+		? RelationIdKey<TInsert, K>
+		: never
+	: never;
+
+type OptionalizeKeys<T, K extends keyof T> = Omit<T, K> & Partial<Pick<T, K>>;
+
+type OptionalizeRelationForeignKeys<TInsert, TRelations> =
+	RelationForeignKeys<TInsert, TRelations> extends keyof TInsert
+		? OptionalizeKeys<TInsert, RelationForeignKeys<TInsert, TRelations>>
+		: TInsert;
+
+type UnionToIntersection<U> = (
+	U extends any ? (value: U) => void : never
+) extends (value: infer I) => void
+	? I
+	: never;
+
+type RequireRelationForMissingFk<
+	TInsert,
+	TRelations,
+	TInput,
+> = RelationKeys<TRelations> extends infer K
+	? K extends string
+		? RelationIdKey<TInsert, K> extends never
+			? {}
+			: RelationIdKey<TInsert, K> extends keyof TInput
+				? {}
+				: Required<Pick<RelationMutations<TRelations>, K>>
+		: {}
+	: {};
+
+type EnforceRelationForMissingFk<
+	TInsert,
+	TRelations,
+	TInput,
+> = RelationKeys<TRelations> extends never
+	? {}
+	: UnionToIntersection<
+			RequireRelationForMissingFk<TInsert, TRelations, TInput>
+		>;
+
 /**
  * Create input with optional nested relations
  */
-export type CreateInput<TInsert = any, TRelations = any> = TInsert & {
-	[K in keyof TRelations]?: NestedRelationMutation<any>;
-};
+export type CreateInputBase<TInsert = any, TRelations = any> =
+	OptionalizeRelationForeignKeys<TInsert, TRelations> &
+		RelationMutations<TRelations>;
+
+export type CreateInputWithRelations<
+	TInsert = any,
+	TRelations = any,
+	TInput extends CreateInputBase<TInsert, TRelations> = CreateInputBase<
+		TInsert,
+		TRelations
+	>,
+> = TInput & EnforceRelationForMissingFk<TInsert, TRelations, TInput>;
+
+export type CreateInput<TInsert = any, TRelations = any> = CreateInputBase<
+	TInsert,
+	TRelations
+>;
 
 /**
  * Update single record params
@@ -387,7 +458,10 @@ export interface CRUD<
 	/**
 	 * Create a new record
 	 */
-	create(input: CreateInput<TInsert>, context?: CRUDContext): Promise<TSelect>;
+	create<TInput extends CreateInputBase<TInsert, TRelations>>(
+		input: CreateInputWithRelations<TInsert, TRelations, TInput>,
+		context?: CRUDContext,
+	): Promise<TSelect>;
 
 	/**
 	 * Update a single record by ID

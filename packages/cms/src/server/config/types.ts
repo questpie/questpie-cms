@@ -11,6 +11,13 @@ import type {
 	LocalizedFields,
 	NonLocalizedFields,
 } from "#questpie/cms/server/collection/builder/types";
+import type { assetsCollection } from "#questpie/cms/server/collection/defaults/assets";
+import type {
+	accountsCollection,
+	sessionsCollection,
+	usersCollection,
+	verificationsCollection,
+} from "#questpie/cms/server/collection/defaults/auth";
 import type { drizzle } from "drizzle-orm/bun-sql";
 import type { SQL } from "bun";
 import type { BetterAuthOptions } from "better-auth";
@@ -30,10 +37,26 @@ export type AnyGlobal = Global<AnyGlobalState>;
 export type AnyGlobalBuilder = GlobalBuilder<AnyGlobalState>;
 export type AnyGlobalOrBuilder = AnyGlobal | AnyGlobalBuilder;
 
+export type CoreCollections = [
+	typeof assetsCollection,
+	typeof usersCollection,
+	typeof sessionsCollection,
+	typeof accountsCollection,
+	typeof verificationsCollection,
+];
+
+export type WithCoreCollections<TCollections extends AnyCollectionOrBuilder[]> =
+	[...CoreCollections, ...TCollections];
+
+type ResolvedCollections<TCollections extends AnyCollectionOrBuilder[]> =
+	WithCoreCollections<TCollections>;
+
 export type DrizzleSchemaFromCollections<
 	TCollections extends AnyCollectionOrBuilder[],
 > = {
-	[K in TCollections[number] as K extends Collection<infer TState>
+	[K in ResolvedCollections<TCollections>[number] as K extends Collection<
+		infer TState
+	>
 		? TState["name"]
 		: K extends CollectionBuilder<infer TState>
 			? TState["name"]
@@ -44,7 +67,7 @@ export type DrizzleSchemaFromCollections<
 				TState["title"],
 				TState["options"]
 			>
-		: K extends CollectionBuilder<infer TState>
+	: K extends CollectionBuilder<infer TState>
 			? InferTableWithColumns<
 					TState["name"],
 					NonLocalizedFields<TState["fields"], TState["localized"]>,
@@ -53,7 +76,9 @@ export type DrizzleSchemaFromCollections<
 				>
 			: never;
 } & {
-	[K in TCollections[number] as K extends Collection<infer TState>
+	[K in ResolvedCollections<TCollections>[number] as K extends Collection<
+		infer TState
+	>
 		? TState["localized"][number] extends string
 			? `${TState["name"]}_i18n`
 			: never
@@ -83,14 +108,16 @@ export type DrizzleSchemaFromCollections<
 };
 
 export type CollectionNames<TCollections extends AnyCollectionOrBuilder[]> =
-	TCollections[number] extends { name: infer Name }
+	ResolvedCollections<TCollections>[number] extends { name: infer Name }
 		? Name extends string
 			? Name
 			: never
 		: never;
 
 export type CollectionMap<TCollections extends AnyCollectionOrBuilder[]> = {
-	[K in TCollections[number] as K extends Collection<infer TState>
+	[K in ResolvedCollections<TCollections>[number] as K extends Collection<
+		infer TState
+	>
 		? TState["name"]
 		: K extends CollectionBuilder<infer TState>
 			? TState["name"]

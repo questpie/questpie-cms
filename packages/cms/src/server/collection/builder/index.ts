@@ -29,6 +29,8 @@ export type {
 	FindManyOptions,
 	FindFirstOptions,
 	CreateInput,
+	CreateInputBase,
+	CreateInputWithRelations,
 	UpdateParams,
 	DeleteParams,
 	Where,

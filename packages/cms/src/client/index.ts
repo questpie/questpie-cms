@@ -6,6 +6,7 @@ import type {
 	Collection,
 	CollectionBuilder,
 } from "../server/collection/builder/collection.js";
+import type { WithCoreCollections } from "../server/config/types.js";
 import type {
 	AnyCollectionState,
 	RelationConfig,
@@ -15,7 +16,8 @@ import type {
 	FindFirstOptions,
 	PaginatedResult,
 	ApplyQuery,
-	CreateInput,
+	CreateInputBase,
+	CreateInputWithRelations,
 	UpdateParams,
 	DeleteParams,
 } from "../server/collection/crud/types.js";
@@ -49,34 +51,33 @@ export type QCMSClientConfig = {
 	headers?: Record<string, string>;
 };
 
+type ResolvedCollections<T> = T extends QCMS<infer TCollections, any, any>
+	? WithCoreCollections<TCollections>
+	: never;
+
 /**
  * Extract collection names from QCMS type
  */
-type CollectionNames<T> = T extends QCMS<infer TCollections, any, any>
-	? TCollections[number] extends
-			| Collection<infer TState>
-			| CollectionBuilder<infer TState>
-		? TState extends AnyCollectionState
-			? TState["name"]
-			: never
+type CollectionNames<T> = ResolvedCollections<T>[number] extends
+	| Collection<infer TState>
+	| CollectionBuilder<infer TState>
+	? TState extends AnyCollectionState
+		? TState["name"]
 		: never
 	: never;
 
 /**
  * Extract collection state by name
  */
-type GetCollectionState<T, Name extends string> = T extends QCMS<
-	infer TCollections,
-	any,
-	any
->
-	? Extract<TCollections[number], { name: Name }> extends infer C
-		? C extends Collection<infer TState>
+type GetCollectionState<T, Name extends string> = Extract<
+	ResolvedCollections<T>[number],
+	{ name: Name }
+> extends infer C
+	? C extends Collection<infer TState>
+		? TState
+		: C extends CollectionBuilder<infer TState>
 			? TState
-			: C extends CollectionBuilder<infer TState>
-				? TState
-				: never
-		: never
+			: never
 	: never;
 
 // Helper type to extract collection from builder or collection
@@ -162,10 +163,16 @@ type CollectionAPI<
 	/**
 	 * Create a new record
 	 */
-	create: (
-		data: CreateInput<
+	create: <
+		TInput extends CreateInputBase<
 			CollectionInsert<TState>,
 			ResolveRelations<TState["relations"], TCollections>
+		>,
+	>(
+		data: CreateInputWithRelations<
+			CollectionInsert<TState>,
+			ResolveRelations<TState["relations"], TCollections>,
+			TInput
 		>,
 	) => Promise<CollectionSelect<TState>>;
 
@@ -186,11 +193,14 @@ type CollectionAPI<
 /**
  * Collections API proxy with type-safe collection methods
  */
-type CollectionsAPI<T> = T extends QCMS<infer TCollections, any, any>
+type CollectionsAPI<T> = T extends QCMS<any, any, any>
 	? {
 			[K in CollectionNames<T>]: GetCollectionState<T, K> extends never
 				? never
-				: CollectionAPI<GetCollectionState<T, K>, TCollections>;
+				: CollectionAPI<
+						GetCollectionState<T, K>,
+						ResolvedCollections<T>
+					>;
 		}
 	: never;
 

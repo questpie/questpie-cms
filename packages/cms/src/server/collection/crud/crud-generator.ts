@@ -1011,6 +1011,113 @@ export class CRUDGenerator<
 		return { regularFields, nestedRelations };
 	}
 
+	private async applyBelongsToRelations(
+		regularFields: Record<string, any>,
+		nestedRelations: Record<string, any>,
+		context: CRUDContext,
+		tx: any,
+	): Promise<{
+		regularFields: Record<string, any>;
+		nestedRelations: Record<string, any>;
+	}> {
+		if (!this.cms || !this.state.relations) {
+			return { regularFields, nestedRelations };
+		}
+
+		const updatedFields = { ...regularFields };
+		const remainingRelations = { ...nestedRelations };
+
+		for (const [relationName, operations] of Object.entries(nestedRelations)) {
+			const relation = this.state.relations[relationName];
+			if (!relation || relation.type !== "one" || !relation.fields?.length) {
+				continue;
+			}
+
+			const actionKeys = ["connect", "create", "connectOrCreate"].filter(
+				(key) => operations?.[key] !== undefined,
+			);
+
+			if (actionKeys.length === 0) {
+				delete remainingRelations[relationName];
+				continue;
+			}
+
+			if (actionKeys.length > 1) {
+				throw new Error(
+					`Nested relation "${relationName}" supports only one operation at a time.`,
+				);
+			}
+
+			const fieldKeys = relation.fields
+				.map(
+					(field) =>
+						this.resolveFieldKey(this.state, field, this.table) ??
+						field?.name,
+				)
+				.filter(Boolean) as string[];
+
+			if (fieldKeys.length !== 1) {
+				throw new Error(
+					`Nested relation "${relationName}" requires exactly one foreign key field.`,
+				);
+			}
+
+			const foreignKeyField = fieldKeys[0];
+			const referenceKey = relation.references?.[0] || "id";
+			const relatedCrud = this.cms.api.collections[relation.collection];
+
+			if (operations.connect) {
+				if (Array.isArray(operations.connect)) {
+					if (operations.connect.length !== 1) {
+						throw new Error(
+							`Nested relation "${relationName}" supports a single connect target.`,
+						);
+					}
+					updatedFields[foreignKeyField] = operations.connect[0].id;
+				} else {
+					updatedFields[foreignKeyField] = operations.connect.id;
+				}
+			} else if (operations.create) {
+				if (Array.isArray(operations.create)) {
+					throw new Error(
+						`Nested relation "${relationName}" supports a single create payload.`,
+					);
+				}
+				const created = await relatedCrud.create(operations.create, {
+					...context,
+					db: tx,
+				});
+				updatedFields[foreignKeyField] =
+					created?.[referenceKey] ?? created?.id;
+			} else if (operations.connectOrCreate) {
+				if (Array.isArray(operations.connectOrCreate)) {
+					throw new Error(
+						`Nested relation "${relationName}" supports a single connectOrCreate payload.`,
+					);
+				}
+
+				const existing = await relatedCrud.findOne(
+					{ where: operations.connectOrCreate.where },
+					{ ...context, db: tx },
+				);
+
+				const target = existing
+					? existing
+					: await relatedCrud.create(operations.connectOrCreate.create, {
+							...context,
+							db: tx,
+						});
+
+				updatedFields[foreignKeyField] =
+					target?.[referenceKey] ?? target?.id;
+			}
+
+			delete remainingRelations[relationName];
+		}
+
+		return { regularFields: updatedFields, nestedRelations: remainingRelations };
+	}
+
 	/**
 	 * Process nested relation operations (create, connect, connectOrCreate)
 	 */
@@ -1245,8 +1352,16 @@ export class CRUDGenerator<
 			// Execute in transaction
 			return db.transaction(async (tx: any) => {
 				// Separate nested relation operations from regular fields
-				const { regularFields, nestedRelations } =
+				let { regularFields, nestedRelations } =
 					this.separateNestedRelations(input);
+
+				({ regularFields, nestedRelations } =
+					await this.applyBelongsToRelations(
+						regularFields,
+						nestedRelations,
+						context,
+						tx,
+					));
 
 				// Split localized vs non-localized fields
 				const { localized, nonLocalized } =

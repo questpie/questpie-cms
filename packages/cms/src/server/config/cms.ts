@@ -14,6 +14,7 @@ import {
 	type CollectionNames,
 	createQueueClient,
 	type DrizzleClientFromCMSConfig,
+	type GetCollection,
 	type Global,
 	GlobalBuilder,
 	type GlobalNames,
@@ -43,16 +44,6 @@ import {
 } from "#questpie/cms/server/integrated/search";
 import { createDiskDriver } from "#questpie/cms/server/integrated/storage/create-driver";
 import { assetsCollection } from "../collection/defaults/assets";
-
-// Helper type to extract collection from builder or collection
-type ExtractCollection<T> =
-	T extends CollectionBuilder<infer TState> ? Collection<TState> : T;
-
-// Helper type to find a collection by name in the tuple
-type GetCollection<
-	T extends AnyCollectionOrBuilder[],
-	Name extends string,
-> = ExtractCollection<Extract<T[number], { name: Name }>>;
 
 // Helper type to extract global from builder or global
 type ExtractGlobal<T> =

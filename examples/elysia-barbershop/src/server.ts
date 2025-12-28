@@ -184,8 +184,10 @@ const app = new Elysia()
 				const appointment = await cms.api.collections.appointments.create(
 					{
 						customerId: user.id,
-						barberId: body.barberId,
 						serviceId: body.serviceId,
+						barber: {
+							connect: [{ id: body.barberId }],
+						},
 						scheduledAt,
 						status: "pending",
 						notes: body.notes,
