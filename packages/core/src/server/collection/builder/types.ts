@@ -6,6 +6,7 @@ import type {
 } from "drizzle-orm/pg-core";
 import type { BuildColumns, GetColumnData, SQL } from "drizzle-orm";
 import type { Collection } from "#questpie/core/server/collection/builder/collection";
+import type { SearchableConfig } from "#questpie/core/server/integrated/search";
 
 /**
  * Versioning configuration
@@ -84,40 +85,95 @@ export type CollectionBuilderRelationFn<
  * Helper types for relation definition callback
  */
 export interface RelationVariant {
-	one: (
-		collection: string,
+	one: <C extends string>(
+		collection: C,
 		config: { fields: PgColumn[]; references: string[]; relationName?: string },
-	) => RelationConfig;
-	many: (
-		collection: string,
-		config?: { relationName?: string },
-	) => RelationConfig;
-	manyToMany: (
-		collection: string,
+	) => RelationConfig & { type: "one"; collection: C };
+	many: <C extends string>(
+		collection: C,
+		config?: {
+			relationName?: string;
+			onDelete?: "cascade" | "set null" | "restrict" | "no action";
+			onUpdate?: "cascade" | "set null" | "restrict" | "no action";
+		},
+	) => RelationConfig & { type: "many"; collection: C };
+	manyToMany: <C extends string>(
+		collection: C,
 		config: {
 			through: string; // Junction table collection name
 			sourceKey?: string; // Default: "id"
 			sourceField: string; // FK in junction pointing to source
 			targetKey?: string; // Default: "id"
 			targetField: string; // FK in junction pointing to target
+			onDelete?: "cascade" | "set null" | "restrict" | "no action";
+			onUpdate?: "cascade" | "set null" | "restrict" | "no action";
 		},
-	) => RelationConfig;
+	) => RelationConfig & { type: "manyToMany"; collection: C };
 	polymorphic: (config: {
 		typeField: PgColumn; // Column storing the collection name
 		idField: PgColumn; // Column storing the ID
 		collections: Record<string, string>; // Map of type values to collection names (e.g., { posts: "posts", products: "products" })
-	}) => RelationConfig;
+	}) => RelationConfig & { type: "polymorphic" };
 }
 
 /**
- * Context for hooks and access control
+ * Context for hooks - receives full CMS access
+ * @template TData - The record data type (created/updated/deleted)
+ * @template TCMS - The CMS type for full type safety
  */
-export interface HookContext<TRow = any> {
-	db: any;
-	row?: TRow;
-	input?: any;
+export interface HookContext<TData = any, TCMS = any> {
+	/**
+	 * The record data (created/updated record)
+	 */
+	data: TData;
+
+	/**
+	 * Original record (for update/delete operations)
+	 */
+	original?: TData;
+
+	/**
+	 * Current authenticated user (from request context)
+	 */
+	user?: any;
+
+	/**
+	 * Current locale
+	 */
 	locale?: string;
-	user?: any; // Current authenticated user
+
+	/**
+	 * Access mode (system or user)
+	 */
+	accessMode?: "user" | "system";
+
+	/**
+	 * Operation type
+	 */
+	operation: "create" | "update" | "delete" | "read";
+
+	/**
+	 * Full CMS instance - type-safe access to all services and collections
+	 * Example: cms.queue.publish(...), cms.email.send(...), cms.logger.info(...)
+	 */
+	cms: TCMS;
+
+	/**
+	 * Database client (for advanced use cases)
+	 */
+	db?: any;
+
+	/**
+	 * Legacy input field (deprecated, use data instead)
+	 * @deprecated Use data instead
+	 */
+	input?: any;
+
+	/**
+	 * Legacy row field (deprecated, use data instead)
+	 * @deprecated Use data instead
+	 */
+	row?: TData;
 }
 
 /**
@@ -128,31 +184,36 @@ export interface AccessContext<TRow = any> {
 	row?: TRow;
 	input?: any;
 	db: any;
+	context?: any;
 }
 
 /**
  * Hook function type
+ * @template TData - The record data type
+ * @template TCMS - The CMS type for full type safety
  */
-export type HookFunction<TRow = any> = (
-	ctx: HookContext<TRow>,
+export type HookFunction<TData = any, TCMS = any> = (
+	ctx: HookContext<TData, TCMS>,
 ) => Promise<void> | void;
 
 /**
  * Collection lifecycle hooks
  * Each hook type can have multiple functions (executed in order)
+ * @template TRow - The record type
+ * @template TCMS - The CMS type for full type safety in hooks
  */
-export interface CollectionHooks<TRow = any> {
-	beforeCreate?: HookFunction[] | HookFunction;
-	afterCreate?: HookFunction<TRow>[] | HookFunction<TRow>;
-	beforeUpdate?: HookFunction<TRow>[] | HookFunction<TRow>;
-	afterUpdate?: HookFunction<TRow>[] | HookFunction<TRow>;
-	beforeDelete?: HookFunction<TRow>[] | HookFunction<TRow>;
-	afterDelete?: HookFunction<TRow>[] | HookFunction<TRow>;
-	beforeRead?: HookFunction[] | HookFunction;
-	afterRead?: HookFunction<TRow>[] | HookFunction<TRow>;
+export interface CollectionHooks<TRow = any, TCMS = any> {
+	beforeCreate?: HookFunction<TRow, TCMS>[] | HookFunction<TRow, TCMS>;
+	afterCreate?: HookFunction<TRow, TCMS>[] | HookFunction<TRow, TCMS>;
+	beforeUpdate?: HookFunction<TRow, TCMS>[] | HookFunction<TRow, TCMS>;
+	afterUpdate?: HookFunction<TRow, TCMS>[] | HookFunction<TRow, TCMS>;
+	beforeDelete?: HookFunction<TRow, TCMS>[] | HookFunction<TRow, TCMS>;
+	afterDelete?: HookFunction<TRow, TCMS>[] | HookFunction<TRow, TCMS>;
+	beforeRead?: HookFunction<TRow, TCMS>[] | HookFunction<TRow, TCMS>;
+	afterRead?: HookFunction<TRow, TCMS>[] | HookFunction<TRow, TCMS>;
 	// Shorthand: runs on both create AND update
-	beforeChange?: HookFunction<TRow>[] | HookFunction<TRow>;
-	afterChange?: HookFunction<TRow>[] | HookFunction<TRow>;
+	beforeChange?: HookFunction<TRow, TCMS>[] | HookFunction<TRow, TCMS>;
+	afterChange?: HookFunction<TRow, TCMS>[] | HookFunction<TRow, TCMS>;
 }
 
 /**
@@ -227,6 +288,9 @@ export type CollectionBuilderState<
 	TOptions extends CollectionOptions = CollectionOptions,
 	THooks extends CollectionHooks = CollectionHooks,
 	TAccess extends CollectionAccess = CollectionAccess,
+	TSearchable extends SearchableConfig | undefined =
+		| SearchableConfig
+		| undefined,
 > = {
 	name: TName;
 	fields: TFields;
@@ -238,6 +302,7 @@ export type CollectionBuilderState<
 	options: TOptions;
 	hooks: THooks;
 	access: TAccess;
+	searchable: TSearchable;
 };
 
 /**
@@ -276,13 +341,15 @@ export type EmptyCollectionState<TName extends string> = CollectionBuilderState<
 	undefined,
 	{},
 	{},
-	{}
+	{},
+	undefined
 >;
 
 /**
  * Any collection builder state (for type constraints)
  */
 export type AnyCollectionState = CollectionBuilderState<
+	any,
 	any,
 	any,
 	any,
@@ -346,7 +413,7 @@ export type BuildColumnType<T> =
 export type InferColumnsFromFields<
 	TFields extends Record<string, any>,
 	TOptions extends CollectionOptions,
-	TTitle extends SQL | undefined,
+	_TTitle extends SQL | undefined,
 > = ReturnType<typeof Collection.pkCols> & {
 	[K in keyof TFields]: BuildColumnType<TFields[K]>;
 } & (TOptions["timestamps"] extends false
@@ -354,8 +421,7 @@ export type InferColumnsFromFields<
 		: ReturnType<typeof Collection.timestampsCols>) &
 	(TOptions["softDelete"] extends true
 		? ReturnType<typeof Collection.softDeleteCols>
-		: {}) &
-	(TTitle extends SQL ? ReturnType<typeof Collection._titleCols> : {});
+		: {});
 
 /**
  * Infer table type from fields (excluding localized fields)

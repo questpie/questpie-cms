@@ -1,6 +1,6 @@
 import { collection } from "../builder/collection-builder";
-import { fields } from "../fields";
 import { sql } from "drizzle-orm";
+import { varchar, text, integer } from "drizzle-orm/pg-core";
 
 export const assetsCollection = collection("questpie_assets")
 	.options({
@@ -8,26 +8,26 @@ export const assetsCollection = collection("questpie_assets")
 	})
 	.fields({
 		// Storage Key (e.g. "uuid-image.png")
-		key: fields.text("key").notNull(),
+		key: varchar("key", { length: 255 }).notNull(),
 
 		// Public URL
-		url: fields.text("url").notNull(),
+		url: text("url").notNull(),
 
 		// Original Filename
-		filename: fields.text("filename").notNull(),
+		filename: varchar("filename", { length: 255 }).notNull(),
 
 		// MIME Type
-		mimeType: fields.text("mime_type").notNull(),
+		mimeType: varchar("mime_type", { length: 100 }).notNull(),
 
 		// Size in bytes
-		size: fields.number("size").notNull(),
+		size: integer("size").notNull(),
 
 		// Image dimensions (optional)
-		width: fields.number("width"),
-		height: fields.number("height"),
+		width: integer("width"),
+		height: integer("height"),
 
 		// Descriptive metadata
-		alt: fields.text("alt"),
-		caption: fields.textarea("caption"),
+		alt: varchar("alt", { length: 500 }),
+		caption: text("caption"),
 	})
 	.title((t) => sql`${t.filename}`);

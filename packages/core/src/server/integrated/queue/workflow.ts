@@ -1,5 +1,5 @@
 import type { JobDefinition } from "./types";
-import type { CmsContext } from "#questpie/core/server/config/context";
+import type { RequestContext } from "#questpie/core/server/config/context";
 import type { z } from "zod";
 
 /**
@@ -7,7 +7,7 @@ import type { z } from "zod";
  */
 export interface WorkflowStep<TInput = any, TOutput = any> {
 	name: string;
-	execute: (input: TInput, context: CmsContext) => Promise<TOutput>;
+	execute: (input: TInput, context: RequestContext) => Promise<TOutput>;
 }
 
 /**
@@ -46,7 +46,7 @@ export class WorkflowBuilder<TInput, TCurrentOutput = TInput> {
 		name: string,
 		execute: (
 			input: TCurrentOutput,
-			context: CmsContext,
+			context: RequestContext,
 		) => Promise<TStepOutput>,
 	): WorkflowBuilder<TInput, TStepOutput> {
 		this.steps.push({ name, execute });
@@ -60,7 +60,7 @@ export class WorkflowBuilder<TInput, TCurrentOutput = TInput> {
 		return {
 			name: this.workflowName,
 			schema,
-			handler: async (payload: TInput, context: CmsContext) => {
+			handler: async (payload: TInput, context: RequestContext) => {
 				let currentOutput: any = payload;
 
 				for (const step of this.steps) {

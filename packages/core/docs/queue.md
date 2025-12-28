@@ -77,10 +77,10 @@ const cms = new QCMS({
 })
 
 // Start listening to all jobs
-await cms._listenToJobs()
+await cms.listenToJobs()
 
 // Or listen to specific jobs
-await cms._listenToJobs(['send-welcome-email'])
+await cms.listenToJobs(['send-welcome-email'])
 ```
 
 Jobs are automatically validated and executed with full CMS context.

@@ -1,4 +1,9 @@
-import { Collection } from "#questpie/core/server/collection/builder/collection";
+import {
+	Collection,
+	type CollectionSelect,
+	type CollectionInsert,
+	type CollectionUpdate,
+} from "#questpie/core/server/collection/builder/collection";
 import type {
 	CollectionAccess,
 	CollectionBuilderState,
@@ -12,8 +17,10 @@ import type {
 	EmptyCollectionState,
 	CollectionBuilderRelationFn,
 } from "#questpie/core/server/collection/builder/types";
+import type { CRUD } from "#questpie/core/server/collection/crud/types";
 import type { BuildExtraConfigColumns, SQL } from "drizzle-orm";
 import type { PgTableExtraConfigValue } from "drizzle-orm/pg-core";
+import type { SearchableConfig } from "#questpie/core/server/integrated/search";
 
 /**
  * Main collection builder class
@@ -55,7 +62,8 @@ export class CollectionBuilder<TState extends CollectionBuilderState> {
 			TState["title"],
 			TState["options"],
 			TState["hooks"],
-			TState["access"]
+			TState["access"],
+			TState["searchable"]
 		>
 	> {
 		const newState = {
@@ -92,7 +100,8 @@ export class CollectionBuilder<TState extends CollectionBuilderState> {
 			TState["title"],
 			TState["options"],
 			TState["hooks"],
-			TState["access"]
+			TState["access"],
+			TState["searchable"]
 		>
 	> {
 		const newState = {
@@ -137,7 +146,8 @@ export class CollectionBuilder<TState extends CollectionBuilderState> {
 			TState["title"],
 			TState["options"],
 			TState["hooks"],
-			TState["access"]
+			TState["access"],
+			TState["searchable"]
 		>
 	> {
 		const newState = {
@@ -172,7 +182,8 @@ export class CollectionBuilder<TState extends CollectionBuilderState> {
 			TState["title"],
 			TState["options"],
 			TState["hooks"],
-			TState["access"]
+			TState["access"],
+			TState["searchable"]
 		>
 	> {
 		const newState = {
@@ -218,7 +229,8 @@ export class CollectionBuilder<TState extends CollectionBuilderState> {
 			TState["title"],
 			TState["options"],
 			TState["hooks"],
-			TState["access"]
+			TState["access"],
+			TState["searchable"]
 		>
 	> {
 		const newState = {
@@ -263,7 +275,8 @@ export class CollectionBuilder<TState extends CollectionBuilderState> {
 			TNewTitle,
 			TState["options"],
 			TState["hooks"],
-			TState["access"]
+			TState["access"],
+			TState["searchable"]
 		>
 	> {
 		const newState = {
@@ -298,7 +311,8 @@ export class CollectionBuilder<TState extends CollectionBuilderState> {
 			TState["title"],
 			TNewOptions,
 			TState["hooks"],
-			TState["access"]
+			TState["access"],
+			TState["searchable"]
 		>
 	> {
 		const newState = {
@@ -333,7 +347,8 @@ export class CollectionBuilder<TState extends CollectionBuilderState> {
 			TState["title"],
 			TState["options"],
 			TNewHooks,
-			TState["access"]
+			TState["access"],
+			TState["searchable"]
 		>
 	> {
 		const newState = {
@@ -368,12 +383,57 @@ export class CollectionBuilder<TState extends CollectionBuilderState> {
 			TState["title"],
 			TState["options"],
 			TState["hooks"],
-			TNewAccess
+			TNewAccess,
+			TState["searchable"]
 		>
 	> {
 		const newState = {
 			...this.state,
 			access,
+		} as any;
+
+		const newBuilder = new CollectionBuilder(newState);
+
+		// Copy callback functions
+		newBuilder._virtualsFn = this._virtualsFn;
+		newBuilder._relationsFn = this._relationsFn;
+		newBuilder._indexesFn = this._indexesFn;
+		newBuilder._titleFn = this._titleFn;
+
+		return newBuilder;
+	}
+
+	/**
+	 * Configure search indexing for this collection
+	 * Enables full-text search with BM25 ranking, trigrams, and optional embeddings
+	 *
+	 * @example
+	 * .searchable({
+	 *   content: (record) => extractTextFromJson(record.content),
+	 *   metadata: (record) => ({ status: record.status }),
+	 *   embeddings: async (record, ctx) => await ctx.cms.embeddings.generate(text)
+	 * })
+	 */
+	searchable<TNewSearchable extends SearchableConfig>(
+		searchable: TNewSearchable,
+	): CollectionBuilder<
+		CollectionBuilderState<
+			TState["name"],
+			TState["fields"],
+			TState["localized"],
+			TState["virtuals"],
+			TState["relations"],
+			TState["indexes"],
+			TState["title"],
+			TState["options"],
+			TState["hooks"],
+			TState["access"],
+			TNewSearchable
+		>
+	> {
+		const newState = {
+			...this.state,
+			searchable,
 		} as any;
 
 		const newBuilder = new CollectionBuilder(newState);
@@ -580,5 +640,6 @@ export function collection<TName extends string>(
 		options: {},
 		hooks: {},
 		access: {},
+		searchable: undefined,
 	});
 }

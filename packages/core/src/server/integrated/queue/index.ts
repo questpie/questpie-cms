@@ -8,7 +8,7 @@
  *
  * - **Typesafe Jobs**: Define jobs with Zod schemas for compile-time type safety
  * - **Auto-validation**: Payloads are validated automatically using Zod schemas
- * - **Worker Support**: Easy worker setup with `cms._listenToJobs()`
+ * - **Worker Support**: Easy worker setup with `cms.listenToJobs()`
  * - **Workflows**: Chain multiple jobs together with the workflow builder
  * - **Scheduling**: Support for delayed jobs and cron scheduling
  * - **Retries**: Built-in retry logic with exponential backoff
@@ -123,10 +123,10 @@
  * });
  *
  * // Start listening to all jobs
- * await cms._listenToJobs();
+ * await cms.listenToJobs();
  *
  * // Or listen to specific jobs only
- * await cms._listenToJobs(['send-email'], { teamSize: 20 });
+ * await cms.listenToJobs(['send-email'], { teamSize: 20 });
  * ```
  *
  * ## Workflows

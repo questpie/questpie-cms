@@ -1,5 +1,5 @@
 import type { z } from "zod";
-import type { CmsContext } from "#questpie/core/server/config/context";
+import type { RequestContext } from "#questpie/core/server/config/context";
 import type { QueueAdapter } from "./adapter";
 
 /**
@@ -19,7 +19,7 @@ export interface JobDefinition<TPayload = any, TResult = void> {
 	/**
 	 * Job handler function
 	 */
-	handler: (payload: TPayload, context: CmsContext) => Promise<TResult>;
+	handler: (payload: TPayload, context: RequestContext) => Promise<TResult>;
 
 	/**
 	 * Optional job options (adapter agnostic where possible)

@@ -1,42 +1,48 @@
 import { SQL } from "bun";
 import { drizzle } from "drizzle-orm/bun-sql";
 import type { PgTable } from "drizzle-orm/pg-core";
+import { Disk } from "flydrive";
 import {
+	type AccessMode,
 	type AnyCollectionOrBuilder,
 	type AnyGlobal,
 	type AnyGlobalBuilder,
 	type AnyGlobalOrBuilder,
 	type CMSConfig,
-	type CmsContext,
 	type Collection,
 	CollectionBuilder,
-	type JobDefinition,
 	type CollectionNames,
-	type CRUD,
+	createQueueClient,
 	type DrizzleClientFromCMSConfig,
 	type Global,
 	GlobalBuilder,
 	type GlobalNames,
+	type JobDefinition,
 	type Locale,
-	createQueueClient,
 	type QueueClient,
 	startJobWorkerForJobs,
 	type WorkerOptions,
 } from "#questpie/core/exports/server";
 import type { AnyCollectionState } from "#questpie/core/server/collection/builder/types";
-import { assetsCollection } from "../collection/defaults/assets";
-import { AuthService } from "#questpie/core/server/integrated/auth";
 import {
 	accountsCollection,
 	sessionsCollection,
 	usersCollection,
 	verificationsCollection,
 } from "#questpie/core/server/collection/defaults/auth";
+import type { RequestContext } from "#questpie/core/server/config/context";
+import { QCMSCrudAPI } from "#questpie/core/server/config/integrated/crud-api.js";
+import { QCMSMigrationsAPI } from "#questpie/core/server/config/integrated/migrations-api.js";
+import { AuthService } from "#questpie/core/server/integrated/auth";
 import { KVService } from "#questpie/core/server/integrated/kv";
 import { LoggerService } from "#questpie/core/server/integrated/logger";
 import { MailerService } from "#questpie/core/server/integrated/mailer";
-import { Disk } from "flydrive";
+import {
+	createSearchService,
+	type SearchService,
+} from "#questpie/core/server/integrated/search";
 import { createDiskDriver } from "#questpie/core/server/integrated/storage/create-driver";
+import { assetsCollection } from "../collection/defaults/assets";
 
 // Helper type to extract collection from builder or collection
 type ExtractCollection<T> =
@@ -63,10 +69,10 @@ export class QCMS<
 	TGlobals extends AnyGlobalOrBuilder[] = AnyGlobalOrBuilder[],
 	TJobs extends JobDefinition<any, any>[] = JobDefinition<any, any>[],
 > {
-	private collections = new Map<string, Collection<AnyCollectionState>>();
-	private globals = new Map<string, AnyGlobal>();
+	private _collections = new Map<string, Collection<AnyCollectionState>>();
+	private _globals = new Map<string, AnyGlobal>();
 	public readonly config: CMSConfig<TCollections, TGlobals, TJobs>;
-	private resolvedLocales: string[] | null = null;
+	private resolvedLocales: Locale[] | null = null;
 
 	public auth: AuthService;
 	public storage: Disk;
@@ -74,6 +80,10 @@ export class QCMS<
 	public email: MailerService;
 	public kv: KVService;
 	public logger: LoggerService;
+	public search: SearchService;
+
+	public migrations: QCMSMigrationsAPI<TCollections, TGlobals, TJobs>;
+	public api: QCMSCrudAPI<TCollections, TGlobals, TJobs>;
 
 	public db: {
 		client: SQL;
@@ -82,6 +92,7 @@ export class QCMS<
 
 	constructor(config: CMSConfig<TCollections, TGlobals, TJobs>) {
 		this.config = config;
+
 		this.registerCollections([
 			assetsCollection,
 			usersCollection,
@@ -108,6 +119,12 @@ export class QCMS<
 		this.kv = new KVService();
 		this.logger = new LoggerService();
 
+		// Initialize search service
+		this.search = createSearchService(
+			this.db.drizzle as any,
+			config.search || {},
+		);
+
 		// Initialize queue if configured
 		if (config.queue?.jobs) {
 			if (!config.queue.adapter) {
@@ -132,8 +149,9 @@ export class QCMS<
 		if (config.auth) {
 			this.auth = new AuthService(config.auth);
 		} else {
-			// TODO: Auto-configure using config.db if available for simple cases?
-			throw new Error("QUESTPIE: 'auth' configuration is required.");
+			// Auth is required in production, but can be mocked for testing
+			// @ts-expect-error - Allow undefined auth for testing
+			this.auth = undefined;
 		}
 
 		if (config.storage) {
@@ -147,6 +165,9 @@ export class QCMS<
 		} else {
 			throw new Error("QUESTPIE: 'email' configuration is required.");
 		}
+
+		this.migrations = new QCMSMigrationsAPI(this);
+		this.api = new QCMSCrudAPI(this);
 	}
 
 	private registerCollections(collections: AnyCollectionOrBuilder[]) {
@@ -155,12 +176,12 @@ export class QCMS<
 			const collection =
 				item instanceof CollectionBuilder ? item.build() : item;
 
-			if (this.collections.has(collection.name)) {
+			if (this._collections.has(collection.name)) {
 				throw new Error(
 					`Collection "${collection.name}" is already registered.`,
 				);
 			}
-			this.collections.set(collection.name, collection);
+			this._collections.set(collection.name, collection);
 		}
 	}
 
@@ -169,86 +190,77 @@ export class QCMS<
 			// Auto-build if it's a GlobalBuilder
 			const global = item instanceof GlobalBuilder ? item.build() : item;
 
-			if (this.globals.has(global.name)) {
+			if (this._globals.has(global.name)) {
 				throw new Error(`Global "${global.name}" is already registered.`);
 			}
-			this.globals.set(global.name, global);
+			this._globals.set(global.name, global);
 		}
 	}
 
-	public collection<TName extends CollectionNames<TCollections>>(
+	public getCollectionConfig<TName extends CollectionNames<TCollections>>(
 		name: TName,
 	): GetCollection<TCollections, TName> {
-		const collection = this.collections.get(name);
+		const collection = this._collections.get(name);
 		if (!collection) {
 			throw new Error(`Collection "${name}" not found.`);
 		}
 		return collection as GetCollection<TCollections, TName>;
 	}
 
-	public global<TName extends GlobalNames<TGlobals>>(
+	public getGlobalConfig<TName extends GlobalNames<TGlobals>>(
 		name: TName,
 	): GetGlobal<TGlobals, TName> {
-		const global = this.globals.get(name);
+		const global = this._globals.get(name);
 		if (!global) {
 			throw new Error(`Global "${name}" not found.`);
 		}
 		return global as GetGlobal<TGlobals, TName>;
 	}
 
-	public crud<
-		Name extends CollectionNames<TCollections>,
-		TCollection extends GetCollection<TCollections, Name> = GetCollection<
-			TCollections,
-			Name
-		>,
-	>(
-		name: Name,
-		context: CmsContext,
-	): CRUD<
-		TCollection["$infer"]["select"],
-		TCollection["$infer"]["insert"],
-		TCollection["$infer"]["update"]
-	> {
-		const collection = this.collection(name);
-		// Pass the context db to generateCRUD
-		return collection.generateCRUD(context.db, this) as any;
-	}
-
-	public async getLocales(): Promise<string[]> {
+	public async getLocales(): Promise<Locale[]> {
 		if (this.resolvedLocales) return this.resolvedLocales;
 
 		if (!this.config.locale) {
-			this.resolvedLocales = ["en"];
+			this.resolvedLocales = [
+				{
+					code: "en",
+				},
+			];
 			return this.resolvedLocales;
 		}
 
-		let locales: Locale[];
 		if (Array.isArray(this.config.locale.locales)) {
-			locales = this.config.locale.locales;
+			this.resolvedLocales = this.config.locale.locales;
 		} else {
-			locales = await this.config.locale.locales();
+			this.resolvedLocales = await this.config.locale.locales();
 		}
-
-		// Extract locale codes from Locale objects
-		this.resolvedLocales = locales.map((l) =>
-			typeof l === "string" ? l : l.code,
-		);
 
 		return this.resolvedLocales;
 	}
 
+	/**
+	 * Create request context
+	 * Returns minimal context with user, locale, accessMode
+	 * Services are accessed via cms.* not context.*
+	 * @default accessMode: 'system' - CMS API is backend-only by default
+	 */
 	public async createContext(
-		_elysiaCtx: any,
-		userCtx: any,
-	): Promise<CmsContext> {
+		userCtx: {
+			user?: any;
+			session?: any;
+			locale?: string;
+			accessMode?: AccessMode;
+			db?: any;
+			[key: string]: any;
+		} = {},
+	): Promise<RequestContext> {
 		const defaultLocale = this.config.locale?.defaultLocale || "en";
 		let locale = userCtx.locale || defaultLocale;
 
 		// Validate locale if provided
 		if (userCtx.locale) {
 			const locales = await this.getLocales();
-			if (!locales.includes(userCtx.locale)) {
+			if (!locales.find((l) => l.code === userCtx.locale)) {
 				// Fallback logic
 				if (this.config.locale?.fallbacks?.[userCtx.locale]) {
 					locale = this.config.locale.fallbacks[userCtx.locale];
@@ -258,38 +270,28 @@ export class QCMS<
 			}
 		}
 
-		// Create child logger with request context
-		const requestLogger = this.logger.child({
-			// reqId: _elysiaCtx.request?.headers?.get('x-request-id') // Example
-		});
-
 		return {
-			db: this.config.db, // Or elysiaCtx.db if provided there
-			qcms: this,
 			...userCtx,
 			user: userCtx.user,
+			session: userCtx.session,
 			locale,
 			defaultLocale,
-			auth: this.auth,
-			storage: this.storage,
-			queue: this.queue,
-			email: this.email,
-			kv: this.kv,
-			logger: requestLogger,
+			accessMode: userCtx.accessMode ?? ("system" as AccessMode), // Default to system
+			db: userCtx.db ?? this.db.drizzle,
 		};
 	}
 
 	public getCollections(): Collection<AnyCollectionState>[] {
-		return Array.from(this.collections.values());
+		return Array.from(this._collections.values());
 	}
 
 	public getGlobals(): AnyGlobal[] {
-		return Array.from(this.globals.values());
+		return Array.from(this._globals.values());
 	}
 
 	public getTables(): Record<string, PgTable> {
 		const tables: Record<string, PgTable> = {};
-		for (const [name, collection] of this.collections) {
+		for (const [name, collection] of this._collections) {
 			tables[name] = collection.table as unknown as PgTable;
 			if (collection.i18nTable) {
 				tables[`${name}_i18n`] = collection.i18nTable as unknown as PgTable;
@@ -299,7 +301,7 @@ export class QCMS<
 					collection.versionsTable as unknown as PgTable;
 			}
 		}
-		for (const [name, global] of this.globals) {
+		for (const [name, global] of this._globals) {
 			tables[name] = global.table as unknown as PgTable;
 			if (global.i18nTable) {
 				tables[`${name}_i18n`] = global.i18nTable as unknown as PgTable;
@@ -315,7 +317,7 @@ export class QCMS<
 		const schema: Record<string, unknown> = {};
 
 		// 1. Add tables
-		for (const [name, collection] of this.collections) {
+		for (const [name, collection] of this._collections) {
 			schema[name] = collection.table;
 			if (collection.i18nTable) {
 				schema[`${name}_i18n`] = collection.i18nTable;
@@ -324,7 +326,7 @@ export class QCMS<
 				schema[`${name}_versions`] = collection.versionsTable;
 			}
 		}
-		for (const [name, global] of this.globals) {
+		for (const [name, global] of this._globals) {
 			schema[name] = global.table;
 			if (global.i18nTable) {
 				schema[`${name}_i18n`] = global.i18nTable;
@@ -350,19 +352,19 @@ export class QCMS<
 	 * ```ts
 	 * // worker.ts
 	 * const cms = new QCMS({ ... });
-	 * await cms._listenToJobs();
+	 * await cms.listenToJobs();
 	 * ```
 	 *
 	 * @example
 	 * ```ts
 	 * // Listen to specific jobs only
-	 * await cms._listenToJobs(['send-email', 'process-image']);
+	 * await cms.listenToJobs(['send-email', 'process-image']);
 	 * ```
 	 *
 	 * @example
 	 * ```ts
 	 * // With custom options
-	 * await cms._listenToJobs({ teamSize: 20, batchSize: 10 });
+	 * await cms.listenToJobs({ teamSize: 20, batchSize: 10 });
 	 * ```
 	 */
 	public async listenToJobs(options?: WorkerOptions): Promise<void> {
@@ -373,8 +375,8 @@ export class QCMS<
 		}
 
 		// Create context factory for workers
-		const createContext = async (): Promise<CmsContext> => {
-			return this.createContext({}, {});
+		const createContext = async (): Promise<RequestContext> => {
+			return this.createContext({ accessMode: "system" });
 		};
 
 		await startJobWorkerForJobs(

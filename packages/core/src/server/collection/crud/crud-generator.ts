@@ -1,10 +1,24 @@
-import { eq, and, or, not, sql, inArray, count, sum, avg, min, max, type SQL } from "drizzle-orm";
+import {
+	eq,
+	and,
+	or,
+	not,
+	sql,
+	inArray,
+	count,
+	sum,
+	avg,
+	min,
+	max,
+	type SQL,
+} from "drizzle-orm";
 import type { PgTable } from "drizzle-orm/pg-core";
 import type {
 	CollectionBuilderState,
 	CollectionHooks,
 	CollectionAccess,
 	CollectionOptions,
+	RelationConfig,
 	HookFunction,
 	AccessWhere,
 	HookContext,
@@ -19,10 +33,12 @@ import type {
 	UpdateParams,
 	DeleteParams,
 	Where,
+	QCMS,
+	AnyCollectionOrBuilder,
+	AnyGlobalOrBuilder,
 } from "#questpie/core/exports/server";
 import type {
 	FindVersionsOptions,
-	FindVersionOptions,
 	RevertVersionOptions,
 	Columns,
 	Extras,
@@ -63,23 +79,59 @@ export class CRUDGenerator<
 		private db: any,
 		private getVirtuals?: (context: any) => TVirtuals,
 		private getTitle?: (context: any) => SQL | undefined,
-		private getRawTitle?: (context: any) => SQL | undefined,
-		private cms?: any,
+		_getRawTitle?: (context: any) => SQL | undefined,
+		private cms?: QCMS<AnyCollectionOrBuilder[], AnyGlobalOrBuilder[]>,
 	) {}
 
 	/**
 	 * Generate CRUD operations
 	 */
 	generate(): CRUD {
-		return {
-			findMany: this.createFindMany(),
-			findFirst: this.createFindFirst(),
+		const findMany = this.createFindMany();
+		const findFirst = this.createFindFirst();
+		const updateMany = this.createUpdateMany();
+		const deleteMany = this.createDeleteMany();
+
+		const crud: CRUD = {
+			find: findMany,
+			findOne: findFirst,
+			count: this.createCount(),
 			create: this.createCreate(),
-			update: this.createUpdate(),
-			delete: this.createDelete(),
+			updateById: this.createUpdate(),
+			update: updateMany,
+			deleteById: this.createDelete(),
+			delete: deleteMany,
 			findVersions: this.createFindVersions(),
-			findVersion: this.createFindVersion(),
 			revertToVersion: this.createRevertToVersion(),
+			// Backwards compatibility aliases
+			findMany,
+			findFirst,
+			updateMany,
+			deleteMany,
+		};
+		crud.__internalState = this.state;
+		crud.__internalRelatedTable = this.table;
+		crud.__internalI18nTable = this.i18nTable;
+		return crud;
+	}
+
+	private getDb(context?: CRUDContext) {
+		return context?.db ?? this.db;
+	}
+
+	/**
+	 * Normalize context with defaults
+	 * @default accessMode: 'system' - CMS API is backend-only by default
+	 */
+	private normalizeContext(
+		context: CRUDContext = {},
+	): Required<Pick<CRUDContext, "accessMode" | "locale" | "defaultLocale">> &
+		CRUDContext {
+		return {
+			...context,
+			accessMode: context.accessMode ?? "system", // Default to system
+			locale: context.locale ?? context.defaultLocale ?? "en",
+			defaultLocale: context.defaultLocale ?? "en",
 		};
 	}
 
@@ -89,35 +141,50 @@ export class CRUDGenerator<
 	 */
 	private createFindMany() {
 		return async (options: FindManyOptions = {}, context: CRUDContext = {}) => {
+			const db = this.getDb(context);
+
 			// Enforce access control
 			const accessWhere = await this.enforceAccessControl(
 				"read",
 				context,
 				null,
+				options,
 			);
 
-			// Execute beforeRead hooks
-			await this.executeHooks(this.state.hooks?.beforeRead, {
-				db: this.db,
-				input: options,
-				locale: context.locale,
-				user: context.user,
-			});
+			// Execute beforeRead hooks (read doesn't modify data)
+			if (this.state.hooks?.beforeRead) {
+				await this.executeHooks(
+					this.state.hooks.beforeRead,
+					this.createHookContext({
+						data: options,
+						operation: "read",
+						context,
+						db,
+					}),
+				);
+			}
 
 			const mergedWhere = this.mergeWhere(options.where, accessWhere);
+
+			// Get total count
+			const countFn = this.createCount();
+			const totalDocs = await countFn(
+				{ where: mergedWhere },
+				{ ...context, accessMode: "system" },
+			);
 
 			// Determine if we are using i18n (i18n table exists)
 			const useI18n = !!this.i18nTable;
 
 			// Build SELECT object
 			const selectObj = this.buildSelectObject(
-				options.columns,
+				options.columns || (options as any).select,
 				options.extras,
 				context,
 			);
 
 			// Start building query
-			let query = this.db.select(selectObj).from(this.table);
+			let query = db.select(selectObj).from(this.table);
 
 			// Add i18n join if locale provided and localized fields exist
 			if (useI18n) {
@@ -130,18 +197,29 @@ export class CRUDGenerator<
 				);
 			}
 
-			// WHERE clause
+			// WHERE clause with soft delete filter
+			const whereClauses: SQL[] = [];
+
 			if (mergedWhere) {
-				const whereClause = this.buildWhereClause(mergedWhere, useI18n);
+				const whereClause = this.buildWhereClause(
+					mergedWhere,
+					useI18n,
+					undefined,
+					context,
+				);
 				if (whereClause) {
-					query = query.where(whereClause);
+					whereClauses.push(whereClause);
 				}
 			}
 
 			// Soft delete filter
 			if (this.state.options.softDelete) {
 				const softDeleteFilter = sql`${(this.table as any).deletedAt} IS NULL`;
-				query = query.where(softDeleteFilter);
+				whereClauses.push(softDeleteFilter);
+			}
+
+			if (whereClauses.length > 0) {
+				query = query.where(and(...whereClauses));
 			}
 
 			// ORDER BY
@@ -173,16 +251,41 @@ export class CRUDGenerator<
 			// Execute afterRead hooks
 			if (this.state.hooks?.afterRead) {
 				for (const row of rows) {
-					await this.executeHooks(this.state.hooks.afterRead, {
-						db: this.db,
-						row,
-						locale: context.locale,
-						user: context.user,
-					});
+					await this.executeHooks(
+						this.state.hooks.afterRead,
+						this.createHookContext({
+							data: row,
+							operation: "read",
+							context,
+							db,
+						}),
+					);
 				}
 			}
 
-			return rows;
+			// Construct paginated result
+			const limit = options.limit ?? totalDocs;
+			const totalPages = limit > 0 ? Math.ceil(totalDocs / limit) : 1;
+			const offset = options.offset ?? 0;
+			const page = limit > 0 ? Math.floor(offset / limit) + 1 : 1;
+			const pagingCounter = (page - 1) * limit + 1;
+			const hasPrevPage = page > 1;
+			const hasNextPage = page < totalPages;
+			const prevPage = hasPrevPage ? page - 1 : null;
+			const nextPage = hasNextPage ? page + 1 : null;
+
+			return {
+				docs: rows,
+				totalDocs,
+				limit,
+				totalPages,
+				page,
+				pagingCounter,
+				hasPrevPage,
+				hasNextPage,
+				prevPage,
+				nextPage,
+			};
 		};
 	}
 
@@ -195,19 +298,27 @@ export class CRUDGenerator<
 			options: FindFirstOptions = {},
 			context: CRUDContext = {},
 		) => {
-			// Execute beforeRead hooks
-			await this.executeHooks(this.state.hooks?.beforeRead, {
-				db: this.db,
-				input: options,
-				locale: context.locale,
-				user: context.user,
-			});
+			const db = this.getDb(context);
+
+			// Execute beforeRead hooks (read doesn't modify data)
+			if (this.state.hooks?.beforeRead) {
+				await this.executeHooks(
+					this.state.hooks.beforeRead,
+					this.createHookContext({
+						data: options,
+						operation: "read",
+						context,
+						db,
+					}),
+				);
+			}
 
 			// Enforce access control
 			const accessWhere = await this.enforceAccessControl(
 				"read",
 				context,
 				null,
+				options,
 			);
 			const mergedWhere = this.mergeWhere(options.where, accessWhere);
 
@@ -216,13 +327,13 @@ export class CRUDGenerator<
 
 			// Build SELECT object
 			const selectObj = this.buildSelectObject(
-				options.columns,
+				options.columns || (options as any).select,
 				options.extras,
 				context,
 			);
 
 			// Start building query
-			let query = this.db.select(selectObj).from(this.table);
+			let query = db.select(selectObj).from(this.table);
 
 			// Add i18n join if locale provided and localized fields exist
 			if (useI18n) {
@@ -235,18 +346,29 @@ export class CRUDGenerator<
 				);
 			}
 
-			// WHERE clause
+			// WHERE clause with soft delete filter
+			const whereClauses: SQL[] = [];
+
 			if (mergedWhere) {
-				const whereClause = this.buildWhereClause(mergedWhere, useI18n);
+				const whereClause = this.buildWhereClause(
+					mergedWhere,
+					useI18n,
+					undefined,
+					context,
+				);
 				if (whereClause) {
-					query = query.where(whereClause);
+					whereClauses.push(whereClause);
 				}
 			}
 
 			// Soft delete filter
 			if (this.state.options.softDelete) {
 				const softDeleteFilter = sql`${(this.table as any).deletedAt} IS NULL`;
-				query = query.where(softDeleteFilter);
+				whereClauses.push(softDeleteFilter);
+			}
+
+			if (whereClauses.length > 0) {
+				query = query.where(and(...whereClauses));
 			}
 
 			// ORDER BY
@@ -270,15 +392,69 @@ export class CRUDGenerator<
 
 			// Execute afterRead hooks
 			if (row && this.state.hooks?.afterRead) {
-				await this.executeHooks(this.state.hooks.afterRead, {
-					db: this.db,
-					row,
-					locale: context.locale,
-					user: context.user,
-				});
+				await this.executeHooks(
+					this.state.hooks.afterRead,
+					this.createHookContext({
+						data: row,
+						operation: "read",
+						context,
+						db,
+					}),
+				);
 			}
 
 			return row;
+		};
+	}
+
+	/**
+	 * Create count operation
+	 */
+	private createCount() {
+		return async (
+			options: Pick<FindManyOptions, "where"> = {},
+			context: CRUDContext = {},
+		): Promise<number> => {
+			const db = this.getDb(context);
+			const normalized = this.normalizeContext(context);
+
+			// Enforce access control
+			const accessWhere = await this.enforceAccessControl(
+				"read",
+				normalized,
+				null,
+				options,
+			);
+			const mergedWhere = this.mergeWhere(options.where, accessWhere);
+
+			// Build WHERE clause (with soft delete filter)
+			let whereClause: SQL<unknown> | undefined;
+			if (mergedWhere) {
+				whereClause = this.buildWhereClause(
+					mergedWhere,
+					false,
+					undefined,
+					context,
+				);
+			}
+
+			// Add soft delete filter
+			if (this.state.options.softDelete) {
+				const softDeleteClause = sql`${(this.table as any).deletedAt} IS NULL`;
+				whereClause = whereClause
+					? and(whereClause, softDeleteClause)
+					: softDeleteClause;
+			}
+
+			// Build count query
+			let query = db.select({ count: count() }).from(this.table);
+
+			if (whereClause) {
+				query = query.where(whereClause);
+			}
+
+			const result = await query;
+			return result[0]?.count ?? 0;
 		};
 	}
 
@@ -291,6 +467,7 @@ export class CRUDGenerator<
 		context: CRUDContext,
 	) {
 		if (!rows.length || !withConfig || !this.cms) return;
+		const db = this.getDb(context);
 
 		for (const [relationName, relationOptions] of Object.entries(withConfig)) {
 			if (!relationOptions) continue;
@@ -298,15 +475,16 @@ export class CRUDGenerator<
 			const relation = this.state.relations[relationName];
 			if (!relation) continue;
 
-			const relatedCrud = this.cms.crud(relation.collection, context);
+			const relatedCrud = this.cms.api.collections[relation.collection];
 
 			// Handle BelongsTo (One-to-One / Many-to-One)
 			if (relation.fields && relation.fields.length > 0) {
 				const sourceField = relation.fields[0];
 				const targetFieldName = relation.references[0];
 
-				// Get the actual column name in the DB
-				const sourceColName = sourceField.name;
+				const sourceColName =
+					this.resolveFieldKey(this.state, sourceField, this.table) ??
+					sourceField.name;
 
 				// 1. Collect IDs
 				const sourceIds = new Set(
@@ -319,23 +497,18 @@ export class CRUDGenerator<
 				// 2. Query related
 				const nestedOptions =
 					typeof relationOptions === "object" ? relationOptions : {};
-
-				const relatedWhere: any = {
-					[targetFieldName]: { in: Array.from(sourceIds) },
-				};
-
-				if (nestedOptions.where) {
-					relatedWhere.AND = [nestedOptions.where];
-				}
-
-				const relatedRows = await relatedCrud.findMany(
+				const { docs: relatedRows } = await relatedCrud.find(
 					{
 						...nestedOptions,
-						where: relatedWhere,
+						where: {
+							// must be sure to merge with nested where
+							...nestedOptions.where,
+							// main condition, in clause
+							[targetFieldName]: { in: Array.from(sourceIds) },
+						},
 					},
 					context,
 				);
-
 				// 3. Map back
 				const relatedMap = new Map();
 				for (const row of relatedRows) {
@@ -346,8 +519,6 @@ export class CRUDGenerator<
 					const sourceId = row[sourceColName];
 					if (sourceId !== null && sourceId !== undefined) {
 						row[relationName] = relatedMap.get(sourceId) || null;
-					} else {
-						row[relationName] = null;
 					}
 				}
 			}
@@ -356,10 +527,17 @@ export class CRUDGenerator<
 				const reverseRelationName = relation.relationName;
 				if (!reverseRelationName) continue;
 
-				const reverseRelation = relatedCrud.state.relations?.[reverseRelationName];
-				if (!reverseRelation?.fields || reverseRelation.fields.length === 0) continue;
+				const reverseRelation =
+					relatedCrud.__internalState.relations?.[reverseRelationName];
+				if (!reverseRelation?.fields || reverseRelation.fields.length === 0)
+					continue;
 
-				const foreignKeyField = reverseRelation.fields[0].name;
+				const foreignKeyField =
+					this.resolveFieldKey(
+						relatedCrud.__internalState,
+						reverseRelation.fields[0],
+						relatedCrud.__internalRelatedTable,
+					) ?? reverseRelation.fields[0].name;
 				const primaryKeyField = reverseRelation.references?.[0] || "id";
 
 				// 1. Collect parent IDs
@@ -376,7 +554,7 @@ export class CRUDGenerator<
 				// Check if aggregation is requested
 				if (nestedOptions._count || nestedOptions._aggregate) {
 					// Perform aggregation query
-					const relatedTable = relatedCrud.relatedTable;
+					const relatedTable = relatedCrud.__internalRelatedTable;
 					const foreignKeyCol = relatedTable[foreignKeyField];
 
 					// Build SELECT clause with aggregations
@@ -432,13 +610,18 @@ export class CRUDGenerator<
 					}
 
 					// Build WHERE clause
-					const whereConditions = [inArray(foreignKeyCol, Array.from(parentIds))];
+					const whereConditions = [
+						inArray(foreignKeyCol, Array.from(parentIds)),
+					];
 
 					if (nestedOptions.where) {
 						const additionalWhere = this.buildWhereClause(
 							nestedOptions.where,
 							false,
 							relatedTable,
+							context,
+							relatedCrud.__internalState,
+							relatedCrud.__internalI18nTable,
 						);
 						if (additionalWhere) {
 							whereConditions.push(additionalWhere);
@@ -446,7 +629,7 @@ export class CRUDGenerator<
 					}
 
 					// Execute aggregation query
-					const aggregateResults = await this.db
+					const aggregateResults = await db
 						.select(selectClause)
 						.from(relatedTable)
 						.where(and(...whereConditions))
@@ -467,10 +650,12 @@ export class CRUDGenerator<
 						for (const key of Object.keys(result)) {
 							if (key.startsWith("_sum_")) {
 								if (!aggData._sum) aggData._sum = {};
-								aggData._sum[key.replace("_sum_", "")] = Number(result[key]) || 0;
+								aggData._sum[key.replace("_sum_", "")] =
+									Number(result[key]) || 0;
 							} else if (key.startsWith("_avg_")) {
 								if (!aggData._avg) aggData._avg = {};
-								aggData._avg[key.replace("_avg_", "")] = Number(result[key]) || 0;
+								aggData._avg[key.replace("_avg_", "")] =
+									Number(result[key]) || 0;
 							} else if (key.startsWith("_min_")) {
 								if (!aggData._min) aggData._min = {};
 								aggData._min[key.replace("_min_", "")] = result[key];
@@ -498,9 +683,19 @@ export class CRUDGenerator<
 						relatedWhere.AND = [nestedOptions.where];
 					}
 
-					const relatedRows = await relatedCrud.findMany(
+					// Ensure foreign key field is included in columns if partial selection is used
+					// This is required for mapping back to parent records
+					const queryOptions = { ...nestedOptions };
+					if (queryOptions.columns) {
+						queryOptions.columns = {
+							...queryOptions.columns,
+							[foreignKeyField]: true,
+						};
+					}
+
+					const { docs: relatedRows } = await relatedCrud.find(
 						{
-							...nestedOptions,
+							...queryOptions,
 							where: relatedWhere,
 						},
 						context,
@@ -513,7 +708,7 @@ export class CRUDGenerator<
 						if (!relatedMap.has(parentId)) {
 							relatedMap.set(parentId, []);
 						}
-						relatedMap.get(parentId)!.push(relatedRow);
+						relatedMap.get(parentId)?.push(relatedRow);
 					}
 
 					// 4. Attach to rows as arrays
@@ -532,7 +727,7 @@ export class CRUDGenerator<
 
 				if (!sourceField || !targetField) continue;
 
-				const junctionCrud = this.cms.crud(relation.through, context);
+				const junctionCrud = this.cms.api.collections[relation.through];
 
 				// 1. Collect source IDs
 				const sourceIds = new Set(
@@ -543,7 +738,7 @@ export class CRUDGenerator<
 				if (sourceIds.size === 0) continue;
 
 				// 2. Query junction table to get all links
-				const junctionRows = await junctionCrud.findMany(
+				const { docs: junctionRows } = await junctionCrud.find(
 					{
 						where: { [sourceField]: { in: Array.from(sourceIds) } },
 					},
@@ -587,7 +782,7 @@ export class CRUDGenerator<
 					relatedWhere.AND = [nestedOptions.where];
 				}
 
-				const relatedRows = await relatedCrud.findMany(
+				const { docs: relatedRows } = await relatedCrud.find(
 					{
 						...nestedOptions,
 						where: relatedWhere,
@@ -602,7 +797,7 @@ export class CRUDGenerator<
 					if (!junctionMap.has(sid)) {
 						junctionMap.set(sid, []);
 					}
-					junctionMap.get(sid)!.push(j[targetField]);
+					junctionMap.get(sid)?.push(j[targetField]);
 				}
 
 				// 6. Build related map: targetId -> row
@@ -621,9 +816,17 @@ export class CRUDGenerator<
 				}
 			}
 			// Handle Polymorphic relations
-			else if (relation.type === "polymorphic" && relation.typeField && relation.idField) {
-				const typeFieldName = relation.typeField.name;
-				const idFieldName = relation.idField.name;
+			else if (
+				relation.type === "polymorphic" &&
+				relation.typeField &&
+				relation.idField
+			) {
+				const typeFieldName =
+					this.resolveFieldKey(this.state, relation.typeField, this.table) ??
+					relation.typeField.name;
+				const idFieldName =
+					this.resolveFieldKey(this.state, relation.idField, this.table) ??
+					relation.idField.name;
 				const collectionsMap = relation.collections || {};
 
 				const typeGroups = new Map<string, any[]>();
@@ -634,7 +837,7 @@ export class CRUDGenerator<
 					if (!typeGroups.has(typeValue)) {
 						typeGroups.set(typeValue, []);
 					}
-					typeGroups.get(typeValue)!.push(row);
+					typeGroups.get(typeValue)?.push(row);
 				}
 
 				const allRelatedData = new Map<string, any>();
@@ -643,7 +846,7 @@ export class CRUDGenerator<
 					const collectionName = collectionsMap[typeValue];
 					if (!collectionName) continue;
 
-					const relatedCrud = this.cms.crud(collectionName, context);
+					const relatedCrud = this.cms.api.collections[collectionName];
 
 					const ids = rowsOfType
 						.map((r) => r[idFieldName])
@@ -654,7 +857,7 @@ export class CRUDGenerator<
 					const nestedOptions =
 						typeof relationOptions === "object" ? relationOptions : {};
 
-					const relatedRecords = await relatedCrud.findMany(
+					const { docs: relatedRecords } = await relatedCrud.find(
 						{
 							...nestedOptions,
 							where: {
@@ -679,8 +882,6 @@ export class CRUDGenerator<
 					if (typeValue && idValue) {
 						const key = `${typeValue}:${idValue}`;
 						row[relationName] = allRelatedData.get(key) || null;
-					} else {
-						row[relationName] = null;
 					}
 				}
 			}
@@ -689,86 +890,93 @@ export class CRUDGenerator<
 
 	/**
 	 * Handle cascade delete operations for relations
+	 *
+	 * NOTE: Only handles application-level CASCADE to trigger hooks.
+	 * Database FK constraints handle CASCADE/SET NULL/RESTRICT automatically.
 	 */
 	private async handleCascadeDelete(
-		id: string,
+		_id: string,
 		record: any,
 		context: CRUDContext,
 	): Promise<void> {
 		if (!this.cms || !this.state.relations) return;
 
-		for (const [relationName, relation] of Object.entries(this.state.relations)) {
-			const onDelete = relation.onDelete;
-			if (!onDelete || onDelete === "no action") continue;
+		for (const [_relationName, relation] of Object.entries(
+			this.state.relations,
+		)) {
+			// Skip if no action
+			if (!relation.onDelete || relation.onDelete === "no action" || relation.onDelete === "restrict") continue;
 
-			// Handle HasMany relations
+			// Handle HasMany
 			if (relation.type === "many" && !relation.fields) {
 				const reverseRelationName = relation.relationName;
 				if (!reverseRelationName) continue;
 
-				const relatedCrud = this.cms.crud(relation.collection, context);
-				const reverseRelation = relatedCrud.state.relations?.[reverseRelationName];
-				if (!reverseRelation?.fields || reverseRelation.fields.length === 0) continue;
+				const relatedCrud = this.cms.api.collections[relation.collection];
+				const reverseRelation =
+					relatedCrud.__internalState.relations?.[reverseRelationName];
+				if (!reverseRelation?.fields || reverseRelation.fields.length === 0)
+					continue;
 
-				const foreignKeyField = reverseRelation.fields[0].name;
+				const foreignKeyField =
+					this.resolveFieldKey(
+						relatedCrud.__internalState,
+						reverseRelation.fields[0],
+						relatedCrud.__internalRelatedTable,
+					) ?? reverseRelation.fields[0].name;
 				const primaryKeyField = reverseRelation.references?.[0] || "id";
 
-				const relatedRecords = await relatedCrud.findMany(
-					{
-						where: { [foreignKeyField]: { eq: record[primaryKeyField] } },
-					},
-					context,
-				);
+				// CASCADE
+				if (relation.onDelete === "cascade") {
+					const { docs: relatedRecords } = await relatedCrud.find(
+						{
+							where: { [foreignKeyField]: { eq: record[primaryKeyField] } },
+						},
+						context,
+					);
 
-				if (relatedRecords.length === 0) continue;
-
-				if (onDelete === "cascade") {
-					for (const relatedRecord of relatedRecords) {
-						await relatedCrud.delete({ id: relatedRecord.id }, context);
+					if (relatedRecords.length > 0) {
+						// CASCADE: Delete related records (triggers hooks)
+						for (const relatedRecord of relatedRecords) {
+							await relatedCrud.deleteById({ id: relatedRecord.id }, context);
+						}
 					}
-				} else if (onDelete === "set null") {
-					for (const relatedRecord of relatedRecords) {
-						await relatedCrud.update(
-							{
-								id: relatedRecord.id,
-								data: { [foreignKeyField]: null },
-							},
-							context,
-						);
-					}
-				} else if (onDelete === "restrict") {
-					throw new Error(
-						`Cannot delete: ${relatedRecords.length} related ${relation.collection} record(s) exist`,
+				}
+				// SET NULL
+				else if (relation.onDelete === "set null") {
+					// Update related records to set FK to null
+					// We use updateMany which triggers hooks
+					await relatedCrud.updateMany(
+						{
+							where: { [foreignKeyField]: { eq: record[primaryKeyField] } },
+							data: { [foreignKeyField]: null },
+						},
+						context,
 					);
 				}
 			}
 
-			// Handle ManyToMany relations
-			else if (relation.type === "manyToMany" && relation.through) {
+			// Handle ManyToMany CASCADE (Only Cascade supported for now)
+			else if (relation.type === "manyToMany" && relation.through && relation.onDelete === "cascade") {
 				const sourceField = relation.sourceField;
 				const sourceKey = relation.sourceKey || "id";
 
 				if (!sourceField) continue;
 
-				const junctionCrud = this.cms.crud(relation.through, context);
+				const junctionCrud = this.cms.api.collections[relation.through];
 
-				const junctionRecords = await junctionCrud.findMany(
+				const { docs: junctionRecords } = await junctionCrud.find(
 					{
 						where: { [sourceField]: { eq: record[sourceKey] } },
 					},
 					context,
 				);
 
-				if (junctionRecords.length === 0) continue;
-
-				if (onDelete === "cascade" || onDelete === "set null") {
+				if (junctionRecords.length > 0) {
+					// CASCADE: Delete junction records
 					for (const junctionRecord of junctionRecords) {
-						await junctionCrud.delete({ id: junctionRecord.id }, context);
+						await junctionCrud.deleteById({ id: junctionRecord.id }, context);
 					}
-				} else if (onDelete === "restrict") {
-					throw new Error(
-						`Cannot delete: ${junctionRecords.length} related ${relation.collection} link(s) exist`,
-					);
 				}
 			}
 		}
@@ -787,7 +995,11 @@ export class CRUDGenerator<
 		const relationNames = new Set(Object.keys(this.state.relations || {}));
 
 		for (const [key, value] of Object.entries(input)) {
-			if (relationNames.has(key) && typeof value === "object" && value !== null) {
+			if (
+				relationNames.has(key) &&
+				typeof value === "object" &&
+				value !== null
+			) {
 				// This is a nested relation operation
 				nestedRelations[key] = value;
 			} else {
@@ -815,8 +1027,11 @@ export class CRUDGenerator<
 			if (!relation) continue;
 
 			// Handle BelongsTo (one) relations - skip nested operations
-			if (relation.type === "one" && relation.fields && relation.fields.length > 0) {
-				continue;
+			if (
+				relation.type === "one" &&
+				relation.fields &&
+				relation.fields.length > 0
+			) {
 			}
 
 			// Handle HasMany (many) relations
@@ -824,11 +1039,18 @@ export class CRUDGenerator<
 				const reverseRelationName = relation.relationName;
 				if (!reverseRelationName) continue;
 
-				const relatedCrud = this.cms.crud(relation.collection, context);
-				const reverseRelation = relatedCrud.state.relations?.[reverseRelationName];
-				if (!reverseRelation?.fields || reverseRelation.fields.length === 0) continue;
+				const relatedCrud = this.cms.api.collections[relation.collection];
+				const reverseRelation =
+					relatedCrud.__internalState.relations?.[reverseRelationName];
+				if (!reverseRelation?.fields || reverseRelation.fields.length === 0)
+					continue;
 
-				const foreignKeyField = reverseRelation.fields[0].name;
+				const foreignKeyField =
+					this.resolveFieldKey(
+						relatedCrud.__internalState,
+						reverseRelation.fields[0],
+						relatedCrud.__internalRelatedTable,
+					) ?? reverseRelation.fields[0].name;
 				const primaryKeyField = reverseRelation.references?.[0] || "id";
 
 				if (operations.create) {
@@ -853,7 +1075,7 @@ export class CRUDGenerator<
 						: [operations.connect];
 
 					for (const connectInput of connectInputs) {
-						await relatedCrud.update(
+						await relatedCrud.updateById(
 							{
 								id: connectInput.id,
 								data: { [foreignKeyField]: parentRecord[primaryKeyField] },
@@ -864,18 +1086,20 @@ export class CRUDGenerator<
 				}
 
 				if (operations.connectOrCreate) {
-					const connectOrCreateInputs = Array.isArray(operations.connectOrCreate)
+					const connectOrCreateInputs = Array.isArray(
+						operations.connectOrCreate,
+					)
 						? operations.connectOrCreate
 						: [operations.connectOrCreate];
 
 					for (const connectOrCreateInput of connectOrCreateInputs) {
-						const existing = await relatedCrud.findFirst(
-							{ where: { id: connectOrCreateInput.where.id } },
+						const existing = await relatedCrud.findOne(
+							{ where: connectOrCreateInput.where },
 							{ ...context, db: tx },
 						);
 
 						if (existing) {
-							await relatedCrud.update(
+							await relatedCrud.updateById(
 								{
 									id: existing.id,
 									data: { [foreignKeyField]: parentRecord[primaryKeyField] },
@@ -903,8 +1127,8 @@ export class CRUDGenerator<
 
 				if (!sourceField || !targetField) continue;
 
-				const junctionCrud = this.cms.crud(relation.through, context);
-				const relatedCrud = this.cms.crud(relation.collection, context);
+				const junctionCrud = this.cms.api.collections[relation.through];
+				const relatedCrud = this.cms.api.collections[relation.collection];
 
 				if (operations.create) {
 					const createInputs = Array.isArray(operations.create)
@@ -912,10 +1136,10 @@ export class CRUDGenerator<
 						: [operations.create];
 
 					for (const createInput of createInputs) {
-						const relatedRecord = await relatedCrud.create(
-							createInput,
-							{ ...context, db: tx },
-						);
+						const relatedRecord = await relatedCrud.create(createInput, {
+							...context,
+							db: tx,
+						});
 
 						await junctionCrud.create(
 							{
@@ -944,23 +1168,25 @@ export class CRUDGenerator<
 				}
 
 				if (operations.connectOrCreate) {
-					const connectOrCreateInputs = Array.isArray(operations.connectOrCreate)
+					const connectOrCreateInputs = Array.isArray(
+						operations.connectOrCreate,
+					)
 						? operations.connectOrCreate
 						: [operations.connectOrCreate];
 
 					for (const connectOrCreateInput of connectOrCreateInputs) {
-						const existing = await relatedCrud.findFirst(
-							{ where: { id: connectOrCreateInput.where.id } },
+						const existing = await relatedCrud.findOne(
+							{ where: connectOrCreateInput.where },
 							{ ...context, db: tx },
 						);
 
 						const targetId = existing
 							? existing.id
 							: (
-									await relatedCrud.create(
-										connectOrCreateInput.create,
-										{ ...context, db: tx },
-									)
+									await relatedCrud.create(connectOrCreateInput.create, {
+										...context,
+										db: tx,
+									})
 								).id;
 
 						await junctionCrud.create(
@@ -981,10 +1207,13 @@ export class CRUDGenerator<
 	 */
 	private createCreate() {
 		return async (input: CreateInput, context: CRUDContext = {}) => {
+			const db = this.getDb(context);
+
 			// Enforce access control
 			const canCreate = await this.enforceAccessControl(
 				"create",
 				context,
+				null,
 				input,
 			);
 			if (canCreate === false) {
@@ -992,28 +1221,36 @@ export class CRUDGenerator<
 			}
 
 			// Execute beforeCreate hooks
-			await this.executeHooks(this.state.hooks?.beforeCreate, {
-				db: this.db,
-				input,
-				locale: context.locale,
-				user: context.user,
-			});
+			await this.executeHooks(
+				this.state.hooks?.beforeCreate,
+				this.createHookContext({
+					data: input,
+					operation: "create",
+					context,
+					db,
+				}),
+			);
 
 			// Execute beforeChange hooks
-			await this.executeHooks(this.state.hooks?.beforeChange, {
-				db: this.db,
-				input,
-				locale: context.locale,
-				user: context.user,
-			});
+			await this.executeHooks(
+				this.state.hooks?.beforeChange,
+				this.createHookContext({
+					data: input,
+					operation: "create",
+					context,
+					db,
+				}),
+			);
 
 			// Execute in transaction
-			return this.db.transaction(async (tx: any) => {
+			return db.transaction(async (tx: any) => {
 				// Separate nested relation operations from regular fields
-				const { regularFields, nestedRelations } = this.separateNestedRelations(input);
+				const { regularFields, nestedRelations } =
+					this.separateNestedRelations(input);
 
 				// Split localized vs non-localized fields
-				const { localized, nonLocalized } = this.splitLocalizedFields(regularFields);
+				const { localized, nonLocalized } =
+					this.splitLocalizedFields(regularFields);
 
 				// Insert main record
 				const [record] = await tx
@@ -1032,39 +1269,38 @@ export class CRUDGenerator<
 						locale: context.locale,
 						...localized,
 					});
-
-					// Update _title for this locale
-					await this.updateI18nTitle(tx, record.id, context);
 				}
 
 				// Process nested relation operations (create, connect, connectOrCreate)
-				await this.processNestedRelations(
-					record,
-					nestedRelations,
-					context,
-					tx,
-				);
+				await this.processNestedRelations(record, nestedRelations, context, tx);
 
 				// Create version
 				await this.createVersion(tx, record, "create", context);
 
 				// Execute afterCreate hooks
-				await this.executeHooks(this.state.hooks?.afterCreate, {
-					db: tx,
-					row: record,
-					input,
-					locale: context.locale,
-					user: context.user,
-				});
+				await this.executeHooks(
+					this.state.hooks?.afterCreate,
+					this.createHookContext({
+						data: record,
+						operation: "create",
+						context,
+						db: tx,
+					}),
+				);
 
 				// Execute afterChange hooks
-				await this.executeHooks(this.state.hooks?.afterChange, {
-					db: tx,
-					row: record,
-					input,
-					locale: context.locale,
-					user: context.user,
-				});
+				await this.executeHooks(
+					this.state.hooks?.afterChange,
+					this.createHookContext({
+						data: record,
+						operation: "create",
+						context,
+						db: tx,
+					}),
+				);
+
+				// Index to search (outside transaction)
+				await this.indexToSearch(record, context);
 
 				return record;
 			});
@@ -1076,10 +1312,11 @@ export class CRUDGenerator<
 	 */
 	private createUpdate() {
 		return async (params: UpdateParams, context: CRUDContext = {}) => {
+			const db = this.getDb(context);
 			const { id, data } = params;
 
 			// Load existing record using core query builder
-			const existingRows = await this.db
+			const existingRows = await db
 				.select()
 				.from(this.table)
 				.where(eq((this.table as any).id, id))
@@ -1095,6 +1332,7 @@ export class CRUDGenerator<
 				"update",
 				context,
 				existing,
+				data,
 			);
 			if (canUpdate === false) {
 				throw new Error("Access denied: update");
@@ -1111,25 +1349,31 @@ export class CRUDGenerator<
 			}
 
 			// Execute beforeUpdate hooks
-			await this.executeHooks(this.state.hooks?.beforeUpdate, {
-				db: this.db,
-				row: existing,
-				input: data,
-				locale: context.locale,
-				user: context.user,
-			});
+			await this.executeHooks(
+				this.state.hooks?.beforeUpdate,
+				this.createHookContext({
+					data,
+					original: existing,
+					operation: "update",
+					context,
+					db,
+				}),
+			);
 
 			// Execute beforeChange hooks
-			await this.executeHooks(this.state.hooks?.beforeChange, {
-				db: this.db,
-				row: existing,
-				input: data,
-				locale: context.locale,
-				user: context.user,
-			});
+			await this.executeHooks(
+				this.state.hooks?.beforeChange,
+				this.createHookContext({
+					data,
+					original: existing,
+					operation: "update",
+					context,
+					db,
+				}),
+			);
 
 			// Execute in transaction
-			return this.db.transaction(async (tx: any) => {
+			return db.transaction(async (tx: any) => {
 				const { localized, nonLocalized } = this.splitLocalizedFields(data);
 
 				// Update main table
@@ -1145,7 +1389,6 @@ export class CRUDGenerator<
 						.where(eq((this.table as any).id, id));
 
 					// Update ALL i18n titles because parent fields might have changed
-					await this.updateI18nTitle(tx, id, { ...context, locale: undefined });
 				}
 
 				// Upsert localized fields
@@ -1170,7 +1413,6 @@ export class CRUDGenerator<
 						});
 
 					// Update _title for this locale
-					await this.updateI18nTitle(tx, id, context);
 				}
 
 				// Fetch updated record
@@ -1185,22 +1427,31 @@ export class CRUDGenerator<
 				await this.createVersion(tx, updated, "update", context);
 
 				// Execute afterUpdate hooks
-				await this.executeHooks(this.state.hooks?.afterUpdate, {
-					db: tx,
-					row: updated,
-					input: data,
-					locale: context.locale,
-					user: context.user,
-				});
+				await this.executeHooks(
+					this.state.hooks?.afterUpdate,
+					this.createHookContext({
+						data: updated,
+						original: existing,
+						operation: "update",
+						context,
+						db: tx,
+					}),
+				);
 
 				// Execute afterChange hooks
-				await this.executeHooks(this.state.hooks?.afterChange, {
-					db: tx,
-					row: updated,
-					input: data,
-					locale: context.locale,
-					user: context.user,
-				});
+				await this.executeHooks(
+					this.state.hooks?.afterChange,
+					this.createHookContext({
+						data: updated,
+						original: existing,
+						operation: "update",
+						context,
+						db: tx,
+					}),
+				);
+
+				// Index to search (outside transaction)
+				await this.indexToSearch(updated, context);
 
 				return updated;
 			});
@@ -1212,11 +1463,12 @@ export class CRUDGenerator<
 	 */
 	private createDelete() {
 		return async (params: DeleteParams, context: CRUDContext = {}) => {
+			const db = this.getDb(context);
 			const { id } = params;
 
 			// Load existing record
 			// Use select instead of query to avoid dependency on query builder structure which might not exist if collection not registered in db.query
-			const existingRows = await this.db
+			const existingRows = await db
 				.select()
 				.from(this.table)
 				.where(eq((this.table as any).id, id))
@@ -1232,6 +1484,7 @@ export class CRUDGenerator<
 				"delete",
 				context,
 				existing,
+				params,
 			);
 			if (canDelete === false) {
 				throw new Error("Access denied: delete");
@@ -1248,17 +1501,22 @@ export class CRUDGenerator<
 			}
 
 			// Execute beforeDelete hooks
-			await this.executeHooks(this.state.hooks?.beforeDelete, {
-				db: this.db,
-				row: existing,
-				user: context.user,
-			});
+			await this.executeHooks(
+				this.state.hooks?.beforeDelete,
+				this.createHookContext({
+					data: existing,
+					original: existing,
+					operation: "delete",
+					context,
+					db,
+				}),
+			);
 
 			// Handle cascade operations BEFORE delete
 			await this.handleCascadeDelete(id, existing, context);
 
 			// Use transaction for delete + version
-			await this.db.transaction(async (tx: any) => {
+			await db.transaction(async (tx: any) => {
 				// Create version BEFORE delete
 				await this.createVersion(tx, existing, "delete", context);
 
@@ -1274,13 +1532,288 @@ export class CRUDGenerator<
 			});
 
 			// Execute afterDelete hooks
-			await this.executeHooks(this.state.hooks?.afterDelete, {
-				db: this.db,
-				row: existing,
-				user: context.user,
-			});
+			await this.executeHooks(
+				this.state.hooks?.afterDelete,
+				this.createHookContext({
+					data: existing,
+					original: existing,
+					operation: "delete",
+					context,
+					db,
+				}),
+			);
+
+			// Remove from search index
+			await this.removeFromSearch(id, context);
 
 			return { success: true };
+		};
+	}
+
+	/**
+	 * Create updateMany operation - smart batched updates
+	 * 1. findMany to get all matching records (for hooks + access control)
+	 * 2. Loop through beforeUpdate hooks
+	 * 3. Single batched UPDATE WHERE query
+	 * 4. Loop through afterUpdate hooks
+	 */
+	private createUpdateMany() {
+		return async (
+			params: { where: Where; data: UpdateParams["data"] },
+			context: CRUDContext = {},
+		) => {
+			const db = this.getDb(context);
+			const find = this.createFindMany();
+
+			// 1. Find all matching records (for hooks and access control)
+			const { docs: records } = await find({ where: params.where }, context);
+
+			if (records.length === 0) {
+				return [];
+			}
+
+			// 2. Loop through beforeUpdate + beforeChange hooks
+			for (const record of records) {
+				// Check access control per record
+				const canUpdate = await this.enforceAccessControl(
+					"update",
+					context,
+					record,
+					params.data,
+				);
+				if (canUpdate === false) {
+					throw new Error(`Access denied: update record ${record.id}`);
+				}
+				if (typeof canUpdate === "object") {
+					const matchesConditions = await this.checkAccessConditions(
+						canUpdate,
+						record,
+					);
+					if (!matchesConditions) {
+						throw new Error(
+							`Access denied: update record ${record.id} (conditions not met)`,
+						);
+					}
+				}
+
+				// Execute beforeUpdate hooks
+				await this.executeHooks(
+					this.state.hooks?.beforeUpdate,
+					this.createHookContext({
+						data: params.data,
+						original: record,
+						operation: "update",
+						context,
+						db,
+					}),
+				);
+
+				// Execute beforeChange hooks
+				await this.executeHooks(
+					this.state.hooks?.beforeChange,
+					this.createHookContext({
+						data: params.data,
+						original: record,
+						operation: "update",
+						context,
+						db,
+					}),
+				);
+			}
+
+			// 3. Batched UPDATE query
+			return db.transaction(async (tx: any) => {
+				const { localized, nonLocalized } = this.splitLocalizedFields(
+					params.data,
+				);
+				const recordIds = records.map((r: any) => r.id);
+
+				// Update main table (batched)
+				if (Object.keys(nonLocalized).length > 0) {
+					await tx
+						.update(this.table)
+						.set({
+							...nonLocalized,
+							...(this.state.options.timestamps !== false
+								? { updatedAt: new Date() }
+								: {}),
+						})
+						.where(inArray((this.table as any).id, recordIds));
+				}
+
+				// Update localized fields (batched per locale)
+				if (
+					this.i18nTable &&
+					context.locale &&
+					Object.keys(localized).length > 0
+				) {
+					for (const recordId of recordIds) {
+						await tx
+							.insert(this.i18nTable)
+							.values({
+								parentId: recordId,
+								locale: context.locale,
+								...localized,
+							})
+							.onConflictDoUpdate({
+								target: [
+									(this.i18nTable as any).parentId,
+									(this.i18nTable as any).locale,
+								],
+								set: localized,
+							});
+					}
+				}
+
+				// Fetch updated records
+				const updatedRows = await tx
+					.select()
+					.from(this.table)
+					.where(inArray((this.table as any).id, recordIds));
+
+				// Create versions for each record
+				for (const updated of updatedRows) {
+					await this.createVersion(tx, updated, "update", context);
+				}
+
+				// 4. Loop through afterUpdate + afterChange hooks
+				for (let i = 0; i < updatedRows.length; i++) {
+					const updated = updatedRows[i];
+					const original = records[i];
+
+					// Execute afterUpdate hooks
+					await this.executeHooks(
+						this.state.hooks?.afterUpdate,
+						this.createHookContext({
+							data: updated,
+							original,
+							operation: "update",
+							context,
+							db: tx,
+						}),
+					);
+
+					// Execute afterChange hooks
+					await this.executeHooks(
+						this.state.hooks?.afterChange,
+						this.createHookContext({
+							data: updated,
+							original,
+							operation: "update",
+							context,
+							db: tx,
+						}),
+					);
+
+					// Index to search
+					await this.indexToSearch(updated, context);
+				}
+
+				return updatedRows;
+			});
+		};
+	}
+
+	/**
+	 * Create deleteMany operation - smart batched deletes
+	 * 1. findMany to get all matching records (for hooks + access control)
+	 * 2. Loop through beforeDelete hooks
+	 * 3. Single batched DELETE WHERE query
+	 * 4. Loop through afterDelete hooks
+	 */
+	private createDeleteMany() {
+		return async (params: { where: Where }, context: CRUDContext = {}) => {
+			const db = this.getDb(context);
+			const find = this.createFindMany();
+
+			// 1. Find all matching records (for hooks and access control)
+			const { docs: records } = await find({ where: params.where }, context);
+
+			if (records.length === 0) {
+				return { success: true, count: 0 };
+			}
+
+			// 2. Loop through beforeDelete hooks and access control
+			for (const record of records) {
+				// Check access control per record
+				const canDelete = await this.enforceAccessControl(
+					"delete",
+					context,
+					record,
+					params,
+				);
+				if (canDelete === false) {
+					throw new Error(`Access denied: delete record ${record.id}`);
+				}
+				if (typeof canDelete === "object") {
+					const matchesConditions = await this.checkAccessConditions(
+						canDelete,
+						record,
+					);
+					if (!matchesConditions) {
+						throw new Error(
+							`Access denied: delete record ${record.id} (conditions not met)`,
+						);
+					}
+				}
+
+				// Execute beforeDelete hooks
+				await this.executeHooks(
+					this.state.hooks?.beforeDelete,
+					this.createHookContext({
+						data: record,
+						original: record,
+						operation: "delete",
+						context,
+						db,
+					}),
+				);
+
+				// Handle cascade operations per record
+				await this.handleCascadeDelete(record.id, record, context);
+			}
+
+			// 3. Batched DELETE query
+			await db.transaction(async (tx: any) => {
+				const recordIds = records.map((r: any) => r.id);
+
+				// Create versions BEFORE delete
+				for (const record of records) {
+					await this.createVersion(tx, record, "delete", context);
+				}
+
+				// Batched soft delete or hard delete
+				if (this.state.options.softDelete) {
+					await tx
+						.update(this.table)
+						.set({ deletedAt: new Date() })
+						.where(inArray((this.table as any).id, recordIds));
+				} else {
+					await tx
+						.delete(this.table)
+						.where(inArray((this.table as any).id, recordIds));
+				}
+			});
+
+			// 4. Loop through afterDelete hooks
+			for (const record of records) {
+				// Execute afterDelete hooks
+				await this.executeHooks(
+					this.state.hooks?.afterDelete,
+					this.createHookContext({
+						data: record,
+						original: record,
+						operation: "delete",
+						context,
+						db,
+					}),
+				);
+
+				// Remove from search index
+				await this.removeFromSearch(record.id, context);
+			}
+
+			return { success: true, count: records.length };
 		};
 	}
 
@@ -1289,17 +1822,23 @@ export class CRUDGenerator<
 	 */
 	private createFindVersions() {
 		return async (options: FindVersionsOptions, context: CRUDContext = {}) => {
+			const db = this.getDb(context);
 			if (!this.versionsTable) return [];
 
 			// Enforce read access
-			const canRead = await this.enforceAccessControl("read", context, null);
+			const canRead = await this.enforceAccessControl(
+				"read",
+				context,
+				null,
+				options,
+			);
 			if (!canRead) throw new Error("Access denied: read versions");
 
-			let query = this.db
+			let query = db
 				.select()
 				.from(this.versionsTable)
 				.where(eq((this.versionsTable as any).parentId, options.id))
-				.orderBy(sql`${(this.versionsTable as any).version} DESC`);
+				.orderBy(sql`${(this.versionsTable as any).version} ASC`);
 
 			if (options.limit) {
 				query = query.limit(options.limit);
@@ -1313,36 +1852,11 @@ export class CRUDGenerator<
 	}
 
 	/**
-	 * Find a specific version
-	 */
-	private createFindVersion() {
-		return async (options: FindVersionOptions, context: CRUDContext = {}) => {
-			if (!this.versionsTable) return null;
-
-			// Enforce read access
-			const canRead = await this.enforceAccessControl("read", context, null);
-			if (!canRead) throw new Error("Access denied: read version");
-
-			const rows = await this.db
-				.select()
-				.from(this.versionsTable)
-				.where(
-					and(
-						eq((this.versionsTable as any).parentId, options.id),
-						eq((this.versionsTable as any).version, options.version),
-					),
-				)
-				.limit(1);
-
-			return rows[0] || null;
-		};
-	}
-
-	/**
 	 * Revert to a specific version
 	 */
 	private createRevertToVersion() {
 		return async (options: RevertVersionOptions, context: CRUDContext = {}) => {
+			const db = this.getDb(context);
 			if (!this.versionsTable) throw new Error("Versioning not enabled");
 
 			// 1. Get version data
@@ -1351,7 +1865,7 @@ export class CRUDGenerator<
 			// because `this.createFindVersion()` creates a NEW closure.
 			// So we just duplicate logic or call the query.
 
-			const rows = await this.db
+			const rows = await db
 				.select()
 				.from(this.versionsTable)
 				.where(
@@ -1438,6 +1952,7 @@ export class CRUDGenerator<
 
 	/**
 	 * Execute hooks (supports arrays)
+	 * Passes full CMS instance and proper hook context
 	 */
 	private async executeHooks(
 		hooks: HookFunction | HookFunction[] | undefined,
@@ -1452,6 +1967,33 @@ export class CRUDGenerator<
 	}
 
 	/**
+	 * Create hook context with full CMS access
+	 */
+	private createHookContext(params: {
+		data: any;
+		original?: any;
+		operation: "create" | "update" | "delete" | "read";
+		context: CRUDContext;
+		db: any;
+	}): HookContext {
+		const normalized = this.normalizeContext(params.context);
+
+		return {
+			data: params.data,
+			original: params.original,
+			user: normalized.user,
+			locale: normalized.locale,
+			accessMode: normalized.accessMode,
+			operation: params.operation,
+			cms: this.cms, // Full CMS instance for type-safe access to services
+			db: params.db,
+			// Legacy compatibility
+			input: params.data,
+			row: params.data,
+		};
+	}
+
+	/**
 	 * Enforce access control
 	 * Returns: boolean (allowed/denied) OR AccessWhere (query conditions)
 	 */
@@ -1459,9 +2001,16 @@ export class CRUDGenerator<
 		operation: "read" | "create" | "update" | "delete",
 		context: CRUDContext,
 		row: any,
+		input?: any,
 	): Promise<boolean | AccessWhere> {
+		const db = this.getDb(context);
+		const normalized = this.normalizeContext(context);
+
+		// System mode bypasses all access control
+		if (normalized.accessMode === "system") return true;
+
 		const accessRule = this.state.access?.[operation];
-		if (!accessRule) return true; // No access rule = allow
+		if (accessRule === undefined) return true; // No access rule = allow
 
 		// Boolean rule
 		if (typeof accessRule === "boolean") {
@@ -1470,16 +2019,17 @@ export class CRUDGenerator<
 
 		// Role string rule
 		if (typeof accessRule === "string") {
-			return context.user?.role === accessRule;
+			return (normalized.user as any)?.role === accessRule;
 		}
 
 		// Function rule
 		if (typeof accessRule === "function") {
 			const result = await accessRule({
-				user: context.user,
+				user: normalized.user,
 				row,
-				input: context,
-				db: this.db,
+				input,
+				db,
+				context: normalized,
 			});
 
 			return result;
@@ -1519,7 +2069,6 @@ export class CRUDGenerator<
 				if (await this.checkAccessConditions(value as AccessWhere, row)) {
 					return false;
 				}
-			} else {
 				// Simple field equality check
 				if (row[key] !== value) {
 					return false;
@@ -1553,38 +2102,386 @@ export class CRUDGenerator<
 	}
 
 	/**
+	 * Build relation WHERE clause from nested relation filters
+	 */
+	private buildRelationWhereClause(
+		relation: RelationConfig,
+		relationValue: any,
+		parentTable: any,
+		context?: CRUDContext,
+	): SQL | undefined {
+		if (!this.cms) return undefined;
+
+		const normalizedValue = relationValue === true ? {} : relationValue;
+		if (
+			!normalizedValue ||
+			typeof normalizedValue !== "object" ||
+			Array.isArray(normalizedValue)
+		) {
+			return undefined;
+		}
+
+		const relationFilter = normalizedValue as Record<string, any>;
+		const hasQuantifiers = ["some", "none", "every", "is", "isNot"].some(
+			(key) => key in relationFilter,
+		);
+
+		const clauses: SQL[] = [];
+
+		if (relation.type === "one") {
+			const isWhere =
+				relationFilter.is ??
+				relationFilter.some ??
+				(hasQuantifiers ? undefined : relationFilter);
+			const isNotWhere = relationFilter.isNot;
+
+			if (isWhere !== undefined) {
+				const existsClause = this.buildRelationExistsClause(
+					relation,
+					isWhere,
+					parentTable,
+					context,
+				);
+				if (existsClause) clauses.push(existsClause);
+			}
+
+			if (isNotWhere !== undefined) {
+				const existsClause = this.buildRelationExistsClause(
+					relation,
+					isNotWhere,
+					parentTable,
+					context,
+				);
+				if (existsClause) clauses.push(not(existsClause));
+			}
+		} else if (relation.type === "many" || relation.type === "manyToMany") {
+			const someWhere =
+				relationFilter.some ?? (hasQuantifiers ? undefined : relationFilter);
+			const noneWhere = relationFilter.none;
+			const everyWhere = relationFilter.every;
+
+			if (someWhere !== undefined) {
+				const existsClause = this.buildRelationExistsClause(
+					relation,
+					someWhere,
+					parentTable,
+					context,
+				);
+				if (existsClause) clauses.push(existsClause);
+			}
+
+			if (noneWhere !== undefined) {
+				const existsClause = this.buildRelationExistsClause(
+					relation,
+					noneWhere,
+					parentTable,
+					context,
+				);
+				if (existsClause) clauses.push(not(existsClause));
+			}
+
+			if (everyWhere !== undefined) {
+				const negatedWhere = { NOT: everyWhere } as Where;
+				const existsClause = this.buildRelationExistsClause(
+					relation,
+					negatedWhere,
+					parentTable,
+					context,
+				);
+				if (existsClause) clauses.push(not(existsClause));
+			}
+		}
+
+		return clauses.length > 0 ? and(...clauses) : undefined;
+	}
+
+	private buildRelationExistsClause(
+		relation: RelationConfig,
+		relationWhere: Where | undefined,
+		parentTable: any,
+		context?: CRUDContext,
+	): SQL | undefined {
+		switch (relation.type) {
+			case "one":
+				return this.buildBelongsToExistsClause(
+					relation,
+					relationWhere,
+					context,
+				);
+			case "many":
+				return this.buildHasManyExistsClause(
+					relation,
+					relationWhere,
+					parentTable,
+					context,
+				);
+			case "manyToMany":
+				return this.buildManyToManyExistsClause(
+					relation,
+					relationWhere,
+					parentTable,
+					context,
+				);
+			default:
+				return undefined;
+		}
+	}
+
+	private buildBelongsToExistsClause(
+		relation: RelationConfig,
+		relationWhere: Where | undefined,
+		context?: CRUDContext,
+	): SQL | undefined {
+		if (!this.cms || !relation.fields || !relation.references?.length) {
+			return undefined;
+		}
+
+		const relatedCrud = this.cms.api.collections[relation.collection];
+		const relatedTable = relatedCrud.__internalRelatedTable;
+		const relatedState = relatedCrud.__internalState;
+
+		const joinConditions = relation.fields
+			.map((sourceField, index) => {
+				const targetFieldName = relation.references?.[index];
+				const targetColumn = targetFieldName
+					? (relatedTable as any)[targetFieldName]
+					: undefined;
+				return targetColumn ? eq(targetColumn, sourceField) : undefined;
+			})
+			.filter(Boolean) as SQL[];
+
+		if (joinConditions.length === 0) return undefined;
+
+		const whereConditions: SQL[] = [...joinConditions];
+
+		if (relationWhere) {
+			const nestedClause = this.buildWhereClause(
+				relationWhere,
+				false,
+				relatedTable,
+				context,
+				relatedState,
+				relatedCrud.__internalI18nTable,
+			);
+			if (nestedClause) whereConditions.push(nestedClause);
+		}
+
+		if (relatedState.options?.softDelete) {
+			whereConditions.push(sql`${(relatedTable as any).deletedAt} IS NULL`);
+		}
+
+		const db = this.getDb(context);
+		const subquery = db
+			.select({ one: sql`1` })
+			.from(relatedTable)
+			.where(and(...whereConditions));
+
+		return sql`exists (${subquery})`;
+	}
+
+	private buildHasManyExistsClause(
+		relation: RelationConfig,
+		relationWhere: Where | undefined,
+		parentTable: PgTable,
+		context?: CRUDContext,
+	): SQL | undefined {
+		if (!this.cms || relation.fields) return undefined;
+
+		const relatedCrud = this.cms.api.collections[relation.collection];
+		const relatedTable = relatedCrud.__internalRelatedTable;
+		const relatedState = relatedCrud.__internalState;
+		const reverseRelationName = relation.relationName;
+		const reverseRelation = reverseRelationName
+			? relatedState.relations?.[reverseRelationName]
+			: undefined;
+
+		if (!reverseRelation?.fields || !reverseRelation.references?.length) {
+			return undefined;
+		}
+
+		const joinConditions = reverseRelation.fields
+			.map((foreignField: any, index: number) => {
+				const parentFieldName = reverseRelation.references?.[index];
+				const parentColumn = parentFieldName
+					? (parentTable as any)[parentFieldName]
+					: undefined;
+				return parentColumn ? eq(foreignField, parentColumn) : undefined;
+			})
+			.filter(Boolean) as SQL[];
+
+		if (joinConditions.length === 0) return undefined;
+
+		const whereConditions: SQL[] = [...joinConditions];
+
+		if (relationWhere) {
+			const nestedClause = this.buildWhereClause(
+				relationWhere,
+				false,
+				relatedTable,
+				context,
+				relatedState,
+				relatedCrud.__internalI18nTable,
+			);
+			if (nestedClause) whereConditions.push(nestedClause);
+		}
+
+		if (relatedState.options?.softDelete) {
+			whereConditions.push(sql`${(relatedTable as any).deletedAt} IS NULL`);
+		}
+
+		const db = this.getDb(context);
+		const subquery = db
+			.select({ one: sql`1` })
+			.from(relatedTable)
+			.where(and(...whereConditions));
+
+		return sql`exists (${subquery})`;
+	}
+
+	private buildManyToManyExistsClause(
+		relation: RelationConfig,
+		relationWhere: Where | undefined,
+		parentTable: any,
+		context?: CRUDContext,
+	): SQL | undefined {
+		if (!this.cms || !relation.through) return undefined;
+
+		const relatedCrud = this.cms.api.collections[relation.collection];
+		const junctionCrud = this.cms.api.collections[relation.through];
+		const relatedTable = relatedCrud.__internalRelatedTable;
+		const junctionTable = junctionCrud.__internalRelatedTable;
+		const relatedState = relatedCrud.__internalState;
+		const junctionState = junctionCrud.__internalState;
+
+		const sourceKey = relation.sourceKey || "id";
+		const targetKey = relation.targetKey || "id";
+		const sourceField = relation.sourceField;
+		const targetField = relation.targetField;
+
+		const parentColumn = (parentTable as any)[sourceKey];
+		const relatedColumn = (relatedTable as any)[targetKey];
+		const junctionSourceColumn = sourceField
+			? (junctionTable as any)[sourceField]
+			: undefined;
+		const junctionTargetColumn = targetField
+			? (junctionTable as any)[targetField]
+			: undefined;
+
+		if (
+			!parentColumn ||
+			!relatedColumn ||
+			!junctionSourceColumn ||
+			!junctionTargetColumn
+		) {
+			return undefined;
+		}
+
+		const whereConditions: SQL[] = [eq(junctionSourceColumn, parentColumn)];
+
+		if (relationWhere) {
+			const nestedClause = this.buildWhereClause(
+				relationWhere,
+				false,
+				relatedTable,
+				context,
+				relatedState,
+				relatedCrud.__internalI18nTable,
+			);
+			if (nestedClause) whereConditions.push(nestedClause);
+		}
+
+		if (junctionState.options?.softDelete) {
+			whereConditions.push(sql`${(junctionTable as any).deletedAt} IS NULL`);
+		}
+
+		if (relatedState.options?.softDelete) {
+			whereConditions.push(sql`${(relatedTable as any).deletedAt} IS NULL`);
+		}
+
+		const db = this.getDb(context);
+		const subquery = db
+			.select({ one: sql`1` })
+			.from(junctionTable)
+			.innerJoin(relatedTable, eq(junctionTargetColumn, relatedColumn))
+			.where(and(...whereConditions));
+
+		return sql`exists (${subquery})`;
+	}
+
+	/**
 	 * Build WHERE clause from WHERE object
 	 */
 	private buildWhereClause(
 		where: Where,
 		useI18n: boolean = false,
 		customTable?: any,
+		context?: CRUDContext,
+		customState?: CollectionBuilderState,
+		customI18nTable?: PgTable | null,
 	): SQL | undefined {
 		const conditions: SQL[] = [];
 		const targetTable = customTable || this.table;
+		const targetState = customState || this.state;
+		const targetI18nTable = customI18nTable ?? this.i18nTable;
 
 		for (const [key, value] of Object.entries(where)) {
 			if (key === "AND" && Array.isArray(value)) {
 				const subClauses = value
-					.map((w) => this.buildWhereClause(w, useI18n, customTable))
+					.map((w) =>
+						this.buildWhereClause(
+							w,
+							useI18n,
+							targetTable,
+							context,
+							targetState,
+							targetI18nTable,
+						),
+					)
 					.filter(Boolean) as SQL[];
 				if (subClauses.length > 0) {
 					conditions.push(and(...subClauses)!);
 				}
 			} else if (key === "OR" && Array.isArray(value)) {
 				const subClauses = value
-					.map((w) => this.buildWhereClause(w, useI18n, customTable))
+					.map((w) =>
+						this.buildWhereClause(
+							w,
+							useI18n,
+							targetTable,
+							context,
+							targetState,
+							targetI18nTable,
+						),
+					)
 					.filter(Boolean) as SQL[];
 				if (subClauses.length > 0) {
 					conditions.push(or(...subClauses)!);
 				}
 			} else if (key === "NOT" && typeof value === "object") {
-				const subClause = this.buildWhereClause(value as Where, useI18n, customTable);
+				const subClause = this.buildWhereClause(
+					value as Where,
+					useI18n,
+					targetTable,
+					context,
+					targetState,
+					targetI18nTable,
+				);
 				if (subClause) {
 					conditions.push(not(subClause));
 				}
 			} else if (key === "RAW" && typeof value === "function") {
 				conditions.push(value(targetTable));
+			} else if (targetState.relations?.[key]) {
+				const relation = targetState.relations[key] as RelationConfig;
+				const relationClause = this.buildRelationWhereClause(
+					relation,
+					value,
+					targetTable,
+					context,
+				);
+				if (relationClause) {
+					conditions.push(relationClause);
+				}
 			} else if (
 				typeof value === "object" &&
 				value !== null &&
@@ -1595,10 +2492,10 @@ export class CRUDGenerator<
 				if (
 					key === "_title" &&
 					useI18n &&
-					this.i18nTable &&
-					(this.i18nTable as any)._title
+					targetI18nTable &&
+					(targetI18nTable as any)._title
 				) {
-					column = (this.i18nTable as any)._title;
+					column = (targetI18nTable as any)._title;
 				}
 
 				if (!column) continue;
@@ -1613,14 +2510,18 @@ export class CRUDGenerator<
 				if (
 					key === "_title" &&
 					useI18n &&
-					this.i18nTable &&
-					(this.i18nTable as any)._title
+					targetI18nTable &&
+					(targetI18nTable as any)._title
 				) {
-					column = (this.i18nTable as any)._title;
+					column = (targetI18nTable as any)._title;
 				}
 
 				if (column) {
-					conditions.push(eq(column, value));
+					if (value === null) {
+						conditions.push(sql`${column} IS NULL`);
+					} else {
+						conditions.push(eq(column, value));
+					}
 				}
 			}
 		}
@@ -1641,6 +2542,12 @@ export class CRUDGenerator<
 				return eq(column, value);
 			case "ne":
 				return sql`${column} != ${value}`;
+			case "not":
+				// Handle "not" operator: { field: { not: value } }
+				if (value === null) {
+					return sql`${column} IS NOT NULL`;
+				}
+				return sql`${column} != ${value}`;
 			case "gt":
 				return sql`${column} > ${value}`;
 			case "gte":
@@ -1650,9 +2557,9 @@ export class CRUDGenerator<
 			case "lte":
 				return sql`${column} <= ${value}`;
 			case "in":
-				return sql`${column} IN ${value}`;
+				return Array.isArray(value) ? inArray(column, value) : undefined;
 			case "notIn":
-				return sql`${column} NOT IN ${value}`;
+				return Array.isArray(value) ? not(inArray(column, value)) : undefined;
 			case "like":
 				return sql`${column} LIKE ${value}`;
 			case "ilike":
@@ -1738,16 +2645,16 @@ export class CRUDGenerator<
 		}
 
 		// _title field
+		// _title field (pure virtual - computed from title expression)
 		if (this.state.title && includedFields.has("_title")) {
-			// Use dynamic title if available, otherwise use static (though static might not exist if we removed column)
 			const titleExpr = this.getTitle
 				? this.getTitle(context)
 				: this.state.title;
 			if (titleExpr) {
 				select._title = titleExpr;
-			} else if ((this.table as any)._title) {
-				// Fallback to column if it exists (legacy or manual)
-				select._title = (this.table as any)._title;
+			} else {
+				// Fallback to ID if no title expression
+				select._title = (this.table as any).id;
 			}
 		}
 
@@ -1801,7 +2708,6 @@ export class CRUDGenerator<
 				if (value === true) {
 					included.add(key);
 				}
-			} else {
 				// Otherwise, include everything except 'false' values
 				if (value !== false) {
 					included.add(key);
@@ -1868,6 +2774,29 @@ export class CRUDGenerator<
 		return clauses;
 	}
 
+	private resolveFieldKey(
+		state: CollectionBuilderState,
+		column: any,
+		table?: any,
+	): string | undefined {
+		if (typeof column === "string") return column;
+
+		const columnName = column?.name;
+		if (!columnName) return undefined;
+
+		for (const [key, value] of Object.entries(state.fields)) {
+			if ((value as any)?.name === columnName) return key;
+		}
+
+		if (table) {
+			for (const [key, value] of Object.entries(table)) {
+				if ((value as any)?.name === columnName) return key;
+			}
+		}
+
+		return undefined;
+	}
+
 	/**
 	 * Split localized and non-localized fields
 	 */
@@ -1887,39 +2816,101 @@ export class CRUDGenerator<
 	}
 
 	/**
-	 * Update i18n _title column using defined title expression
+	 * Index record to search service
+	 * Called after create/update operations
 	 */
-	private async updateI18nTitle(tx: any, parentId: any, context: CRUDContext) {
-		if (!this.i18nTable || !this.getRawTitle) return;
+	private async indexToSearch(
+		record: any,
+		context: CRUDContext,
+	): Promise<void> {
+		// Skip if no searchable config or no CMS instance
+		if (!this.state.searchable || !this.cms) return;
 
-		// Get raw title expression (using direct columns, no COALESCE)
-		const titleExpr = this.getRawTitle(context);
-		if (!titleExpr) return;
+		// Skip if searchable.manual is true (user controls indexing via hooks)
+		if (this.state.searchable.manual) return;
 
-		// Use .from() to allow referencing the main table in the expression
-		const qb = tx.update(this.i18nTable).set({ _title: titleExpr });
+		// Skip if no search service available
+		if (!this.cms.search) return;
 
-		const whereConditions: SQL[] = [
-			eq((this.i18nTable as any).parentId, parentId),
-		];
+		const normalized = this.normalizeContext(context);
+		const locale = normalized.locale;
 
-		if (context.locale) {
-			whereConditions.push(eq((this.i18nTable as any).locale, context.locale!));
-		}
-
-		// Check if .from is supported (it should be in Drizzle PG)
-		if (typeof qb.from === "function") {
-			await qb
-				.from(this.table)
-				.where(
-					and(
-						eq((this.i18nTable as any).parentId, (this.table as any).id),
-						...whereConditions,
-					),
-				);
+		// Extract title (required)
+		let title: string = "";
+		if (this.getTitle) {
+			const _titleExpr = this.getTitle(context);
+			// For indexing, we need the actual value, not SQL
+			// If _titleExprs _title field, use it; otherwise extract from title expression
+			if (record._title) {
+				title = record._title;
+			}
 		} else {
-			// Fallback: Simple update without join (only works if titleExpr doesn't use main table)
-			await qb.where(and(...whereConditions));
+			// Fallback to ID if no title expression
+			title = record._title || record.id;
 		}
+
+		// Extract content (optional)
+		let content: string | undefined;
+		if (this.state.searchable.content) {
+			content = this.state.searchable.content(record) || undefined;
+		}
+
+		// Extract metadata (optional)
+		let metadata: Record<string, any> | undefined;
+		if (this.state.searchable.metadata) {
+			metadata = this.state.searchable.metadata(record);
+		}
+
+		// Generate embeddings (optional)
+		let embedding: number[] | undefined;
+		if (this.state.searchable.embeddings) {
+			const searchableContext = {
+				cms: this.cms,
+				locale,
+				defaultLocale: normalized.defaultLocale,
+			};
+			embedding = await this.state.searchable.embeddings(
+				record,
+				searchableContext,
+			);
+		}
+
+		// Index to search
+		await this.cms.search.index({
+			collection: this.state.name,
+			recordId: record.id,
+			locale,
+			title,
+			content,
+			metadata,
+			embedding,
+		});
+	}
+
+	/**
+	 * Remove record from search index
+	 * Called after delete operations
+	 */
+	private async removeFromSearch(
+		recordId: string,
+		context: CRUDContext,
+	): Promise<void> {
+		// Skip if no searchable config or no CMS instance
+		if (!this.state.searchable || !this.cms) return;
+
+		// Skip if searchable.manual is true
+		if (this.state.searchable.manual) return;
+
+		// Skip if no search service available
+		if (!this.cms.search) return;
+
+		const normalized = this.normalizeContext(context);
+
+		// Remove from search index (all locales if locale not specified)
+		await this.cms.search.remove({
+			collection: this.state.name,
+			recordId,
+			locale: normalized.locale, // Will remove all locales if undefined
+		});
 	}
 }

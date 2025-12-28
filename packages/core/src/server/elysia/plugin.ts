@@ -20,7 +20,7 @@ export const questpie = (config: ElysiaAdapterConfig) => (app: Elysia) => {
 
 			// Create CMS context
 			// db is from CMS config, user from Elysia context (if available)
-			const cmsContext = await cms.createContext(ctx, {
+			const cmsContext = await cms.createContext({
 				user,
 				locale,
 			});

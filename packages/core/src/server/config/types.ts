@@ -19,7 +19,9 @@ import type {
 	QueueConfig as BaseQueueConfig,
 	JobDefinition,
 } from "../integrated/queue/types";
+import type { SearchConfig } from "../integrated/search";
 import type { DriverContract } from "flydrive/types";
+import type { Migration } from "../migration/types";
 
 export type AnyCollectionOrBuilder =
 	| Collection<AnyCollectionState>
@@ -117,7 +119,7 @@ export type GlobalMap<TGlobals extends AnyGlobalOrBuilder[]> = {
 		: K extends GlobalBuilder<infer TState>
 			? TState["name"]
 			: never]: K extends Global<infer TState>
-		? Global<TState>
+		? Global<TState>[]
 		: K extends GlobalBuilder<infer TState>
 			? Global<TState>
 			: never;
@@ -211,6 +213,13 @@ export type DrizzleClientFromCMSConfig<
 	>
 >;
 
+export type CmsDbClient<
+	TCollections extends AnyCollectionOrBuilder[],
+	TGlobals extends AnyGlobalOrBuilder[],
+> = DrizzleClientFromCMSConfig<TCollections, TGlobals>;
+
+export type AccessMode = "user" | "system";
+
 export interface StorageConfig {
 	/**
 	 * FlyDrive driver instance to be used for
@@ -273,6 +282,30 @@ export interface CMSConfig<
 	 * Queue configuration (pg-boss)
 	 */
 	queue?: BaseQueueConfig<TJobs>;
+
+	/**
+	 * Search configuration (Postgres 18+ BM25, FTS, Trigrams)
+	 * Enables full-text search with BM25 ranking, fuzzy matching, and optional embeddings
+	 */
+	search?: SearchConfig;
+
+	/**
+	 * Migration configuration
+	 */
+	migrations?: {
+		/**
+		 * Directory where migrations are stored
+		 * @default "./migrations"
+		 */
+		directory?: string;
+
+		/**
+		 * Manually defined migrations (optional)
+		 * Usually migrations are auto-generated, but you can define custom ones here
+		 * Or migrations from modules will be merged here
+		 */
+		migrations?: Migration[];
+	};
 }
 
 export interface CMSContextExtensions {

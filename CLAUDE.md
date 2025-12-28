@@ -139,22 +139,75 @@ CMS can be extended via modules that can:
 - Access control is granular per operation (read, create, update, delete)
 
 ### Field Types
-Standard fields available in `fields`:
-- `text()` - varchar(255)
-- `textarea()` - Long text
-- `richText()` - JSON storage
-- `number()` - Integer
-- `checkbox()` - Boolean
-- `timestamp()` - Date/time
-- `image()` - Single image (JSON with key/url)
-- `file()` - Single file (JSON with key/url/mime)
-- `gallery()` - Array of images
+Use Drizzle column builders directly (import from `drizzle-orm/pg-core`):
+- `varchar(name, { length })` - Variable-length string (e.g., `varchar("title", { length: 255 })`)
+- `text(name)` - Unlimited text
+- `jsonb(name)` - Binary JSON (better query performance than `json()`)
+- `integer(name)` - 32-bit integer
+- `boolean(name)` - True/false
+- `timestamp(name, { mode: "date" })` - Date/time
+- `uuid(name)` - UUID (for foreign keys and primary keys)
+- `real(name)`, `doublePrecision(name)` - Floating point numbers
+
+See [Drizzle PostgreSQL column types docs](https://orm.drizzle.team/docs/column-types/pg) for all available types.
+
+**Example:**
+```typescript
+import { varchar, text, jsonb, boolean, integer, timestamp } from "drizzle-orm/pg-core";
+
+collection("posts")
+  .fields({
+    title: varchar("title", { length: 255 }).notNull(),
+    content: jsonb("content"),
+    published: boolean("published").default(false),
+    views: integer("views").default(0),
+  })
+```
 
 ### Assets & Storage
 - All uploads create records in `questpie_assets` collection
 - Upload endpoint: `POST /api/storage/upload`
-- Image/file fields store JSON references to assets
+- **Use foreign key relations to reference assets** (not JSON fields)
 - Multi-driver support (configure default disk and drivers)
+
+**Example - Single Image:**
+```typescript
+import { uuid } from "drizzle-orm/pg-core";
+
+collection("posts")
+  .fields({
+    featuredImageId: uuid("featured_image_id")
+      .references(() => assetsCollection.table.id)
+      .onDelete("set null"),
+  })
+  .relations(({ one }) => ({
+    featuredImage: one("questpie_assets", {
+      fields: [table.featuredImageId],
+      references: ["id"],
+    }),
+  }))
+```
+
+**Example - Image Gallery (many-to-many):**
+```typescript
+// Create junction collection
+const postImages = collection("post_images")
+  .fields({
+    postId: uuid("post_id").references(() => posts.table.id),
+    assetId: uuid("asset_id").references(() => assetsCollection.table.id),
+    order: integer("order").default(0),
+  });
+
+// Add relation to posts
+collection("posts")
+  .relations(({ manyToMany }) => ({
+    gallery: manyToMany("questpie_assets", {
+      through: "post_images",
+      sourceField: "postId",
+      targetField: "assetId",
+    }),
+  }))
+```
 
 ### Queue Jobs
 - Publish jobs in hooks: `context.queue.publish('job-name', payload)`

@@ -1,52 +1,52 @@
 import { collection } from "../builder/collection-builder";
-import { fields } from "../fields";
 import { sql } from "drizzle-orm";
+import { varchar, boolean, timestamp } from "drizzle-orm/pg-core";
 
 // User Collection
 export const usersCollection = collection("user")
 	.options({ timestamps: true })
 	.fields({
-		name: fields.text("name").notNull(),
-		email: fields.text("email").notNull().unique(),
-		emailVerified: fields.checkbox("emailVerified").notNull(),
-		image: fields.text("image"),
-		role: fields.text("role"), // Optional: Better Auth role handling
-		banned: fields.checkbox("banned"), // Optional: Better Auth ban handling
+		name: varchar("name", { length: 255 }).notNull(),
+		email: varchar("email", { length: 255 }).notNull().unique(),
+		emailVerified: boolean("emailVerified").notNull(),
+		image: varchar("image", { length: 500 }),
+		role: varchar("role", { length: 50 }), // Optional: Better Auth role handling
+		banned: boolean("banned"), // Optional: Better Auth ban handling
 	})
 	.title((t) => sql`${t.name}`);
 
 // Session Collection
 export const sessionsCollection = collection("session")
 	.fields({
-		userId: fields.text("userId").notNull(),
-		token: fields.text("token").notNull().unique(),
-		expiresAt: fields.timestamp("expiresAt").notNull(),
-		ipAddress: fields.text("ipAddress"),
-		userAgent: fields.text("userAgent"),
+		userId: varchar("userId", { length: 255 }).notNull(),
+		token: varchar("token", { length: 255 }).notNull().unique(),
+		expiresAt: timestamp("expiresAt", { mode: "date" }).notNull(),
+		ipAddress: varchar("ipAddress", { length: 45 }),
+		userAgent: varchar("userAgent", { length: 500 }),
 	})
 	.title((t) => sql`${t.token}`);
 
 // Account Collection (Social Logins)
 export const accountsCollection = collection("account")
 	.fields({
-		userId: fields.text("userId").notNull(),
-		accountId: fields.text("accountId").notNull(),
-		providerId: fields.text("providerId").notNull(),
-		accessToken: fields.text("accessToken"),
-		refreshToken: fields.text("refreshToken"),
-		accessTokenExpiresAt: fields.timestamp("accessTokenExpiresAt"),
-		refreshTokenExpiresAt: fields.timestamp("refreshTokenExpiresAt"),
-		scope: fields.text("scope"),
-		idToken: fields.text("idToken"),
-		password: fields.text("password"), // Optional: if using credential account here
+		userId: varchar("userId", { length: 255 }).notNull(),
+		accountId: varchar("accountId", { length: 255 }).notNull(),
+		providerId: varchar("providerId", { length: 255 }).notNull(),
+		accessToken: varchar("accessToken", { length: 500 }),
+		refreshToken: varchar("refreshToken", { length: 500 }),
+		accessTokenExpiresAt: timestamp("accessTokenExpiresAt", { mode: "date" }),
+		refreshTokenExpiresAt: timestamp("refreshTokenExpiresAt", { mode: "date" }),
+		scope: varchar("scope", { length: 255 }),
+		idToken: varchar("idToken", { length: 500 }),
+		password: varchar("password", { length: 255 }), // Optional: if using credential account here
 	})
 	.title((t) => sql`${t.providerId}`);
 
 // Verification Collection
 export const verificationsCollection = collection("verification")
 	.fields({
-		identifier: fields.text("identifier").notNull(),
-		value: fields.text("value").notNull(),
-		expiresAt: fields.timestamp("expiresAt").notNull(),
+		identifier: varchar("identifier", { length: 255 }).notNull(),
+		value: varchar("value", { length: 255 }).notNull(),
+		expiresAt: timestamp("expiresAt", { mode: "date" }).notNull(),
 	})
 	.title((t) => sql`${t.identifier}`);

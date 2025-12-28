@@ -6,6 +6,7 @@ import {
 	text,
 	timestamp,
 	index,
+	uniqueIndex,
 	integer,
 	jsonb,
 } from "drizzle-orm/pg-core";
@@ -25,9 +26,10 @@ import type {
 	LocalizedFields,
 	LocalizedTableName,
 	RelationVariant,
-	CollectionBuilderRelationFn, // Import this
+	CollectionBuilderRelationFn,
 } from "#questpie/core/server/collection/builder/types";
 import { CRUDGenerator } from "#questpie/core/server/collection/crud";
+import type { CRUD } from "#questpie/core/server/collection/crud/types";
 
 // ... (Infer types skipped for brevity if not changing) ...
 /**
@@ -71,6 +73,44 @@ type InferCollectionUpdate<
 	[K in TLocalized[number]]?: GetColumnData<TFields[K]>;
 };
 
+export type CollectionSelect<TState extends CollectionBuilderState> =
+	InferCollectionSelect<
+		InferTableWithColumns<
+			TState["name"],
+			NonLocalizedFields<TState["fields"], TState["localized"]>,
+			TState["title"],
+			TState["options"]
+		>,
+		TState["fields"],
+		TState["localized"],
+		TState["virtuals"],
+		TState["title"]
+	>;
+
+export type CollectionInsert<TState extends CollectionBuilderState> =
+	InferCollectionInsert<
+		InferTableWithColumns<
+			TState["name"],
+			NonLocalizedFields<TState["fields"], TState["localized"]>,
+			TState["title"],
+			TState["options"]
+		>,
+		TState["fields"],
+		TState["localized"]
+	>;
+
+export type CollectionUpdate<TState extends CollectionBuilderState> =
+	InferCollectionUpdate<
+		InferTableWithColumns<
+			TState["name"],
+			NonLocalizedFields<TState["fields"], TState["localized"]>,
+			TState["title"],
+			TState["options"]
+		>,
+		TState["fields"],
+		TState["localized"]
+	>;
+
 /**
  * Final Collection class - the result of build()
  * Contains the generated tables, types, and CRUD operations
@@ -96,7 +136,7 @@ export class Collection<TState extends CollectionBuilderState> {
 	public readonly state: TState;
 
 	static pkCols = () => ({
-		id: uuid("id").primaryKey().defaultRandom(),
+		id: uuid("id").primaryKey().default(sql`uuidv7()`),
 	});
 
 	static timestampsCols = () => ({
@@ -108,47 +148,14 @@ export class Collection<TState extends CollectionBuilderState> {
 		deletedAt: timestamp("deleted_at", { mode: "date" }),
 	});
 
-	static _titleCols = (sql: SQL<any>) => ({
-		_title: text("_title").generatedAlwaysAs(sql).notNull(),
-	});
-
 	/**
 	 * Type inference helper
 	 * Access with: collection.$infer.select, collection.$infer.insert, etc.
 	 */
 	public readonly $infer!: {
-		select: InferCollectionSelect<
-			InferTableWithColumns<
-				TState["name"],
-				NonLocalizedFields<TState["fields"], TState["localized"]>,
-				TState["title"],
-				TState["options"]
-			>,
-			TState["fields"],
-			TState["localized"],
-			TState["virtuals"],
-			TState["title"]
-		>;
-		insert: InferCollectionInsert<
-			InferTableWithColumns<
-				TState["name"],
-				NonLocalizedFields<TState["fields"], TState["localized"]>,
-				TState["title"],
-				TState["options"]
-			>,
-			TState["fields"],
-			TState["localized"]
-		>;
-		update: InferCollectionUpdate<
-			InferTableWithColumns<
-				TState["name"],
-				NonLocalizedFields<TState["fields"], TState["localized"]>,
-				TState["title"],
-				TState["options"]
-			>,
-			TState["fields"],
-			TState["localized"]
-		>;
+		select: CollectionSelect<TState>;
+		insert: CollectionInsert<TState>;
+		update: CollectionUpdate<TState>;
 	};
 
 	constructor(
@@ -261,16 +268,17 @@ export class Collection<TState extends CollectionBuilderState> {
 		return this.titleFn(this.table, i18nAccessor, context);
 	}
 
+
 	/**
 	 * Generate the main Drizzle table
 	 */
 	private generateMainTable(
 		indexesFn?: (table: any) => TState["indexes"],
-		titleFn?: (table: any, i18n: any, context: any) => TState["title"],
+		_titleFn?: (table: any, i18n: any, context: any) => TState["title"],
 	): PgTable {
 		const tableName = this.state.options.tableName || this.state.name;
 		const columns: Record<string, any> = {
-			id: uuid("id").primaryKey().defaultRandom(),
+			id: uuid("id").primaryKey().default(sql`uuidv7()`),
 		};
 
 		// Add non-localized fields
@@ -279,24 +287,6 @@ export class Collection<TState extends CollectionBuilderState> {
 			if (this.state.localized.includes(fieldName as any)) continue;
 
 			columns[fieldName] = column;
-		}
-
-		// Create temporary table for title/indexes callbacks
-		const tempTable = pgTable(tableName, columns as any);
-
-		// Add _title as generated column if title function exists
-		if (titleFn) {
-			const context = {
-				defaultLocale: (this.state.options as any).defaultLocale || "en",
-			};
-			const i18nAccessor = this.createI18nAccessor(context);
-			const titleExpr = titleFn(tempTable, i18nAccessor, context);
-			if (titleExpr) {
-				Object.assign(columns, Collection._titleCols(titleExpr));
-			} else {
-				// id
-				Object.assign(columns, Collection._titleCols(sql`${tempTable.id}`));
-			}
 		}
 
 		// Add timestamps
@@ -339,12 +329,11 @@ export class Collection<TState extends CollectionBuilderState> {
 
 		const tableName = `${this.state.options.tableName || this.state.name}_i18n`;
 		const columns: Record<string, any> = {
-			id: uuid("id").primaryKey().defaultRandom(),
+			id: uuid("id").primaryKey().default(sql`uuidv7()`),
 			parentId: uuid("parent_id")
 				.notNull()
 				.references(() => (this.table as any).id, { onDelete: "cascade" }),
 			locale: text("locale").notNull(),
-			_title: text("_title"),
 		};
 
 		// Add localized fields
@@ -356,7 +345,7 @@ export class Collection<TState extends CollectionBuilderState> {
 		}
 
 		return pgTable(tableName, columns as any, (t) => ({
-			parentLocaleIdx: index().on(t.parentId, t.locale),
+			parentLocaleIdx: uniqueIndex().on(t.parentId, t.locale),
 		}));
 	}
 
@@ -373,7 +362,7 @@ export class Collection<TState extends CollectionBuilderState> {
 		return pgTable(
 			tableName,
 			{
-				id: uuid("id").primaryKey().defaultRandom(),
+				id: uuid("id").primaryKey().default(sql`uuidv7()`),
 				parentId: uuid("parent_id").notNull(),
 				version: integer("version").notNull(),
 				operation: text("operation").notNull(), // 'create' | 'update' | 'delete'
@@ -394,25 +383,27 @@ export class Collection<TState extends CollectionBuilderState> {
 	 * Create i18n accessor object for localized fields
 	 * Returns SQL expressions with COALESCE pattern for each localized field
 	 */
-	private createI18nAccessor(
+	private createI18nAccessorFor(
+		table: any,
+		i18nTable: any | null,
 		context: any,
 	): I18nFieldAccessor<TState["fields"], TState["localized"]> {
 		const accessor: any = {};
 		const defaultLocale = context?.defaultLocale || "en";
 
-		if (!this.i18nTable) return accessor;
+		if (!i18nTable) return accessor;
 
 		for (const fieldName of this.state.localized) {
 			// COALESCE(
 			//   1. Value from the main LEFT JOIN (filtered by current locale in CRUD generator)
 			//   2. Fallback subquery for default locale
 			// )
-			const i18nTable = this.i18nTable as any;
+			const i18nRef = i18nTable as any;
 			accessor[fieldName] = sql`COALESCE(
-				${i18nTable[fieldName]},
-				(SELECT ${i18nTable[fieldName]} FROM ${this.i18nTable}
-				 WHERE ${i18nTable.parentId} = ${(this.table as any).id}
-				 AND ${i18nTable.locale} = ${defaultLocale} LIMIT 1)
+				${i18nRef[fieldName]},
+				(SELECT ${i18nRef[fieldName]} FROM ${i18nTable}
+				 WHERE ${i18nRef.parentId} = ${(table as any).id}
+				 AND ${i18nRef.locale} = ${defaultLocale} LIMIT 1)
 			)`;
 		}
 
@@ -422,25 +413,45 @@ export class Collection<TState extends CollectionBuilderState> {
 	/**
 	 * Create raw i18n accessor object (direct column references)
 	 */
-	private createRawI18nAccessor(): I18nFieldAccessor<
-		TState["fields"],
-		TState["localized"]
-	> {
+	private createRawI18nAccessorFor(
+		i18nTable: any | null,
+	): I18nFieldAccessor<TState["fields"], TState["localized"]> {
 		const accessor: any = {};
 
-		if (!this.i18nTable) return accessor;
+		if (!i18nTable) return accessor;
 
 		for (const fieldName of this.state.localized) {
-			accessor[fieldName] = (this.i18nTable as any)[fieldName];
+			accessor[fieldName] = (i18nTable as any)[fieldName];
 		}
 
 		return accessor;
 	}
 
+	private createI18nAccessor(
+		context: any,
+	): I18nFieldAccessor<TState["fields"], TState["localized"]> {
+		return this.createI18nAccessorFor(this.table, this.i18nTable, context);
+	}
+
+	private createRawI18nAccessor(): I18nFieldAccessor<
+		TState["fields"],
+		TState["localized"]
+	> {
+		return this.createRawI18nAccessorFor(this.i18nTable);
+	}
+
 	/**
 	 * Generate CRUD operations (Drizzle RQB v2-like)
 	 */
-	generateCRUD(db: any, cms?: any) {
+	generateCRUD(
+		db: any,
+		cms?: any,
+	): CRUD<
+		CollectionSelect<TState>,
+		CollectionInsert<TState>,
+		CollectionUpdate<TState>,
+		TState["relations"]
+	> {
 		const crud = new CRUDGenerator(
 			this.state,
 			this.table,
@@ -453,7 +464,12 @@ export class Collection<TState extends CollectionBuilderState> {
 			cms,
 		);
 
-		return crud.generate();
+		return crud.generate() as CRUD<
+			CollectionSelect<TState>,
+			CollectionInsert<TState>,
+			CollectionUpdate<TState>,
+			TState["relations"]
+		>;
 	}
 	// ...
 

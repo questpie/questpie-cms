@@ -10,62 +10,65 @@ export const createRoutes = (cms: QCMS) => (app: Elysia) => {
 	});
 
 	// Storage Upload Handler
-	app.post("/api/storage/upload", async ({ request, query, cmsContext }: any) => {
-		const formData = await request.formData();
-		const file = formData.get("file");
+	app.post(
+		"/api/storage/upload",
+		async ({ request, query, cmsContext }: any) => {
+			const formData = await request.formData();
+			const file = formData.get("file");
 
-		if (!file || !(file instanceof File)) {
-			throw new Error("No file uploaded. Send 'file' in form-data.");
-		}
+			if (!file || !(file instanceof File)) {
+				throw new Error("No file uploaded. Send 'file' in form-data.");
+			}
 
-		const disk = query.disk; // Optional: specify disk
-		// Use a simple strategy: uuid-filename
-		const key = `${crypto.randomUUID()}-${file.name}`;
+			// Use a simple strategy: uuid-filename
+			const key = `${crypto.randomUUID()}-${file.name}`;
 
-		// Use the storage service.
-		const storage = disk ? cms.storage.disk(disk) : cms.storage.disk();
-		await storage.put(key, file.stream());
+			// Use the storage service
+			const storage = cms.storage;
+			const buffer = await file.arrayBuffer();
+			await storage.put(key, new Uint8Array(buffer));
 
-		const url = await storage.getUrl(key);
+			const url = await storage.getUrl(key);
 
-		// Create Asset Record in Central Library
-		const assetsCrud = cms.crud("questpie_assets" as any, cmsContext);
-		const asset = await assetsCrud.create(
-			{
-				key,
-				url,
-				filename: file.name,
-				mimeType: file.type,
-				size: file.size,
-				// TODO: Add image processing for width/height
-			},
-			cmsContext,
-		);
+			// Create Asset Record in Central Library
+			const assetsCrud = cms.api.collections["questpie_assets" as any];
+			const asset = await assetsCrud.create(
+				{
+					key,
+					url,
+					filename: file.name,
+					mimeType: file.type,
+					size: file.size,
+					// TODO: Add image processing for width/height
+				},
+				cmsContext,
+			);
 
-		return asset;
-	});
+			return asset;
+		},
+	);
 
 	api.group("/globals/:global", (app) =>
 		app
 			.get("/", async ({ params: { global }, query, cmsContext }: any) => {
-				const globalInstance = cms.global(global);
+				const globalInstance = cms.getGlobalConfig(global);
 				const crud = globalInstance.generateCRUD(cmsContext.db, cms);
 				return await crud.get({}, cmsContext);
 			})
 			.post("/", async ({ params: { global }, body, cmsContext }: any) => {
-				const globalInstance = cms.global(global);
+				const globalInstance = cms.getGlobalConfig(global);
 				const crud = globalInstance.generateCRUD(cmsContext.db, cms);
 				return await crud.update(body, cmsContext);
 			})
 			.patch("/", async ({ params: { global }, body, cmsContext }: any) => {
-				const globalInstance = cms.global(global);
+				const globalInstance = cms.getGlobalConfig(global);
 				const crud = globalInstance.generateCRUD(cmsContext.db, cms);
 				return await crud.update(body, cmsContext);
 			})
 			.get(
 				"/versions",
 				async ({ params: { global }, query, cmsContext }: any) => {
-					const globalInstance = cms.global(global);
+					const globalInstance = cms.getGlobalConfig(global);
 					const crud = globalInstance.generateCRUD(cmsContext.db, cms);
 					const options: any = {};
 					if (query.limit) options.limit = Number(query.limit);
@@ -80,7 +83,7 @@ export const createRoutes = (cms: QCMS) => (app: Elysia) => {
 			.post(
 				"/revert/:version",
 				async ({ params: { global, version }, cmsContext }: any) => {
-					const globalInstance = cms.global(global);
+					const globalInstance = cms.getGlobalConfig(global);
 					const crud = globalInstance.generateCRUD(cmsContext.db, cms);
 					if (crud.revertToVersion) {
 						return await crud.revertToVersion(
@@ -96,7 +99,7 @@ export const createRoutes = (cms: QCMS) => (app: Elysia) => {
 	api.group("/:collection", (app) =>
 		app
 			.get("/", async ({ params: { collection }, query, cmsContext }: any) => {
-				const crud = cms.crud(collection, cmsContext);
+				const crud = cms.api.collections[collection];
 
 				const options: any = {};
 				if (query.limit) options.limit = Number(query.limit);
@@ -117,16 +120,16 @@ export const createRoutes = (cms: QCMS) => (app: Elysia) => {
 					} catch {}
 				}
 
-				return await crud.findMany(options, cmsContext);
+				return await crud.find(options, cmsContext);
 			})
 			.post("/", async ({ params: { collection }, body, cmsContext }: any) => {
-				const crud = cms.crud(collection, cmsContext);
+				const crud = cms.api.collections[collection];
 				return await crud.create(body, cmsContext);
 			})
 			.get(
 				"/:id",
 				async ({ params: { collection, id }, query, cmsContext }: any) => {
-					const crud = cms.crud(collection, cmsContext);
+					const crud = cms.api.collections[collection];
 					const options: any = { where: { id } };
 
 					if (query.with) {
@@ -135,27 +138,27 @@ export const createRoutes = (cms: QCMS) => (app: Elysia) => {
 						} catch {}
 					}
 
-					return await crud.findFirst(options, cmsContext);
+					return await crud.findOne(options, cmsContext);
 				},
 			)
 			.patch(
 				"/:id",
 				async ({ params: { collection, id }, body, cmsContext }: any) => {
-					const crud = cms.crud(collection, cmsContext);
-					return await crud.update({ id, data: body }, cmsContext);
+					const crud = cms.api.collections[collection];
+					return await crud.updateById({ id, data: body }, cmsContext);
 				},
 			)
 			.delete(
 				"/:id",
 				async ({ params: { collection, id }, cmsContext }: any) => {
-					const crud = cms.crud(collection, cmsContext);
-					return await crud.delete({ id }, cmsContext);
+					const crud = cms.api.collections[collection];
+					return await crud.deleteById({ id }, cmsContext);
 				},
 			)
 			.get(
 				"/:id/versions",
 				async ({ params: { collection, id }, query, cmsContext }: any) => {
-					const crud = cms.crud(collection, cmsContext);
+					const crud = cms.api.collections[collection];
 					const options: any = { id };
 					if (query.limit) options.limit = Number(query.limit);
 					if (query.offset) options.offset = Number(query.offset);
@@ -169,7 +172,7 @@ export const createRoutes = (cms: QCMS) => (app: Elysia) => {
 			.post(
 				"/:id/revert/:version",
 				async ({ params: { collection, id, version }, cmsContext }: any) => {
-					const crud = cms.crud(collection, cmsContext);
+					const crud = cms.api.collections[collection];
 					if (crud.revertToVersion) {
 						return await crud.revertToVersion(
 							{ id, version: Number(version) },

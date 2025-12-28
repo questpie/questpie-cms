@@ -1,5 +1,5 @@
 import type { JobDefinition, QueueClient } from "./types";
-import type { CmsContext } from "#questpie/core/server/config/context";
+import type { RequestContext } from "#questpie/core/server/config/context";
 
 /**
  * Worker options for job processing
@@ -38,10 +38,10 @@ export interface WorkerOptions {
  * });
  *
  * // Start listening to all jobs
- * await cms._listenToJobs();
+ * await cms.listenToJobs();
  *
  * // Or with options
- * await cms._listenToJobs({
+ * await cms.listenToJobs({
  *   teamSize: 10,
  *   batchSize: 5,
  * });
@@ -50,7 +50,7 @@ export interface WorkerOptions {
 export async function startJobWorker<TJobs extends JobDefinition<any, any>[]>(
 	queueClient: QueueClient<TJobs>,
 	jobs: TJobs,
-	createContext: () => Promise<CmsContext>,
+	createContext: () => Promise<RequestContext>,
 	options?: WorkerOptions,
 ): Promise<void> {
 	// Ensure queue is started
@@ -101,7 +101,7 @@ export async function startJobWorker<TJobs extends JobDefinition<any, any>[]>(
  * @example
  * ```ts
  * // Only listen to email jobs in this worker
- * await cms._listenToJobs(['sendEmail', 'sendBulkEmail']);
+ * await cms.listenToJobs(['sendEmail', 'sendBulkEmail']);
  * ```
  */
 export async function startJobWorkerForJobs<
@@ -109,7 +109,7 @@ export async function startJobWorkerForJobs<
 >(
 	queueClient: QueueClient<TJobs>,
 	jobs: TJobs,
-	createContext: () => Promise<CmsContext>,
+	createContext: () => Promise<RequestContext>,
 	options?: WorkerOptions,
 ): Promise<void> {
 	await startJobWorker(queueClient, jobs, createContext, options);

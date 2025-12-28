@@ -9,21 +9,16 @@ export class AuthService {
 		const plugins = config.plugins || [];
 
 		// Add default plugins if not already present (checking by some logic might be hard, so we just prepend/append)
-		// Better Auth plugins usually dedupe or last wins? 
+		// Better Auth plugins usually dedupe or last wins?
 		// We'll enforce our "batteries" by adding them.
-		
+
 		const finalConfig: BetterAuthOptions = {
 			...config,
-			plugins: [
-				admin(),
-				apiKey(),
-				bearer(),
-				...plugins,
-			],
-            emailAndPassword: {
-                enabled: true,
-                ...config.emailAndPassword
-            }
+			plugins: [admin(), apiKey(), bearer(), ...plugins],
+			emailAndPassword: {
+				enabled: true,
+				...config.emailAndPassword,
+			},
 		};
 
 		this.instance = betterAuth(finalConfig);
