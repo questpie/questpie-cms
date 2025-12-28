@@ -30,7 +30,7 @@ cd packages/core && bun run dev
 bun run check-types
 
 # Type check specific package
-turbo check-types --filter=@questpie/core
+turbo check-types --filter=@questpie/cms
 
 # Lint with Biome (uses tabs, double quotes)
 turbo run lint
@@ -62,9 +62,9 @@ turbo build --filter=docs
 ### Core Package Architecture (`packages/core/`)
 
 The core package uses a **client/server/shared split** accessed via subpath exports:
-- `@questpie/core/server` → Server-only code (CMS engine, collections, CRUD)
-- `@questpie/core/client` → Client-only code
-- `@questpie/core/shared` → Shared utilities and types
+- `@questpie/cms/server` → Server-only code (CMS engine, collections, CRUD)
+- `@questpie/cms/client` → Client-only code
+- `@questpie/cms/shared` → Shared utilities and types
 
 **Internal structure:**
 ```
@@ -88,7 +88,7 @@ packages/core/src/
 **1. Collection Builder API**
 Collections use a fluent builder pattern for defining content schemas:
 ```typescript
-collection("posts")
+defineCollection("posts")
   .fields({ title: fields.text("title") })
   .title(t => t.title)
   .hooks({ afterCreate: async ({ data, context }) => {} })
@@ -155,7 +155,7 @@ See [Drizzle PostgreSQL column types docs](https://orm.drizzle.team/docs/column-
 ```typescript
 import { varchar, text, jsonb, boolean, integer, timestamp } from "drizzle-orm/pg-core";
 
-collection("posts")
+defineCollection("posts")
   .fields({
     title: varchar("title", { length: 255 }).notNull(),
     content: jsonb("content"),
@@ -174,7 +174,7 @@ collection("posts")
 ```typescript
 import { uuid } from "drizzle-orm/pg-core";
 
-collection("posts")
+defineCollection("posts")
   .fields({
     featuredImageId: uuid("featured_image_id")
       .references(() => assetsCollection.table.id)
@@ -191,7 +191,7 @@ collection("posts")
 **Example - Image Gallery (many-to-many):**
 ```typescript
 // Create junction collection
-const postImages = collection("post_images")
+const postImages = defineCollection("post_images")
   .fields({
     postId: uuid("post_id").references(() => posts.table.id),
     assetId: uuid("asset_id").references(() => assetsCollection.table.id),
@@ -199,7 +199,7 @@ const postImages = collection("post_images")
   });
 
 // Add relation to posts
-collection("posts")
+defineCollection("posts")
   .relations(({ manyToMany }) => ({
     gallery: manyToMany("questpie_assets", {
       through: "post_images",

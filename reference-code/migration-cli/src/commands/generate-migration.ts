@@ -431,7 +431,7 @@ async function updateMigrationsIndex(packageInfo: any, fileName: string, migrati
 
   const migrationsArray = existingMigrations.map((m) => `      ${m.migrationName}`).join(',\n')
 
-  const content = `import { defineModuleMigrations } from '@questpie/core/backend/definitions/migration.definitions'
+  const content = `import { defineModuleMigrations } from '@questpie/cms/backend/definitions/migration.definitions'
 ${imports}
 
 export const ${packageInfo.name.replace(/[^a-zA-Z0-9]/g, '_')}Migrations = defineModuleMigrations(

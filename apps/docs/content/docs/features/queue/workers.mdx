@@ -13,7 +13,7 @@ Workers are processes that listen for jobs in the queue and execute them. QUESTP
 Create a separate worker file (e.g., `worker.ts`):
 
 ```typescript
-import { QCMS } from '@questpie/core/server'
+import { QCMS } from '@questpie/cms/server'
 import { jobs } from './jobs'
 
 const cms = new QCMS({
@@ -106,7 +106,7 @@ NODE_ENV=production
 
 ```typescript
 // worker.ts
-import { QCMS } from '@questpie/core/server'
+import { QCMS } from '@questpie/cms/server'
 import { jobs } from './jobs'
 
 const cms = new QCMS({
@@ -324,7 +324,7 @@ await cms._listenToJobs(['encodeVideo', 'generateReport'], {
 ### Worker Logs
 
 ```typescript
-import { QCMS } from '@questpie/core/server'
+import { QCMS } from '@questpie/cms/server'
 import { jobs } from './jobs'
 
 const cms = new QCMS({
@@ -354,7 +354,7 @@ console.log('Worker started')
 
 ```typescript
 // health-check.ts
-import { QCMS } from '@questpie/core/server'
+import { QCMS } from '@questpie/cms/server'
 
 const cms = new QCMS({ /* config */ })
 
@@ -420,7 +420,7 @@ setInterval(() => {
 Handle shutdown signals properly:
 
 ```typescript
-import { QCMS } from '@questpie/core/server'
+import { QCMS } from '@questpie/cms/server'
 import { jobs } from './jobs'
 
 const cms = new QCMS({ /* config */ })

@@ -15,7 +15,7 @@ QUESTPIE uses a **fluent builder API** to define collections. This approach allo
 The `collection()` function initiates a new collection builder. You can then chain various configuration methods to define the collection's properties.
 
 ```typescript
-import { defineCollection } from '@qcms/core'
+import { defineCollection } from '@questpie/cms'
 import { text, boolean } from 'drizzle-orm/pg-core'
 
 export const pages = defineCollection('pages')
@@ -130,13 +130,8 @@ This means you can define hundreds of collections in your application without in
 
 <Cards>
   <Card
-    title="Type Inference"
-    description="Understand how QUESTPIE derives types from your definitions."
-    href="/docs/core-concepts/type-inference"
-  />
-  <Card
     title="Relations Guide"
     description="Learn how to model complex relationships."
-    href="/docs/guides/relations"
+    href="/docs/reference/cms/relations"
   />
 </Cards>

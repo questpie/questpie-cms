@@ -14,22 +14,22 @@ QUESTPIE CMS is a headless Content Management System engineered for modern TypeS
   <Card
     title="Type-Safe Schema Definition"
     description="Define content models using a fluent, builder-based API. QUESTPIE leverages advanced TypeScript inference to provide immediate feedback and autocomplete."
-    href="/docs/core-concepts/type-inference"
+    href="/docs/core-concepts/builder-pattern"
   />
   <Card
     title="Modular Architecture"
     description="Extend core functionality through a robust plugin system. Compose complex applications by merging collection definitions and modules."
-    href="/docs/core-concepts/extensibility"
+    href="/docs/core-concepts/merge-pattern"
   />
   <Card
     title="Drizzle ORM Integration"
     description="Built on top of Drizzle ORM, offering direct access to the underlying database with zero abstraction overhead when you need it."
-    href="/docs/core-concepts/drizzle-integration"
+    href="/docs/reference/cms/collections"
   />
   <Card
     title="Native Internationalization"
     description="Built-in multi-language support. Define localized fields at the schema level and let the CMS handle data separation and fallback logic."
-    href="/docs/features/localization"
+    href="/docs/reference/cms/collections"
   />
 </Cards>
 
@@ -38,7 +38,7 @@ QUESTPIE CMS is a headless Content Management System engineered for modern TypeS
 QUESTPIE CMS defines content structures ("Collections") through code. This approach ensures that your database schema and application types are always in sync.
 
 ```typescript
-import { defineCollection, createCMS } from '@qcms/core'
+import { defineCollection, createCMS } from '@questpie/cms'
 import { text, integer } from 'drizzle-orm/pg-core'
 
 // 1. Define your content model

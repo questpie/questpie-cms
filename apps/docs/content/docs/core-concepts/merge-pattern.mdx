@@ -13,7 +13,7 @@ icon: GitMerge
 The `.merge()` method combines the state of two collection builders. It is useful for splitting large schemas, creating reusable plugins, or extending core collections from feature modules.
 
 ```typescript
-import { defineCollection } from '@questpie/core'
+import { defineCollection } from '@questpie/cms'
 import { text } from 'drizzle-orm/pg-core'
 
 // 1. Define a base collection
@@ -52,7 +52,7 @@ When merging Collection B into Collection A (`A.merge(B)`), the system applies t
 Modules defined with `defineModule` expose their extensions in a structured way. You merge these extensions into your base collections during configuration.
 
 ```typescript title="cms.config.ts"
-import { configureModule } from '@questpie/core'
+import { configureModule } from '@questpie/cms'
 import { authModule } from './modules/auth'
 
 // 1. Configure module
@@ -114,6 +114,6 @@ type UserInsert = typeof users.$infer.insert // includes { age?: number }
   <Card
     title="Type Inference"
     description="Learn how Questpie maintains type safety."
-    href="/docs/core-concepts/type-inference"
+    href="/docs/core-concepts/builder-pattern"
   />
 </Cards>

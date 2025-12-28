@@ -18,7 +18,7 @@ A Module is a typed definition that bundles:
 Use the `defineModule` utility to create a type-safe module definition.
 
 ```typescript title="modules/stripe/index.ts"
-import { defineModule, defineCollection } from '@questpie/core'
+import { defineModule, defineCollection } from '@questpie/cms'
 import { text, integer } from 'drizzle-orm/pg-core'
 
 // 1. Define Config Type
@@ -62,7 +62,7 @@ In your application configuration, you utilize the module by configuring it and 
 Use `configureModule` to pass settings. This ensures your configuration matches the module's requirements.
 
 ```typescript title="cms.config.ts"
-import { createCMS, configureModule, collectModuleCollections } from '@questpie/core'
+import { createCMS, configureModule, collectModuleCollections } from '@questpie/cms'
 import { drizzle } from 'drizzle-orm/postgres-js'
 import { baseUsers } from './collections/users'
 import { stripeModule } from './modules/stripe'

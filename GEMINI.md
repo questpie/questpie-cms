@@ -8,19 +8,19 @@ QUESTPIE CMS is a modern, type-safe Content Management System built as a monorep
 
 The project is structured as a monorepo with the following key workspaces:
 
-*   **`packages/core` (`@questpie/core`)**: The backend logic and CMS engine.
+*   **`packages/cms` (`@questpie/cms`)**: The backend logic and CMS engine.
     *   **Framework**: [ElysiaJS](https://elysiajs.com/) (high-performance web framework).
     *   **Database**: [Drizzle ORM](https://orm.drizzle.team/).
     *   **Auth**: [Better Auth](https://better-auth.com/).
     *   **Storage**: [Flydrive](https://flydrive.dev/).
     *   **Queues**: [pg-boss](https://github.com/timgit/pg-boss).
     *   **DI**: TinyDI.
-*   **`apps/tanstackstart-admin` (`@qcms/tanstackstart-admin`)**: The administrative dashboard.
+*   **`apps/admin` (`@questpie/admin`)**: The administrative dashboard.
     *   **Framework**: React 19 + Vite.
     *   **Routing**: [TanStack Router](https://tanstack.com/router).
     *   **SSR/Start**: [TanStack Start](https://tanstack.com/start).
     *   **UI**: Tailwind CSS v4 + Shadcn UI.
-*   **`apps/docs` (`@qcms/docs`)**: The documentation website.
+*   **`apps/docs` (`@questpie/docs`)**: The documentation website.
     *   **Framework**: React + Vite + TanStack Start.
     *   **Docs Engine**: [Fumadocs](https://fumadocs.vercel.app/).
 
@@ -45,7 +45,7 @@ Run these commands from the project root:
     ```bash
     bun run dev
     # or specifically for one app:
-    bun run dev --filter=@qcms/tanstackstart-admin
+    bun run dev --filter=@questpie/admin
     ```
 *   **Build Project**:
     ```bash
@@ -69,4 +69,4 @@ Run these commands from the project root:
 *   **Routing**: **TanStack Router** is used for client-side routing.
 *   **Linting**: The project largely uses **Biome** for fast linting and formatting (configured in `biome.json` at the root), though the admin app currently uses ESLint + Prettier.
 *   **Database**: Database schemas and queries should be managed via **Drizzle ORM**.
-*   **CMS Pattern**: Content models are defined using the `collection` pattern in `@questpie/core` (e.g., `collection("posts").fields(...)`).
+*   **CMS Pattern**: Content models are defined using the `collection` pattern in `@questpie/cms` (e.g., `defineCollection("posts").fields(...)`).

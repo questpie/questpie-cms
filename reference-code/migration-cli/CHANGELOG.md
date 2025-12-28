@@ -6,7 +6,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.225
+  - @questpie/cms@4.0.225
 
 ## 4.0.224
 
@@ -14,7 +14,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.224
+  - @questpie/cms@4.0.224
 
 ## 4.0.223
 
@@ -22,7 +22,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.223
+  - @questpie/cms@4.0.223
 
 ## 4.0.222
 
@@ -30,7 +30,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.222
+  - @questpie/cms@4.0.222
 
 ## 4.0.221
 
@@ -38,7 +38,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.221
+  - @questpie/cms@4.0.221
 
 ## 4.0.220
 
@@ -46,7 +46,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.220
+  - @questpie/cms@4.0.220
 
 ## 4.0.219
 
@@ -54,7 +54,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.219
+  - @questpie/cms@4.0.219
 
 ## 4.0.218
 
@@ -62,7 +62,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.218
+  - @questpie/cms@4.0.218
 
 ## 4.0.217
 
@@ -70,7 +70,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.217
+  - @questpie/cms@4.0.217
 
 ## 4.0.216
 
@@ -78,7 +78,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.216
+  - @questpie/cms@4.0.216
 
 ## 4.0.215
 
@@ -86,7 +86,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.215
+  - @questpie/cms@4.0.215
 
 ## 4.0.214
 
@@ -94,7 +94,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.214
+  - @questpie/cms@4.0.214
 
 ## 4.0.213
 
@@ -102,7 +102,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.213
+  - @questpie/cms@4.0.213
 
 ## 4.0.212
 
@@ -110,7 +110,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.212
+  - @questpie/cms@4.0.212
 
 ## 4.0.211
 
@@ -118,7 +118,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.211
+  - @questpie/cms@4.0.211
 
 ## 4.0.210
 
@@ -126,7 +126,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.210
+  - @questpie/cms@4.0.210
 
 ## 4.0.209
 
@@ -134,7 +134,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.209
+  - @questpie/cms@4.0.209
 
 ## 4.0.208
 
@@ -142,7 +142,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.208
+  - @questpie/cms@4.0.208
 
 ## 4.0.207
 
@@ -150,7 +150,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.207
+  - @questpie/cms@4.0.207
 
 ## 4.0.206
 
@@ -158,7 +158,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.206
+  - @questpie/cms@4.0.206
 
 ## 4.0.205
 
@@ -166,7 +166,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.205
+  - @questpie/cms@4.0.205
 
 ## 4.0.204
 
@@ -174,7 +174,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.204
+  - @questpie/cms@4.0.204
 
 ## 4.0.203
 
@@ -182,7 +182,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.203
+  - @questpie/cms@4.0.203
 
 ## 4.0.202
 
@@ -190,7 +190,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.202
+  - @questpie/cms@4.0.202
 
 ## 4.0.201
 
@@ -198,7 +198,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.201
+  - @questpie/cms@4.0.201
 
 ## 4.0.200
 
@@ -206,7 +206,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.200
+  - @questpie/cms@4.0.200
 
 ## 4.0.199
 
@@ -214,7 +214,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.199
+  - @questpie/cms@4.0.199
 
 ## 4.0.198
 
@@ -222,7 +222,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.198
+  - @questpie/cms@4.0.198
 
 ## 4.0.197
 
@@ -230,7 +230,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.197
+  - @questpie/cms@4.0.197
 
 ## 4.0.196
 
@@ -238,7 +238,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.196
+  - @questpie/cms@4.0.196
 
 ## 4.0.195
 
@@ -246,7 +246,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.195
+  - @questpie/cms@4.0.195
 
 ## 4.0.194
 
@@ -254,7 +254,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.194
+  - @questpie/cms@4.0.194
 
 ## 4.0.193
 
@@ -262,7 +262,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.193
+  - @questpie/cms@4.0.193
 
 ## 4.0.192
 
@@ -270,7 +270,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.192
+  - @questpie/cms@4.0.192
 
 ## 4.0.191
 
@@ -278,7 +278,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.191
+  - @questpie/cms@4.0.191
 
 ## 4.0.190
 
@@ -286,7 +286,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.190
+  - @questpie/cms@4.0.190
 
 ## 4.0.189
 
@@ -294,7 +294,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.189
+  - @questpie/cms@4.0.189
 
 ## 4.0.188
 
@@ -302,7 +302,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.188
+  - @questpie/cms@4.0.188
 
 ## 4.0.187
 
@@ -310,7 +310,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.187
+  - @questpie/cms@4.0.187
 
 ## 4.0.186
 
@@ -318,7 +318,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.186
+  - @questpie/cms@4.0.186
 
 ## 4.0.185
 
@@ -326,7 +326,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.185
+  - @questpie/cms@4.0.185
 
 ## 4.0.184
 
@@ -334,7 +334,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.184
+  - @questpie/cms@4.0.184
 
 ## 4.0.183
 
@@ -342,7 +342,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.183
+  - @questpie/cms@4.0.183
 
 ## 4.0.182
 
@@ -350,7 +350,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.182
+  - @questpie/cms@4.0.182
 
 ## 4.0.181
 
@@ -358,7 +358,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.181
+  - @questpie/cms@4.0.181
 
 ## 4.0.180
 
@@ -366,7 +366,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.180
+  - @questpie/cms@4.0.180
 
 ## 4.0.179
 
@@ -374,7 +374,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.179
+  - @questpie/cms@4.0.179
 
 ## 4.0.178
 
@@ -382,7 +382,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.178
+  - @questpie/cms@4.0.178
 
 ## 4.0.177
 
@@ -390,7 +390,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.177
+  - @questpie/cms@4.0.177
 
 ## 4.0.176
 
@@ -398,7 +398,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.176
+  - @questpie/cms@4.0.176
 
 ## 4.0.175
 
@@ -406,7 +406,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.175
+  - @questpie/cms@4.0.175
 
 ## 4.0.174
 
@@ -414,7 +414,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.174
+  - @questpie/cms@4.0.174
 
 ## 4.0.173
 
@@ -422,7 +422,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.173
+  - @questpie/cms@4.0.173
 
 ## 4.0.172
 
@@ -430,7 +430,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.172
+  - @questpie/cms@4.0.172
 
 ## 4.0.171
 
@@ -438,7 +438,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.171
+  - @questpie/cms@4.0.171
 
 ## 4.0.170
 
@@ -446,7 +446,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.170
+  - @questpie/cms@4.0.170
 
 ## 4.0.169
 
@@ -454,7 +454,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.169
+  - @questpie/cms@4.0.169
 
 ## 4.0.168
 
@@ -462,7 +462,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.168
+  - @questpie/cms@4.0.168
 
 ## 4.0.167
 
@@ -470,7 +470,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.167
+  - @questpie/cms@4.0.167
 
 ## 4.0.166
 
@@ -478,7 +478,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.166
+  - @questpie/cms@4.0.166
 
 ## 4.0.165
 
@@ -486,7 +486,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.165
+  - @questpie/cms@4.0.165
 
 ## 4.0.164
 
@@ -494,7 +494,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.164
+  - @questpie/cms@4.0.164
 
 ## 4.0.163
 
@@ -502,7 +502,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.163
+  - @questpie/cms@4.0.163
 
 ## 4.0.162
 
@@ -510,7 +510,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.162
+  - @questpie/cms@4.0.162
 
 ## 4.0.161
 
@@ -518,7 +518,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.161
+  - @questpie/cms@4.0.161
 
 ## 4.0.160
 
@@ -526,7 +526,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.160
+  - @questpie/cms@4.0.160
 
 ## 4.0.159
 
@@ -534,7 +534,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.159
+  - @questpie/cms@4.0.159
 
 ## 4.0.158
 
@@ -542,7 +542,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.158
+  - @questpie/cms@4.0.158
 
 ## 4.0.157
 
@@ -550,7 +550,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.157
+  - @questpie/cms@4.0.157
 
 ## 4.0.156
 
@@ -558,7 +558,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.156
+  - @questpie/cms@4.0.156
 
 ## 4.0.155
 
@@ -566,7 +566,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.155
+  - @questpie/cms@4.0.155
 
 ## 4.0.154
 
@@ -574,7 +574,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.154
+  - @questpie/cms@4.0.154
 
 ## 4.0.153
 
@@ -582,7 +582,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.153
+  - @questpie/cms@4.0.153
 
 ## 4.0.152
 
@@ -590,7 +590,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.152
+  - @questpie/cms@4.0.152
 
 ## 4.0.151
 
@@ -598,7 +598,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.151
+  - @questpie/cms@4.0.151
 
 ## 4.0.150
 
@@ -606,7 +606,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.150
+  - @questpie/cms@4.0.150
 
 ## 4.0.149
 
@@ -614,7 +614,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.149
+  - @questpie/cms@4.0.149
 
 ## 4.0.148
 
@@ -622,7 +622,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.148
+  - @questpie/cms@4.0.148
 
 ## 4.0.147
 
@@ -630,7 +630,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.147
+  - @questpie/cms@4.0.147
 
 ## 4.0.146
 
@@ -638,7 +638,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.146
+  - @questpie/cms@4.0.146
 
 ## 4.0.145
 
@@ -646,7 +646,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.145
+  - @questpie/cms@4.0.145
 
 ## 4.0.144
 
@@ -654,7 +654,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.144
+  - @questpie/cms@4.0.144
 
 ## 4.0.143
 
@@ -662,7 +662,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.143
+  - @questpie/cms@4.0.143
 
 ## 4.0.142
 
@@ -670,7 +670,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.142
+  - @questpie/cms@4.0.142
 
 ## 4.0.141
 
@@ -678,7 +678,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.141
+  - @questpie/cms@4.0.141
 
 ## 4.0.140
 
@@ -686,7 +686,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.140
+  - @questpie/cms@4.0.140
 
 ## 4.0.139
 
@@ -694,7 +694,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.139
+  - @questpie/cms@4.0.139
 
 ## 4.0.138
 
@@ -702,7 +702,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.138
+  - @questpie/cms@4.0.138
 
 ## 4.0.137
 
@@ -710,7 +710,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.137
+  - @questpie/cms@4.0.137
 
 ## 4.0.136
 
@@ -718,7 +718,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.136
+  - @questpie/cms@4.0.136
 
 ## 4.0.135
 
@@ -726,7 +726,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.135
+  - @questpie/cms@4.0.135
 
 ## 4.0.134
 
@@ -734,7 +734,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.134
+  - @questpie/cms@4.0.134
 
 ## 4.0.133
 
@@ -742,7 +742,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.133
+  - @questpie/cms@4.0.133
 
 ## 4.0.132
 
@@ -750,7 +750,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.132
+  - @questpie/cms@4.0.132
 
 ## 4.0.131
 
@@ -758,7 +758,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.131
+  - @questpie/cms@4.0.131
 
 ## 4.0.130
 
@@ -766,7 +766,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.130
+  - @questpie/cms@4.0.130
 
 ## 4.0.129
 
@@ -774,7 +774,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.129
+  - @questpie/cms@4.0.129
 
 ## 4.0.128
 
@@ -782,7 +782,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.128
+  - @questpie/cms@4.0.128
 
 ## 4.0.127
 
@@ -790,7 +790,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.127
+  - @questpie/cms@4.0.127
 
 ## 4.0.126
 
@@ -798,7 +798,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.126
+  - @questpie/cms@4.0.126
 
 ## 4.0.125
 
@@ -806,7 +806,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.125
+  - @questpie/cms@4.0.125
 
 ## 4.0.124
 
@@ -814,7 +814,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.124
+  - @questpie/cms@4.0.124
 
 ## 4.0.123
 
@@ -822,7 +822,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.123
+  - @questpie/cms@4.0.123
 
 ## 4.0.122
 
@@ -830,7 +830,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.122
+  - @questpie/cms@4.0.122
 
 ## 4.0.121
 
@@ -838,7 +838,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.121
+  - @questpie/cms@4.0.121
 
 ## 4.0.120
 
@@ -846,7 +846,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.120
+  - @questpie/cms@4.0.120
 
 ## 4.0.119
 
@@ -854,7 +854,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.119
+  - @questpie/cms@4.0.119
 
 ## 4.0.118
 
@@ -862,7 +862,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.118
+  - @questpie/cms@4.0.118
 
 ## 4.0.117
 
@@ -870,7 +870,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.117
+  - @questpie/cms@4.0.117
 
 ## 4.0.116
 
@@ -878,7 +878,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.116
+  - @questpie/cms@4.0.116
 
 ## 4.0.115
 
@@ -886,7 +886,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.115
+  - @questpie/cms@4.0.115
 
 ## 4.0.114
 
@@ -894,7 +894,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.114
+  - @questpie/cms@4.0.114
 
 ## 4.0.113
 
@@ -902,7 +902,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.113
+  - @questpie/cms@4.0.113
 
 ## 4.0.112
 
@@ -910,7 +910,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.112
+  - @questpie/cms@4.0.112
 
 ## 4.0.111
 
@@ -918,7 +918,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.111
+  - @questpie/cms@4.0.111
 
 ## 4.0.110
 
@@ -926,7 +926,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.110
+  - @questpie/cms@4.0.110
 
 ## 4.0.109
 
@@ -934,7 +934,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.109
+  - @questpie/cms@4.0.109
 
 ## 4.0.108
 
@@ -942,7 +942,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.108
+  - @questpie/cms@4.0.108
 
 ## 4.0.107
 
@@ -950,7 +950,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.107
+  - @questpie/cms@4.0.107
 
 ## 4.0.106
 
@@ -958,7 +958,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.106
+  - @questpie/cms@4.0.106
 
 ## 4.0.105
 
@@ -966,7 +966,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.105
+  - @questpie/cms@4.0.105
 
 ## 4.0.104
 
@@ -974,7 +974,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.104
+  - @questpie/cms@4.0.104
 
 ## 4.0.103
 
@@ -982,7 +982,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.103
+  - @questpie/cms@4.0.103
 
 ## 4.0.102
 
@@ -990,7 +990,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.102
+  - @questpie/cms@4.0.102
 
 ## 4.0.101
 
@@ -998,7 +998,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.101
+  - @questpie/cms@4.0.101
 
 ## 4.0.100
 
@@ -1006,7 +1006,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.100
+  - @questpie/cms@4.0.100
 
 ## 4.0.99
 
@@ -1014,7 +1014,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.99
+  - @questpie/cms@4.0.99
 
 ## 4.0.98
 
@@ -1022,7 +1022,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.98
+  - @questpie/cms@4.0.98
 
 ## 4.0.97
 
@@ -1030,7 +1030,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.97
+  - @questpie/cms@4.0.97
 
 ## 4.0.96
 
@@ -1038,7 +1038,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.96
+  - @questpie/cms@4.0.96
 
 ## 4.0.95
 
@@ -1046,7 +1046,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.95
+  - @questpie/cms@4.0.95
 
 ## 4.0.94
 
@@ -1054,7 +1054,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.94
+  - @questpie/cms@4.0.94
 
 ## 4.0.93
 
@@ -1062,7 +1062,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.93
+  - @questpie/cms@4.0.93
 
 ## 4.0.92
 
@@ -1070,7 +1070,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.92
+  - @questpie/cms@4.0.92
 
 ## 4.0.91
 
@@ -1078,7 +1078,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.91
+  - @questpie/cms@4.0.91
 
 ## 4.0.90
 
@@ -1086,7 +1086,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.90
+  - @questpie/cms@4.0.90
 
 ## 4.0.89
 
@@ -1094,7 +1094,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.89
+  - @questpie/cms@4.0.89
 
 ## 4.0.88
 
@@ -1102,7 +1102,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.88
+  - @questpie/cms@4.0.88
 
 ## 4.0.87
 
@@ -1110,7 +1110,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.87
+  - @questpie/cms@4.0.87
 
 ## 4.0.86
 
@@ -1118,7 +1118,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.86
+  - @questpie/cms@4.0.86
 
 ## 4.0.85
 
@@ -1126,7 +1126,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.85
+  - @questpie/cms@4.0.85
 
 ## 4.0.84
 
@@ -1134,7 +1134,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.84
+  - @questpie/cms@4.0.84
 
 ## 4.0.83
 
@@ -1142,7 +1142,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.83
+  - @questpie/cms@4.0.83
 
 ## 4.0.82
 
@@ -1150,7 +1150,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.82
+  - @questpie/cms@4.0.82
 
 ## 4.0.81
 
@@ -1158,7 +1158,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.81
+  - @questpie/cms@4.0.81
 
 ## 4.0.80
 
@@ -1166,7 +1166,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.80
+  - @questpie/cms@4.0.80
 
 ## 4.0.79
 
@@ -1174,7 +1174,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.79
+  - @questpie/cms@4.0.79
 
 ## 4.0.78
 
@@ -1182,7 +1182,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.78
+  - @questpie/cms@4.0.78
 
 ## 4.0.77
 
@@ -1190,7 +1190,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.77
+  - @questpie/cms@4.0.77
 
 ## 4.0.76
 
@@ -1198,7 +1198,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.76
+  - @questpie/cms@4.0.76
 
 ## 4.0.75
 
@@ -1206,7 +1206,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.75
+  - @questpie/cms@4.0.75
 
 ## 4.0.74
 
@@ -1214,7 +1214,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.74
+  - @questpie/cms@4.0.74
 
 ## 4.0.73
 
@@ -1222,7 +1222,7 @@
 
 - patch release (canary)
 - Updated dependencies
-  - @questpie/core@4.0.73
+  - @questpie/cms@4.0.73
 
 ## 4.0.72
 
@@ -1230,7 +1230,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.72
+  - @questpie/cms@4.0.72
 
 ## 4.0.71
 
@@ -1238,7 +1238,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.71
+  - @questpie/cms@4.0.71
 
 ## 4.0.70
 
@@ -1246,7 +1246,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.70
+  - @questpie/cms@4.0.70
 
 ## 4.0.69
 
@@ -1254,7 +1254,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.69
+  - @questpie/cms@4.0.69
 
 ## 4.0.68
 
@@ -1262,7 +1262,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.68
+  - @questpie/cms@4.0.68
 
 ## 4.0.67
 
@@ -1270,7 +1270,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.67
+  - @questpie/cms@4.0.67
 
 ## 4.0.66
 
@@ -1278,7 +1278,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.66
+  - @questpie/cms@4.0.66
 
 ## 4.0.65
 
@@ -1286,7 +1286,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.65
+  - @questpie/cms@4.0.65
 
 ## 4.0.64
 
@@ -1294,7 +1294,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.64
+  - @questpie/cms@4.0.64
 
 ## 4.0.63
 
@@ -1302,7 +1302,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.63
+  - @questpie/cms@4.0.63
 
 ## 4.0.62
 
@@ -1310,7 +1310,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.62
+  - @questpie/cms@4.0.62
 
 ## 4.0.61
 
@@ -1318,7 +1318,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.61
+  - @questpie/cms@4.0.61
 
 ## 4.0.60
 
@@ -1326,7 +1326,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.60
+  - @questpie/cms@4.0.60
 
 ## 4.0.59
 
@@ -1334,7 +1334,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.59
+  - @questpie/cms@4.0.59
 
 ## 4.0.58
 
@@ -1342,7 +1342,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.58
+  - @questpie/cms@4.0.58
 
 ## 4.0.57
 
@@ -1350,7 +1350,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.57
+  - @questpie/cms@4.0.57
 
 ## 4.0.56
 
@@ -1358,7 +1358,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.56
+  - @questpie/cms@4.0.56
 
 ## 4.0.55
 
@@ -1366,7 +1366,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.55
+  - @questpie/cms@4.0.55
 
 ## 4.0.54
 
@@ -1374,7 +1374,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.54
+  - @questpie/cms@4.0.54
 
 ## 4.0.53
 
@@ -1382,7 +1382,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.53
+  - @questpie/cms@4.0.53
 
 ## 4.0.52
 
@@ -1390,7 +1390,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.52
+  - @questpie/cms@4.0.52
 
 ## 4.0.51
 
@@ -1398,7 +1398,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.51
+  - @questpie/cms@4.0.51
 
 ## 4.0.50
 
@@ -1406,7 +1406,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.50
+  - @questpie/cms@4.0.50
 
 ## 4.0.49
 
@@ -1414,7 +1414,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.49
+  - @questpie/cms@4.0.49
 
 ## 4.0.48
 
@@ -1422,7 +1422,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.48
+  - @questpie/cms@4.0.48
 
 ## 4.0.47
 
@@ -1430,7 +1430,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.47
+  - @questpie/cms@4.0.47
 
 ## 4.0.46
 
@@ -1438,7 +1438,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.46
+  - @questpie/cms@4.0.46
 
 ## 4.0.45
 
@@ -1446,7 +1446,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.45
+  - @questpie/cms@4.0.45
 
 ## 4.0.44
 
@@ -1454,7 +1454,7 @@
 
 - fix: make fe auth more customizable
 - Updated dependencies
-  - @questpie/core@4.0.44
+  - @questpie/cms@4.0.44
 
 ## 4.0.43
 
@@ -1462,7 +1462,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.43
+  - @questpie/cms@4.0.43
 
 ## 4.0.42
 
@@ -1470,7 +1470,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.42
+  - @questpie/cms@4.0.42
 
 ## 4.0.41
 
@@ -1478,7 +1478,7 @@
 
 - pomocmotoristom
 - Updated dependencies
-  - @questpie/core@4.0.41
+  - @questpie/cms@4.0.41
 
 ## 4.0.40
 
@@ -1486,7 +1486,7 @@
 
 - patch release
 - Updated dependencies
-  - @questpie/core@4.0.40
+  - @questpie/cms@4.0.40
 
 ## 4.0.39
 
@@ -1494,7 +1494,7 @@
 
 - fix package versioning
 - Updated dependencies
-  - @questpie/core@4.0.39
+  - @questpie/cms@4.0.39
 
 ## 4.0.38
 
@@ -1502,7 +1502,7 @@
 
 - fix: build service polling
 - Updated dependencies
-  - @questpie/core@4.0.38
+  - @questpie/cms@4.0.38
 
 ## 4.0.37
 
@@ -1510,7 +1510,7 @@
 
 - feat(@questpie/deployment): broken remote build service call
 - Updated dependencies
-  - @questpie/core@4.0.37
+  - @questpie/cms@4.0.37
 
 ## 4.0.36
 
@@ -1518,7 +1518,7 @@
 
 - feat(@questpie/deployment): broken remote build service call
 - Updated dependencies
-  - @questpie/core@4.0.36
+  - @questpie/cms@4.0.36
 
 ## 4.0.35
 
@@ -1526,7 +1526,7 @@
 
 - feat(@questpie/deployment): broken remote build service call
 - Updated dependencies
-  - @questpie/core@4.0.35
+  - @questpie/cms@4.0.35
 
 ## 4.0.34
 
@@ -1534,7 +1534,7 @@
 
 - feat(@questpie/deployment): broken remote build service call
 - Updated dependencies
-  - @questpie/core@4.0.34
+  - @questpie/cms@4.0.34
 
 ## 4.0.33
 
@@ -1542,7 +1542,7 @@
 
 - feat(@questpie/deployment): add missing migrations
 - Updated dependencies
-  - @questpie/core@4.0.33
+  - @questpie/cms@4.0.33
 
 ## 4.0.32
 
@@ -1550,7 +1550,7 @@
 
 - fix: deployment stuff
 - Updated dependencies
-  - @questpie/core@4.0.32
+  - @questpie/cms@4.0.32
 
 ## 4.0.31
 
@@ -1558,7 +1558,7 @@
 
 - fix: broken deployment project.collection
 - Updated dependencies
-  - @questpie/core@4.0.31
+  - @questpie/cms@4.0.31
 
 ## 4.0.30
 
@@ -1566,7 +1566,7 @@
 
 - fix: broken deployment project.collection
 - Updated dependencies
-  - @questpie/core@4.0.30
+  - @questpie/cms@4.0.30
 
 ## 4.0.29
 
@@ -1574,7 +1574,7 @@
 
 - fix: deployment migration
 - Updated dependencies
-  - @questpie/core@4.0.29
+  - @questpie/cms@4.0.29
 
 ## 4.0.28
 
@@ -1582,7 +1582,7 @@
 
 - @questpie/deployment: wrong package registry resolution
 - Updated dependencies
-  - @questpie/core@4.0.28
+  - @questpie/cms@4.0.28
 
 ## 4.0.27
 
@@ -1590,82 +1590,82 @@
 
 - Bug fixes
 - Updated dependencies
-  - @questpie/core@4.0.27
+  - @questpie/cms@4.0.27
 
 ## 4.0.26
 
 ### Patch Changes
 
-- @questpie/core@4.0.26
+- @questpie/cms@4.0.26
 
 ## 4.0.25
 
 ### Patch Changes
 
 - Updated dependencies
-  - @questpie/core@4.0.25
+  - @questpie/cms@4.0.25
 
 ## 4.0.24
 
 ### Patch Changes
 
-- @questpie/core@4.0.24
+- @questpie/cms@4.0.24
 
 ## 4.0.23
 
 ### Patch Changes
 
-- @questpie/core@4.0.23
+- @questpie/cms@4.0.23
 
 ## 4.0.22
 
 ### Patch Changes
 
-- @questpie/core@4.0.22
+- @questpie/cms@4.0.22
 
 ## 4.0.21
 
 ### Patch Changes
 
-- @questpie/core@4.0.21
+- @questpie/cms@4.0.21
 
 ## 4.0.20
 
 ### Patch Changes
 
-- @questpie/core@4.0.20
+- @questpie/cms@4.0.20
 
 ## 4.0.19
 
 ### Patch Changes
 
-- @questpie/core@4.0.19
+- @questpie/cms@4.0.19
 
 ## 4.0.18
 
 ### Patch Changes
 
 - Updated dependencies
-  - @questpie/core@4.0.18
+  - @questpie/cms@4.0.18
 
 ## 4.0.17
 
 ### Patch Changes
 
-- @questpie/core@4.0.17
+- @questpie/cms@4.0.17
 
 ## 4.0.16
 
 ### Patch Changes
 
-- @questpie/core@4.0.16
+- @questpie/cms@4.0.16
 
 ## 4.0.15
 
 ### Patch Changes
 
 - Updated dependencies
-  - @questpie/core@4.0.15
+  - @questpie/cms@4.0.15
 
 ## 4.0.14
 
@@ -1673,7 +1673,7 @@
 
 - fix; tsdown jsx
 - Updated dependencies
-  - @questpie/core@4.0.14
+  - @questpie/cms@4.0.14
 
 ## 4.0.13
 
@@ -1681,7 +1681,7 @@
 
 - fix: build jsx transform
 - Updated dependencies
-  - @questpie/core@4.0.13
+  - @questpie/cms@4.0.13
 
 ## 4.0.12
 
@@ -1689,21 +1689,21 @@
 
 - feat: changes
 - Updated dependencies
-  - @questpie/core@4.0.12
+  - @questpie/cms@4.0.12
 
 ## 4.0.11
 
 ### Patch Changes
 
 - Updated dependencies
-  - @questpie/core@4.0.11
+  - @questpie/cms@4.0.11
 
 ## 4.0.10
 
 ### Patch Changes
 
 - Updated dependencies
-  - @questpie/core@4.0.10
+  - @questpie/cms@4.0.10
 
 ## 4.0.9
 
@@ -1711,13 +1711,13 @@
 
 - fix: env validation
 - Updated dependencies
-  - @questpie/core@4.0.9
+  - @questpie/cms@4.0.9
 
 ## 4.0.8
 
 ### Patch Changes
 
-- @questpie/core@4.0.8
+- @questpie/cms@4.0.8
 
 ## 4.0.7
 
@@ -1725,7 +1725,7 @@
 
 - fix: web stuff
 - Updated dependencies
-  - @questpie/core@4.0.7
+  - @questpie/cms@4.0.7
 
 ## 4.0.6
 
@@ -1733,7 +1733,7 @@
 
 - small: fixes
 - Updated dependencies
-  - @questpie/core@4.0.6
+  - @questpie/cms@4.0.6
 
 ## 4.0.5
 
@@ -1741,7 +1741,7 @@
 
 - fix: build
 - Updated dependencies
-  - @questpie/core@4.0.5
+  - @questpie/cms@4.0.5
 
 ## 4.0.4
 
@@ -1749,7 +1749,7 @@
 
 - fix: change build
 - Updated dependencies
-  - @questpie/core@4.0.4
+  - @questpie/cms@4.0.4
 
 ## 4.0.3
 
@@ -1757,7 +1757,7 @@
 
 - fix: i18n export
 - Updated dependencies
-  - @questpie/core@4.0.3
+  - @questpie/cms@4.0.3
 
 ## 4.0.2
 
@@ -1765,7 +1765,7 @@
 
 - fix: rebuild package.json
 - Updated dependencies
-  - @questpie/core@4.0.2
+  - @questpie/cms@4.0.2
 
 ## 4.0.1
 
@@ -1773,7 +1773,7 @@
 
 - 20ceb80: fix: proper css export
 - Updated dependencies [20ceb80]
-  - @questpie/core@4.0.1
+  - @questpie/cms@4.0.1
 
 ## 4.0.0
 
@@ -1784,7 +1784,7 @@
 ### Patch Changes
 
 - Updated dependencies [164b453]
-  - @questpie/core@4.0.0
+  - @questpie/cms@4.0.0
 
 ## 3.0.0
 
@@ -1795,7 +1795,7 @@
 ### Patch Changes
 
 - Updated dependencies
-  - @questpie/core@3.0.0
+  - @questpie/cms@3.0.0
 
 ## 2.0.2
 
@@ -1803,14 +1803,14 @@
 
 - fix: bundling
 - Updated dependencies
-  - @questpie/core@2.0.2
+  - @questpie/cms@2.0.2
 
 ## 2.0.1
 
 ### Patch Changes
 
 - Updated dependencies [b146458]
-  - @questpie/core@2.0.1
+  - @questpie/cms@2.0.1
 
 ## 2.0.0
 
@@ -1821,7 +1821,7 @@
 ### Patch Changes
 
 - Updated dependencies
-  - @questpie/core@2.0.0
+  - @questpie/cms@2.0.0
 
 ## 1.1.11
 
@@ -1829,7 +1829,7 @@
 
 - fix: metadata changes
 - Updated dependencies
-  - @questpie/core@1.1.11
+  - @questpie/cms@1.1.11
 
 ## 1.1.10
 
@@ -1837,7 +1837,7 @@
 
 - fix: versioning
 - Updated dependencies
-  - @questpie/core@1.1.10
+  - @questpie/cms@1.1.10
 
 ## 1.1.9
 
@@ -1845,7 +1845,7 @@
 
 - fix: versioning
 - Updated dependencies
-  - @questpie/core@1.1.9
+  - @questpie/cms@1.1.9
 
 ## 1.1.8
 
@@ -1853,7 +1853,7 @@
 
 - fix: versioning
 - Updated dependencies
-  - @questpie/core@1.1.8
+  - @questpie/cms@1.1.8
 
 ## 1.1.7
 
@@ -1861,7 +1861,7 @@
 
 - fix: versioning
 - Updated dependencies
-  - @questpie/core@1.1.7
+  - @questpie/cms@1.1.7
 
 ## 1.1.6
 
@@ -1869,7 +1869,7 @@
 
 - fix: publish commands
 - Updated dependencies
-  - @questpie/core@1.1.6
+  - @questpie/cms@1.1.6
 
 ## 1.1.5
 
@@ -1877,7 +1877,7 @@
 
 - fix: versioning
 - Updated dependencies
-  - @questpie/core@1.1.5
+  - @questpie/cms@1.1.5
 
 ## 1.1.4
 
@@ -1885,7 +1885,7 @@
 
 - fix: versioning
 - Updated dependencies
-  - @questpie/core@1.1.4
+  - @questpie/cms@1.1.4
 
 ## 1.1.3
 
@@ -1895,13 +1895,13 @@
 - 8bfe241: fix publish versions
 - Updated dependencies
 - Updated dependencies [8bfe241]
-  - @questpie/core@1.1.3
+  - @questpie/cms@1.1.3
 
 ## 1.1.2
 
 ### Patch Changes
 
-- @questpie/core@1.1.2
+- @questpie/cms@1.1.2
 
 ## 1.1.1
 
@@ -1909,4 +1909,4 @@
 
 - Small changes
 - Updated dependencies
-  - @questpie/core@1.1.1
+  - @questpie/cms@1.1.1

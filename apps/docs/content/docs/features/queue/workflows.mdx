@@ -13,7 +13,7 @@ Workflows allow you to chain multiple steps together into a single job, creating
 Create a workflow using the `workflow()` builder:
 
 ```typescript
-import { workflow } from '@questpie/core/server'
+import { workflow } from '@questpie/cms/server'
 import { z } from 'zod'
 
 const processOrderWorkflow = workflow('process-order')
@@ -102,7 +102,7 @@ const workflow = workflow('example')
 Here's a comprehensive workflow for processing uploaded images:
 
 ```typescript
-import { workflow } from '@questpie/core/server'
+import { workflow } from '@questpie/cms/server'
 import { z } from 'zod'
 
 const processUploadedImageWorkflow = workflow('process-uploaded-image')
@@ -283,7 +283,7 @@ Handle errors within individual steps:
 For independent operations, use the `parallel()` helper:
 
 ```typescript
-import { parallel, workflow } from '@questpie/core/server'
+import { parallel, workflow } from '@questpie/cms/server'
 
 const workflow = workflow('process-order')
   .step('validate', async (order, context) => {
@@ -321,7 +321,7 @@ const workflow = workflow('process-order')
 For operations that should be separate jobs, trigger them sequentially:
 
 ```typescript
-import { sequential, workflow } from '@questpie/core/server'
+import { sequential, workflow } from '@questpie/cms/server'
 
 const workflow = workflow('onboard-user')
   .step('create-account', async (input, context) => {

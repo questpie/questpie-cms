@@ -1,5 +1,5 @@
 {
-	"name": "@qcms/docs",
+	"name": "@questpie/docs",
 	"private": true,
 	"sideEffects": false,
 	"type": "module",

@@ -26,7 +26,7 @@ Create your jobs using `defineJob()` and `defineJobs()`:
 
 ```typescript
 // jobs/email.ts
-import { defineJob } from '@questpie/core/server'
+import { defineJob } from '@questpie/cms/server'
 import { z } from 'zod'
 
 export const sendEmailJob = defineJob({
@@ -59,7 +59,7 @@ Combine all your jobs into a registry:
 
 ```typescript
 // jobs/index.ts
-import { defineJobs } from '@questpie/core/server'
+import { defineJobs } from '@questpie/cms/server'
 import { sendEmailJob } from './email'
 import { processImageJob } from './images'
 import { generateReportJob } from './reports'
@@ -76,7 +76,7 @@ export const jobs = defineJobs({
 Add the queue configuration to your CMS instance:
 
 ```typescript
-import { QCMS } from '@questpie/core/server'
+import { QCMS } from '@questpie/cms/server'
 import { jobs } from './jobs'
 
 const cms = new QCMS({
@@ -129,7 +129,7 @@ Create a separate worker file to process jobs:
 
 ```typescript
 // worker.ts
-import { QCMS } from '@questpie/core/server'
+import { QCMS } from '@questpie/cms/server'
 import { jobs } from './jobs'
 
 const cms = new QCMS({

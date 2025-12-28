@@ -122,7 +122,7 @@ Each package exports migrations using `defineModuleMigrations`:
 
 ```typescript
 // src/migrations/index.ts
-import { defineModuleMigrations } from '@questpie/core/backend/definitions/migration.definitions'
+import { defineModuleMigrations } from '@questpie/cms/backend/definitions/migration.definitions'
 import { lakeChivalryRoyal20250127T143052 } from './20250127T143052_lake_chivalry_royal'
 
 export const venue_finderMigrations = defineModuleMigrations(
@@ -153,9 +153,9 @@ export const VenueFinderModule = defineModule((ioc) => ({
 
 ## Core Files
 
-- **Definitions**: `@questpie/core/backend/definitions/migration.definitions.ts`
-- **Runner**: `@questpie/core/backend/services/migration-runner.service.ts`
-- **Boot**: `@questpie/core/backend/boot/migration.boot.ts`
+- **Definitions**: `@questpie/cms/backend/definitions/migration.definitions.ts`
+- **Runner**: `@questpie/cms/backend/services/migration-runner.service.ts`
+- **Boot**: `@questpie/cms/backend/boot/migration.boot.ts`
 - **Operation Manager**: `packages/migration-cli/src/utils/operation-snapshot.ts`
 - **Generator**: `packages/migration-cli/src/utils/drizzle-migration-generator.ts`
 
@@ -163,7 +163,7 @@ export const VenueFinderModule = defineModule((ioc) => ({
 
 ```typescript
 // Generated file: 20250127T143052_crimson_happy_zebra.ts
-import { defineMigration } from '@questpie/core/backend/definitions/migration.definitions'
+import { defineMigration } from '@questpie/cms/backend/definitions/migration.definitions'
 import { sql } from 'drizzle-orm'
 
 export const crimsonHappyZebra20250127T143052 = defineMigration(

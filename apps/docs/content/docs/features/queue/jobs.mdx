@@ -13,7 +13,7 @@ Jobs are the core building blocks of the queue system. Each job defines a schema
 Use `defineJob()` to create a typesafe job definition:
 
 ```typescript
-import { defineJob } from '@questpie/core/server'
+import { defineJob } from '@questpie/cms/server'
 import { z } from 'zod'
 
 export const sendEmailJob = defineJob({
@@ -118,7 +118,7 @@ Configure retry behavior and job execution:
 ## Complete Example
 
 ```typescript
-import { defineJob } from '@questpie/core/server'
+import { defineJob } from '@questpie/cms/server'
 import { z } from 'zod'
 
 export const processImageJob = defineJob({
@@ -174,7 +174,7 @@ export const processImageJob = defineJob({
 Pass jobs as an array directly to the CMS config:
 
 ```typescript
-import { QCMS } from '@questpie/core/server'
+import { QCMS } from '@questpie/cms/server'
 import { sendEmailJob } from './email'
 import { processImageJob } from './images'
 import { generateReportJob } from './reports'

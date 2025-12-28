@@ -343,7 +343,7 @@ export class DrizzleMigrationGenerator {
         .join('\n      ')
     }
 
-    return `import { defineMigration } from '@questpie/core/backend/definitions/migration.definitions'
+    return `import { defineMigration } from '@questpie/cms/backend/definitions/migration.definitions'
 import { sql } from 'drizzle-orm'
 
 export const ${fileName} = defineMigration(

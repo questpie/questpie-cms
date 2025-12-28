@@ -11,7 +11,7 @@ type RunMigrationsOptions = {
 
 export async function runMigrations(opts: RunMigrationsOptions) {
   try {
-    const logger = await import('@questpie/core/shared/logger/logger').then((m) => m.logger)
+    const logger = await import('@questpie/cms/shared/logger/logger').then((m) => m.logger)
 
     // Determine target path
     let targetPath: string
@@ -43,7 +43,7 @@ export async function runMigrations(opts: RunMigrationsOptions) {
 
     // Import migration runner
     const { MigrationRunner } = await import(
-      '@questpie/core/backend/services/migration-runner.service'
+      '@questpie/cms/backend/services/migration-runner.service'
     )
     const runner = new MigrationRunner(db as any)
 
@@ -92,7 +92,7 @@ export async function runMigrations(opts: RunMigrationsOptions) {
 
     logger.info('✅ Migration operation completed successfully')
   } catch (error) {
-    const logger = await import('@questpie/core/shared/logger/logger').then((m) => m.logger)
+    const logger = await import('@questpie/cms/shared/logger/logger').then((m) => m.logger)
     logger.error('❌ Migration operation failed:', error)
     throw error
   }
