@@ -88,34 +88,34 @@ export const appointments = defineCollection("appointments")
 		cancelledAt: timestamp("cancelled_at", { mode: "date" }),
 		cancellationReason: text("cancellation_reason"),
 	})
-	.title((t) => sql`'Appointment at ' || ${t.scheduledAt}`)
-	.relations(({ one }) => ({
+	.title((t) => sql`Appointment at  ${t.scheduledAt}`)
+	.relations(({ one, table }) => ({
 		// Note: customerId references Better Auth's users table
 		customer: one("questpie_users", {
-			fields: ["customerId"],
+			fields: [table.customerId],
 			references: ["id"],
 		}),
 		barber: one("barbers", {
-			fields: ["barberId"],
+			fields: [table.barberId],
 			references: ["id"],
 		}),
 		service: one("services", {
-			fields: ["serviceId"],
+			fields: [table.serviceId],
 			references: ["id"],
 		}),
 	}))
 	.hooks({
-		afterCreate: async ({ data, context }) => {
+		afterCreate: async ({ data, cms }) => {
 			// Send confirmation email after booking
-			await context.cms.queue.publish("send-appointment-confirmation", {
+			await cms.queue.publish("send-appointment-confirmation", {
 				appointmentId: data.id,
 				customerId: data.customerId,
 			});
 		},
-		afterUpdate: async ({ data, context }) => {
+		afterUpdate: async ({ data, cms }) => {
 			// Notify customer if appointment is cancelled
 			if (data.status === "cancelled" && data.cancelledAt) {
-				await context.cms.queue.publish("send-appointment-cancellation", {
+				await cms.queue.publish("send-appointment-cancellation", {
 					appointmentId: data.id,
 					customerId: data.customerId,
 				});
@@ -138,17 +138,17 @@ export const reviews = defineCollection("reviews")
 		comment: text("comment"),
 	})
 	.title((t) => sql`'Review #' || ${t.id}`)
-	.relations(({ one }) => ({
+	.relations(({ one, table }) => ({
 		appointment: one("appointments", {
-			fields: ["appointmentId"],
+			fields: [table.appointmentId],
 			references: ["id"],
 		}),
 		customer: one("questpie_users", {
-			fields: ["customerId"],
+			fields: [table.customerId],
 			references: ["id"],
 		}),
 		barber: one("barbers", {
-			fields: ["barberId"],
+			fields: [table.barberId],
 			references: ["id"],
 		}),
 	}));

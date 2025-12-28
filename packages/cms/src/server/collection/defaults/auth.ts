@@ -1,8 +1,9 @@
+import { defineCollection } from "#questpie/cms/exports/server.js";
 import { sql } from "drizzle-orm";
 import { varchar, boolean, timestamp } from "drizzle-orm/pg-core";
 
 // User Collection
-export const usersCollection = definedefineCollection("user")
+export const usersCollection = defineCollection("user")
 	.options({ timestamps: true })
 	.fields({
 		name: varchar("name", { length: 255 }).notNull(),
@@ -15,7 +16,7 @@ export const usersCollection = definedefineCollection("user")
 	.title((t) => sql`${t.name}`);
 
 // Session Collection
-export const sessionsCollection = definedefineCollection("session")
+export const sessionsCollection = defineCollection("session")
 	.fields({
 		userId: varchar("userId", { length: 255 }).notNull(),
 		token: varchar("token", { length: 255 }).notNull().unique(),
@@ -26,7 +27,7 @@ export const sessionsCollection = definedefineCollection("session")
 	.title((t) => sql`${t.token}`);
 
 // Account Collection (Social Logins)
-export const accountsCollection = definedefineCollection("account")
+export const accountsCollection = defineCollection("account")
 	.fields({
 		userId: varchar("userId", { length: 255 }).notNull(),
 		accountId: varchar("accountId", { length: 255 }).notNull(),
@@ -42,7 +43,7 @@ export const accountsCollection = definedefineCollection("account")
 	.title((t) => sql`${t.providerId}`);
 
 // Verification Collection
-export const verificationsCollection = definedefineCollection("verification")
+export const verificationsCollection = defineCollection("verification")
 	.fields({
 		identifier: varchar("identifier", { length: 255 }).notNull(),
 		value: varchar("value", { length: 255 }).notNull(),
