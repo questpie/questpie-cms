@@ -280,7 +280,7 @@ export class GlobalBuilder<TState extends GlobalBuilderState> {
 /**
  * Factory function to create a new global builder
  */
-export function global<TName extends string>(
+export function defineGlobal<TName extends string>(
 	name: TName,
 ): GlobalBuilder<EmptyGlobalState<TName>> {
 	return new GlobalBuilder({

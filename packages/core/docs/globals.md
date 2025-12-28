@@ -7,10 +7,10 @@ Globals are singleton content structures used for managing site-wide settings, n
 Use the `global` function to define a global singleton. Like collections, it offers a fluent, type-safe API.
 
 ```typescript
-import { global } from "@questpie/core";
+import { defineGlobal } from "@questpie/core";
 import { text, boolean, jsonb } from "drizzle-orm/pg-core";
 
-export const siteSettings = global("site_settings")
+export const siteSettings = defineGlobal("site_settings")
   .options({
     timestamps: true, // Adds createdAt, updatedAt
     versioning: true, // Enable revision history
