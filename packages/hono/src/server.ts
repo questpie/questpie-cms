@@ -1,48 +1,56 @@
 import { Hono } from "hono";
-import { cors } from "hono/cors";
+import { createMiddleware } from "hono/factory";
 import type { QCMS } from "@questpie/cms/server";
 import qs from "qs";
 
 /**
  * Variables stored in Hono context
  */
-export type QCMSVariables = {
-	cms: QCMS<any, any, any>;
-	cmsContext: Awaited<ReturnType<QCMS<any, any, any>["createContext"]>>;
+export type QCMSVariables<
+	TQCMS extends QCMS<any, any, any> = QCMS<any, any, any>,
+> = {
+	cms: TQCMS;
+	cmsContext: Awaited<ReturnType<TQCMS["createContext"]>>;
 	user: any;
 };
-declare module "hono" {
-	interface ContextVariableMap {
-		cms: QCMS<any, any, any>;
-		cmsContext: Awaited<ReturnType<QCMS<any, any, any>["createContext"]>>;
-		user: any;
-	}
-}
 
 /**
  * Hono adapter configuration
  */
 export type HonoAdapterConfig = {
 	/**
-	 * CORS configuration
-	 * Set to false to disable CORS
-	 */
-	cors?:
-		| false
-		| {
-				origin?: string | string[] | ((origin: string) => boolean);
-				credentials?: boolean;
-				allowMethods?: string[];
-				allowHeaders?: string[];
-				exposeHeaders?: string[];
-		  };
-
-	/**
 	 * Base path for CMS routes
 	 * @default '/api'
 	 */
 	basePath?: string;
 };
+
+export function questpieMiddleware<TQCMS extends QCMS<any, any, any>>(
+	cms: TQCMS,
+) {
+	return createMiddleware<{
+		Variables: QCMSVariables<TQCMS>;
+	}>(async (c, next) => {
+		c.set("cms", cms);
+
+		if (!cms.auth) {
+			c.set("user", null);
+			await next();
+			return;
+		}
+
+		try {
+			const session = await cms.auth.api.getSession({
+				headers: c.req.raw.headers,
+			});
+			c.set("user", session?.user || null);
+		} catch {
+			c.set("user", null);
+		}
+
+		await next();
+	});
+}
 
 /**
  * Create Hono app with QUESTPIE CMS integration
@@ -76,62 +84,7 @@ export function questpieHono(
 	config: HonoAdapterConfig = {},
 ) {
 	const basePath = config.basePath || "/api";
-	const app = new Hono<{ Variables: QCMSVariables }>()
-		.use(
-			"*",
-			cors({
-				origin: config.cors?.origin || "*",
-				credentials: config.cors?.credentials ?? true,
-				allowMethods: config.cors?.allowMethods || [
-					"GET",
-					"POST",
-					"PATCH",
-					"DELETE",
-					"OPTIONS",
-				],
-				allowHeaders: config.cors?.allowHeaders || [
-					"Content-Type",
-					"Authorization",
-					"Accept-Language",
-				],
-				exposeHeaders: config.cors?.exposeHeaders,
-			}),
-		)
-		.use("*", async (c, next) => {
-			c.set("cms", cms);
-			await next();
-		})
-		.use("*", async (c, next) => {
-			if (!cms.auth) {
-				c.set("user", null);
-				await next();
-				return;
-			}
-
-			try {
-				const session = await cms.auth.api.getSession({
-					headers: c.req.raw.headers,
-				});
-				c.set("user", session?.user || null);
-			} catch {
-				c.set("user", null);
-			}
-
-			await next();
-		})
-		.use("*", async (c, next) => {
-			const user = c.get("user");
-			const locale = c.req.header("accept-language")?.split(",")[0] || "en";
-
-			const cmsContext = await cms.createContext({
-				user,
-				locale,
-				accessMode: "user",
-			});
-
-			c.set("cmsContext", cmsContext);
-			await next();
-		})
+	const app = new Hono()
 		.all(`${basePath}/auth/*`, async (c) => {
 			if (!cms.auth) {
 				return c.json({ error: "Auth not configured" }, 500);

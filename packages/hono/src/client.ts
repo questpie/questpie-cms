@@ -1,7 +1,8 @@
 import { hc } from "hono/client";
 import type { ClientRequestOptions } from "hono/client";
-import { createQCMSClient, type QCMSClient } from "@questpie/cms/client";
+import { createQCMSClient } from "@questpie/cms/client";
 import type { QCMS } from "@questpie/cms/server";
+import type { Hono } from "hono";
 
 /**
  * Hono client configuration
@@ -58,9 +59,11 @@ export type HonoClientConfig = {
  * ```
  */
 export function createClientFromHono<
-	TApp extends Record<string, any>,
+	TApp extends Hono<any, any, any>,
 	TCMS extends QCMS<any, any, any>,
->(config: HonoClientConfig): QCMSClient<TCMS> & TApp {
+>(
+	config: HonoClientConfig,
+): ReturnType<typeof hc<TApp>> & ReturnType<typeof createQCMSClient<TCMS>> {
 	// Create CMS client for CRUD operations
 	const cmsClient = createQCMSClient<TCMS>({
 		baseURL: config.baseURL,
@@ -76,9 +79,9 @@ export function createClientFromHono<
 		...config.honoOptions,
 	});
 
+	(honoClient as typeof honoClient & typeof cmsClient).collections =
+		cmsClient.collections;
+
 	// Merge both clients
-	return {
-		...honoClient,
-		collections: cmsClient.collections,
-	} as QCMSClient<TCMS> & TApp;
+	return honoClient as typeof honoClient & typeof cmsClient;
 }

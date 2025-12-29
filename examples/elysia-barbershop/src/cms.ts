@@ -14,6 +14,9 @@ import {
 	defineCollection,
 	defineJob,
 	pgBossAdapter,
+	SmtpAdapter,
+	ConsoleAdapter,
+	createEtherealSmtpAdapter,
 } from "@questpie/cms/server";
 import {
 	varchar,
@@ -235,12 +238,29 @@ export const cms = new QCMS({
 	},
 
 	email: {
-		transport: {
-			host: process.env.SMTP_HOST || "localhost",
-			port: Number.parseInt(process.env.SMTP_PORT || "1025", 10),
-			secure: false,
-		},
+		adapter:
+			process.env.NODE_ENV === "production"
+				? // Production: Use real SMTP server
+					new SmtpAdapter({
+						transport: {
+							host: process.env.SMTP_HOST || "localhost",
+							port: Number.parseInt(process.env.SMTP_PORT || "587", 10),
+							secure: true,
+							auth: {
+								user: process.env.SMTP_USER || "",
+								pass: process.env.SMTP_PASS || "",
+							},
+						},
+					})
+				: process.env.MAIL_ADAPTER === "console"
+					? // Development: Console logging
+						new ConsoleAdapter({ logHtml: false })
+					: // Development: Ethereal email with preview URLs (default)
+						createEtherealSmtpAdapter(),
 		templates: {},
+		defaults: {
+			from: process.env.MAIL_FROM || "noreply@barbershop.test",
+		},
 	},
 
 	queue: {

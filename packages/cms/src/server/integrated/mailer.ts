@@ -1,16 +1,60 @@
-import { createTransport, type Transporter } from "nodemailer";
-import type SMTPTransport from "nodemailer/lib/smtp-transport";
 import { render } from "@react-email/render";
-import type { ComponentType } from "react";
-import * as React from "react";
+import { convert } from "html-to-text";
+import type { ComponentType, ReactElement } from "react";
+import type * as React from "react";
 
-export interface MailerConfig<TTemplates extends Record<string, ComponentType<any>> = Record<string, ComponentType<any>>> {
+/**
+ * Base mail options interface
+ */ export type MailOptions = {
+	from?: string;
+	to: string | string[];
+	cc?: string | string[];
+	bcc?: string | string[];
+	subject: string;
+	attachments?: Array<{
+		filename: string;
+		content: Buffer | string;
+		contentType?: string;
+	}>;
+	headers?: Record<string, string>;
+	replyTo?: string;
+} & (
+	| { react: ReactElement; text?: never; html?: never }
+	| { text?: string; html?: string; react?: never }
+);
+
+/**
+ * Serializable mail options (after React rendering)
+ */
+export type SerializableMailOptions = Omit<
+	MailOptions,
+	"react" | "text" | "html"
+> & {
+	text: string;
+	html: string;
+	from: string;
+};
+
+/**
+ * Abstract base class for mail adapters
+ */
+export abstract class MailAdapter {
+	abstract send(options: SerializableMailOptions): Promise<void>;
+}
+
+/**
+ * Mailer configuration
+ */
+export interface MailerConfig<
+	TTemplates extends Record<string, ComponentType<any>> = Record<
+		string,
+		ComponentType<any>
+	>,
+> {
 	/**
-	 * Nodemailer transport options (SMTP, JSON, etc.)
-	 * For SMTP: { host, port, secure, auth, etc. }
-	 * Or connection URL: "smtp://user:pass@smtp.example.com"
+	 * Mail adapter (SMTP, Console, Resend, etc.)
 	 */
-	transport: string | SMTPTransport.Options;
+	adapter: MailAdapter | Promise<MailAdapter>;
 	/**
 	 * Default 'from' address
 	 */
@@ -23,55 +67,84 @@ export interface MailerConfig<TTemplates extends Record<string, ComponentType<an
 	templates: TTemplates;
 }
 
-export class MailerService<TTemplates extends Record<string, ComponentType<any>> = Record<string, ComponentType<any>>> {
-	private transporter: Transporter;
+/**
+ * Main mailer service
+ */
+export class MailerService<
+	TTemplates extends Record<string, ComponentType<any>> = Record<
+		string,
+		ComponentType<any>
+	>,
+> {
 	private templates: TTemplates;
 	private defaultFrom?: string;
 
-	constructor(config: MailerConfig<TTemplates>) {
-		this.transporter = createTransport(config.transport);
+	constructor(private config: MailerConfig<TTemplates>) {
 		this.templates = config.templates;
 		this.defaultFrom = config.defaults?.from;
 	}
 
 	/**
+	 * Serialize mail options (render React, convert to plain text)
+	 */
+	private async serializeMailOptions({
+		react,
+		...options
+	}: MailOptions): Promise<SerializableMailOptions> {
+		let html: string | undefined = options.html;
+		let text: string | undefined = options.text;
+
+		if (react) {
+			html = await render(react);
+			text ??= await render(react, { plainText: true });
+		} else if (html && !text) {
+			text = convert(html);
+		}
+
+		if (!html && !text) {
+			throw new Error("No text or html provided");
+		}
+
+		return {
+			...options,
+			from: options.from || this.defaultFrom || "noreply@example.com",
+			text: text || "",
+			html: html || "",
+		};
+	}
+
+	/**
+	 * Send an email
+	 */
+	async send(options: MailOptions): Promise<void> {
+		const serializedMail = await this.serializeMailOptions(options);
+		const adapter = await this.config.adapter;
+		return adapter.send(serializedMail);
+	}
+
+	/**
 	 * Send an email using a React template
 	 */
-	async send<K extends keyof TTemplates>(
-		options: {
-			template: K;
-			props: React.ComponentProps<TTemplates[K]>;
-			to: string | string[];
-			subject: string;
-			from?: string;
-			cc?: string | string[];
-			bcc?: string | string[];
-		}
-	) {
+	async sendTemplate<K extends keyof TTemplates>(options: {
+		template: K;
+		props: React.ComponentProps<TTemplates[K]>;
+		to: string | string[];
+		subject: string;
+		from?: string;
+		cc?: string | string[];
+		bcc?: string | string[];
+	}): Promise<void> {
 		const Template = this.templates[options.template];
 		if (!Template) {
 			throw new Error(`Template "${String(options.template)}" not found.`);
 		}
 
-		// Render the email to HTML
-		// @ts-ignore - React types might mismatch slightly depending on env
-		const html = await render(Template(options.props));
+		// @ts-expect-error - React types might mismatch slightly depending on env
+		const element = Template(options.props);
 
-		// Send via Nodemailer
-		return this.transporter.sendMail({
-			from: options.from || this.defaultFrom,
-			to: options.to,
-			cc: options.cc,
-			bcc: options.bcc,
-			subject: options.subject,
-			html,
+		return this.send({
+			...options,
+			react: element,
 		});
-	}
-
-	/**
-	 * Verify connection
-	 */
-	async verify() {
-		return this.transporter.verify();
 	}
 }

@@ -8,7 +8,7 @@
  */
 
 import { createClientFromHono } from "@questpie/hono/client";
-import { cms } from "./cms";
+import type { cms } from "./cms";
 import type { AppType } from "./server";
 
 // ============================================================================
@@ -78,7 +78,9 @@ async function exampleUsage() {
 		const date = tomorrow.toISOString().split("T")[0]; // YYYY-MM-DD
 
 		console.log(`🗓️  Checking availability for ${barber.name} on ${date}...`);
-		const availability = await client.api.barbers[":barberId"].availability.$get({
+		const availability = await client.api.barbers[
+			":barberId"
+		].availability.$get({
 			param: { barberId: barber.id },
 			query: {
 				date,
@@ -214,7 +216,9 @@ async function exampleUsage() {
 	// ========================================================================
 
 	console.log("✨ Summary:");
-	console.log("  • Unified Client: Single client for both CMS CRUD and custom routes");
+	console.log(
+		"  • Unified Client: Single client for both CMS CRUD and custom routes",
+	);
 	console.log("  • client.collections.*: CMS CRUD operations");
 	console.log("  • client.api.*: Hono RPC for custom business logic");
 	console.log("  • Fully type-safe end-to-end");

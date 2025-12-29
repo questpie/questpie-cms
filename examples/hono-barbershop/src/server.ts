@@ -9,7 +9,7 @@
  */
 
 import { Hono } from "hono";
-import { questpieHono } from "@questpie/hono";
+import { questpieHono, questpieMiddleware } from "@questpie/hono";
 import { cms } from "./cms";
 import { z } from "zod";
 
@@ -17,9 +17,9 @@ import { z } from "zod";
  * Book an appointment
  */
 const bookingSchema = z.object({
-	barberId: z.string().uuid(),
-	serviceId: z.string().uuid(),
-	scheduledAt: z.string().datetime(),
+	barberId: z.uuid({ version: "v7" }),
+	serviceId: z.uuid({ version: "v7" }),
+	scheduledAt: z.iso.datetime(),
 	notes: z.string().optional(),
 });
 
@@ -28,6 +28,7 @@ const bookingSchema = z.object({
 // ============================================================================
 
 const app = new Hono()
+	.use(questpieMiddleware(cms))
 	.route("/*/", questpieHono(cms))
 	.get("/api/barbers/:barberId/availability", async (c) => {
 		const barberId = c.req.param("barberId");
@@ -100,7 +101,7 @@ const app = new Hono()
 					slotTime.setHours(hour, minute, 0, 0);
 
 					// Check if slot conflicts with existing appointments
-					const hasConflict = existingAppointments.some((apt) => {
+					const hasConflict = existingAppointments.docs.some((apt) => {
 						const aptStart = new Date(apt.scheduledAt);
 						const aptEnd = new Date(
 							aptStart.getTime() + service.duration * 60000,
@@ -196,11 +197,11 @@ const app = new Hono()
 				context,
 			);
 
-			if (conflicts.length > 0) {
+			if (conflicts.docs.length > 0) {
 				return c.json(
 					{
 						error: "Time slot not available",
-						conflicts: conflicts.map((a) => ({
+						conflicts: conflicts.docs.map((a) => ({
 							id: a.id,
 							scheduledAt: a.scheduledAt,
 						})),
@@ -241,7 +242,7 @@ const app = new Hono()
 			);
 		} catch (error) {
 			if (error instanceof z.ZodError) {
-				return c.json({ error: "Invalid input", details: error.errors }, 400);
+				return c.json({ error: "Invalid input", details: error.issues }, 400);
 			}
 
 			console.error("Error booking appointment:", error);
@@ -353,7 +354,7 @@ const app = new Hono()
 			);
 
 			return c.json({
-				appointments: appointments.map((apt) => ({
+				appointments: appointments.docs.map((apt) => ({
 					id: apt.id,
 					scheduledAt: apt.scheduledAt,
 					status: apt.status,

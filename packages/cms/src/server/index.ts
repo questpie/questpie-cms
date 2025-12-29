@@ -7,4 +7,6 @@ export * from "./config/context";
 export * from "./module";
 export * from "./integrated/queue";
 export * from "./integrated/auth";
+export * from "./integrated/mailer";
+export * from "./integrated/mail-adapters";
 export * from "./migration";
