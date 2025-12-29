@@ -42,8 +42,8 @@ async function exampleUsage() {
 		orderBy: { name: "asc" },
 	});
 
-	console.log(`Found ${barbers.length} barbers:`);
-	for (const barber of barbers) {
+	console.log(`Found ${barbers.docs.length} barbers:`);
+	for (const barber of barbers.docs) {
 		console.log(`  - ${barber.name} (${barber.email})`);
 	}
 	console.log();
@@ -58,8 +58,8 @@ async function exampleUsage() {
 		orderBy: { price: "asc" },
 	});
 
-	console.log(`Found ${services.length} services:`);
-	for (const service of services) {
+	console.log(`Found ${services.docs.length} services:`);
+	for (const service of services.docs) {
 		console.log(
 			`  - ${service.name}: $${service.price / 100} (${service.duration} min)`,
 		);
@@ -70,9 +70,9 @@ async function exampleUsage() {
 	// 3. Check Availability (Custom API)
 	// ========================================================================
 
-	if (barbers.length > 0 && services.length > 0) {
-		const barber = barbers[0];
-		const service = services[0];
+	if (barbers.docs.length > 0 && services.docs.length > 0) {
+		const barber = barbers.docs[0];
+		const service = services.docs[0];
 		const tomorrow = new Date();
 		tomorrow.setDate(tomorrow.getDate() + 1);
 		const date = tomorrow.toISOString().split("T")[0]; // YYYY-MM-DD
@@ -208,7 +208,7 @@ async function exampleUsage() {
 		orderBy: { scheduledAt: "desc" },
 	});
 
-	console.log(`Found ${allAppointments.length} recent appointments`);
+	console.log(`Found ${allAppointments.docs.length} recent appointments`);
 	console.log();
 
 	// ========================================================================

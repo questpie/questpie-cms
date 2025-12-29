@@ -48,6 +48,8 @@ export function questpieMiddleware<TQCMS extends QCMS<any, any, any>>(
 			c.set("user", null);
 		}
 
+		c.set("cmsContext", await cms.createContext({ user: c.get("user") }));
+
 		await next();
 	});
 }

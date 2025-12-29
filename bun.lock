@@ -115,6 +115,7 @@
       "name": "barbershop-example",
       "version": "1.0.0",
       "dependencies": {
+        "@hono/zod-validator": "^0.7.6",
         "@questpie/cms": "workspace:*",
         "@questpie/hono": "workspace:*",
         "hono": "^4.6.14",
@@ -520,6 +521,8 @@
     "@fumadocs/ui": ["@fumadocs/ui@16.4.1", "", { "dependencies": { "fumadocs-core": "16.4.1", "lodash.merge": "^4.6.2", "next-themes": "^0.4.6", "postcss-selector-parser": "^7.1.1", "tailwind-merge": "^3.4.0" }, "peerDependencies": { "@types/react": "*", "next": "16.x.x", "react": "^19.2.0", "react-dom": "^19.2.0", "tailwindcss": "^4.0.0" }, "optionalPeers": ["@types/react", "next", "tailwindcss"] }, "sha512-biv5/6+7BbAs8yuP3il1JzE+nUkndvC+qFrsX3a08ybqO7bZ0kXkVgr8n6bNmI4Yz8fTy61ZvwEyTqYmPa9Y1g=="],
 
     "@hono/node-server": ["@hono/node-server@1.19.7", "", { "peerDependencies": { "hono": "^4" } }, "sha512-vUcD0uauS7EU2caukW8z5lJKtoGMokxNbJtBiwHgpqxEXokaHCBkQUmCHhjFB1VUTWdqj25QoMkMKzgjq+uhrw=="],
+
+    "@hono/zod-validator": ["@hono/zod-validator@0.7.6", "", { "peerDependencies": { "hono": ">=3.9.0", "zod": "^3.25.0 || ^4.0.0" } }, "sha512-Io1B6d011Gj1KknV4rXYz4le5+5EubcWEU/speUjuw9XMMIaP3n78yXLhjd2A3PXaXaUwEAluOiAyLqhBEJgsw=="],
 
     "@hugeicons/core-free-icons": ["@hugeicons/core-free-icons@2.0.0", "", {}, "sha512-OSfv5k0iB0yG61dcfK7jcf00AIK8EXyQOgtcNJzSBFvm88n9VOelkxihZHJnNwDUFpO/jZI3vZSVp6i1dmRvJQ=="],
 

@@ -11,7 +11,8 @@
 import { Hono } from "hono";
 import { questpieHono, questpieMiddleware } from "@questpie/hono";
 import { cms } from "./cms";
-import { z } from "zod";
+import * as z from "zod";
+import { zValidator } from '@hono/zod-validator'
 
 /**
  * Book an appointment
@@ -30,7 +31,24 @@ const bookingSchema = z.object({
 const app = new Hono()
 	.use(questpieMiddleware(cms))
 	.route("/*/", questpieHono(cms))
-	.get("/api/barbers/:barberId/availability", async (c) => {
+	.get("/api/barbers/:barberId/availability",
+			zValidator(
+		"param",
+		z.object({
+			barberId: z.string().uuid({ version: "v7" }),
+		}),
+	),
+			zValidator(
+		"query",
+		z.object({
+			date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, {
+				message: "Date must be in YYYY-MM-DD format",
+			}),
+			serviceId: z.string().uuid({ version: "v7" }),
+		}),
+	),
+
+		async (c) => {
 		const barberId = c.req.param("barberId");
 		const date = c.req.query("date"); // YYYY-MM-DD
 		const serviceId = c.req.query("serviceId");
@@ -330,7 +348,9 @@ const app = new Hono()
 			);
 		}
 	})
-	.get("/api/my/appointments", async (c) => {
+	.get("/api/my/appointments",
+			zVala
+		async (c) => {
 		const user = c.get("user");
 
 		if (!user) {

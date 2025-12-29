@@ -11,6 +11,7 @@
 		"worker": "bun run worker.ts"
 	},
 	"dependencies": {
+		"@hono/zod-validator": "^0.7.6",
 		"@questpie/cms": "workspace:*",
 		"@questpie/hono": "workspace:*",
 		"hono": "^4.6.14",
