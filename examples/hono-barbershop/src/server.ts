@@ -12,7 +12,7 @@ import { Hono } from "hono";
 import { questpieHono, questpieMiddleware } from "@questpie/hono";
 import { cms } from "./cms";
 import * as z from "zod";
-import { zValidator } from '@hono/zod-validator'
+import { zValidator } from "@hono/zod-validator";
 
 /**
  * Book an appointment
@@ -31,134 +31,137 @@ const bookingSchema = z.object({
 const app = new Hono()
 	.use(questpieMiddleware(cms))
 	.route("/*/", questpieHono(cms))
-	.get("/api/barbers/:barberId/availability",
-			zValidator(
-		"param",
-		z.object({
-			barberId: z.string().uuid({ version: "v7" }),
-		}),
-	),
-			zValidator(
-		"query",
-		z.object({
-			date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, {
-				message: "Date must be in YYYY-MM-DD format",
+	.get(
+		"/api/barbers/:barberId/availability",
+		zValidator(
+			"param",
+			z.object({
+				barberId: z.string().uuid({ version: "v7" }),
 			}),
-			serviceId: z.string().uuid({ version: "v7" }),
-		}),
-	),
+		),
+		zValidator(
+			"query",
+			z.object({
+				date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, {
+					message: "Date must be in YYYY-MM-DD format",
+				}),
+				serviceId: z.string().uuid({ version: "v7" }),
+			}),
+		),
 
 		async (c) => {
-		const barberId = c.req.param("barberId");
-		const date = c.req.query("date"); // YYYY-MM-DD
-		const serviceId = c.req.query("serviceId");
+			const barberId = c.req.param("barberId");
+			const date = c.req.query("date"); // YYYY-MM-DD
+			const serviceId = c.req.query("serviceId");
 
-		if (!date || !serviceId) {
-			return c.json(
-				{ error: "Missing required query parameters: date, serviceId" },
-				400,
-			);
-		}
-
-		// Get CMS context from middleware
-		const context = c.get("cmsContext");
-
-		try {
-			// Get barber
-			const barber = await cms.api.collections.barbers.findOne(
-				{ where: { id: barberId } },
-				context,
-			);
-
-			if (!barber) {
-				return c.json({ error: "Barber not found" }, 404);
+			if (!date || !serviceId) {
+				return c.json(
+					{ error: "Missing required query parameters: date, serviceId" },
+					400,
+				);
 			}
 
-			// Get service to know duration
-			const service = await cms.api.collections.services.findOne(
-				{ where: { id: serviceId } },
-				context,
-			);
+			// Get CMS context from middleware
+			const context = c.get("cmsContext");
 
-			if (!service) {
-				return c.json({ error: "Service not found" }, 404);
-			}
+			try {
+				// Get barber
+				const barber = await cms.api.collections.barbers.findOne(
+					{ where: { id: barberId } },
+					context,
+				);
 
-			// Get existing appointments for that day
-			const startOfDay = new Date(date);
-			startOfDay.setHours(0, 0, 0, 0);
-			const endOfDay = new Date(date);
-			endOfDay.setHours(23, 59, 59, 999);
+				if (!barber) {
+					return c.json({ error: "Barber not found" }, 404);
+				}
 
-			const existingAppointments = await cms.api.collections.appointments.find(
-				{
-					where: {
-						barberId,
-						scheduledAt: {
-							gte: startOfDay,
-							lte: endOfDay,
+				// Get service to know duration
+				const service = await cms.api.collections.services.findOne(
+					{ where: { id: serviceId } },
+					context,
+				);
+
+				if (!service) {
+					return c.json({ error: "Service not found" }, 404);
+				}
+
+				// Get existing appointments for that day
+				const startOfDay = new Date(date);
+				startOfDay.setHours(0, 0, 0, 0);
+				const endOfDay = new Date(date);
+				endOfDay.setHours(23, 59, 59, 999);
+
+				const existingAppointments =
+					await cms.api.collections.appointments.find(
+						{
+							where: {
+								barberId,
+								scheduledAt: {
+									gte: startOfDay,
+									lte: endOfDay,
+								},
+								status: {
+									in: ["pending", "confirmed"],
+								},
+							},
+							orderBy: { scheduledAt: "asc" },
 						},
-						status: {
-							in: ["pending", "confirmed"],
-						},
-					},
-					orderBy: { scheduledAt: "asc" },
-				},
-				context,
-			);
+						context,
+					);
 
-			// Generate available slots (simplified logic)
-			// In production: parse barber.workingHours, account for breaks, etc.
-			const slots: string[] = [];
-			const workStart = 9; // 9 AM
-			const workEnd = 17; // 5 PM
+				// Generate available slots (simplified logic)
+				// In production: parse barber.workingHours, account for breaks, etc.
+				const slots: string[] = [];
+				const workStart = 9; // 9 AM
+				const workEnd = 17; // 5 PM
 
-			for (let hour = workStart; hour < workEnd; hour++) {
-				for (const minute of [0, 30]) {
-					const slotTime = new Date(date);
-					slotTime.setHours(hour, minute, 0, 0);
+				for (let hour = workStart; hour < workEnd; hour++) {
+					for (const minute of [0, 30]) {
+						const slotTime = new Date(date);
+						slotTime.setHours(hour, minute, 0, 0);
 
-					// Check if slot conflicts with existing appointments
-					const hasConflict = existingAppointments.docs.some((apt) => {
-						const aptStart = new Date(apt.scheduledAt);
-						const aptEnd = new Date(
-							aptStart.getTime() + service.duration * 60000,
-						);
-						const slotEnd = new Date(
-							slotTime.getTime() + service.duration * 60000,
-						);
+						// Check if slot conflicts with existing appointments
+						const hasConflict = existingAppointments.docs.some((apt) => {
+							const aptStart = new Date(apt.scheduledAt);
+							const aptEnd = new Date(
+								aptStart.getTime() + service.duration * 60000,
+							);
+							const slotEnd = new Date(
+								slotTime.getTime() + service.duration * 60000,
+							);
 
-						return slotTime < aptEnd && slotEnd > aptStart;
-					});
+							return slotTime < aptEnd && slotEnd > aptStart;
+						});
 
-					if (!hasConflict) {
-						slots.push(
-							slotTime.toLocaleTimeString("en-US", {
-								hour: "2-digit",
-								minute: "2-digit",
-							}),
-						);
+						if (!hasConflict) {
+							slots.push(
+								slotTime.toLocaleTimeString("en-US", {
+									hour: "2-digit",
+									minute: "2-digit",
+								}),
+							);
+						}
 					}
 				}
-			}
 
-			return c.json({
-				barberId,
-				date,
-				serviceId,
-				serviceDuration: service.duration,
-				availableSlots: slots,
-			});
-		} catch (error) {
-			console.error("Error fetching availability:", error);
-			return c.json(
-				{
-					error: error instanceof Error ? error.message : "Unknown error",
-				},
-				500,
-			);
-		}
-	})
+				return c.json({
+					barberId,
+					date,
+					serviceId,
+					serviceDuration: service.duration,
+					availableSlots: slots,
+				});
+			} catch (error) {
+				console.error("Error fetching availability:", error);
+				return c.json(
+					{
+						error: error instanceof Error ? error.message : "Unknown error",
+					},
+					500,
+				);
+			}
+		},
+	)
 	.post("/api/appointments/book", async (c) => {
 		const user = c.get("user");
 
@@ -348,9 +351,7 @@ const app = new Hono()
 			);
 		}
 	})
-	.get("/api/my/appointments",
-			zVala
-		async (c) => {
+	.get("/api/my/appointments", async (c) => {
 		const user = c.get("user");
 
 		if (!user) {
