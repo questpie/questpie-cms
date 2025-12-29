@@ -97,12 +97,12 @@ export const questpieSearchTable = pgTable(
 		 */
 		updatedAt: timestamp("updated_at", { mode: "date" }).defaultNow().notNull(),
 	},
-	(t) => ({
+	(t) => [
 		/**
 		 * BM25 index for full-text search (Postgres 18+)
 		 * Uses GIN index with bm25 parameter enabled
 		 */
-		bm25Idx: index("idx_search_bm25").using(
+		index("idx_search_bm25").using(
 			"gin",
 			t.ftsVector,
 			// BM25 parameters can be configured in SQL:
@@ -116,10 +116,7 @@ export const questpieSearchTable = pgTable(
 		 * Requires pg_trgm extension:
 		 * CREATE EXTENSION IF NOT EXISTS pg_trgm;
 		 */
-		trigramIdx: index("idx_search_trigram").using(
-			"gin",
-			sql`${t.title} gin_trgm_ops`,
-		),
+		index("idx_search_trigram").using("gin", sql`${t.title} gin_trgm_ops`),
 
 		/**
 		 * Embedding index for semantic search (optional)
@@ -136,26 +133,19 @@ export const questpieSearchTable = pgTable(
 		 * Collection + locale index
 		 * For filtering by collection and locale
 		 */
-		collectionLocaleIdx: index("idx_search_collection_locale").on(
-			t.collectionName,
-			t.locale,
-		),
+		index("idx_search_collection_locale").on(t.collectionName, t.locale),
 
 		/**
 		 * Record ID index
 		 * For quick lookup when updating/deleting
 		 */
-		recordIdIdx: index("idx_search_record_id").on(t.recordId),
+		index("idx_search_record_id").on(t.recordId),
 
 		/**
 		 * Unique constraint: one entry per collection + record + locale
 		 */
-		uniqueEntry: unique("uq_search_entry").on(
-			t.collectionName,
-			t.recordId,
-			t.locale,
-		),
-	}),
+		unique("uq_search_entry").on(t.collectionName, t.recordId, t.locale),
+	],
 );
 
 // /**
