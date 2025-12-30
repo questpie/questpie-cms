@@ -120,7 +120,7 @@ describe("collection query operations", () => {
 			const ctx = createTestContext();
 			// Use cms.api.collections.posts directly
 
-			const result = await cms.api.collections.posts.findMany({}, ctx);
+			const result = await cms.api.collections.posts.find({}, ctx);
 			expect(result.docs.length).toBe(5);
 			expect(result.totalDocs).toBe(5);
 			expect(result.limit).toBe(5); // Default (all)
@@ -128,23 +128,23 @@ describe("collection query operations", () => {
 		});
 
 		it("finds post by ID", async () => {
-			const ctx = createTestContext();
+			const _ctx = createTestContext();
 			// Use cms.api.collections.posts directly
 
-			const post = await cms.api.collections.posts.findFirst(
+			const post = await cms.api.collections.posts.findOne(
 				{ where: { id: testPosts[0].id } },
-				ctx,
+				_ctx,
 			);
 			expect(post?.title).toBe("First Post");
 		});
 
 		it("returns null when post not found", async () => {
-			const ctx = createTestContext();
+			const _ctx = createTestContext();
 			// Use cms.api.collections.posts directly
 
-			const post = await cms.api.collections.posts.findFirst(
+			const post = await cms.api.collections.posts.findOne(
 				{ where: { id: crypto.randomUUID() } },
-				ctx,
+				_ctx,
 			);
 			expect(post).toBeNull();
 		});
@@ -155,7 +155,7 @@ describe("collection query operations", () => {
 			const ctx = createTestContext();
 			// Use cms.api.collections.posts directly
 
-			const result = await cms.api.collections.posts.findMany(
+			const result = await cms.api.collections.posts.find(
 				{ where: { status: "published" } },
 				ctx,
 			);
@@ -170,7 +170,7 @@ describe("collection query operations", () => {
 			const ctx = createTestContext();
 			// Use cms.api.collections.posts directly
 
-			const result = await cms.api.collections.posts.findMany(
+			const result = await cms.api.collections.posts.find(
 				{ where: { isFeatured: true } },
 				ctx,
 			);
@@ -182,7 +182,7 @@ describe("collection query operations", () => {
 			const ctx = createTestContext();
 			// Use cms.api.collections.posts directly
 
-			const result = await cms.api.collections.posts.findMany(
+			const result = await cms.api.collections.posts.find(
 				{ where: { viewCount: 100 } },
 				ctx,
 			);
@@ -194,7 +194,7 @@ describe("collection query operations", () => {
 			const ctx = createTestContext();
 			// Use cms.api.collections.posts directly
 
-			const result = await cms.api.collections.posts.findMany(
+			const result = await cms.api.collections.posts.find(
 				{ where: { publishedAt: null } },
 				ctx,
 			);
@@ -206,7 +206,7 @@ describe("collection query operations", () => {
 			const ctx = createTestContext();
 			// Use cms.api.collections.posts directly
 
-			const result = await cms.api.collections.posts.findMany(
+			const result = await cms.api.collections.posts.find(
 				{
 					where: {
 						status: "published",
@@ -227,10 +227,7 @@ describe("collection query operations", () => {
 			const ctx = createTestContext();
 			// Use cms.api.collections.posts directly
 
-			const result = await cms.api.collections.posts.findMany(
-				{ limit: 2 },
-				ctx,
-			);
+			const result = await cms.api.collections.posts.find({ limit: 2 }, ctx);
 			expect(result.docs.length).toBe(2);
 			expect(result.limit).toBe(2);
 			expect(result.totalDocs).toBe(5);
@@ -241,11 +238,11 @@ describe("collection query operations", () => {
 			const ctx = createTestContext();
 			// Use cms.api.collections.posts directly
 
-			const page1 = await cms.api.collections.posts.findMany(
+			const page1 = await cms.api.collections.posts.find(
 				{ limit: 2, offset: 0 },
 				ctx,
 			);
-			const page2 = await cms.api.collections.posts.findMany(
+			const page2 = await cms.api.collections.posts.find(
 				{ limit: 2, offset: 2 },
 				ctx,
 			);
@@ -264,7 +261,7 @@ describe("collection query operations", () => {
 			const ctx = createTestContext();
 			// Use cms.api.collections.posts directly
 
-			const result = await cms.api.collections.posts.findMany(
+			const result = await cms.api.collections.posts.find(
 				{ limit: 10, offset: 100 },
 				ctx,
 			);
@@ -276,7 +273,7 @@ describe("collection query operations", () => {
 			const ctx = createTestContext();
 			// Use cms.api.collections.posts directly
 
-			const result = await cms.api.collections.posts.findMany(
+			const result = await cms.api.collections.posts.find(
 				{
 					where: { status: "published" },
 					limit: 2,
@@ -299,7 +296,7 @@ describe("collection query operations", () => {
 			const ctx = createTestContext();
 			// Use cms.api.collections.posts directly
 
-			const result = await cms.api.collections.posts.findMany(
+			const result = await cms.api.collections.posts.find(
 				{ orderBy: { viewCount: "asc" } },
 				ctx,
 			);
@@ -313,7 +310,7 @@ describe("collection query operations", () => {
 			const ctx = createTestContext();
 			// Use cms.api.collections.posts directly
 
-			const result = await cms.api.collections.posts.findMany(
+			const result = await cms.api.collections.posts.find(
 				{ orderBy: { viewCount: "desc" } },
 				ctx,
 			);
@@ -327,7 +324,7 @@ describe("collection query operations", () => {
 			const ctx = createTestContext();
 			// Use cms.api.collections.posts directly
 
-			const result = await cms.api.collections.posts.findMany(
+			const result = await cms.api.collections.posts.find(
 				{
 					where: { publishedAt: { not: null } },
 					orderBy: { publishedAt: "desc" },
@@ -344,7 +341,7 @@ describe("collection query operations", () => {
 			const ctx = createTestContext();
 			// Use cms.api.collections.posts directly
 
-			const result = await cms.api.collections.posts.findMany(
+			const result = await cms.api.collections.posts.find(
 				{ orderBy: { title: "asc" } },
 				ctx,
 			);
@@ -359,7 +356,7 @@ describe("collection query operations", () => {
 			const ctx = createTestContext();
 			// Use cms.api.collections.posts directly
 
-			const result = await cms.api.collections.posts.findMany(
+			const result = await cms.api.collections.posts.find(
 				{
 					where: { status: "published" },
 					orderBy: { viewCount: "desc" },
@@ -426,7 +423,7 @@ describe("collection query operations", () => {
 			// Soft delete a post
 			await cms.api.collections.posts.deleteById({ id: testPosts[0].id }, ctx);
 
-			const result = await cms.api.collections.posts.findMany({}, ctx);
+			const result = await cms.api.collections.posts.find({}, ctx);
 			const posts = result.docs;
 			expect(posts.length).toBe(4);
 			expect(posts.find((p: any) => p.id === testPosts[0].id)).toBeUndefined();
@@ -449,7 +446,7 @@ describe("collection query operations", () => {
 
 			await cms.api.collections.posts.deleteById({ id: testPosts[0].id }, ctx);
 
-			const post = await cms.api.collections.posts.findFirst(
+			const post = await cms.api.collections.posts.findOne(
 				{ where: { id: testPosts[0].id } },
 				ctx,
 			);
@@ -462,7 +459,7 @@ describe("collection query operations", () => {
 			const ctx = createTestContext();
 			// Use cms.api.collections.posts directly
 
-			const result = await cms.api.collections.posts.findMany(
+			const result = await cms.api.collections.posts.find(
 				{
 					select: { id: true, title: true },
 				},
@@ -479,7 +476,7 @@ describe("collection query operations", () => {
 			const ctx = createTestContext();
 			// Use cms.api.collections.posts directly
 
-			const result = await cms.api.collections.posts.findMany(
+			const result = await cms.api.collections.posts.find(
 				{ select: true },
 				ctx,
 			);
@@ -497,7 +494,7 @@ describe("collection query operations", () => {
 			const ctx = createTestContext();
 			// Use cms.api.collections.posts directly
 
-			const result = await cms.api.collections.posts.findMany(
+			const result = await cms.api.collections.posts.find(
 				{
 					where: {
 						status: "published",
@@ -520,7 +517,7 @@ describe("collection query operations", () => {
 			const ctx = createTestContext();
 			// Use cms.api.collections.posts directly
 
-			const result = await cms.api.collections.posts.findMany(
+			const result = await cms.api.collections.posts.find(
 				{
 					where: { isFeatured: true },
 					orderBy: { viewCount: "desc" },
@@ -538,7 +535,7 @@ describe("collection query operations", () => {
 			const ctx = createTestContext();
 			// Use cms.api.collections.posts directly
 
-			const result = await cms.api.collections.posts.findMany(
+			const result = await cms.api.collections.posts.find(
 				{
 					where: {
 						status: "published",
@@ -557,7 +554,7 @@ describe("collection query operations", () => {
 			const ctx = createTestContext();
 			// Use cms.api.collections.posts directly
 
-			const result = await cms.api.collections.posts.findMany(
+			const result = await cms.api.collections.posts.find(
 				{ where: { viewCount: { gt: 50 } } },
 				ctx,
 			);
@@ -571,7 +568,7 @@ describe("collection query operations", () => {
 			const ctx = createTestContext();
 			// Use cms.api.collections.posts directly
 
-			const result = await cms.api.collections.posts.findMany(
+			const result = await cms.api.collections.posts.find(
 				{ where: { viewCount: { gte: 50 } } },
 				ctx,
 			);
@@ -585,7 +582,7 @@ describe("collection query operations", () => {
 			const ctx = createTestContext();
 			// Use cms.api.collections.posts directly
 
-			const result = await cms.api.collections.posts.findMany(
+			const result = await cms.api.collections.posts.find(
 				{ where: { viewCount: { lt: 50 } } },
 				ctx,
 			);
@@ -599,7 +596,7 @@ describe("collection query operations", () => {
 			const ctx = createTestContext();
 			// Use cms.api.collections.posts directly
 
-			const result = await cms.api.collections.posts.findMany(
+			const result = await cms.api.collections.posts.find(
 				{ where: { viewCount: { lte: 50 } } },
 				ctx,
 			);
@@ -613,7 +610,7 @@ describe("collection query operations", () => {
 			const ctx = createTestContext();
 			// Use cms.api.collections.posts directly
 
-			const result = await cms.api.collections.posts.findMany(
+			const result = await cms.api.collections.posts.find(
 				{ where: { status: { not: "draft" } } },
 				ctx,
 			);
@@ -629,7 +626,7 @@ describe("collection query operations", () => {
 			const ctx = createTestContext();
 			// Use cms.api.collections.posts directly
 
-			await cms.api.collections.posts.updateMany(
+			await cms.api.collections.posts.update(
 				{
 					where: { status: "published" },
 					data: { isFeatured: true },
@@ -637,7 +634,7 @@ describe("collection query operations", () => {
 				ctx,
 			);
 
-			const result = await cms.api.collections.posts.findMany(
+			const result = await cms.api.collections.posts.find(
 				{ where: { status: "published" } },
 				ctx,
 			);
@@ -649,12 +646,12 @@ describe("collection query operations", () => {
 			const ctx = createTestContext();
 			// Use cms.api.collections.posts directly
 
-			await cms.api.collections.posts.deleteMany(
+			await cms.api.collections.posts.delete(
 				{ where: { status: "draft" } },
 				ctx,
 			);
 
-			const result = await cms.api.collections.posts.findMany({}, ctx);
+			const result = await cms.api.collections.posts.find({}, ctx);
 			const remaining = result.docs;
 			expect(remaining.every((p: any) => p.status !== "draft")).toBe(true);
 		});

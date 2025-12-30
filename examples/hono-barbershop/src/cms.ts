@@ -9,11 +9,12 @@
  */
 
 import {
-	QCMS,
+	defineQCMS,
 	defaultQCMSAuth,
 	defineCollection,
 	defineJob,
 	pgBossAdapter,
+	getCMSFromContext,
 } from "@questpie/cms/server";
 import {
 	varchar,
@@ -104,17 +105,19 @@ export const appointments = defineCollection("appointments")
 		}),
 	}))
 	.hooks({
-		afterCreate: async ({ data, cms }) => {
-			// Send confirmation email after booking
-			await cms.queue.publish("send-appointment-confirmation", {
+		afterCreate: async ({ data }) => {
+			const cms = getCMSFromContext<AppCMS>();
+			// Send confirmation email after booking (type-safe job publishing)
+			await cms.queue["send-appointment-confirmation"].publish({
 				appointmentId: data.id,
 				customerId: data.customerId,
 			});
 		},
-		afterUpdate: async ({ data, cms }) => {
+		afterUpdate: async ({ data }) => {
+			const cms = getCMSFromContext<AppCMS>();
 			// Notify customer if appointment is cancelled
 			if (data.status === "cancelled" && data.cancelledAt) {
-				await cms.queue.publish("send-appointment-cancellation", {
+				await cms.queue["send-appointment-cancellation"].publish({
 					appointmentId: data.id,
 					customerId: data.customerId,
 				});
@@ -156,70 +159,78 @@ export const reviews = defineCollection("reviews")
 // Queue Jobs
 // ============================================================================
 
-const jobs = [
-	defineJob({
-		name: "send-appointment-confirmation",
-		schema: z.object({
-			appointmentId: z.string(),
-			customerId: z.string(),
-		}),
-		handler: async (payload) => {
-			console.log(
-				`📧 Sending confirmation email for appointment ${payload.appointmentId} to customer ${payload.customerId}`,
-			);
-			// TODO: Implement email sending via context.cms.email
-		},
+const sendAppointmentConfirmation = defineJob({
+	name: "send-appointment-confirmation",
+	schema: z.object({
+		appointmentId: z.string(),
+		customerId: z.string(),
 	}),
+	handler: async (payload) => {
+		console.log(
+			`📧 Sending confirmation email for appointment ${payload.appointmentId} to customer ${payload.customerId}`,
+		);
+		// TODO: Implement email sending via getCMSFromContext().email
+	},
+});
 
-	defineJob({
-		name: "send-appointment-cancellation",
-		schema: z.object({
-			appointmentId: z.string(),
-			customerId: z.string(),
-		}),
-		handler: async (payload) => {
-			console.log(
-				`📧 Sending cancellation email for appointment ${payload.appointmentId} to customer ${payload.customerId}`,
-			);
-			// TODO: Implement email sending
-		},
+const sendAppointmentCancellation = defineJob({
+	name: "send-appointment-cancellation",
+	schema: z.object({
+		appointmentId: z.string(),
+		customerId: z.string(),
 	}),
+	handler: async (payload) => {
+		console.log(
+			`📧 Sending cancellation email for appointment ${payload.appointmentId} to customer ${payload.customerId}`,
+		);
+		// TODO: Implement email sending
+	},
+});
 
-	defineJob({
-		name: "send-appointment-reminder",
-		schema: z.object({
-			appointmentId: z.string(),
-		}),
-		handler: async (payload) => {
-			console.log(
-				`📧 Sending reminder email for appointment ${payload.appointmentId}`,
-			);
-			// TODO: Implement reminder logic
-		},
+const sendAppointmentReminder = defineJob({
+	name: "send-appointment-reminder",
+	schema: z.object({
+		appointmentId: z.string(),
 	}),
-];
+	handler: async (payload) => {
+		console.log(
+			`📧 Sending reminder email for appointment ${payload.appointmentId}`,
+		);
+		// TODO: Implement reminder logic
+	},
+});
 
 // ============================================================================
-// CMS Instance
+// CMS Instance (Builder Pattern)
 // ============================================================================
 
 const DATABASE_URL =
 	process.env.DATABASE_URL || "postgres://localhost/barbershop";
 
-export const cms = new QCMS({
-	app: {
-		url: process.env.APP_URL || "http://localhost:3000",
-	},
-
-	db: {
-		connection: {
-			url: DATABASE_URL,
-		},
-	},
-
-	collections: [barbers, services, appointments, reviews],
-
-	auth: (db: any) =>
+/**
+ * Barbershop CMS Instance
+ *
+ * Built using the builder pattern for cleaner, more maintainable configuration:
+ * - Collections/jobs are defined as maps (not arrays) for type-safe access
+ * - Definition-time config (collections, jobs, auth) separated from runtime config (db url, secrets)
+ * - Easy to compose and extend
+ */
+export const cms = defineQCMS({ name: "barbershop" })
+	// Define collections (as a map for type-safe access)
+	.collections({
+		barbers,
+		services,
+		appointments,
+		reviews,
+	})
+	// Define background jobs
+	.jobs({
+		sendAppointmentConfirmation,
+		sendAppointmentCancellation,
+		sendAppointmentReminder,
+	})
+	// Configure authentication (Better Auth)
+	.auth((db: any) =>
 		defaultQCMSAuth(db, {
 			emailPassword: true,
 			emailVerification: false, // Simplified for demo
@@ -227,27 +238,37 @@ export const cms = new QCMS({
 			secret:
 				process.env.BETTER_AUTH_SECRET || "demo-secret-change-in-production",
 		}),
-
-	storage: {
-		// Default: local filesystem storage
+	)
+	// Configure storage (local filesystem by default)
+	.storage({
 		// driver: fsDriver({ location: './uploads' })
-	},
-
-	email: {
+	})
+	// Configure email
+	.email({
 		transport: {
 			host: process.env.SMTP_HOST || "localhost",
 			port: Number.parseInt(process.env.SMTP_PORT || "1025", 10),
 			secure: false,
 		},
 		templates: {},
-	},
-
-	queue: {
-		jobs,
-		adapter: pgBossAdapter({
+	})
+	// Configure queue adapter
+	.queueAdapter(
+		pgBossAdapter({
 			connectionString: DATABASE_URL,
 		}),
-	},
-});
+	)
+	// Build the final instance with runtime configuration
+	.build({
+		app: {
+			url: process.env.APP_URL || "http://localhost:3000",
+		},
+		db: {
+			connection: {
+				url: DATABASE_URL,
+			},
+		},
+		secret: process.env.SECRET,
+	});
 
 export type AppCMS = typeof cms;

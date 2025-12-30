@@ -23,6 +23,7 @@ import type {
 	AccessWhere,
 	HookContext,
 } from "#questpie/cms/server/collection/builder/types";
+import { runWithCMSContext } from "#questpie/cms/server/config/context";
 import type {
 	CRUD,
 	FindManyOptions,
@@ -87,27 +88,22 @@ export class CRUDGenerator<
 	 * Generate CRUD operations
 	 */
 	generate(): CRUD {
-		const findMany = this.createFindMany();
-		const findFirst = this.createFindFirst();
-		const updateMany = this.createUpdateMany();
-		const deleteMany = this.createDeleteMany();
+		const findMany = this.wrapWithCMSContext(this.createFindMany());
+		const findFirst = this.wrapWithCMSContext(this.createFindFirst());
+		const updateMany = this.wrapWithCMSContext(this.createUpdateMany());
+		const deleteMany = this.wrapWithCMSContext(this.createDeleteMany());
 
 		const crud: CRUD = {
 			find: findMany,
 			findOne: findFirst,
-			count: this.createCount(),
-			create: this.createCreate(),
-			updateById: this.createUpdate(),
+			count: this.wrapWithCMSContext(this.createCount()),
+			create: this.wrapWithCMSContext(this.createCreate()),
+			updateById: this.wrapWithCMSContext(this.createUpdate()),
 			update: updateMany,
-			deleteById: this.createDelete(),
+			deleteById: this.wrapWithCMSContext(this.createDelete()),
 			delete: deleteMany,
-			findVersions: this.createFindVersions(),
-			revertToVersion: this.createRevertToVersion(),
-			// Backwards compatibility aliases
-			findMany,
-			findFirst,
-			updateMany,
-			deleteMany,
+			findVersions: this.wrapWithCMSContext(this.createFindVersions()),
+			revertToVersion: this.wrapWithCMSContext(this.createRevertToVersion()),
 		};
 		crud.__internalState = this.state;
 		crud.__internalRelatedTable = this.table;
@@ -132,6 +128,29 @@ export class CRUDGenerator<
 			accessMode: context.accessMode ?? "system", // Default to system
 			locale: context.locale ?? context.defaultLocale ?? "en",
 			defaultLocale: context.defaultLocale ?? "en",
+		};
+	}
+
+	private runWithCMSContext<TResult>(
+		context: CRUDContext | undefined,
+		fn: () => Promise<TResult>,
+	): Promise<TResult> {
+		if (!this.cms) {
+			return fn();
+		}
+
+		const normalized = this.normalizeContext(context ?? {});
+		return runWithCMSContext(this.cms, normalized, fn);
+	}
+
+	private wrapWithCMSContext<TArgs extends any[], TResult>(
+		fn: (...args: TArgs) => Promise<TResult>,
+	): (...args: TArgs) => Promise<TResult> {
+		return (...args: TArgs) => {
+			const context = (args.length > 1 ? args[1] : undefined) as
+				| CRUDContext
+				| undefined;
+			return this.runWithCMSContext(context, () => fn(...args));
 		};
 	}
 
@@ -290,7 +309,7 @@ export class CRUDGenerator<
 	}
 
 	/**
-	 * Create findFirst operation (like db.query.table.findFirst)
+	 * Create findFirst operation (like db.query.table.findOne()
 	 * Uses Drizzle's core query builder directly
 	 */
 	private createFindFirst() {
@@ -905,7 +924,12 @@ export class CRUDGenerator<
 			this.state.relations,
 		)) {
 			// Skip if no action
-			if (!relation.onDelete || relation.onDelete === "no action" || relation.onDelete === "restrict") continue;
+			if (
+				!relation.onDelete ||
+				relation.onDelete === "no action" ||
+				relation.onDelete === "restrict"
+			)
+				continue;
 
 			// Handle HasMany
 			if (relation.type === "many" && !relation.fields) {
@@ -946,7 +970,7 @@ export class CRUDGenerator<
 				else if (relation.onDelete === "set null") {
 					// Update related records to set FK to null
 					// We use updateMany which triggers hooks
-					await relatedCrud.updateMany(
+					await relatedCrud.update(
 						{
 							where: { [foreignKeyField]: { eq: record[primaryKeyField] } },
 							data: { [foreignKeyField]: null },
@@ -957,7 +981,11 @@ export class CRUDGenerator<
 			}
 
 			// Handle ManyToMany CASCADE (Only Cascade supported for now)
-			else if (relation.type === "manyToMany" && relation.through && relation.onDelete === "cascade") {
+			else if (
+				relation.type === "manyToMany" &&
+				relation.through &&
+				relation.onDelete === "cascade"
+			) {
 				const sourceField = relation.sourceField;
 				const sourceKey = relation.sourceKey || "id";
 
@@ -1051,8 +1079,7 @@ export class CRUDGenerator<
 			const fieldKeys = relation.fields
 				.map(
 					(field) =>
-						this.resolveFieldKey(this.state, field, this.table) ??
-						field?.name,
+						this.resolveFieldKey(this.state, field, this.table) ?? field?.name,
 				)
 				.filter(Boolean) as string[];
 
@@ -1087,8 +1114,7 @@ export class CRUDGenerator<
 					...context,
 					db: tx,
 				});
-				updatedFields[foreignKeyField] =
-					created?.[referenceKey] ?? created?.id;
+				updatedFields[foreignKeyField] = created?.[referenceKey] ?? created?.id;
 			} else if (operations.connectOrCreate) {
 				if (Array.isArray(operations.connectOrCreate)) {
 					throw new Error(
@@ -1108,14 +1134,16 @@ export class CRUDGenerator<
 							db: tx,
 						});
 
-				updatedFields[foreignKeyField] =
-					target?.[referenceKey] ?? target?.id;
+				updatedFields[foreignKeyField] = target?.[referenceKey] ?? target?.id;
 			}
 
 			delete remainingRelations[relationName];
 		}
 
-		return { regularFields: updatedFields, nestedRelations: remainingRelations };
+		return {
+			regularFields: updatedFields,
+			nestedRelations: remainingRelations,
+		};
 	}
 
 	/**

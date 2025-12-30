@@ -122,6 +122,14 @@ interface HookContext<TData, TCMS> {
 - `user` - Current authenticated user (if any)
 - `operation` - What type of operation is happening
 
+When you need the CMS instance inside hooks without importing a global singleton:
+
+```typescript
+import { getCMSFromContext } from "@questpie/cms/server";
+
+const cms = getCMSFromContext();
+```
+
 ## Basic Examples
 
 ### Generate Slug from Title
@@ -160,9 +168,10 @@ export const posts = defineCollection("posts")
 export const posts = defineCollection("posts")
   .fields({ /* ... */ })
   .hooks({
-    afterCreate: async ({ data, cms }) => {
+    afterCreate: async ({ data }) => {
+      const cms = getCMSFromContext();
       // Queue a job to send email notifications
-      await cms.queue.publish("post-created-notification", {
+      await cms.queue["post-created-notification"].publish({
         postId: data.id,
         title: data.title,
         authorId: data.authorId,
@@ -211,7 +220,8 @@ export const products = defineCollection("products")
 export const posts = defineCollection("posts")
   .fields({ /* ... */ })
   .hooks({
-    afterUpdate: async ({ data, original, user, cms }) => {
+    afterUpdate: async ({ data, original, user }) => {
+      const cms = getCMSFromContext();
       // Detect what changed
       const changes: Record<string, { from: any; to: any }> = {};
 
@@ -247,7 +257,8 @@ When a record is deleted, clean up related data:
 export const users = defineCollection("users")
   .fields({ /* ... */ })
   .hooks({
-    beforeDelete: async ({ data, cms }) => {
+    beforeDelete: async ({ data }) => {
+      const cms = getCMSFromContext();
       // Delete all posts by this user
       await cms.api.collections.posts.delete({
         where: { authorId: data.id },
@@ -259,7 +270,7 @@ export const users = defineCollection("users")
       }
 
       // Notify admin
-      await cms.queue.publish("user-deleted", {
+      await cms.queue["user-deleted"].publish({
         userId: data.id,
         email: data.email,
       });
@@ -279,7 +290,8 @@ export const posts = defineCollection("posts")
     publishedAt: timestamp("published_at", { mode: "date" }),
   })
   .hooks({
-    afterUpdate: async ({ data, original, cms }) => {
+    afterUpdate: async ({ data, original }) => {
+      const cms = getCMSFromContext();
       // Detect if post was just published
       const wasJustPublished = data.isPublished && !original.isPublished;
 
@@ -293,13 +305,13 @@ export const posts = defineCollection("posts")
         }
 
         // Notify subscribers
-        await cms.queue.publish("post-published", {
+        await cms.queue["post-published"].publish({
           postId: data.id,
           title: data.title,
         });
 
         // Send to social media
-        await cms.queue.publish("share-to-social-media", {
+        await cms.queue["share-to-social-media"].publish({
           postId: data.id,
         });
       }
@@ -326,7 +338,8 @@ Sync data to external services:
 export const products = defineCollection("products")
   .fields({ /* ... */ })
   .hooks({
-    afterCreate: async ({ data, cms }) => {
+    afterCreate: async ({ data }) => {
+      const cms = getCMSFromContext();
       // Sync to external inventory system
       try {
         await fetch("https://api.inventory-system.com/products", {
@@ -353,15 +366,16 @@ export const products = defineCollection("products")
           error,
         });
 
-        await cms.queue.publish("retry-inventory-sync", {
+        await cms.queue["retry-inventory-sync"].publish({
           productId: data.id,
         });
       }
     },
 
-    afterUpdate: async ({ data, cms }) => {
+    afterUpdate: async ({ data }) => {
+      const cms = getCMSFromContext();
       // Sync updates to external system
-      await cms.queue.publish("sync-product-to-inventory", {
+      await cms.queue["sync-product-to-inventory"].publish({
         productId: data.id,
       });
     },
@@ -379,12 +393,14 @@ export const posts = defineCollection("posts")
     // Array of hook functions
     afterCreate: [
       // Hook 1: Send notification
-      async ({ data, cms }) => {
-        await cms.queue.publish("post-created", { postId: data.id });
+      async ({ data }) => {
+        const cms = getCMSFromContext();
+        await cms.queue["post-created"].publish({ postId: data.id });
       },
 
       // Hook 2: Update statistics
-      async ({ data, cms }) => {
+      async ({ data }) => {
+        const cms = getCMSFromContext();
         await cms.api.collections.stats.updateById({
           id: "global-stats",
           data: {
@@ -394,7 +410,8 @@ export const posts = defineCollection("posts")
       },
 
       // Hook 3: Log event
-      async ({ data, cms }) => {
+      async ({ data }) => {
+        const cms = getCMSFromContext();
         cms.logger.info("Post created", { postId: data.id });
       },
     ],
@@ -432,13 +449,14 @@ Hooks run synchronously in the request flow. For slow operations, use queue jobs
 
 ```typescript
 // ❌ Bad - Slow operation blocks the request
-afterCreate: async ({ data, cms }) => {
+afterCreate: async ({ data }) => {
   await processLargeImage(data.imageUrl); // Might take 10 seconds
 }
 
 // ✅ Good - Queue the work
-afterCreate: async ({ data, cms }) => {
-  await cms.queue.publish("process-image", { imageId: data.imageId });
+afterCreate: async ({ data }) => {
+  const cms = getCMSFromContext();
+  await cms.queue["process-image"].publish({ imageId: data.imageId });
 }
 ```
 
@@ -448,7 +466,8 @@ Be careful when updating the same collection inside hooks:
 
 ```typescript
 // ❌ Bad - Infinite loop!
-afterUpdate: async ({ data, cms }) => {
+afterUpdate: async ({ data }) => {
+  const cms = getCMSFromContext();
   await cms.api.collections.posts.updateById({
     id: data.id,
     data: { updatedCount: data.updatedCount + 1 },
@@ -456,7 +475,8 @@ afterUpdate: async ({ data, cms }) => {
 }
 
 // ✅ Good - Use a flag or condition
-afterUpdate: async ({ data, original, cms }) => {
+afterUpdate: async ({ data, original }) => {
+  const cms = getCMSFromContext();
   if (data.isPublished && !original.isPublished) {
     // Only update when status changes
     await cms.api.collections.posts.updateById({
@@ -510,19 +530,20 @@ beforeCreate: async ({ data }) => {
 
 ### 5. Use CMS Services, Not Global State
 
-Always access services through the `cms` parameter:
+Always access services through the CMS context (use `getCMSFromContext` inside hooks):
 
 ```typescript
 // ❌ Bad - Using global/imported instance
 import { cms } from "./cms";
 
 afterCreate: async ({ data }) => {
-  await cms.queue.publish(...); // Don't do this
+  await cms.queue["job-name"].publish(...); // Don't do this
 }
 
-// ✅ Good - Use the cms from context
-afterCreate: async ({ data, cms }) => {
-  await cms.queue.publish(...); // Type-safe and context-aware
+// ✅ Good - Use the CMS from context
+afterCreate: async ({ data }) => {
+  const cms = getCMSFromContext();
+  await cms.queue["job-name"].publish(...); // Type-safe and context-aware
 }
 ```
 
@@ -537,7 +558,8 @@ export const posts = defineCollection("posts")
     viewCount: integer("view_count").default(0),
   })
   .hooks({
-    beforeCreate: async ({ data, cms }) => {
+    beforeCreate: async ({ data }) => {
+      const cms = getCMSFromContext();
       // ✅ TypeScript knows the shape of data
       data.title.toUpperCase(); // ✅ OK
       data.viewCount = 0; // ✅ OK
@@ -545,7 +567,7 @@ export const posts = defineCollection("posts")
       // data.invalidField = "x"; // ❌ TypeScript error
 
       // ✅ TypeScript knows cms.queue exists
-      await cms.queue.publish("job-name", { /* typed payload */ });
+      await cms.queue["job-name"].publish({ /* typed payload */ });
     },
   });
 ```

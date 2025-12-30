@@ -257,25 +257,28 @@ Add lifecycle hooks for business logic:
 defineCollection("posts")
   .fields({ /* ... */ })
   .hooks({
-    beforeCreate: async ({ data, cms }) => {
+    beforeCreate: async ({ data }) => {
+      const cms = getCMSFromContext();
       // Validate data, generate slug, etc.
       if (!data.slug) {
         data.slug = slugify(data.title);
       }
     },
 
-    afterCreate: async ({ data, cms }) => {
+    afterCreate: async ({ data }) => {
+      const cms = getCMSFromContext();
       // Send notifications, trigger jobs, etc.
-      await cms.queue.publish("post-created", {
+      await cms.queue["post-created"].publish({
         postId: data.id,
         title: data.title,
       });
     },
 
-    afterUpdate: async ({ data, original, cms }) => {
+    afterUpdate: async ({ data, original }) => {
+      const cms = getCMSFromContext();
       // Check what changed
       if (data.isPublished && !original.isPublished) {
-        await cms.queue.publish("post-published", {
+        await cms.queue["post-published"].publish({
           postId: data.id,
         });
       }

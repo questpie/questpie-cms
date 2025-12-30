@@ -1,5 +1,8 @@
 import type { JobDefinition, QueueClient } from "./types";
-import type { RequestContext } from "#questpie/cms/server/config/context";
+import {
+	runWithCMSContext,
+	type RequestContext,
+} from "#questpie/cms/server/config/context";
 
 /**
  * Worker options for job processing
@@ -52,6 +55,7 @@ export async function startJobWorker<TJobs extends JobDefinition<any, any>[]>(
 	jobs: TJobs,
 	createContext: () => Promise<RequestContext>,
 	options?: WorkerOptions,
+	cms?: unknown,
 ): Promise<void> {
 	// Ensure queue is started
 	await queueClient._start();
@@ -74,8 +78,12 @@ export async function startJobWorker<TJobs extends JobDefinition<any, any>[]>(
 					// Validate payload (in case it was queued externally or schema changed)
 					const validated = jobDef.schema.parse(job.data);
 
-					// Execute handler
-					await jobDef.handler(validated, context);
+					const runHandler = () => jobDef.handler(validated, context);
+					if (cms) {
+						await runWithCMSContext(cms, context, runHandler);
+					} else {
+						await runHandler();
+					}
 				} catch (error) {
 					console.error(
 						`[QUESTPIE Queue] Job ${jobDef.name} (${job.id}) failed:`,
@@ -111,6 +119,7 @@ export async function startJobWorkerForJobs<
 	jobs: TJobs,
 	createContext: () => Promise<RequestContext>,
 	options?: WorkerOptions,
+	cms?: unknown,
 ): Promise<void> {
-	await startJobWorker(queueClient, jobs, createContext, options);
+	await startJobWorker(queueClient, jobs, createContext, options, cms);
 }

@@ -1,6 +1,7 @@
 // builder/types.ts
 import type { Collection } from "#questpie/cms/server/collection/builder/collection";
 import type { SearchableConfig } from "#questpie/cms/server/integrated/search";
+import type { AccessMode } from "#questpie/cms/server/config/types";
 import type {
 	BuildColumns,
 	BuildExtraConfigColumns,
@@ -194,7 +195,7 @@ export interface HookContext<TData = any, TCMS = any> {
 	/**
 	 * Access mode (system or user)
 	 */
-	accessMode?: "user" | "system";
+	accessMode?: AccessMode;
 
 	/**
 	 * Operation type
@@ -203,7 +204,8 @@ export interface HookContext<TData = any, TCMS = any> {
 
 	/**
 	 * Full CMS instance - type-safe access to all services and collections
-	 * Example: cms.queue.publish(...), cms.email.send(...), cms.logger.info(...)
+	 * Example: cms.queue["job-name"].publish(...), cms.email.send(...), cms.logger.info(...)
+	 * For ergonomic typing without generic params, use getCMSFromContext().
 	 */
 	cms: TCMS;
 

@@ -62,7 +62,7 @@ describe("collection field types", () => {
 
 			expect(created.title).toBe("Short Title");
 
-			const found = await cms.api.collections.content.findFirst(
+			const found = await cms.api.collections.content.findOne(
 				{ where: { id: created.id } },
 				ctx,
 			);
@@ -417,7 +417,7 @@ describe("collection field types", () => {
 				ctx,
 			);
 
-			const updated = await cms.api.collections.content.findFirst(
+			const updated = await cms.api.collections.content.findOne(
 				{ where: { id: created.id } },
 				ctx,
 			);
@@ -451,7 +451,7 @@ describe("collection field types", () => {
 				ctx,
 			);
 
-			const updated = await cms.api.collections.content.findFirst(
+			const updated = await cms.api.collections.content.findOne(
 				{ where: { id: created.id } },
 				ctx,
 			);
@@ -481,7 +481,7 @@ describe("collection field types", () => {
 				ctx,
 			);
 
-			const updated = await cms.api.collections.content.findFirst(
+			const updated = await cms.api.collections.content.findOne(
 				{ where: { id: created.id } },
 				ctx,
 			);

@@ -8,7 +8,7 @@ import {
 import { createTestCms } from "../utils/test-cms";
 import { createTestContext } from "../utils/test-context";
 import { createMockServices } from "../utils/test-services";
-import { defineCollection } from "#questpie/cms/server/index.js";
+import { defineCollection, getCMSFromContext } from "#questpie/cms/server/index.js";
 
 describe("collection hooks", () => {
 	let db: any;
@@ -39,8 +39,9 @@ describe("collection hooks", () => {
 						}
 						return data;
 					},
-					afterCreate: async ({ data, cms }) => {
+					afterCreate: async ({ data }) => {
 						hookCallOrder.push("afterCreate");
+						const cms = getCMSFromContext<ReturnType<typeof createTestCms>>();
 						// Publish job to queue
 						await cms.queue?.publish("article:created", {
 							articleId: data.id,
@@ -119,7 +120,8 @@ describe("collection hooks", () => {
 					viewCount: varchar("view_count"),
 				})
 				.hooks({
-					beforeUpdate: async ({ data, cms }) => {
+					beforeUpdate: async ({ data }) => {
+						const cms = getCMSFromContext<ReturnType<typeof createTestCms>>();
 						// Auto-publish when status changes to 'published'
 						if (data.status === "published") {
 							await cms.logger?.info("Article being published", {
@@ -128,7 +130,8 @@ describe("collection hooks", () => {
 						}
 						return data;
 					},
-					afterUpdate: async ({ data, original, cms }) => {
+					afterUpdate: async ({ data, original }) => {
+						const cms = getCMSFromContext<ReturnType<typeof createTestCms>>();
 						// Send email when published
 						if (
 							original.status !== "published" &&
@@ -240,13 +243,15 @@ describe("collection hooks", () => {
 					title: text("title").notNull(),
 				})
 				.hooks({
-					beforeDelete: async ({ data, cms }) => {
+					beforeDelete: async ({ data }) => {
+						const cms = getCMSFromContext<ReturnType<typeof createTestCms>>();
 						// Log deletion attempt
 						await cms.logger?.warn("Article deletion requested", {
 							id: data.id,
 						});
 					},
-					afterDelete: async ({ data, cms }) => {
+					afterDelete: async ({ data }) => {
+						const cms = getCMSFromContext<ReturnType<typeof createTestCms>>();
 						// Clean up related data via queue job
 						await cms.queue?.publish("article:cleanup", { articleId: data.id });
 					},
@@ -372,7 +377,8 @@ describe("collection hooks", () => {
 						});
 						return data;
 					},
-					afterCreate: async ({ data, cms }) => {
+					afterCreate: async ({ data }) => {
+						const cms = getCMSFromContext<ReturnType<typeof createTestCms>>();
 						// Second hook accesses enrichment
 						const enrichment = enrichmentData.get(data.id);
 						await cms.queue?.publish("article:enriched", {

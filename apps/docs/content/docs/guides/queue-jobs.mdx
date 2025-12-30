@@ -54,7 +54,8 @@ You can trigger jobs from anywhere you have access to the CMS instance (e.g., in
 
 ```typescript
 // Inside a hook or route
-await cms.queue.publish("send-email", {
+const cms = getCMSFromContext();
+await cms.queue["send-email"].publish({
   to: "user@example.com",
   subject: "Welcome!",
   body: "Hello world",

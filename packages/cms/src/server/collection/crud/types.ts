@@ -198,25 +198,25 @@ export type NestedRelationMutation<TInsert = any> = {
 		| NestedRelationConnectOrCreate<TInsert>[]; // Create if doesn't exist
 };
 
-type RelationKeys<TRelations> = TRelations extends Record<string, any>
-	? keyof TRelations & string
-	: string;
+type RelationKeys<TRelations> =
+	TRelations extends Record<string, any> ? keyof TRelations & string : string;
 
-type RelationMutations<TRelations> = TRelations extends Record<string, any>
-	? { [K in keyof TRelations]?: NestedRelationMutation<any> }
-	: Record<string, NestedRelationMutation<any> | undefined>;
+type RelationMutations<TRelations> =
+	TRelations extends Record<string, any>
+		? { [K in keyof TRelations]?: NestedRelationMutation<any> }
+		: Record<string, NestedRelationMutation<any> | undefined>;
 
 type RelationIdKey<TInsert, K extends string> = Extract<
 	Extract<keyof TInsert, string>,
 	`${K}Id`
 >;
 
-type RelationForeignKeys<TInsert, TRelations> = RelationKeys<TRelations> extends
-	infer K
-	? K extends string
-		? RelationIdKey<TInsert, K>
-		: never
-	: never;
+type RelationForeignKeys<TInsert, TRelations> =
+	RelationKeys<TRelations> extends infer K
+		? K extends string
+			? RelationIdKey<TInsert, K>
+			: never
+		: never;
 
 type OptionalizeKeys<T, K extends keyof T> = Omit<T, K> & Partial<Pick<T, K>>;
 
@@ -226,41 +226,39 @@ type OptionalizeRelationForeignKeys<TInsert, TRelations> =
 		: TInsert;
 
 type UnionToIntersection<U> = (
-	U extends any ? (value: U) => void : never
+	U extends any
+		? (value: U) => void
+		: never
 ) extends (value: infer I) => void
 	? I
 	: never;
 
-type RequireRelationForMissingFk<
-	TInsert,
-	TRelations,
-	TInput,
-> = RelationKeys<TRelations> extends infer K
-	? K extends string
-		? RelationIdKey<TInsert, K> extends never
-			? {}
-			: RelationIdKey<TInsert, K> extends keyof TInput
+type RequireRelationForMissingFk<TInsert, TRelations, TInput> =
+	RelationKeys<TRelations> extends infer K
+		? K extends string
+			? RelationIdKey<TInsert, K> extends never
 				? {}
-				: Required<Pick<RelationMutations<TRelations>, K>>
-		: {}
-	: {};
+				: RelationIdKey<TInsert, K> extends keyof TInput
+					? {}
+					: Required<Pick<RelationMutations<TRelations>, K>>
+			: {}
+		: {};
 
-type EnforceRelationForMissingFk<
-	TInsert,
-	TRelations,
-	TInput,
-> = RelationKeys<TRelations> extends never
-	? {}
-	: UnionToIntersection<
-			RequireRelationForMissingFk<TInsert, TRelations, TInput>
-		>;
+type EnforceRelationForMissingFk<TInsert, TRelations, TInput> =
+	RelationKeys<TRelations> extends never
+		? {}
+		: UnionToIntersection<
+				RequireRelationForMissingFk<TInsert, TRelations, TInput>
+			>;
 
 /**
  * Create input with optional nested relations
  */
-export type CreateInputBase<TInsert = any, TRelations = any> =
-	OptionalizeRelationForeignKeys<TInsert, TRelations> &
-		RelationMutations<TRelations>;
+export type CreateInputBase<
+	TInsert = any,
+	TRelations = any,
+> = OptionalizeRelationForeignKeys<TInsert, TRelations> &
+	RelationMutations<TRelations>;
 
 export type CreateInputWithRelations<
 	TInsert = any,
@@ -355,10 +353,16 @@ export interface PaginatedResult<T> {
  */
 export type SelectResult<
 	TSelect,
-	TQuery extends { columns?: any },
-> = TQuery["columns"] extends Record<string, boolean>
-	? Pick<TSelect, Extract<keyof TQuery["columns"], keyof TSelect> | "id">
-	: TSelect;
+	TQuery,
+> = [TQuery] extends [never]
+	? TSelect
+	: TQuery extends { columns?: Record<string, boolean> }
+		? Pick<
+				TSelect,
+				Extract<keyof TQuery["columns"], keyof TSelect> |
+					("id" extends keyof TSelect ? "id" : never)
+			>
+		: TSelect;
 
 /**
  * Helper type for Aggregation Result
@@ -386,25 +390,37 @@ export type AggregationResult<TAgg extends RelationAggregation> =
  */
 export type RelationResult<
 	TRelations,
-	TQuery extends { with?: any },
-> = TQuery["with"] extends Record<string, any>
-	? {
-			[K in keyof TQuery["with"]]: K extends keyof TRelations
-				? TRelations[K] extends (infer S)[]
-					? TQuery["with"][K] extends { _count: true } | { _aggregate: any }
-						? (TQuery["with"][K] extends { _count: true }
-								? { _count: number }
-								: {}) &
-								(TQuery["with"][K] extends { _aggregate: infer Agg }
-									? Agg extends RelationAggregation
-										? AggregationResult<Agg>
-										: {}
-									: {})
-						: ApplyQuery<S, any, TQuery["with"][K]>[]
-					: ApplyQuery<TRelations[K], any, TQuery["with"][K]>
-				: never;
-		}
-	: {};
+	TQuery,
+> = [TQuery] extends [never]
+	? {}
+	: TQuery extends { with?: any }
+		? TQuery["with"] extends Record<string, any>
+			? {
+					[K in keyof TQuery["with"]]: K extends keyof TRelations
+						? TRelations[K] extends (infer S)[]
+							? TQuery["with"][K] extends { _count: true } | {
+										_aggregate: any;
+									}
+								? (TQuery["with"][K] extends { _count: true }
+										? { _count: number }
+										: {}) &
+										(TQuery["with"][K] extends { _aggregate: infer Agg }
+											? Agg extends RelationAggregation
+												? AggregationResult<Agg>
+												: {}
+											: {})
+								: ApplyQuery<S, any, TQuery["with"][K]>[]
+							: ApplyQuery<TRelations[K], any, TQuery["with"][K]>
+						: never;
+				}
+			: {}
+		: {};
+
+type QueryOptions<
+	TSelect,
+	TRelations,
+	TQuery,
+> = Extract<TQuery, FindManyOptions<TSelect, TRelations>>;
 
 /**
  * Combined Result Type
@@ -413,11 +429,13 @@ export type RelationResult<
 export type ApplyQuery<
 	TSelect,
 	TRelations,
-	TQuery extends FindManyOptions<TSelect, TRelations> | undefined,
-> = TQuery extends undefined
+	TQuery extends FindManyOptions<TSelect, TRelations> | undefined | boolean,
+> = TQuery extends undefined | true
 	? TSelect
-	: SelectResult<TSelect, NonNullable<TQuery>> &
-			RelationResult<TRelations, NonNullable<TQuery>>;
+	: TQuery extends false
+		? never
+		: SelectResult<TSelect, QueryOptions<TSelect, TRelations, TQuery>> &
+				RelationResult<TRelations, QueryOptions<TSelect, TRelations, TQuery>>;
 
 /**
  * CRUD operations interface
@@ -512,24 +530,6 @@ export interface CRUD<
 		options: RevertVersionOptions,
 		context?: CRUDContext,
 	): Promise<TSelect>;
-
-	// Backwards compatibility aliases
-	findMany?: <TQuery extends FindManyOptions<TSelect, TRelations>>(
-		options?: TQuery,
-		context?: CRUDContext,
-	) => Promise<PaginatedResult<ApplyQuery<TSelect, TRelations, TQuery>>>;
-	findFirst?: <TQuery extends FindFirstOptions<TSelect, TRelations>>(
-		options?: TQuery,
-		context?: CRUDContext,
-	) => Promise<ApplyQuery<TSelect, TRelations, TQuery> | null>;
-	updateMany?: (
-		params: UpdateManyParams<TUpdate, TSelect, TRelations>,
-		context?: CRUDContext,
-	) => Promise<TSelect[]>;
-	deleteMany?: (
-		params: DeleteManyParams<TSelect, TRelations>,
-		context?: CRUDContext,
-	) => Promise<{ success: boolean; count: number }>;
 
 	// Internal properties (not part of public API)
 	__internalState?: any;

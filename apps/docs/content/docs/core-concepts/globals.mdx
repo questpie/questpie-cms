@@ -147,10 +147,11 @@ export const siteConfig = defineGlobal("site_config")
     maintenanceMode: boolean("maintenance_mode"),
   })
   .hooks({
-    afterUpdate: async ({ data, original, cms }) => {
+    afterUpdate: async ({ data, original }) => {
+      const cms = getCMSFromContext();
       // Notify admins when maintenance mode changes
       if (data.maintenanceMode !== original.maintenanceMode) {
-        await cms.queue.publish("maintenance-mode-changed", {
+        await cms.queue["maintenance-mode-changed"].publish({
           enabled: data.maintenanceMode,
         });
 
@@ -328,9 +329,10 @@ export const homepage = defineGlobal("homepage")
     }),
   }))
   .hooks({
-    afterUpdate: async ({ data, cms }) => {
+    afterUpdate: async ({ data }) => {
+      const cms = getCMSFromContext();
       // Invalidate cache when homepage changes
-      await cms.queue.publish("invalidate-cache", {
+      await cms.queue["invalidate-cache"].publish({
         keys: ["homepage"],
       });
     },
@@ -377,7 +379,8 @@ export const featureFlags = defineGlobal("feature_flags")
     maintenanceMessage: text("maintenance_message"),
   })
   .hooks({
-    afterUpdate: async ({ data, original, cms }) => {
+    afterUpdate: async ({ data, original }) => {
+      const cms = getCMSFromContext();
       // Log feature flag changes
       const changes = Object.keys(data).filter(
         key => data[key] !== original[key]
@@ -486,9 +489,10 @@ export const homepage = defineGlobal("homepage")
 ```typescript
 export const siteConfig = defineGlobal("site_config")
   .hooks({
-    afterUpdate: async ({ data, cms }) => {
+    afterUpdate: async ({ data }) => {
+      const cms = getCMSFromContext();
       // Invalidate caches
-      await cms.queue.publish("invalidate-cache", {
+      await cms.queue["invalidate-cache"].publish({
         keys: ["site-config"],
       });
     },

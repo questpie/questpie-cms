@@ -232,9 +232,10 @@ Collections support lifecycle hooks:
 ```typescript
 collection('appointments')
   .hooks({
-    afterCreate: async ({ data, context }) => {
+    afterCreate: async ({ data }) => {
+      const cms = getCMSFromContext();
       // Send confirmation email
-      await context.cms.queue.publish('send-appointment-confirmation', {
+      await cms.queue['send-appointment-confirmation'].publish({
         appointmentId: data.id
       });
     }
@@ -250,7 +251,8 @@ defineJob({
   name: 'send-appointment-confirmation',
   schema: z.object({ appointmentId: z.string() }),
   handler: async (payload) => {
-    // Send email via context.cms.email
+    const cms = getCMSFromContext();
+    // Send email via cms.email
   }
 })
 ```

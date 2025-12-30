@@ -15,6 +15,7 @@ import {
 	createQueueClient,
 	type DrizzleClientFromCMSConfig,
 	type GetCollection,
+	type GetGlobal,
 	type Global,
 	GlobalBuilder,
 	type GlobalNames,
@@ -44,16 +45,6 @@ import {
 } from "#questpie/cms/server/integrated/search";
 import { createDiskDriver } from "#questpie/cms/server/integrated/storage/create-driver";
 import { assetsCollection } from "../collection/defaults/assets";
-
-// Helper type to extract global from builder or global
-type ExtractGlobal<T> =
-	T extends GlobalBuilder<infer TState> ? Global<TState> : T;
-
-// Helper type to find a global by name in the tuple
-type GetGlobal<
-	T extends (AnyGlobal | AnyGlobalBuilder)[],
-	Name extends string,
-> = ExtractGlobal<Extract<T[number], { name: Name }>>;
 
 export class QCMS<
 	TCollections extends AnyCollectionOrBuilder[] = AnyCollectionOrBuilder[],
@@ -384,6 +375,7 @@ export class QCMS<
 			this.config.queue.jobs,
 			createContext,
 			options,
+			this,
 		);
 	}
 }

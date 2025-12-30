@@ -87,20 +87,21 @@
  * ```ts
  * // In your application code (hooks, API routes, etc.)
  * // Jobs are accessible by name on the queue client
- * await context.queue['send-email'].publish({
+ * const cms = getCMSFromContext();
+ * await cms.queue['send-email'].publish({
  *   to: 'user@example.com',
  *   subject: 'Welcome!',
  *   body: '<h1>Welcome to QUESTPIE!</h1>',
  * });
  *
  * // Delayed job
- * await context.queue['process-image'].publish(
+ * await cms.queue['process-image'].publish(
  *   { imageUrl: 'https://...', sizes: [100, 200, 400] },
  *   { startAfter: 60 } // Start after 60 seconds
  * );
  *
  * // Scheduled recurring job
- * await context.queue['send-email'].schedule(
+ * await cms.queue['send-email'].schedule(
  *   { to: 'admin@example.com', subject: 'Daily Report', body: '...' },
  *   '0 9 * * *' // Every day at 9am
  * );
@@ -167,7 +168,8 @@
  * Ensure only one job with a given key exists:
  *
  * ```ts
- * await context.queue['process-image'].publish(
+ * const cms = getCMSFromContext();
+ * await cms.queue['process-image'].publish(
  *   { imageUrl: url, sizes: [100, 200] },
  *   { singletonKey: url } // Only one job per URL
  * );
@@ -176,7 +178,8 @@
  * ### Priority Jobs
  *
  * ```ts
- * await context.queue['send-email'].publish(
+ * const cms = getCMSFromContext();
+ * await cms.queue['send-email'].publish(
  *   { to: 'urgent@example.com', subject: 'Alert!', body: '...' },
  *   { priority: 10 } // Higher = more important
  * );
@@ -186,10 +189,11 @@
  *
  * ```ts
  * // Use Promise.all for parallel execution
+ * const cms = getCMSFromContext();
  * const results = await Promise.all([
- *   context.queue['process-image'].publish({ imageUrl: url1, sizes: [100] }),
- *   context.queue['process-image'].publish({ imageUrl: url2, sizes: [100] }),
- *   context.queue['process-image'].publish({ imageUrl: url3, sizes: [100] }),
+ *   cms.queue['process-image'].publish({ imageUrl: url1, sizes: [100] }),
+ *   cms.queue['process-image'].publish({ imageUrl: url2, sizes: [100] }),
+ *   cms.queue['process-image'].publish({ imageUrl: url3, sizes: [100] }),
  * ]);
  * ```
  */

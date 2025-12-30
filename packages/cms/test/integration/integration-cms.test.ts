@@ -16,7 +16,7 @@ import {
 import { createTestCms } from "../utils/test-cms";
 import { createTestContext } from "../utils/test-context";
 import { createMockServices } from "../utils/test-services";
-import { defineCollection } from "#questpie/cms/server/index.js";
+import { defineCollection, getCMSFromContext } from "#questpie/cms/server/index.js";
 
 describe("integration: full CMS workflow", () => {
 	let db: any;
@@ -34,7 +34,8 @@ describe("integration: full CMS workflow", () => {
 			})
 			.title(({ table }) => sql`${table.name}`)
 			.hooks({
-				afterCreate: async ({ data, cms }) => {
+				afterCreate: async ({ data }) => {
+					const cms = getCMSFromContext<ReturnType<typeof createTestCms>>();
 					// Send welcome email when author is created
 					await cms.email?.send({
 						to: data.email,
@@ -87,13 +88,15 @@ describe("integration: full CMS workflow", () => {
 					}
 					return data;
 				},
-				afterCreate: async ({ data, cms }) => {
+				afterCreate: async ({ data }) => {
+					const cms = getCMSFromContext<ReturnType<typeof createTestCms>>();
 					await cms.logger?.info("Article created", {
 						id: data.id,
 						title: data.title,
 					});
 				},
-				afterUpdate: async ({ data, original, cms }) => {
+				afterUpdate: async ({ data, original }) => {
+					const cms = getCMSFromContext<ReturnType<typeof createTestCms>>();
 					// Track publication
 					if (original.status !== "published" && data.status === "published") {
 						await cms.queue?.publish("article:published", {
@@ -108,7 +111,8 @@ describe("integration: full CMS workflow", () => {
 						});
 					}
 				},
-				afterDelete: async ({ data, cms }) => {
+				afterDelete: async ({ data }) => {
+					const cms = getCMSFromContext<ReturnType<typeof createTestCms>>();
 					await cms.queue?.publish("article:deleted", { articleId: data.id });
 				},
 			})

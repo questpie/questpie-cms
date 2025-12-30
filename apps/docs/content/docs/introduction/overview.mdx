@@ -104,14 +104,16 @@ Intercept operations at every stage:
 
 ```typescript
 .hooks({
-  beforeCreate: async ({ data, cms }) => {
+  beforeCreate: async ({ data }) => {
+    const cms = getCMSFromContext();
     // Generate slug from title
     data.slug = slugify(data.title);
   },
 
-  afterCreate: async ({ data, cms }) => {
+  afterCreate: async ({ data }) => {
+    const cms = getCMSFromContext();
     // Queue email notification
-    await cms.queue.publish("post-created", { postId: data.id });
+    await cms.queue["post-created"].publish({ postId: data.id });
 
     // Log the event
     cms.logger.info("Post created", { postId: data.id });

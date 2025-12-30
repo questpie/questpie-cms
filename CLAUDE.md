@@ -210,8 +210,8 @@ defineCollection("posts")
 ```
 
 ### Queue Jobs
-- Publish jobs in hooks: `context.queue.publish('job-name', payload)`
-- Register workers on app startup: `cms.queue.work('job-name', handler)`
+- Publish jobs in hooks: `const cms = getCMSFromContext(); await cms.queue["job-name"].publish(payload)`
+- Register workers in worker processes: `await cms.listenToJobs()`
 - Uses pg-boss (requires Postgres connection string)
 - In-memory fallback in development
 

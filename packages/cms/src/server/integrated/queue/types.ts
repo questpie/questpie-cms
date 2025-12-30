@@ -2,14 +2,21 @@ import type { z } from "zod";
 import type { RequestContext } from "#questpie/cms/server/config/context";
 import type { QueueAdapter } from "./adapter";
 
+// Re-export QueueAdapter for external use
+export type { QueueAdapter } from "./adapter";
+
 /**
  * Job definition with typesafe payload and result
  */
-export interface JobDefinition<TPayload = any, TResult = void> {
+export interface JobDefinition<
+	TPayload = any,
+	TResult = void,
+	TName extends string = string,
+> {
 	/**
 	 * Unique name for this job
 	 */
-	name: string;
+	name: TName;
 
 	/**
 	 * Zod schema for payload validation
@@ -66,13 +73,13 @@ export interface JobDefinition<TPayload = any, TResult = void> {
  * Infer payload type from job definition
  */
 export type InferJobPayload<T> =
-	T extends JobDefinition<infer P, any> ? P : never;
+	T extends JobDefinition<infer P, any, any> ? P : never;
 
 /**
  * Infer result type from job definition
  */
 export type InferJobResult<T> =
-	T extends JobDefinition<any, infer R> ? R : never;
+	T extends JobDefinition<any, infer R, any> ? R : never;
 
 /**
  * Publish options for jobs

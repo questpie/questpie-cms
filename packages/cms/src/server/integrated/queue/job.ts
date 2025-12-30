@@ -27,8 +27,8 @@ import type { JobDefinition } from "./types";
  * });
  * ```
  */
-export function defineJob<TPayload, TResult = void>(
-	definition: JobDefinition<TPayload, TResult>,
-): JobDefinition<TPayload, TResult> {
+export function defineJob<TName extends string, TPayload, TResult = void>(
+	definition: JobDefinition<TPayload, TResult, TName>,
+): JobDefinition<TPayload, TResult, TName> {
 	return definition;
 }

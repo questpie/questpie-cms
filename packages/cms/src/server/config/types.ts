@@ -146,7 +146,7 @@ export type GlobalMap<TGlobals extends AnyGlobalOrBuilder[]> = {
 		: K extends GlobalBuilder<infer TState>
 			? TState["name"]
 			: never]: K extends Global<infer TState>
-		? Global<TState>[]
+		? Global<TState>
 		: K extends GlobalBuilder<infer TState>
 			? Global<TState>
 			: never;
@@ -247,6 +247,11 @@ export type CmsDbClient<
 
 export type AccessMode = "user" | "system";
 
+export type AuthConfig =
+	| BetterAuthOptions
+	| any
+	| ((db: SQL) => BetterAuthOptions | any);
+
 export interface StorageConfig {
 	/**
 	 * FlyDrive driver instance to be used for
@@ -320,7 +325,7 @@ export interface CMSConfig<
 	 * })
 	 * ```
 	 */
-	auth?: BetterAuthOptions | any | ((db: SQL) => BetterAuthOptions | any); // betterAuth instance or factory
+	auth?: AuthConfig; // betterAuth instance or factory
 
 	/**
 	 * Storage configuration

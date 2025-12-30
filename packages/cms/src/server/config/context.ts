@@ -1,5 +1,13 @@
+import { AsyncLocalStorage } from "node:async_hooks";
 import type { User, Session } from "better-auth/types";
 import type { AccessMode } from "./types";
+
+type CMSContextStore<TCMS = unknown> = {
+	cms: TCMS;
+	context: RequestContext;
+};
+
+const cmsContextStorage = new AsyncLocalStorage<CMSContextStore>();
 
 /**
  * Minimal per-request context
@@ -42,4 +50,26 @@ export interface RequestContext {
 	 * Allow extensions
 	 */
 	[key: string]: any;
+}
+
+export function runWithCMSContext<TCMS, TResult>(
+	cms: TCMS,
+	context: RequestContext,
+	fn: () => TResult | Promise<TResult>,
+): TResult | Promise<TResult> {
+	return cmsContextStorage.run({ cms, context }, fn);
+}
+
+export function getCMSFromContext<TCMS = unknown>(): TCMS {
+	const store = cmsContextStorage.getStore();
+	if (!store?.cms) {
+		throw new Error(
+			"QUESTPIE: CMS context is not available. Wrap your execution with runWithCMSContext().",
+		);
+	}
+	return store.cms as TCMS;
+}
+
+export function getRequestContext(): RequestContext | undefined {
+	return cmsContextStorage.getStore()?.context;
 }

@@ -9,21 +9,53 @@ import type {
 } from "#questpie/cms/exports/server.js";
 import type { RelationConfig } from "#questpie/cms/server/collection/builder/types.js";
 
+type CollectionInfer<T> = T extends { $infer: infer Infer } ? Infer : never;
+type CollectionSelect<T> =
+	CollectionInfer<T> extends { select: infer Select } ? Select : never;
+type CollectionInsert<T> =
+	CollectionInfer<T> extends { insert: infer Insert } ? Insert : never;
+type CollectionUpdate<T> =
+	CollectionInfer<T> extends { update: infer Update } ? Update : never;
+type CollectionState<T> = T extends { state: infer State } ? State : never;
+type CollectionRelations<T> = CollectionState<T> extends {
+	relations: infer Relations;
+}
+	? Relations extends Record<string, RelationConfig>
+		? Relations
+		: Record<string, RelationConfig>
+	: Record<string, RelationConfig>;
+
+type ResolveCollectionSelect<
+	TCollections extends AnyCollectionOrBuilder[],
+	C,
+> = C extends CollectionNames<TCollections>
+	? CollectionSelect<GetCollection<TCollections, C>>
+	: any;
+
+type ResolvePolymorphic<
+	TCollections extends AnyCollectionOrBuilder[],
+	TRelation extends RelationConfig,
+> = TRelation extends { collections: Record<string, infer C> }
+	? ResolveCollectionSelect<TCollections, C>
+	: any;
+
 type ResolveRelations<
 	TRelations extends Record<string, RelationConfig>,
 	TCollections extends AnyCollectionOrBuilder[],
 > = {
 	[K in keyof TRelations]: TRelations[K] extends {
 		type: "many" | "manyToMany";
-		collection: infer C extends CollectionNames<TCollections>;
+		collection: infer C;
 	}
-		? GetCollection<TCollections, C>["$infer"]["select"][]
+		? ResolveCollectionSelect<TCollections, C>[]
 		: TRelations[K] extends {
 					type: "one";
-					collection: infer C extends CollectionNames<TCollections>;
+					collection: infer C;
 				}
-			? GetCollection<TCollections, C>["$infer"]["select"]
-			: never;
+			? ResolveCollectionSelect<TCollections, C>
+			: TRelations[K] extends { type: "polymorphic" }
+				? ResolvePolymorphic<TCollections, TRelations[K]>
+				: never;
 };
 
 export class QCMSCrudAPI<
@@ -37,15 +69,15 @@ export class QCMSCrudAPI<
 	 * Access collections CRUD operations
 	 * @example
 	 * await cms.api.collections.users.create({ email: '...' }, context)
-	 * await cms.api.collections.posts.findMany({ where: { status: 'published' } })
+	 * await cms.api.collections.posts.find({ where: { status: 'published' } })
 	 */
 	public get collections(): {
 		[K in CollectionNames<TCollections>]: CRUD<
-			GetCollection<TCollections, K>["$infer"]["select"],
-			GetCollection<TCollections, K>["$infer"]["insert"],
-			GetCollection<TCollections, K>["$infer"]["update"],
+			CollectionSelect<GetCollection<TCollections, K>>,
+			CollectionInsert<GetCollection<TCollections, K>>,
+			CollectionUpdate<GetCollection<TCollections, K>>,
 			ResolveRelations<
-				GetCollection<TCollections, K>["state"]["relations"],
+				CollectionRelations<GetCollection<TCollections, K>>,
 				TCollections
 			>
 		>;

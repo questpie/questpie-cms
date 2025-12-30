@@ -1,5 +1,10 @@
 import { defineCollection } from "#questpie/cms/server/collection/builder/collection-builder.js";
-import { defineJob, pgBossAdapter, QCMS } from "#questpie/cms/server/index.js";
+import {
+	defineJob,
+	getCMSFromContext,
+	pgBossAdapter,
+	QCMS,
+} from "#questpie/cms/server/index.js";
 import { sql } from "drizzle-orm";
 import {
 	integer,
@@ -135,17 +140,19 @@ export const appointments = defineCollection("appointments")
 		}),
 	}))
 	.hooks({
-		afterCreate: async ({ data, cms }) => {
+		afterCreate: async ({ data }) => {
+			const cms = getCMSFromContext();
 			// Send confirmation email after booking
-			await cms.queue.publish("send-appointment-confirmation", {
+			await cms.queue["send-appointment-confirmation"].publish({
 				appointmentId: data.id,
 				customerId: data.customerId,
 			});
 		},
-		afterUpdate: async ({ data, cms }) => {
+		afterUpdate: async ({ data }) => {
+			const cms = getCMSFromContext();
 			// Notify customer if appointment is cancelled
 			if (data.status === "cancelled" && data.cancelledAt) {
-				await cms.queue.publish("send-appointment-cancellation", {
+				await cms.queue["send-appointment-cancellation"].publish({
 					appointmentId: data.id,
 					customerId: data.customerId,
 				});

@@ -16,6 +16,9 @@
 		"enabled": true,
 		"rules": {
 			"recommended": true,
+			"suspicious": {
+				"noExplicitAny": "off"
+			},
 			"a11y": {
 				"useSemanticElements": "off"
 			}

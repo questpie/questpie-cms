@@ -34,10 +34,14 @@ export interface WorkflowStep<TInput = any, TOutput = any> {
  *   .build();
  * ```
  */
-export class WorkflowBuilder<TInput, TCurrentOutput = TInput> {
+export class WorkflowBuilder<
+	TInput,
+	TCurrentOutput = TInput,
+	TName extends string = string,
+> {
 	private steps: WorkflowStep<any, any>[] = [];
 
-	constructor(private workflowName: string) {}
+	constructor(private workflowName: TName) {}
 
 	/**
 	 * Add a step to the workflow
@@ -48,7 +52,7 @@ export class WorkflowBuilder<TInput, TCurrentOutput = TInput> {
 			input: TCurrentOutput,
 			context: RequestContext,
 		) => Promise<TStepOutput>,
-	): WorkflowBuilder<TInput, TStepOutput> {
+	): WorkflowBuilder<TInput, TStepOutput, TName> {
 		this.steps.push({ name, execute });
 		return this as any;
 	}
@@ -56,7 +60,9 @@ export class WorkflowBuilder<TInput, TCurrentOutput = TInput> {
 	/**
 	 * Build the workflow into a job definition
 	 */
-	build(schema: z.ZodSchema<TInput>): JobDefinition<TInput, TCurrentOutput> {
+	build(
+		schema: z.ZodSchema<TInput>,
+	): JobDefinition<TInput, TCurrentOutput, TName> {
 		return {
 			name: this.workflowName,
 			schema,
@@ -118,9 +124,8 @@ export class WorkflowBuilder<TInput, TCurrentOutput = TInput> {
  *   .build(orderSchema);
  * ```
  */
-export function workflow<TInput>(
-	name: string,
-): WorkflowBuilder<TInput, TInput> {
-	return new WorkflowBuilder<TInput, TInput>(name);
+export function workflow<TInput, TName extends string>(
+	name: TName,
+): WorkflowBuilder<TInput, TInput, TName> {
+	return new WorkflowBuilder<TInput, TInput, TName>(name);
 }
-
