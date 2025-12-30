@@ -30,4 +30,18 @@ export const assetsCollection = defineCollection("questpie_assets")
 		alt: varchar("alt", { length: 500 }),
 		caption: text("caption"),
 	})
+	.hooks({
+		afterDelete: async ({ data, cms }) => {
+			if (!cms?.storage || !data?.key) return;
+
+			try {
+				await cms.storage.delete(data.key);
+			} catch (error) {
+				cms.logger?.warn?.("Failed to delete asset file from storage", {
+					key: data.key,
+					error: error instanceof Error ? error.message : String(error),
+				});
+			}
+		},
+	})
 	.title(({ table }) => sql`${table.filename}`);

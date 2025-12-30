@@ -5,6 +5,7 @@ export {
 	CollectionBuilder,
 } from "./collection-builder";
 export { Collection } from "./collection";
+export { softDeleteUniqueIndex } from "./index-helpers";
 export type {
 	CollectionBuilderState,
 	CollectionOptions,
@@ -33,6 +34,7 @@ export type {
 	CreateInputWithRelations,
 	UpdateParams,
 	DeleteParams,
+	RestoreParams,
 	Where,
 	WhereOperators,
 	Columns,

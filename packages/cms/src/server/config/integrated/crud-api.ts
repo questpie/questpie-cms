@@ -4,6 +4,9 @@ import type {
 	CollectionNames,
 	CRUD,
 	GetCollection,
+	GetGlobal,
+	GlobalCRUD,
+	GlobalNames,
 	JobDefinition,
 	QCMS,
 } from "#questpie/cms/exports/server.js";
@@ -98,27 +101,27 @@ export class QCMSCrudAPI<
 		return collectionsProxy;
 	}
 
-	// public get globals(): {
-	// TODO: uncomment when types are fixed
-	// 	[K in GlobalNames<TGlobals>]: GlobalCRUD<
-	// 		GetGlobal<TGlobals, K>["$infer"]["select"],
-	// 		GetGlobal<TGlobals, K>["$infer"]["insert"],
-	// 		GetGlobal<TGlobals, K>["$infer"]["update"],
-	// 	>;
-	// } {
-	// 	const globalsProxy = {} as any;
+	public get globals(): {
+		[K in GlobalNames<TGlobals>]: GlobalCRUD<
+			GetGlobal<TGlobals, K>["$infer"]["select"],
+			GetGlobal<TGlobals, K>["$infer"]["insert"],
+			GetGlobal<TGlobals, K>["$infer"]["update"],
+			GetGlobal<TGlobals, K>["state"]["relations"]
+		>;
+	} {
+		const globalsProxy = {} as any;
 
-	// 	for (const global of this.cms.getGlobals()) {
-	// 		const name = global.name as GlobalNames<TGlobals>;
-	// 		Object.defineProperty(globalsProxy, name, {
-	// 			get: () => {
-	// 				// Generate CRUD with cms reference
-	// 				return global.generateCRUD(this.cms.db.drizzle, this.cms);
-	// 			},
-	// 			enumerable: true,
-	// 		});
-	// 	}
+		for (const global of this.cms.getGlobals()) {
+			const name = global.name as GlobalNames<TGlobals>;
+			Object.defineProperty(globalsProxy, name, {
+				get: () => {
+					// Generate CRUD with cms reference
+					return global.generateCRUD(this.cms.db.drizzle, this.cms);
+				},
+				enumerable: true,
+			});
+		}
 
-	// 	return globalsProxy;
-	// }
+		return globalsProxy;
+	}
 }

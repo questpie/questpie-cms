@@ -188,6 +188,11 @@ type CollectionAPI<
 	 * Delete a single record by ID
 	 */
 	delete: (id: string) => Promise<{ success: boolean }>;
+
+	/**
+	 * Restore a soft-deleted record by ID
+	 */
+	restore: (id: string) => Promise<CollectionSelect<TState>>;
 };
 
 /**
@@ -285,7 +290,10 @@ export function createQCMSClient<T = any>(config: QCMSClientConfig): QCMSClient<
 
 					// Use qs for query string
 					const queryString = qs.stringify(
-						{ with: options.with },
+						{
+							with: options.with,
+							includeDeleted: options.includeDeleted,
+						},
 						{
 							skipNulls: true,
 							arrayFormat: "brackets",
@@ -314,6 +322,12 @@ export function createQCMSClient<T = any>(config: QCMSClientConfig): QCMSClient<
 				delete: async (id) => {
 					return request(`${basePath}/cms/${collectionName}/${id}`, {
 						method: "DELETE",
+					});
+				},
+
+				restore: async (id) => {
+					return request(`${basePath}/cms/${collectionName}/${id}/restore`, {
+						method: "POST",
 					});
 				},
 			};

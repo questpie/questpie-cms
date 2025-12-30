@@ -93,6 +93,7 @@ The adapter automatically creates the following routes:
 - `GET /api/cms/:collection/:id` - Find one item
 - `PATCH /api/cms/:collection/:id` - Update item
 - `DELETE /api/cms/:collection/:id` - Delete item
+- `POST /api/cms/:collection/:id/restore` - Restore soft-deleted item
 
 ### Globals
 

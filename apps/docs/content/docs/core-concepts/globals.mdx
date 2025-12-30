@@ -258,7 +258,7 @@ const versions = await cms.api.globals.siteConfig.findVersions({
 
 // Revert to a previous version
 await cms.api.globals.siteConfig.revertToVersion({
-  versionId: versions[0].versionId,
+  version: versions[0].versionNumber,
 }, context);
 ```
 

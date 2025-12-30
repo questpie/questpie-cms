@@ -274,8 +274,8 @@ describe("integration: full CMS workflow", () => {
 		// 6. Check version history
 		const versions = await articlesCrud.findVersions({ id: article.id }, ctx);
 		expect(versions.length).toBe(3); // create + 2 updates
-		expect(versions[0].operation).toBe("create");
-		expect(versions[versions.length - 1].operation).toBe("update");
+		expect(versions[0].versionOperation).toBe("create");
+		expect(versions[versions.length - 1].versionOperation).toBe("update");
 
 		// 7. Soft delete the article
 		await articlesCrud.deleteById({ id: article.id }, ctx);
@@ -546,14 +546,14 @@ describe("integration: full CMS workflow", () => {
 		const versions = await articlesCrud.findVersions({ id: article.id }, ctx);
 
 		expect(versions).toHaveLength(4); // 1 create + 3 updates
-		expect(versions[0].operation).toBe("create");
-		expect(versions[0].data).toMatchObject({
+		expect(versions[0].versionOperation).toBe("create");
+		expect(versions[0]).toMatchObject({
 			title: "Version 1",
 			status: "draft",
 		});
-		expect(versions[1].operation).toBe("update");
-		expect(versions[2].operation).toBe("update");
-		expect(versions[3].operation).toBe("update");
+		expect(versions[1].versionOperation).toBe("update");
+		expect(versions[2].versionOperation).toBe("update");
+		expect(versions[3].versionOperation).toBe("update");
 
 		// Final state should be version 3 with 100 views
 		const current = await articlesCrud.findOne(

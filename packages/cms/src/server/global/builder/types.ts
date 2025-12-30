@@ -39,6 +39,7 @@ export interface GlobalHookContext<TRow = any> {
 	input?: any;
 	locale?: string;
 	user?: any;
+	context?: any;
 }
 
 /**
@@ -49,6 +50,7 @@ export interface GlobalAccessContext<TRow = any> {
 	row?: TRow;
 	input?: any;
 	db: any;
+	context?: any;
 }
 
 /**

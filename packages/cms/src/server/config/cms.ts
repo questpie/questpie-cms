@@ -291,6 +291,10 @@ export class QCMS<
 				tables[`${name}_versions`] =
 					collection.versionsTable as unknown as PgTable;
 			}
+			if (collection.i18nVersionsTable) {
+				tables[`${name}_i18n_versions`] =
+					collection.i18nVersionsTable as unknown as PgTable;
+			}
 		}
 		for (const [name, global] of this._globals) {
 			tables[name] = global.table as unknown as PgTable;
@@ -299,6 +303,10 @@ export class QCMS<
 			}
 			if (global.versionsTable) {
 				tables[`${name}_versions`] = global.versionsTable as unknown as PgTable;
+			}
+			if (global.i18nVersionsTable) {
+				tables[`${name}_i18n_versions`] =
+					global.i18nVersionsTable as unknown as PgTable;
 			}
 		}
 		return tables;
@@ -316,6 +324,9 @@ export class QCMS<
 			if (collection.versionsTable) {
 				schema[`${name}_versions`] = collection.versionsTable;
 			}
+			if (collection.i18nVersionsTable) {
+				schema[`${name}_i18n_versions`] = collection.i18nVersionsTable;
+			}
 		}
 		for (const [name, global] of this._globals) {
 			schema[name] = global.table;
@@ -324,6 +335,9 @@ export class QCMS<
 			}
 			if (global.versionsTable) {
 				schema[`${name}_versions`] = global.versionsTable;
+			}
+			if (global.i18nVersionsTable) {
+				schema[`${name}_i18n_versions`] = global.i18nVersionsTable;
 			}
 		}
 

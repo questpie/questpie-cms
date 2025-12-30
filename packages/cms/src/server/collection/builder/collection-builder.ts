@@ -440,6 +440,10 @@ export class CollectionBuilder<TState extends CollectionBuilderState> {
 	get versionsTable() {
 		return this.build().versionsTable;
 	}
+
+	get i18nVersionsTable() {
+		return this.build().i18nVersionsTable;
+	}
 	get name(): TState["name"] {
 		return this.state.name as TState["name"];
 	}

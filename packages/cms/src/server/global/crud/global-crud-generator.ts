@@ -1,332 +1,1585 @@
-import { eq, and, sql, desc } from "drizzle-orm";
+import {
+	eq,
+	and,
+	or,
+	not,
+	sql,
+	inArray,
+	count,
+	sum,
+	avg,
+	min,
+	max,
+} from "drizzle-orm";
 import type { PgTable } from "drizzle-orm/pg-core";
+import type { RelationConfig } from "#questpie/cms/server/collection/builder/types";
+import { runWithCMSContext } from "#questpie/cms/server/config/context";
 import type {
-    GlobalBuilderState,
-    GlobalHookFunction,
-    GlobalAccessContext,
-    GlobalHookContext,
+	CRUDContext,
+	Where,
+	With,
+} from "#questpie/cms/server/collection/crud/types";
+import type {
+	GlobalBuilderState,
+	GlobalHookFunction,
+	GlobalAccessContext,
+	GlobalHookContext,
 } from "#questpie/cms/server/global/builder/types";
-import type { GlobalCRUD } from "./types";
+import type {
+	GlobalCRUD,
+	GlobalFindVersionsOptions,
+	GlobalGetOptions,
+	GlobalRevertVersionOptions,
+	GlobalVersionRecord,
+} from "./types";
 
 export class GlobalCRUDGenerator<TState extends GlobalBuilderState> {
-    constructor(
-        private state: TState,
-        private table: PgTable,
-        private i18nTable: PgTable | null,
-        private versionsTable: PgTable | null,
-        private db: any,
-        private getVirtuals?: (context: any) => any,
-        private cms?: any,
-    ) {}
+	constructor(
+		private state: TState,
+		private table: PgTable,
+		private i18nTable: PgTable | null,
+		private versionsTable: PgTable | null,
+		private i18nVersionsTable: PgTable | null,
+		private db: any,
+		private getVirtuals?: (context: any) => any,
+		private getVirtualsForVersions?: (context: any) => any,
+		private cms?: any,
+	) {}
 
-    generate(): GlobalCRUD {
-        return {
-            get: this.createGet(),
-            update: this.createUpdate(),
-            findVersions: this.createFindVersions(),
-            revertToVersion: this.createRevertToVersion(),
-        };
-    }
+	generate(): GlobalCRUD {
+		const crud: GlobalCRUD = {
+			get: this.wrapWithCMSContext(this.createGet()),
+			update: this.wrapWithCMSContext(this.createUpdate()),
+			findVersions: this.wrapWithCMSContext(this.createFindVersions()),
+			revertToVersion: this.wrapWithCMSContext(this.createRevertToVersion()),
+		};
+		return crud;
+	}
 
-    private createGet() {
-        return async (options: any = {}, context: any = {}) => {
-            // Enforce access control
-            const canRead = await this.enforceAccessControl("read", context, null);
-            if (!canRead) {
-                // Return null or throw? Throw is safer for access control.
-                 throw new Error("Access denied: read global");
-            }
+	private getDb(context?: CRUDContext) {
+		return context?.db ?? this.db;
+	}
 
-            // Hooks
-            await this.executeHooks(this.state.hooks?.beforeRead, {
-                db: this.db,
-                locale: context.locale,
-                user: context.user,
-            });
+	/**
+	 * Normalize context with defaults
+	 * @default accessMode: 'system' - CMS API is backend-only by default
+	 */
+	private normalizeContext(
+		context: CRUDContext = {},
+	): Required<Pick<CRUDContext, "accessMode" | "locale" | "defaultLocale">> &
+		CRUDContext {
+		return {
+			...context,
+			accessMode: context.accessMode ?? "system",
+			locale: context.locale ?? context.defaultLocale ?? "en",
+			defaultLocale: context.defaultLocale ?? "en",
+		};
+	}
 
-            // Build query
-            // We select everything + virtuals + i18n
-            const selectObj = this.buildSelectObject(context);
-            
-            let query = this.db.select(selectObj).from(this.table);
+	private async runWithCMSContext<TResult>(
+		context: CRUDContext | undefined,
+		fn: () => Promise<TResult>,
+	): Promise<TResult> {
+		if (!this.cms) {
+			return fn();
+		}
 
-            if (this.i18nTable && context.locale) {
-                query = query.leftJoin(
-                    this.i18nTable,
-                    and(
-                        eq((this.i18nTable as any).parentId, (this.table as any).id),
-                        eq((this.i18nTable as any).locale, context.locale),
-                    ),
-                );
-            }
+		const normalized = this.normalizeContext(context ?? {});
+		return runWithCMSContext(this.cms, normalized, fn);
+	}
 
-            // Global usually has 1 row, but we limit 1 just in case
-            const rows = await query.limit(1);
-            const row = rows[0] || null;
+	private wrapWithCMSContext<TArgs extends any[], TResult>(
+		fn: (...args: TArgs) => Promise<TResult>,
+	): (...args: TArgs) => Promise<TResult> {
+		return (...args: TArgs) => {
+			const context = (args.length > 1 ? args[1] : undefined) as
+				| CRUDContext
+				| undefined;
+			return this.runWithCMSContext(context, () => fn(...args));
+		};
+	}
 
-            // Hooks
-            if (row && this.state.hooks?.afterRead) {
-                 await this.executeHooks(this.state.hooks.afterRead, {
-                    db: this.db,
-                    row,
-                    locale: context.locale,
-                    user: context.user,
-                });
-            }
+	private buildSelectQuery(db: any, context: CRUDContext) {
+		const selectObj = this.buildSelectObject(context);
+		let query = db.select(selectObj).from(this.table);
 
-            return row;
-        };
-    }
+		if (this.i18nTable && context.locale) {
+			query = query.leftJoin(
+				this.i18nTable,
+				and(
+					eq((this.i18nTable as any).parentId, (this.table as any).id),
+					eq((this.i18nTable as any).locale, context.locale),
+				),
+			);
+		}
 
-    private createUpdate() {
-        return async (data: any, context: any = {}) => {
-             // Fetch existing
-            const existingRows = await this.db.select().from(this.table).limit(1);
-            const existing = existingRows[0];
+		return query;
+	}
 
-            // Access Control
-            // If existing, check update. If not, check update (globals don't really have create vs update permission distinction usually, it's just 'manage settings')
-            // But we have 'update' in access.
-            const canUpdate = await this.enforceAccessControl("update", context, existing);
-            if (!canUpdate) throw new Error("Access denied: update global");
+	private async getCurrentRow(db: any) {
+		const rows = await db.select().from(this.table).limit(1);
+		return rows[0] || null;
+	}
 
-            // Hooks
-            await this.executeHooks(this.state.hooks?.beforeUpdate, {
-                db: this.db,
-                row: existing,
-                input: data,
-                locale: context.locale,
-                user: context.user,
-            });
-            
-             // Execute beforeChange hooks
-            await this.executeHooks(this.state.hooks?.beforeChange, {
-                db: this.db,
-                row: existing,
-                input: data,
-                locale: context.locale,
-                user: context.user,
-            });
+	private createGet() {
+		return async (
+			options: GlobalGetOptions = {},
+			context: CRUDContext = {},
+		) => {
+			const db = this.getDb(context);
+			const normalized = this.normalizeContext(context);
 
-            return this.db.transaction(async (tx: any) => {
-                const { localized, nonLocalized } = this.splitLocalizedFields(data);
-                
-                let updatedRecord;
+			// Enforce access control
+			const canRead = await this.enforceAccessControl(
+				"read",
+				normalized,
+				null,
+				options,
+			);
+			if (!canRead) {
+				throw new Error("Access denied: read global");
+			}
 
-                if (existing) {
-                    // Update
-                    if (Object.keys(nonLocalized).length > 0) {
-                        await tx.update(this.table)
-                            .set({
-                                ...nonLocalized,
-                                ...(this.state.options.timestamps !== false ? { updatedAt: new Date() } : {})
-                            })
-                            .where(eq((this.table as any).id, existing.id));
-                    }
-                    updatedRecord = { ...existing, ...nonLocalized }; // Optimistic
-                } else {
-                    // Insert
-                    const [inserted] = await tx.insert(this.table)
-                        .values(nonLocalized)
-                        .returning();
-                    updatedRecord = inserted;
-                }
-                
-                // I18n
-                if (this.i18nTable && context.locale && Object.keys(localized).length > 0) {
-                     await tx.insert(this.i18nTable)
-                        .values({
-                            parentId: updatedRecord.id,
-                            locale: context.locale,
-                            ...localized,
-                        })
-                        .onConflictDoUpdate({
-                            target: [(this.i18nTable as any).parentId, (this.i18nTable as any).locale],
-                            set: localized,
-                        });
-                }
-                
-                // Re-fetch to get full object with virtuals etc
-                // We reuse createGet() logic but within tx? 
-                // For simplicity, just fetch raw here or return what we have.
-                // Better to re-fetch to ensure consistency.
-                // But we need to use `tx`! `createGet` uses `this.db`.
-                // For now, let's just return the simple record or minimal fetch.
-                
-                // Versioning
-                await this.createVersion(tx, updatedRecord, existing ? "update" : "create", context);
+			// Hooks
+			await this.executeHooks(this.state.hooks?.beforeRead, {
+				db,
+				locale: normalized.locale,
+				user: normalized.user,
+				context: normalized,
+			});
 
-                // Hooks
-                 await this.executeHooks(this.state.hooks?.afterUpdate, {
-                    db: tx,
-                    row: updatedRecord,
-                    input: data,
-                    locale: context.locale,
-                    user: context.user,
-                });
-                 await this.executeHooks(this.state.hooks?.afterChange, {
-                    db: tx,
-                    row: updatedRecord,
-                    input: data,
-                    locale: context.locale,
-                    user: context.user,
-                });
+			const rows = await this.buildSelectQuery(db, normalized).limit(1);
+			let row = rows[0] || null;
 
-                return updatedRecord;
-            });
-        };
-    }
-    
-    private createFindVersions() {
-        return async (options: any = {}, context: any = {}) => {
-            if (!this.versionsTable) return [];
-             // Enforce read access
-            const canRead = await this.enforceAccessControl("read", context, null);
-            if (!canRead) throw new Error("Access denied: read versions");
+			if (!row) {
+				row = await db.transaction(async (tx: any) => {
+					const [inserted] = await tx.insert(this.table).values({}).returning();
+					if (!inserted) {
+						throw new Error("Failed to auto-create global");
+					}
 
-            let query = this.db.select().from(this.versionsTable);
-             // Since global is singleton, we don't strictly need parentId if we assume only 1 global row.
-             // But safer to filter by parentId if we fetched it.
-             // Usually we just list all versions for this global.
-             // Wait, if global row ID changes (delete/re-create), versions might be orphaned or split.
-             // Ideally global row ID is constant.
-             
-             // Let's assume we want versions for the *current* global row.
-             const existingRows = await this.db.select().from(this.table).limit(1);
-             const existing = existingRows[0];
-             if (!existing) return [];
+					await this.createVersion(tx, inserted, "create", normalized);
 
-             query = query.where(eq((this.versionsTable as any).parentId, existing.id));
-             query = query.orderBy(desc((this.versionsTable as any).version));
-             
-             if (options.limit) query = query.limit(options.limit);
-             if (options.offset) query = query.offset(options.offset);
-             
-             return await query;
-        }
-    }
-    
-    private createRevertToVersion() {
-         return async (options: any, context: any = {}) => {
-            if (!this.versionsTable) throw new Error("Versioning not enabled");
-            
-            // Logic similar to Collection but simplified
-            // ... (Skipping full implementation for brevity, assuming similar structure)
-             const rows = await this.db
-                .select()
-                .from(this.versionsTable)
-                .where(
-                    and(
-                        eq((this.versionsTable as any).id, options.versionId) // Or use version number
-                    ),
-                )
-                .limit(1);
-             // ...
-             return null;
-         }
-    }
+					const createdRows = await this.buildSelectQuery(tx, normalized)
+						.where(eq((this.table as any).id, inserted.id))
+						.limit(1);
+					return createdRows[0] || inserted;
+				});
+			}
 
-    private async createVersion(
-        tx: any,
-        row: any,
-        operation: "create" | "update" | "delete",
-        context: any,
-    ) {
-        if (!this.versionsTable) return;
-        
-        const maxVersionQuery = await tx
-            .select({ max: sql<number>`MAX(${(this.versionsTable as any).version})` })
-            .from(this.versionsTable)
-            .where(eq((this.versionsTable as any).parentId, row.id));
+			if (row && options.with && this.cms) {
+				await this.resolveRelations([row], options.with, normalized);
+			}
 
-        const currentVersion = maxVersionQuery[0]?.max || 0;
-        const newVersion = Number(currentVersion) + 1;
+			// Hooks
+			if (row && this.state.hooks?.afterRead) {
+				await this.executeHooks(this.state.hooks.afterRead, {
+					db,
+					row,
+					locale: normalized.locale,
+					user: normalized.user,
+					context: normalized,
+				});
+			}
 
-        await tx.insert(this.versionsTable).values({
-            parentId: row.id,
-            version: newVersion,
-            operation,
-            data: row,
-            userId: context.user?.id ? String(context.user.id) : null,
-            createdAt: new Date(),
-        });
-        
-        // Cleanup old versions (limit 50)
-         const options = this.state.options.versioning;
-         // ... cleanup logic
-    }
+			return row;
+		};
+	}
 
-    private buildSelectObject(context: any) {
-        const select: any = {
-            id: (this.table as any).id,
-        };
-        const defaultLocale = context?.defaultLocale || "en";
+	private createUpdate() {
+		return async (data: any, context: CRUDContext = {}) => {
+			const db = this.getDb(context);
+			const normalized = this.normalizeContext(context);
+			const existing = await this.getCurrentRow(db);
 
-        for (const [name, _column] of Object.entries(this.state.fields)) {
-            if (this.state.localized.includes(name as any) && this.i18nTable && context.locale) {
-                 const i18nTable = this.i18nTable as any;
-                select[name] = sql`COALESCE(
-                    ${i18nTable[name]},
-                    (SELECT ${i18nTable[name]} FROM ${this.i18nTable}
-                     WHERE ${i18nTable.parentId} = ${(this.table as any).id}
-                     AND ${i18nTable.locale} = ${defaultLocale} LIMIT 1)
-                )`;
-            } else {
-                 select[name] = (this.table as any)[name];
-            }
-        }
-        
-         const virtuals = this.getVirtuals ? this.getVirtuals(context) : this.state.virtuals;
-         for (const [name, sqlExpr] of Object.entries(virtuals)) {
-             select[name] = sqlExpr;
-         }
-         
-         if (this.state.options.timestamps !== false) {
-            select.createdAt = (this.table as any).createdAt;
-            select.updatedAt = (this.table as any).updatedAt;
-        }
-        
-        return select;
-    }
-    
-    private splitLocalizedFields(input: any) {
-        const localized: any = {};
-        const nonLocalized: any = {};
-        for (const [key, value] of Object.entries(input)) {
-            if (this.state.localized.includes(key as any)) {
-                localized[key] = value;
-            } else {
-                nonLocalized[key] = value;
-            }
-        }
-        return { localized, nonLocalized };
-    }
+			const canUpdate = await this.enforceAccessControl(
+				"update",
+				normalized,
+				existing,
+				data,
+			);
+			if (!canUpdate) throw new Error("Access denied: update global");
 
-    private async executeHooks(hooks: GlobalHookFunction | GlobalHookFunction[] | undefined, ctx: GlobalHookContext) {
-        if (!hooks) return;
-        const hookArray = Array.isArray(hooks) ? hooks : [hooks];
-        for (const hook of hookArray) {
-            await hook(ctx);
-        }
-    }
+			await this.executeHooks(this.state.hooks?.beforeUpdate, {
+				db,
+				row: existing,
+				input: data,
+				locale: normalized.locale,
+				user: normalized.user,
+				context: normalized,
+			});
 
-    private async enforceAccessControl(
-        operation: "read" | "update",
-        context: any,
-        row: any
-    ): Promise<boolean> {
-        const accessRule = this.state.access?.[operation];
-        if (accessRule === undefined) return true;
-        if (typeof accessRule === "boolean") return accessRule;
-        if (typeof accessRule === "string") return context.user?.role === accessRule;
-        if (typeof accessRule === "function") {
-             return await accessRule({
-                user: context.user,
-                row,
-                input: context,
-                db: this.db,
-            });
-        }
-        return true;
-    }
+			await this.executeHooks(this.state.hooks?.beforeChange, {
+				db,
+				row: existing,
+				input: data,
+				locale: normalized.locale,
+				user: normalized.user,
+				context: normalized,
+			});
+
+			return db.transaction(async (tx: any) => {
+				const { localized, nonLocalized } = this.splitLocalizedFields(data);
+
+				let updatedId = existing?.id;
+
+				if (existing) {
+					if (Object.keys(nonLocalized).length > 0) {
+						await tx
+							.update(this.table)
+							.set({
+								...nonLocalized,
+								...(this.state.options.timestamps !== false
+									? { updatedAt: new Date() }
+									: {}),
+							})
+							.where(eq((this.table as any).id, existing.id));
+					}
+				} else {
+					const [inserted] = await tx
+						.insert(this.table)
+						.values(nonLocalized)
+						.returning();
+					updatedId = inserted?.id;
+				}
+
+				if (
+					this.i18nTable &&
+					normalized.locale &&
+					Object.keys(localized).length > 0
+				) {
+					await tx
+						.insert(this.i18nTable)
+						.values({
+							parentId: updatedId,
+							locale: normalized.locale,
+							...localized,
+						})
+						.onConflictDoUpdate({
+							target: [
+								(this.i18nTable as any).parentId,
+								(this.i18nTable as any).locale,
+							],
+							set: localized,
+						});
+				}
+
+				const baseRows = updatedId
+					? await tx
+							.select()
+							.from(this.table)
+							.where(eq((this.table as any).id, updatedId))
+							.limit(1)
+					: [];
+				const baseRecord = baseRows[0] || null;
+
+				const refreshedRows = updatedId
+					? await this.buildSelectQuery(tx, normalized)
+							.where(eq((this.table as any).id, updatedId))
+							.limit(1)
+					: [];
+				const updatedRecord = refreshedRows[0] || baseRecord;
+
+				if (!baseRecord) {
+					throw new Error("Global record not found after update");
+				}
+
+				await this.createVersion(
+					tx,
+					baseRecord,
+					existing ? "update" : "create",
+					normalized,
+				);
+
+				await this.executeHooks(this.state.hooks?.afterUpdate, {
+					db: tx,
+					row: updatedRecord,
+					input: data,
+					locale: normalized.locale,
+					user: normalized.user,
+					context: normalized,
+				});
+				await this.executeHooks(this.state.hooks?.afterChange, {
+					db: tx,
+					row: updatedRecord,
+					input: data,
+					locale: normalized.locale,
+					user: normalized.user,
+					context: normalized,
+				});
+
+				return updatedRecord;
+			});
+		};
+	}
+
+	private createFindVersions() {
+		return async (
+			options: GlobalFindVersionsOptions = {},
+			context: CRUDContext = {},
+		) => {
+			const db = this.getDb(context);
+			const normalized = this.normalizeContext(context);
+			if (!this.versionsTable) return [];
+
+			const canRead = await this.enforceAccessControl(
+				"read",
+				normalized,
+				null,
+				options,
+			);
+			if (!canRead) throw new Error("Access denied: read versions");
+
+			const parentId = options.id ?? (await this.getCurrentRow(db))?.id;
+			if (!parentId) return [];
+
+			let query = db
+				.select(this.buildVersionsSelectObject(normalized))
+				.from(this.versionsTable)
+				.where(eq((this.versionsTable as any).id, parentId))
+				.orderBy(sql`${(this.versionsTable as any).versionNumber} ASC`);
+
+			if (this.i18nVersionsTable && normalized.locale) {
+				query = query.leftJoin(
+					this.i18nVersionsTable,
+					and(
+						eq(
+							(this.i18nVersionsTable as any).parentId,
+							(this.versionsTable as any).id,
+						),
+						eq(
+							(this.i18nVersionsTable as any).versionNumber,
+							(this.versionsTable as any).versionNumber,
+						),
+						eq(
+							(this.i18nVersionsTable as any).locale,
+							normalized.locale,
+						),
+					),
+				);
+			}
+
+			if (options.limit) query = query.limit(options.limit);
+			if (options.offset) query = query.offset(options.offset);
+
+			return (await query) as GlobalVersionRecord[];
+		};
+	}
+
+	private createRevertToVersion() {
+		return async (
+			options: GlobalRevertVersionOptions,
+			context: CRUDContext = {},
+		) => {
+			const db = this.getDb(context);
+			const normalized = this.normalizeContext(context);
+			if (!this.versionsTable) throw new Error("Versioning not enabled");
+
+			const hasVersionId = typeof options.versionId === "string";
+			const hasVersion = typeof options.version === "number";
+
+			if (!hasVersionId && !hasVersion) {
+				throw new Error("Version or versionId required");
+			}
+
+			const parentId = options.id ?? (await this.getCurrentRow(db))?.id;
+			if (!parentId) {
+				throw new Error("Global record not found");
+			}
+
+			const versionRows = await db
+				.select()
+				.from(this.versionsTable)
+				.where(
+					hasVersionId
+						? and(
+							eq((this.versionsTable as any).id, parentId),
+							eq(
+								(this.versionsTable as any).versionId,
+								options.versionId,
+							),
+						)
+						: and(
+							eq((this.versionsTable as any).id, parentId),
+							eq(
+								(this.versionsTable as any).versionNumber,
+								options.version,
+							),
+						),
+				)
+				.limit(1);
+			const version = versionRows[0];
+
+			if (!version) throw new Error("Version not found");
+
+			const existing = await this.getCurrentRow(db);
+			if (!existing) throw new Error("Global record not found");
+
+			const nonLocalized: Record<string, any> = {};
+			for (const [name] of Object.entries(this.state.fields)) {
+				if (this.state.localized.includes(name as any)) continue;
+				nonLocalized[name] = version[name];
+			}
+
+			let localizedForContext: Record<string, any> = {};
+			if (this.i18nVersionsTable && normalized.locale) {
+				const localeRows = await db
+					.select()
+					.from(this.i18nVersionsTable)
+					.where(
+						and(
+							eq((this.i18nVersionsTable as any).parentId, parentId),
+							eq(
+								(this.i18nVersionsTable as any).versionNumber,
+								version.versionNumber,
+							),
+							eq((this.i18nVersionsTable as any).locale, normalized.locale),
+						),
+					)
+					.limit(1);
+				const localeRow = localeRows[0];
+				if (localeRow) {
+					for (const fieldName of this.state.localized) {
+						localizedForContext[fieldName as string] =
+							localeRow[fieldName as string];
+					}
+				}
+			}
+
+			const restoreData = { ...nonLocalized, ...localizedForContext };
+
+			const canUpdate = await this.enforceAccessControl(
+				"update",
+				normalized,
+				existing,
+				restoreData,
+			);
+			if (!canUpdate) throw new Error("Access denied: update global");
+
+			await this.executeHooks(this.state.hooks?.beforeUpdate, {
+				db,
+				row: existing,
+				input: restoreData,
+				locale: normalized.locale,
+				user: normalized.user,
+				context: normalized,
+			});
+
+			await this.executeHooks(this.state.hooks?.beforeChange, {
+				db,
+				row: existing,
+				input: restoreData,
+				locale: normalized.locale,
+				user: normalized.user,
+				context: normalized,
+			});
+
+			return db.transaction(async (tx: any) => {
+				if (Object.keys(nonLocalized).length > 0) {
+					await tx
+						.update(this.table)
+						.set({
+							...nonLocalized,
+							...(this.state.options.timestamps !== false
+								? { updatedAt: new Date() }
+								: {}),
+						})
+						.where(eq((this.table as any).id, parentId));
+				}
+
+				if (this.i18nTable && this.i18nVersionsTable) {
+					await tx
+						.delete(this.i18nTable)
+						.where(eq((this.i18nTable as any).parentId, parentId));
+
+					const localeRows = await tx
+						.select()
+						.from(this.i18nVersionsTable)
+						.where(
+							and(
+								eq((this.i18nVersionsTable as any).parentId, parentId),
+								eq(
+									(this.i18nVersionsTable as any).versionNumber,
+									version.versionNumber,
+								),
+							),
+						);
+
+					if (localeRows.length > 0) {
+						const insertRows = localeRows.map((row: any) => {
+							const {
+								id: _id,
+								parentId: _parentId,
+								versionNumber: _versionNumber,
+								locale,
+								...localizedFields
+							} = row;
+							return {
+								parentId,
+								locale,
+								...localizedFields,
+							};
+						});
+
+						await tx.insert(this.i18nTable).values(insertRows);
+					}
+				}
+
+				const baseRows = await tx
+					.select()
+					.from(this.table)
+					.where(eq((this.table as any).id, parentId))
+					.limit(1);
+				const baseRecord = baseRows[0] || null;
+
+				const refreshedRows = await this.buildSelectQuery(tx, normalized)
+					.where(eq((this.table as any).id, parentId))
+					.limit(1);
+				const updatedRecord = refreshedRows[0] || baseRecord;
+
+				if (!baseRecord) {
+					throw new Error("Global record not found after revert");
+				}
+
+				await this.createVersion(tx, baseRecord, "update", normalized);
+
+				await this.executeHooks(this.state.hooks?.afterUpdate, {
+					db: tx,
+					row: updatedRecord,
+					input: restoreData,
+					locale: normalized.locale,
+					user: normalized.user,
+					context: normalized,
+				});
+				await this.executeHooks(this.state.hooks?.afterChange, {
+					db: tx,
+					row: updatedRecord,
+					input: restoreData,
+					locale: normalized.locale,
+					user: normalized.user,
+					context: normalized,
+				});
+
+				return updatedRecord;
+			});
+		};
+	}
+
+	private async createVersion(
+		tx: any,
+		row: any,
+		operation: "create" | "update" | "delete",
+		context: CRUDContext,
+	) {
+		if (!this.versionsTable) return;
+
+		const maxVersionQuery = await tx
+			.select({
+				max: sql<number>`MAX(${(this.versionsTable as any).versionNumber})`,
+			})
+			.from(this.versionsTable)
+			.where(eq((this.versionsTable as any).id, row.id));
+
+		const currentVersion = maxVersionQuery[0]?.max || 0;
+		const newVersion = Number(currentVersion) + 1;
+
+		await tx.insert(this.versionsTable).values({
+			...row,
+			versionNumber: newVersion,
+			versionOperation: operation,
+			versionUserId: context.user?.id ? String(context.user.id) : null,
+			versionCreatedAt: new Date(),
+		});
+
+		if (this.i18nVersionsTable && this.i18nTable) {
+			const i18nRows = await tx
+				.select()
+				.from(this.i18nTable)
+				.where(eq((this.i18nTable as any).parentId, row.id));
+
+			if (i18nRows.length > 0) {
+				const insertRows = i18nRows.map((i18nRow: any) => {
+					const { id: _id, parentId: _parentId, ...rest } = i18nRow;
+					return {
+						parentId: row.id,
+						versionNumber: newVersion,
+						...rest,
+					};
+				});
+
+				await tx.insert(this.i18nVersionsTable).values(insertRows);
+			}
+		}
+
+		const options = this.state.options.versioning;
+		if (typeof options === "object" && options.maxVersions) {
+			const versionsToDelete = await tx
+				.select({ versionNumber: (this.versionsTable as any).versionNumber })
+				.from(this.versionsTable)
+				.where(eq((this.versionsTable as any).id, row.id))
+				.orderBy(sql`${(this.versionsTable as any).versionNumber} DESC`)
+				.offset(options.maxVersions);
+
+			if (versionsToDelete.length > 0) {
+				const versionNumbers = versionsToDelete.map(
+					(v: any) => v.versionNumber,
+				);
+				await tx.delete(this.versionsTable).where(
+					and(
+						eq((this.versionsTable as any).id, row.id),
+						inArray(
+							(this.versionsTable as any).versionNumber,
+							versionNumbers,
+						),
+					),
+				);
+
+				if (this.i18nVersionsTable) {
+					await tx.delete(this.i18nVersionsTable).where(
+						and(
+							eq((this.i18nVersionsTable as any).parentId, row.id),
+							inArray(
+								(this.i18nVersionsTable as any).versionNumber,
+								versionNumbers,
+							),
+						),
+					);
+				}
+			}
+		}
+	}
+
+	private buildSelectObject(context: CRUDContext) {
+		const select: any = {
+			id: (this.table as any).id,
+		};
+		const defaultLocale = context?.defaultLocale || "en";
+
+		for (const [name, _column] of Object.entries(this.state.fields)) {
+			if (
+				this.state.localized.includes(name as any) &&
+				this.i18nTable &&
+				context.locale
+			) {
+				const i18nTable = this.i18nTable as any;
+				select[name] = sql`COALESCE(
+					${i18nTable[name]},
+					(SELECT ${i18nTable[name]} FROM ${this.i18nTable}
+					 WHERE ${i18nTable.parentId} = ${(this.table as any).id}
+					 AND ${i18nTable.locale} = ${defaultLocale} LIMIT 1)
+				)`;
+			} else {
+				select[name] = (this.table as any)[name];
+			}
+		}
+
+		const virtuals = this.getVirtuals ? this.getVirtuals(context) : this.state.virtuals;
+		for (const [name, sqlExpr] of Object.entries(virtuals)) {
+			select[name] = sqlExpr;
+		}
+
+		if (this.state.options.timestamps !== false) {
+			select.createdAt = (this.table as any).createdAt;
+			select.updatedAt = (this.table as any).updatedAt;
+		}
+
+		return select;
+	}
+
+	private buildVersionsSelectObject(context: CRUDContext) {
+		if (!this.versionsTable) return {};
+
+		const versionsTable = this.versionsTable as any;
+		const select: any = {
+			versionId: versionsTable.versionId,
+			id: versionsTable.id,
+			versionNumber: versionsTable.versionNumber,
+			versionOperation: versionsTable.versionOperation,
+			versionUserId: versionsTable.versionUserId,
+			versionCreatedAt: versionsTable.versionCreatedAt,
+		};
+		const defaultLocale = context?.defaultLocale || "en";
+
+		for (const [name, _column] of Object.entries(this.state.fields)) {
+			if (
+				this.state.localized.includes(name as any) &&
+				this.i18nVersionsTable &&
+				context.locale
+			) {
+				const i18nVersionsTable = this.i18nVersionsTable as any;
+				select[name] = sql`COALESCE(
+					${i18nVersionsTable[name]},
+					(SELECT ${i18nVersionsTable[name]} FROM ${this.i18nVersionsTable}
+					 WHERE ${i18nVersionsTable.parentId} = ${versionsTable.id}
+					 AND ${i18nVersionsTable.versionNumber} = ${versionsTable.versionNumber}
+					 AND ${i18nVersionsTable.locale} = ${defaultLocale} LIMIT 1)
+				)`;
+			} else {
+				select[name] = versionsTable[name];
+			}
+		}
+
+		const versionVirtuals = this.getVirtualsForVersions
+			? this.getVirtualsForVersions(context)
+			: {};
+		for (const [name, sqlExpr] of Object.entries(versionVirtuals)) {
+			select[name] = sqlExpr;
+		}
+
+		if (this.state.options.timestamps !== false) {
+			select.createdAt = versionsTable.createdAt;
+			select.updatedAt = versionsTable.updatedAt;
+		}
+
+		return select;
+	}
+
+	private splitLocalizedFields(input: any) {
+		const localized: any = {};
+		const nonLocalized: any = {};
+		for (const [key, value] of Object.entries(input)) {
+			if (this.state.localized.includes(key as any)) {
+				localized[key] = value;
+			} else {
+				nonLocalized[key] = value;
+			}
+		}
+		return { localized, nonLocalized };
+	}
+
+	private async executeHooks(
+		hooks: GlobalHookFunction | GlobalHookFunction[] | undefined,
+		ctx: GlobalHookContext,
+	) {
+		if (!hooks) return;
+		const hookArray = Array.isArray(hooks) ? hooks : [hooks];
+		for (const hook of hookArray) {
+			await hook(ctx);
+		}
+	}
+
+	private async enforceAccessControl(
+		operation: "read" | "update",
+		context: CRUDContext,
+		row: any,
+		input?: any,
+	): Promise<boolean> {
+		const normalized = this.normalizeContext(context);
+		const db = this.getDb(normalized);
+
+		if (normalized.accessMode === "system") return true;
+
+		const accessRule = this.state.access?.[operation];
+		if (accessRule === undefined) return true;
+		if (typeof accessRule === "boolean") return accessRule;
+		if (typeof accessRule === "string") return normalized.user?.role === accessRule;
+		if (typeof accessRule === "function") {
+			return await accessRule({
+				user: normalized.user,
+				row,
+				input,
+				db,
+				context: normalized,
+			} as GlobalAccessContext);
+		}
+		return true;
+	}
+
+	/**
+	 * Resolve relations recursively (mirrors collection relation loading)
+	 */
+	private async resolveRelations(
+		rows: any[],
+		withConfig: With,
+		context: CRUDContext,
+	) {
+		if (!rows.length || !withConfig || !this.cms) return;
+		const db = this.getDb(context);
+
+		for (const [relationName, relationOptions] of Object.entries(withConfig)) {
+			if (!relationOptions) continue;
+
+			const relation = this.state.relations[relationName];
+			if (!relation) continue;
+
+			const relatedCrud = this.cms.api.collections[relation.collection];
+
+			if (relation.fields && relation.fields.length > 0) {
+				const sourceField = relation.fields[0];
+				const targetFieldName = relation.references[0];
+
+				const sourceColName =
+					this.resolveFieldKey(this.state, sourceField, this.table) ??
+					sourceField.name;
+
+				const sourceIds = new Set(
+					rows
+						.map((r) => r[sourceColName])
+						.filter((id) => id !== null && id !== undefined),
+				);
+				if (sourceIds.size === 0) continue;
+
+				const nestedOptions =
+					typeof relationOptions === "object" ? relationOptions : {};
+				const { docs: relatedRows } = await relatedCrud.find(
+					{
+						...nestedOptions,
+						where: {
+							...nestedOptions.where,
+							[targetFieldName]: { in: Array.from(sourceIds) },
+						},
+					},
+					context,
+				);
+
+				const relatedMap = new Map();
+				for (const row of relatedRows) {
+					relatedMap.set(row[targetFieldName], row);
+				}
+
+				for (const row of rows) {
+					const sourceId = row[sourceColName];
+					if (sourceId !== null && sourceId !== undefined) {
+						row[relationName] = relatedMap.get(sourceId) || null;
+					}
+				}
+			} else if (relation.type === "many" && !relation.fields) {
+				const reverseRelationName = relation.relationName;
+				if (!reverseRelationName) continue;
+
+				const reverseRelation =
+					relatedCrud.__internalState.relations?.[reverseRelationName];
+				if (!reverseRelation?.fields || reverseRelation.fields.length === 0)
+					continue;
+
+				const foreignKeyField =
+					this.resolveFieldKey(
+						relatedCrud.__internalState,
+						reverseRelation.fields[0],
+						relatedCrud.__internalRelatedTable,
+					) ?? reverseRelation.fields[0].name;
+				const primaryKeyField = reverseRelation.references?.[0] || "id";
+
+				const parentIds = new Set(
+					rows
+						.map((r) => r[primaryKeyField])
+						.filter((id) => id !== null && id !== undefined),
+				);
+				if (parentIds.size === 0) continue;
+
+				const nestedOptions =
+					typeof relationOptions === "object" ? relationOptions : {};
+
+				if (nestedOptions._count || nestedOptions._aggregate) {
+					const relatedTable = relatedCrud.__internalRelatedTable;
+					const foreignKeyCol = relatedTable[foreignKeyField];
+
+					const selectClause: Record<string, any> = {
+						[foreignKeyField]: foreignKeyCol,
+					};
+
+					if (nestedOptions._count) {
+						selectClause._count = count().as("_count");
+					}
+
+					if (nestedOptions._aggregate) {
+						const agg = nestedOptions._aggregate;
+						if (agg._count) {
+							selectClause._count = count().as("_count");
+						}
+						if (agg._sum) {
+							for (const [field, enabled] of Object.entries(agg._sum)) {
+								if (enabled && relatedTable[field]) {
+									selectClause[`_sum_${field}`] = sum(
+										relatedTable[field],
+									).as(`_sum_${field}`);
+								}
+							}
+						}
+						if (agg._avg) {
+							for (const [field, enabled] of Object.entries(agg._avg)) {
+								if (enabled && relatedTable[field]) {
+									selectClause[`_avg_${field}`] = avg(
+										relatedTable[field],
+									).as(`_avg_${field}`);
+								}
+							}
+						}
+						if (agg._min) {
+							for (const [field, enabled] of Object.entries(agg._min)) {
+								if (enabled && relatedTable[field]) {
+									selectClause[`_min_${field}`] = min(
+										relatedTable[field],
+									).as(`_min_${field}`);
+								}
+							}
+						}
+						if (agg._max) {
+							for (const [field, enabled] of Object.entries(agg._max)) {
+								if (enabled && relatedTable[field]) {
+									selectClause[`_max_${field}`] = max(
+										relatedTable[field],
+									).as(`_max_${field}`);
+								}
+							}
+						}
+					}
+
+					const whereConditions = [
+						inArray(foreignKeyCol, Array.from(parentIds)),
+					];
+
+					if (nestedOptions.where) {
+						const additionalWhere = this.buildWhereClause(
+							nestedOptions.where,
+							false,
+							relatedTable,
+							context,
+							relatedCrud.__internalState,
+							relatedCrud.__internalI18nTable,
+						);
+						if (additionalWhere) {
+							whereConditions.push(additionalWhere);
+						}
+					}
+
+					const aggregateResults = await db
+						.select(selectClause)
+						.from(relatedTable)
+						.where(and(...whereConditions))
+						.groupBy(foreignKeyCol);
+
+					const aggregateMap = new Map();
+					for (const result of aggregateResults) {
+						const parentId = result[foreignKeyField];
+						const aggData: Record<string, any> = {};
+
+						if (result._count !== undefined) {
+							aggData._count = Number(result._count);
+						}
+
+						for (const key of Object.keys(result)) {
+							if (key.startsWith("_sum_")) {
+								if (!aggData._sum) aggData._sum = {};
+								aggData._sum[key.replace("_sum_", "")] =
+									Number(result[key]) || 0;
+							} else if (key.startsWith("_avg_")) {
+								if (!aggData._avg) aggData._avg = {};
+								aggData._avg[key.replace("_avg_", "")] =
+									Number(result[key]) || 0;
+							} else if (key.startsWith("_min_")) {
+								if (!aggData._min) aggData._min = {};
+								aggData._min[key.replace("_min_", "")] = result[key];
+							} else if (key.startsWith("_max_")) {
+								if (!aggData._max) aggData._max = {};
+								aggData._max[key.replace("_max_", "")] = result[key];
+							}
+						}
+
+						aggregateMap.set(parentId, aggData);
+					}
+
+					for (const row of rows) {
+						const parentId = row[primaryKeyField];
+						row[relationName] = aggregateMap.get(parentId) || { _count: 0 };
+					}
+				} else {
+					const relatedWhere: any = {
+						[foreignKeyField]: { in: Array.from(parentIds) },
+					};
+
+					if (nestedOptions.where) {
+						relatedWhere.AND = [nestedOptions.where];
+					}
+
+					const queryOptions = { ...nestedOptions };
+					if (queryOptions.columns) {
+						queryOptions.columns = {
+							...queryOptions.columns,
+							[foreignKeyField]: true,
+						};
+					}
+
+					const { docs: relatedRows } = await relatedCrud.find(
+						{
+							...queryOptions,
+							where: relatedWhere,
+						},
+						context,
+					);
+
+					const relatedMap = new Map<any, any[]>();
+					for (const relatedRow of relatedRows) {
+						const parentId = relatedRow[foreignKeyField];
+						if (!relatedMap.has(parentId)) {
+							relatedMap.set(parentId, []);
+						}
+						relatedMap.get(parentId)?.push(relatedRow);
+					}
+
+					for (const row of rows) {
+						const parentId = row[primaryKeyField];
+						row[relationName] = relatedMap.get(parentId) || [];
+					}
+				}
+			} else if (relation.type === "manyToMany" && relation.through) {
+				const sourceKey = relation.sourceKey || "id";
+				const targetKey = relation.targetKey || "id";
+				const sourceField = relation.sourceField;
+				const targetField = relation.targetField;
+
+				if (!sourceField || !targetField) continue;
+
+				const junctionCrud = this.cms.api.collections[relation.through];
+
+				const sourceIds = new Set(
+					rows
+						.map((r) => r[sourceKey])
+						.filter((id) => id !== null && id !== undefined),
+				);
+				if (sourceIds.size === 0) continue;
+
+				const { docs: junctionRows } = await junctionCrud.find(
+					{
+						where: { [sourceField]: { in: Array.from(sourceIds) } },
+					},
+					context,
+				);
+
+				if (!junctionRows.length) {
+					for (const row of rows) {
+						row[relationName] = [];
+					}
+					continue;
+				}
+
+				const targetIds = [
+					...new Set(
+						junctionRows
+							.map((j: any) => j[targetField])
+							.filter((id: any) => id !== null && id !== undefined),
+					),
+				];
+
+				if (!targetIds.length) {
+					for (const row of rows) {
+						row[relationName] = [];
+					}
+					continue;
+				}
+
+				const nestedOptions =
+					typeof relationOptions === "object" ? relationOptions : {};
+
+				const relatedWhere: any = {
+					[targetKey]: { in: targetIds },
+				};
+
+				if (nestedOptions.where) {
+					relatedWhere.AND = [nestedOptions.where];
+				}
+
+				const { docs: relatedRows } = await relatedCrud.find(
+					{
+						...nestedOptions,
+						where: relatedWhere,
+					},
+					context,
+				);
+
+				const junctionMap = new Map<any, any[]>();
+				for (const j of junctionRows) {
+					const sid = j[sourceField];
+					if (!junctionMap.has(sid)) {
+						junctionMap.set(sid, []);
+					}
+					junctionMap.get(sid)?.push(j[targetField]);
+				}
+
+				const relatedMap = new Map();
+				for (const r of relatedRows) {
+					relatedMap.set(r[targetKey], r);
+				}
+
+				for (const row of rows) {
+					const sourceId = row[sourceKey];
+					const relatedIds = junctionMap.get(sourceId) || [];
+					row[relationName] = relatedIds
+						.map((tid) => relatedMap.get(tid))
+						.filter((r) => r !== undefined);
+				}
+			} else if (
+				relation.type === "polymorphic" &&
+				relation.typeField &&
+				relation.idField
+			) {
+				const typeFieldName =
+					this.resolveFieldKey(this.state, relation.typeField, this.table) ??
+					relation.typeField.name;
+				const idFieldName =
+					this.resolveFieldKey(this.state, relation.idField, this.table) ??
+					relation.idField.name;
+				const collectionsMap = relation.collections || {};
+
+				const typeGroups = new Map<string, any[]>();
+				for (const row of rows) {
+					const typeValue = row[typeFieldName];
+					if (!typeValue) continue;
+
+					if (!typeGroups.has(typeValue)) {
+						typeGroups.set(typeValue, []);
+					}
+					typeGroups.get(typeValue)?.push(row);
+				}
+
+				const allRelatedData = new Map<string, any>();
+
+				for (const [typeValue, rowsOfType] of typeGroups.entries()) {
+					const collectionName = collectionsMap[typeValue];
+					if (!collectionName) continue;
+
+					const relatedCrud = this.cms.api.collections[collectionName];
+
+					const ids = rowsOfType
+						.map((r) => r[idFieldName])
+						.filter((id) => id !== null && id !== undefined);
+
+					if (ids.length === 0) continue;
+
+					const nestedOptions =
+						typeof relationOptions === "object" ? relationOptions : {};
+
+					const { docs: relatedRecords } = await relatedCrud.find(
+						{
+							...nestedOptions,
+							where: {
+								id: { in: ids },
+								...(nestedOptions.where && { AND: [nestedOptions.where] }),
+							},
+						},
+						context,
+					);
+
+					for (const record of relatedRecords) {
+						const key = `${typeValue}:${record.id}`;
+						allRelatedData.set(key, record);
+					}
+				}
+
+				for (const row of rows) {
+					const typeValue = row[typeFieldName];
+					const idValue = row[idFieldName];
+
+					if (typeValue && idValue) {
+						const key = `${typeValue}:${idValue}`;
+						row[relationName] = allRelatedData.get(key) || null;
+					}
+				}
+			}
+		}
+	}
+
+	private resolveFieldKey(
+		state: GlobalBuilderState,
+		column: any,
+		table?: any,
+	): string | undefined {
+		if (typeof column === "string") return column;
+
+		const columnName = column?.name;
+		if (!columnName) return undefined;
+
+		for (const [key, value] of Object.entries(state.fields)) {
+			if ((value as any)?.name === columnName) return key;
+		}
+
+		if (table) {
+			for (const [key, value] of Object.entries(table)) {
+				if ((value as any)?.name === columnName) return key;
+			}
+		}
+
+		return undefined;
+	}
+
+	private buildRelationWhereClause(
+		relation: RelationConfig,
+		relationWhere: Where | undefined,
+		parentTable: PgTable,
+		context?: CRUDContext,
+	): any {
+		switch (relation.type) {
+			case "one":
+				return this.buildBelongsToExistsClause(
+					relation,
+					relationWhere,
+					context,
+				);
+			case "many":
+				return this.buildHasManyExistsClause(
+					relation,
+					relationWhere,
+					parentTable,
+					context,
+				);
+			case "manyToMany":
+				return this.buildManyToManyExistsClause(
+					relation,
+					relationWhere,
+					parentTable,
+					context,
+				);
+			default:
+				return undefined;
+		}
+	}
+
+	private buildBelongsToExistsClause(
+		relation: RelationConfig,
+		relationWhere: Where | undefined,
+		context?: CRUDContext,
+	) {
+		if (!this.cms || !relation.fields || !relation.references?.length) {
+			return undefined;
+		}
+
+		const relatedCrud = this.cms.api.collections[relation.collection];
+		const relatedTable = relatedCrud.__internalRelatedTable;
+		const relatedState = relatedCrud.__internalState;
+
+		const joinConditions = relation.fields
+			.map((sourceField, index) => {
+				const targetFieldName = relation.references?.[index];
+				const targetColumn = targetFieldName
+					? (relatedTable as any)[targetFieldName]
+					: undefined;
+				return targetColumn ? eq(targetColumn, sourceField) : undefined;
+			})
+			.filter(Boolean) as any[];
+
+		if (joinConditions.length === 0) return undefined;
+
+		const whereConditions: any[] = [...joinConditions];
+
+		if (relationWhere) {
+			const nestedClause = this.buildWhereClause(
+				relationWhere,
+				false,
+				relatedTable,
+				context,
+				relatedState,
+				relatedCrud.__internalI18nTable,
+			);
+			if (nestedClause) whereConditions.push(nestedClause);
+		}
+
+		if (relatedState.options?.softDelete) {
+			whereConditions.push(sql`${(relatedTable as any).deletedAt} IS NULL`);
+		}
+
+		const db = this.getDb(context);
+		const subquery = db
+			.select({ one: sql`1` })
+			.from(relatedTable)
+			.where(and(...whereConditions));
+
+		return sql`exists (${subquery})`;
+	}
+
+	private buildHasManyExistsClause(
+		relation: RelationConfig,
+		relationWhere: Where | undefined,
+		parentTable: PgTable,
+		context?: CRUDContext,
+	) {
+		if (!this.cms || relation.fields) return undefined;
+
+		const relatedCrud = this.cms.api.collections[relation.collection];
+		const relatedTable = relatedCrud.__internalRelatedTable;
+		const relatedState = relatedCrud.__internalState;
+		const reverseRelationName = relation.relationName;
+		const reverseRelation = reverseRelationName
+			? relatedState.relations?.[reverseRelationName]
+			: undefined;
+
+		if (!reverseRelation?.fields || !reverseRelation.references?.length) {
+			return undefined;
+		}
+
+		const joinConditions = reverseRelation.fields
+			.map((foreignField: any, index: number) => {
+				const parentFieldName = reverseRelation.references?.[index];
+				const parentColumn = parentFieldName
+					? (parentTable as any)[parentFieldName]
+					: undefined;
+				return parentColumn ? eq(foreignField, parentColumn) : undefined;
+			})
+			.filter(Boolean) as any[];
+
+		if (joinConditions.length === 0) return undefined;
+
+		const whereConditions: any[] = [...joinConditions];
+
+		if (relationWhere) {
+			const nestedClause = this.buildWhereClause(
+				relationWhere,
+				false,
+				relatedTable,
+				context,
+				relatedState,
+				relatedCrud.__internalI18nTable,
+			);
+			if (nestedClause) whereConditions.push(nestedClause);
+		}
+
+		if (relatedState.options?.softDelete) {
+			whereConditions.push(sql`${(relatedTable as any).deletedAt} IS NULL`);
+		}
+
+		const db = this.getDb(context);
+		const subquery = db
+			.select({ one: sql`1` })
+			.from(relatedTable)
+			.where(and(...whereConditions));
+
+		return sql`exists (${subquery})`;
+	}
+
+	private buildManyToManyExistsClause(
+		relation: RelationConfig,
+		relationWhere: Where | undefined,
+		parentTable: any,
+		context?: CRUDContext,
+	) {
+		if (!this.cms || !relation.through) return undefined;
+
+		const relatedCrud = this.cms.api.collections[relation.collection];
+		const junctionCrud = this.cms.api.collections[relation.through];
+		const relatedTable = relatedCrud.__internalRelatedTable;
+		const junctionTable = junctionCrud.__internalRelatedTable;
+		const relatedState = relatedCrud.__internalState;
+		const junctionState = junctionCrud.__internalState;
+
+		const sourceKey = relation.sourceKey || "id";
+		const targetKey = relation.targetKey || "id";
+		const sourceField = relation.sourceField;
+		const targetField = relation.targetField;
+
+		const parentColumn = (parentTable as any)[sourceKey];
+		const relatedColumn = (relatedTable as any)[targetKey];
+		const junctionSourceColumn = sourceField
+			? (junctionTable as any)[sourceField]
+			: undefined;
+		const junctionTargetColumn = targetField
+			? (junctionTable as any)[targetField]
+			: undefined;
+
+		if (
+			!parentColumn ||
+			!relatedColumn ||
+			!junctionSourceColumn ||
+			!junctionTargetColumn
+		) {
+			return undefined;
+		}
+
+		const whereConditions: any[] = [eq(junctionSourceColumn, parentColumn)];
+
+		if (relationWhere) {
+			const nestedClause = this.buildWhereClause(
+				relationWhere,
+				false,
+				relatedTable,
+				context,
+				relatedState,
+				relatedCrud.__internalI18nTable,
+			);
+			if (nestedClause) whereConditions.push(nestedClause);
+		}
+
+		if (junctionState.options?.softDelete) {
+			whereConditions.push(sql`${(junctionTable as any).deletedAt} IS NULL`);
+		}
+
+		if (relatedState.options?.softDelete) {
+			whereConditions.push(sql`${(relatedTable as any).deletedAt} IS NULL`);
+		}
+
+		const db = this.getDb(context);
+		const subquery = db
+			.select({ one: sql`1` })
+			.from(junctionTable)
+			.innerJoin(relatedTable, eq(junctionTargetColumn, relatedColumn))
+			.where(and(...whereConditions));
+
+		return sql`exists (${subquery})`;
+	}
+
+	private buildWhereClause(
+		where: Where,
+		useI18n: boolean = false,
+		customTable?: any,
+		context?: CRUDContext,
+		customState?: any,
+		customI18nTable?: PgTable | null,
+	) {
+		const conditions: any[] = [];
+		const targetTable = customTable || this.table;
+		const targetState = customState || this.state;
+		const targetI18nTable = customI18nTable ?? this.i18nTable;
+
+		for (const [key, value] of Object.entries(where)) {
+			if (key === "AND" && Array.isArray(value)) {
+				const subClauses = value
+					.map((w) =>
+						this.buildWhereClause(
+							w,
+							useI18n,
+							targetTable,
+							context,
+							targetState,
+							targetI18nTable,
+						),
+					)
+					.filter(Boolean) as any[];
+				if (subClauses.length > 0) {
+					conditions.push(and(...subClauses));
+				}
+			} else if (key === "OR" && Array.isArray(value)) {
+				const subClauses = value
+					.map((w) =>
+						this.buildWhereClause(
+							w,
+							useI18n,
+							targetTable,
+							context,
+							targetState,
+							targetI18nTable,
+						),
+					)
+					.filter(Boolean) as any[];
+				if (subClauses.length > 0) {
+					conditions.push(or(...subClauses));
+				}
+			} else if (key === "NOT" && typeof value === "object") {
+				const subClause = this.buildWhereClause(
+					value as Where,
+					useI18n,
+					targetTable,
+					context,
+					targetState,
+					targetI18nTable,
+				);
+				if (subClause) {
+					conditions.push(not(subClause));
+				}
+			} else if (key === "RAW" && typeof value === "function") {
+				conditions.push(value(targetTable));
+			} else if (targetState.relations?.[key]) {
+				const relation = targetState.relations[key] as RelationConfig;
+				const relationClause = this.buildRelationWhereClause(
+					relation,
+					value,
+					targetTable,
+					context,
+				);
+				if (relationClause) {
+					conditions.push(relationClause);
+				}
+			} else if (
+				typeof value === "object" &&
+				value !== null &&
+				!Array.isArray(value)
+			) {
+				let column = (targetTable as any)[key];
+				if (
+					key === "_title" &&
+					useI18n &&
+					targetI18nTable &&
+					(targetI18nTable as any)._title
+				) {
+					column = (targetI18nTable as any)._title;
+				}
+
+				if (!column) continue;
+
+				for (const [op, val] of Object.entries(value)) {
+					const condition = this.buildOperatorCondition(column, op, val);
+					if (condition) conditions.push(condition);
+				}
+			} else {
+				let column = (targetTable as any)[key];
+				if (
+					key === "_title" &&
+					useI18n &&
+					targetI18nTable &&
+					(targetI18nTable as any)._title
+				) {
+					column = (targetI18nTable as any)._title;
+				}
+
+				if (column) {
+					if (value === null) {
+						conditions.push(sql`${column} IS NULL`);
+					} else {
+						conditions.push(eq(column, value));
+					}
+				}
+			}
+		}
+
+		return conditions.length > 0 ? and(...conditions) : undefined;
+	}
+
+	private buildOperatorCondition(column: any, op: string, value: any) {
+		switch (op) {
+			case "eq":
+				return eq(column, value);
+			case "ne":
+				return sql`${column} != ${value}`;
+			case "not":
+				if (value === null) {
+					return sql`${column} IS NOT NULL`;
+				}
+				return sql`${column} != ${value}`;
+			case "gt":
+				return sql`${column} > ${value}`;
+			case "gte":
+				return sql`${column} >= ${value}`;
+			case "lt":
+				return sql`${column} < ${value}`;
+			case "lte":
+				return sql`${column} <= ${value}`;
+			case "in":
+				return Array.isArray(value) ? inArray(column, value) : undefined;
+			case "notIn":
+				return Array.isArray(value) ? not(inArray(column, value)) : undefined;
+			case "like":
+				return sql`${column} LIKE ${value}`;
+			case "ilike":
+				return sql`${column} ILIKE ${value}`;
+			case "notLike":
+				return sql`${column} NOT LIKE ${value}`;
+			case "notIlike":
+				return sql`${column} NOT ILIKE ${value}`;
+			case "contains":
+				return sql`${column} ILIKE ${`%${value}%`}`;
+			case "startsWith":
+				return sql`${column} ILIKE ${`${value}%`}`;
+			case "endsWith":
+				return sql`${column} ILIKE ${`%${value}`}`;
+			case "isNull":
+				return value ? sql`${column} IS NULL` : sql`${column} IS NOT NULL`;
+			case "isNotNull":
+				return value ? sql`${column} IS NOT NULL` : sql`${column} IS NULL`;
+			case "arrayOverlaps":
+				return sql`${column} && ${value}`;
+			case "arrayContained":
+				return sql`${column} <@ ${value}`;
+			case "arrayContains":
+				return sql`${column} @> ${value}`;
+			default:
+				return undefined;
+		}
+	}
 }

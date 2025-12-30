@@ -33,6 +33,7 @@ import type {
 	CreateInput,
 	UpdateParams,
 	DeleteParams,
+	RestoreParams,
 	Where,
 	QCMS,
 	AnyCollectionOrBuilder,
@@ -77,9 +78,12 @@ export class CRUDGenerator<
 		private table: PgTable,
 		private i18nTable: PgTable | null,
 		private versionsTable: PgTable | null,
+		private i18nVersionsTable: PgTable | null,
 		private db: any,
 		private getVirtuals?: (context: any) => TVirtuals,
 		private getTitle?: (context: any) => SQL | undefined,
+		private getVirtualsForVersions?: (context: any) => TVirtuals,
+		private getTitleForVersions?: (context: any) => SQL | undefined,
 		_getRawTitle?: (context: any) => SQL | undefined,
 		private cms?: QCMS<AnyCollectionOrBuilder[], AnyGlobalOrBuilder[]>,
 	) {}
@@ -92,6 +96,7 @@ export class CRUDGenerator<
 		const findFirst = this.wrapWithCMSContext(this.createFindFirst());
 		const updateMany = this.wrapWithCMSContext(this.createUpdateMany());
 		const deleteMany = this.wrapWithCMSContext(this.createDeleteMany());
+		const restoreById = this.wrapWithCMSContext(this.createRestore());
 
 		const crud: CRUD = {
 			find: findMany,
@@ -102,6 +107,7 @@ export class CRUDGenerator<
 			update: updateMany,
 			deleteById: this.wrapWithCMSContext(this.createDelete()),
 			delete: deleteMany,
+			restoreById,
 			findVersions: this.wrapWithCMSContext(this.createFindVersions()),
 			revertToVersion: this.wrapWithCMSContext(this.createRevertToVersion()),
 		};
@@ -184,11 +190,12 @@ export class CRUDGenerator<
 			}
 
 			const mergedWhere = this.mergeWhere(options.where, accessWhere);
+			const includeDeleted = options.includeDeleted === true;
 
 			// Get total count
 			const countFn = this.createCount();
 			const totalDocs = await countFn(
-				{ where: mergedWhere },
+				{ where: mergedWhere, includeDeleted },
 				{ ...context, accessMode: "system" },
 			);
 
@@ -232,7 +239,7 @@ export class CRUDGenerator<
 			}
 
 			// Soft delete filter
-			if (this.state.options.softDelete) {
+			if (this.state.options.softDelete && !includeDeleted) {
 				const softDeleteFilter = sql`${(this.table as any).deletedAt} IS NULL`;
 				whereClauses.push(softDeleteFilter);
 			}
@@ -340,6 +347,7 @@ export class CRUDGenerator<
 				options,
 			);
 			const mergedWhere = this.mergeWhere(options.where, accessWhere);
+			const includeDeleted = options.includeDeleted === true;
 
 			// Determine if we are using i18n
 			const useI18n = !!(this.i18nTable && context.locale);
@@ -381,7 +389,7 @@ export class CRUDGenerator<
 			}
 
 			// Soft delete filter
-			if (this.state.options.softDelete) {
+			if (this.state.options.softDelete && !includeDeleted) {
 				const softDeleteFilter = sql`${(this.table as any).deletedAt} IS NULL`;
 				whereClauses.push(softDeleteFilter);
 			}
@@ -431,7 +439,7 @@ export class CRUDGenerator<
 	 */
 	private createCount() {
 		return async (
-			options: Pick<FindManyOptions, "where"> = {},
+			options: Pick<FindManyOptions, "where" | "includeDeleted"> = {},
 			context: CRUDContext = {},
 		): Promise<number> => {
 			const db = this.getDb(context);
@@ -458,7 +466,7 @@ export class CRUDGenerator<
 			}
 
 			// Add soft delete filter
-			if (this.state.options.softDelete) {
+			if (this.state.options.softDelete && !options.includeDeleted) {
 				const softDeleteClause = sql`${(this.table as any).deletedAt} IS NULL`;
 				whereClause = whereClause
 					? and(whereClause, softDeleteClause)
@@ -1694,6 +1702,63 @@ export class CRUDGenerator<
 	}
 
 	/**
+	 * Restore soft-deleted record by ID
+	 */
+	private createRestore() {
+		return async (params: RestoreParams, context: CRUDContext = {}) => {
+			if (!this.state.options.softDelete) {
+				throw new Error("Soft delete is not enabled for this collection");
+			}
+
+			const db = this.getDb(context);
+			const { id } = params;
+
+			const existingRows = await db
+				.select()
+				.from(this.table)
+				.where(eq((this.table as any).id, id))
+				.limit(1);
+			const existing = existingRows[0];
+
+			if (!existing) {
+				throw new Error(`Record not found: ${id}`);
+			}
+
+			const canUpdate = await this.enforceAccessControl(
+				"update",
+				context,
+				existing,
+				{ deletedAt: null },
+			);
+			if (canUpdate === false) {
+				throw new Error("Access denied: update");
+			}
+			if (typeof canUpdate === "object") {
+				const matchesConditions = await this.checkAccessConditions(
+					canUpdate,
+					existing,
+				);
+				if (!matchesConditions) {
+					throw new Error("Access denied: update (conditions not met)");
+				}
+			}
+
+			if (!existing.deletedAt) {
+				return existing;
+			}
+
+			const updateFn = this.createUpdate();
+			return await updateFn(
+				{
+					id,
+					data: { deletedAt: null } as any,
+				},
+				context,
+			);
+		};
+	}
+
+	/**
 	 * Create updateMany operation - smart batched updates
 	 * 1. findMany to get all matching records (for hooks + access control)
 	 * 2. Loop through beforeUpdate hooks
@@ -1967,21 +2032,42 @@ export class CRUDGenerator<
 		return async (options: FindVersionsOptions, context: CRUDContext = {}) => {
 			const db = this.getDb(context);
 			if (!this.versionsTable) return [];
+			const normalized = this.normalizeContext(context);
 
 			// Enforce read access
 			const canRead = await this.enforceAccessControl(
 				"read",
-				context,
+				normalized,
 				null,
 				options,
 			);
 			if (!canRead) throw new Error("Access denied: read versions");
 
 			let query = db
-				.select()
+				.select(this.buildVersionsSelectObject(normalized))
 				.from(this.versionsTable)
-				.where(eq((this.versionsTable as any).parentId, options.id))
-				.orderBy(sql`${(this.versionsTable as any).version} ASC`);
+				.where(eq((this.versionsTable as any).id, options.id))
+				.orderBy(sql`${(this.versionsTable as any).versionNumber} ASC`);
+
+			if (this.i18nVersionsTable && normalized.locale) {
+				query = query.leftJoin(
+					this.i18nVersionsTable,
+					and(
+						eq(
+							(this.i18nVersionsTable as any).parentId,
+							(this.versionsTable as any).id,
+						),
+						eq(
+							(this.i18nVersionsTable as any).versionNumber,
+							(this.versionsTable as any).versionNumber,
+						),
+						eq(
+							(this.i18nVersionsTable as any).locale,
+							normalized.locale,
+						),
+					),
+				);
+			}
 
 			if (options.limit) {
 				query = query.limit(options.limit);
@@ -2000,44 +2086,214 @@ export class CRUDGenerator<
 	private createRevertToVersion() {
 		return async (options: RevertVersionOptions, context: CRUDContext = {}) => {
 			const db = this.getDb(context);
+			const normalized = this.normalizeContext(context);
 			if (!this.versionsTable) throw new Error("Versioning not enabled");
+			const hasVersionId = typeof options.versionId === "string";
+			const hasVersion = typeof options.version === "number";
 
-			// 1. Get version data
-			// We call the internal function directly to avoid double access check if we want,
-			// but for simplicity calling the generated one (which is a closure) is harder here
-			// because `this.createFindVersion()` creates a NEW closure.
-			// So we just duplicate logic or call the query.
+			if (!hasVersionId && !hasVersion) {
+				throw new Error("Version or versionId required");
+			}
 
-			const rows = await db
+			const versionRows = await db
 				.select()
 				.from(this.versionsTable)
 				.where(
-					and(
-						eq((this.versionsTable as any).parentId, options.id),
-						eq((this.versionsTable as any).version, options.version),
-					),
+					hasVersionId
+						? and(
+								eq((this.versionsTable as any).id, options.id),
+								eq(
+									(this.versionsTable as any).versionId,
+									options.versionId,
+								),
+							)
+						: and(
+								eq((this.versionsTable as any).id, options.id),
+								eq(
+									(this.versionsTable as any).versionNumber,
+									options.version,
+								),
+							),
 				)
 				.limit(1);
-			const version = rows[0];
+			const version = versionRows[0];
 
 			if (!version) throw new Error("Version not found");
 
-			// 2. Restore data
-			const dataToRestore = version.data; // This is jsonb
+			const existingRows = await db
+				.select()
+				.from(this.table)
+				.where(eq((this.table as any).id, options.id))
+				.limit(1);
+			const existing = existingRows[0];
 
-			// Remove system fields from data
-			const { id, createdAt, updatedAt, deletedAt, ...rest } = dataToRestore;
+			if (!existing) {
+				throw new Error(`Record not found: ${options.id}`);
+			}
 
-			// Call update
-			// We use `this.createUpdate()` which returns the update function.
-			const updateFn = this.createUpdate();
-			return await updateFn(
-				{
-					id: options.id,
-					data: rest,
-				},
-				context,
+			const nonLocalized: Record<string, any> = {};
+			for (const [name] of Object.entries(this.state.fields)) {
+				if (this.state.localized.includes(name as any)) continue;
+				nonLocalized[name] = version[name];
+			}
+			if (this.state.options.softDelete) {
+				nonLocalized.deletedAt = version.deletedAt ?? null;
+			}
+
+			let localizedForContext: Record<string, any> = {};
+			if (this.i18nVersionsTable && normalized.locale) {
+				const localeRows = await db
+					.select()
+					.from(this.i18nVersionsTable)
+					.where(
+						and(
+							eq((this.i18nVersionsTable as any).parentId, options.id),
+							eq(
+								(this.i18nVersionsTable as any).versionNumber,
+								version.versionNumber,
+							),
+							eq((this.i18nVersionsTable as any).locale, normalized.locale),
+						),
+					)
+					.limit(1);
+				const localeRow = localeRows[0];
+				if (localeRow) {
+					for (const fieldName of this.state.localized) {
+						localizedForContext[fieldName as string] =
+							localeRow[fieldName as string];
+					}
+				}
+			}
+
+			const restoreData = { ...nonLocalized, ...localizedForContext };
+
+			const canUpdate = await this.enforceAccessControl(
+				"update",
+				normalized,
+				existing,
+				restoreData,
 			);
+			if (canUpdate === false) {
+				throw new Error("Access denied: update");
+			}
+			if (typeof canUpdate === "object") {
+				const matchesConditions = await this.checkAccessConditions(
+					canUpdate,
+					existing,
+				);
+				if (!matchesConditions) {
+					throw new Error("Access denied: update (conditions not met)");
+				}
+			}
+
+			await this.executeHooks(
+				this.state.hooks?.beforeUpdate,
+				this.createHookContext({
+					data: restoreData,
+					original: existing,
+					operation: "update",
+					context: normalized,
+					db,
+				}),
+			);
+
+			await this.executeHooks(
+				this.state.hooks?.beforeChange,
+				this.createHookContext({
+					data: restoreData,
+					original: existing,
+					operation: "update",
+					context: normalized,
+					db,
+				}),
+			);
+
+			return db.transaction(async (tx: any) => {
+				if (Object.keys(nonLocalized).length > 0) {
+					await tx
+						.update(this.table)
+						.set({
+							...nonLocalized,
+							...(this.state.options.timestamps !== false
+								? { updatedAt: new Date() }
+								: {}),
+						})
+						.where(eq((this.table as any).id, options.id));
+				}
+
+				if (this.i18nTable && this.i18nVersionsTable) {
+					await tx
+						.delete(this.i18nTable)
+						.where(eq((this.i18nTable as any).parentId, options.id));
+
+					const localeRows = await tx
+						.select()
+						.from(this.i18nVersionsTable)
+						.where(
+							and(
+								eq((this.i18nVersionsTable as any).parentId, options.id),
+								eq(
+									(this.i18nVersionsTable as any).versionNumber,
+									version.versionNumber,
+								),
+							),
+						);
+
+					if (localeRows.length > 0) {
+						const insertRows = localeRows.map((row: any) => {
+							const {
+								id: _id,
+								parentId: _parentId,
+								versionNumber: _versionNumber,
+								locale,
+								...localizedFields
+							} = row;
+							return {
+								parentId: options.id,
+								locale,
+								...localizedFields,
+							};
+						});
+
+						await tx.insert(this.i18nTable).values(insertRows);
+					}
+				}
+
+				const updatedRows = await tx
+					.select()
+					.from(this.table)
+					.where(eq((this.table as any).id, options.id))
+					.limit(1);
+				const updated = updatedRows[0];
+
+				await this.createVersion(tx, updated, "update", normalized);
+
+				await this.executeHooks(
+					this.state.hooks?.afterUpdate,
+					this.createHookContext({
+						data: updated,
+						original: existing,
+						operation: "update",
+						context: normalized,
+						db: tx,
+					}),
+				);
+
+				await this.executeHooks(
+					this.state.hooks?.afterChange,
+					this.createHookContext({
+						data: updated,
+						original: existing,
+						operation: "update",
+						context: normalized,
+						db: tx,
+					}),
+				);
+
+				await this.indexToSearch(updated, normalized);
+
+				return updated;
+			});
 		};
 	}
 
@@ -2054,41 +2310,80 @@ export class CRUDGenerator<
 
 		// Get max version
 		const maxVersionQuery = await tx
-			.select({ max: sql<number>`MAX(${(this.versionsTable as any).version})` })
+			.select({
+				max: sql<number>`MAX(${(this.versionsTable as any).versionNumber})`,
+			})
 			.from(this.versionsTable)
-			.where(eq((this.versionsTable as any).parentId, row.id));
+			.where(eq((this.versionsTable as any).id, row.id));
 
 		const currentVersion = maxVersionQuery[0]?.max || 0;
 		const newVersion = Number(currentVersion) + 1;
 
 		// Insert new version
 		await tx.insert(this.versionsTable).values({
-			parentId: row.id,
-			version: newVersion,
-			operation,
-			data: row,
-			userId: context.user?.id ? String(context.user.id) : null,
-			createdAt: new Date(),
+			...row,
+			versionNumber: newVersion,
+			versionOperation: operation,
+			versionUserId: context.user?.id ? String(context.user.id) : null,
+			versionCreatedAt: new Date(),
 		});
+
+		if (this.i18nVersionsTable && this.i18nTable) {
+			const i18nRows = await tx
+				.select()
+				.from(this.i18nTable)
+				.where(eq((this.i18nTable as any).parentId, row.id));
+
+			if (i18nRows.length > 0) {
+				const insertRows = i18nRows.map((i18nRow: any) => {
+					const { id: _id, parentId: _parentId, ...rest } = i18nRow;
+					return {
+						parentId: row.id,
+						versionNumber: newVersion,
+						...rest,
+					};
+				});
+
+				await tx.insert(this.i18nVersionsTable).values(insertRows);
+			}
+		}
 
 		// Cleanup if max versions reached
 		const options = this.state.options.versioning;
 		if (typeof options === "object" && options.maxVersions) {
 			// Find IDs to delete (all versions older than top N)
-			const idsToDelete = await tx
-				.select({ id: (this.versionsTable as any).id })
+			const versionsToDelete = await tx
+				.select({ versionNumber: (this.versionsTable as any).versionNumber })
 				.from(this.versionsTable)
-				.where(eq((this.versionsTable as any).parentId, row.id))
-				.orderBy(sql`${(this.versionsTable as any).version} DESC`)
+				.where(eq((this.versionsTable as any).id, row.id))
+				.orderBy(sql`${(this.versionsTable as any).versionNumber} DESC`)
 				.offset(options.maxVersions);
 
-			if (idsToDelete.length > 0) {
+			if (versionsToDelete.length > 0) {
+				const versionNumbers = versionsToDelete.map(
+					(v: any) => v.versionNumber,
+				);
 				await tx.delete(this.versionsTable).where(
-					inArray(
-						(this.versionsTable as any).id,
-						idsToDelete.map((v: any) => v.id),
+					and(
+						eq((this.versionsTable as any).id, row.id),
+						inArray(
+							(this.versionsTable as any).versionNumber,
+							versionNumbers,
+						),
 					),
 				);
+
+				if (this.i18nVersionsTable) {
+					await tx.delete(this.i18nVersionsTable).where(
+						and(
+							eq((this.i18nVersionsTable as any).parentId, row.id),
+							inArray(
+								(this.i18nVersionsTable as any).versionNumber,
+								versionNumbers,
+							),
+						),
+					);
+				}
 			}
 		}
 	}
@@ -2821,6 +3116,70 @@ export class CRUDGenerator<
 			const extrasObj =
 				typeof extras === "function" ? extras(this.table, { sql }) : extras;
 			Object.assign(select, extrasObj);
+		}
+
+		return select;
+	}
+
+	/**
+	 * Build SELECT object for versions query
+	 * Includes: version metadata, regular fields, localized fields (with COALESCE), timestamps
+	 */
+	private buildVersionsSelectObject(context: CRUDContext): any {
+		if (!this.versionsTable) return {};
+
+		const versionsTable = this.versionsTable as any;
+		const select: any = {
+			versionId: versionsTable.versionId,
+			id: versionsTable.id,
+			versionNumber: versionsTable.versionNumber,
+			versionOperation: versionsTable.versionOperation,
+			versionUserId: versionsTable.versionUserId,
+			versionCreatedAt: versionsTable.versionCreatedAt,
+		};
+
+		const locale = context.locale;
+		const defaultLocale = context.defaultLocale || "en";
+
+		for (const [name, _column] of Object.entries(this.state.fields)) {
+			if (this.state.localized.includes(name as any)) {
+				if (this.i18nVersionsTable && locale) {
+					const i18nVersionsTable = this.i18nVersionsTable as any;
+					select[name] = sql`COALESCE(
+						${i18nVersionsTable[name]},
+						(SELECT ${i18nVersionsTable[name]} FROM ${this.i18nVersionsTable}
+						 WHERE ${i18nVersionsTable.parentId} = ${versionsTable.id}
+						 AND ${i18nVersionsTable.versionNumber} = ${versionsTable.versionNumber}
+						 AND ${i18nVersionsTable.locale} = ${defaultLocale} LIMIT 1)
+					)`;
+				}
+				continue;
+			}
+
+			select[name] = versionsTable[name];
+		}
+
+		const versionVirtuals = this.getVirtualsForVersions
+			? this.getVirtualsForVersions(context)
+			: {};
+		for (const [name, sqlExpr] of Object.entries(versionVirtuals)) {
+			select[name] = sqlExpr;
+		}
+
+		if (this.state.title) {
+			const titleExpr = this.getTitleForVersions
+				? this.getTitleForVersions(context)
+				: undefined;
+			select._title = titleExpr || versionsTable.id;
+		}
+
+		if (this.state.options.timestamps !== false) {
+			select.createdAt = versionsTable.createdAt;
+			select.updatedAt = versionsTable.updatedAt;
+		}
+
+		if (this.state.options.softDelete) {
+			select.deletedAt = versionsTable.deletedAt;
 		}
 
 		return select;

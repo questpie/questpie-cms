@@ -147,6 +147,11 @@ export function questpieHono(
 			if (parsedQuery.where) options.where = parsedQuery.where;
 			if (parsedQuery.orderBy) options.orderBy = parsedQuery.orderBy;
 			if (parsedQuery.with) options.with = parsedQuery.with;
+			if (parsedQuery.includeDeleted !== undefined) {
+				options.includeDeleted =
+					parsedQuery.includeDeleted === true ||
+					parsedQuery.includeDeleted === "true";
+			}
 
 			try {
 				const result = await crud.find(options, context);
@@ -198,6 +203,11 @@ export function questpieHono(
 
 			const options: any = { where: { id } };
 			if (parsedQuery.with) options.with = parsedQuery.with;
+			if (parsedQuery.includeDeleted !== undefined) {
+				options.includeDeleted =
+					parsedQuery.includeDeleted === true ||
+					parsedQuery.includeDeleted === "true";
+			}
 
 			try {
 				const result = await crud.findOne(options, context);
@@ -247,6 +257,26 @@ export function questpieHono(
 			try {
 				await crud.deleteById({ id }, context);
 				return c.json({ success: true });
+			} catch (error) {
+				return c.json(
+					{ error: error instanceof Error ? error.message : "Unknown error" },
+					400,
+				);
+			}
+		})
+		.post(`${basePath}/cms/:collection/:id/restore`, async (c) => {
+			const collection = c.req.param("collection");
+			const id = c.req.param("id");
+			const context = c.get("cmsContext");
+			const crud = cms.api.collections[collection as any];
+
+			if (!crud) {
+				return c.json({ error: `Collection "${collection}" not found` }, 404);
+			}
+
+			try {
+				const result = await crud.restoreById({ id }, context);
+				return c.json(result);
 			} catch (error) {
 				return c.json(
 					{ error: error instanceof Error ? error.message : "Unknown error" },

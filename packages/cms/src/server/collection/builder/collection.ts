@@ -8,7 +8,6 @@ import {
 	index,
 	uniqueIndex,
 	integer,
-	jsonb,
 } from "drizzle-orm/pg-core";
 import type {
 	SQL,
@@ -139,6 +138,7 @@ export class Collection<TState extends CollectionBuilderState> {
 				TState["options"]
 			>;
 	public readonly versionsTable: PgTable | null;
+	public readonly i18nVersionsTable: PgTable | null;
 	public readonly state: TState;
 
 	static pkCols = () => ({
@@ -189,6 +189,7 @@ export class Collection<TState extends CollectionBuilderState> {
 
 		// Build the versions table
 		this.versionsTable = this.generateVersionsTable();
+		this.i18nVersionsTable = this.generateI18nVersionsTable();
 
 		// Execute virtual fields function now that we have the table
 		if (virtualsFn) {
@@ -259,6 +260,20 @@ export class Collection<TState extends CollectionBuilderState> {
 		});
 	}
 
+	public getVirtualsForVersions(context: any): TState["virtuals"] {
+		if (!this.virtualsFn || !this.versionsTable) return this.state.virtuals;
+		const i18nAccessor = this.createI18nAccessorForVersions(
+			this.versionsTable,
+			this.i18nVersionsTable,
+			context,
+		);
+		return this.virtualsFn({
+			table: this.versionsTable,
+			i18n: i18nAccessor,
+			context,
+		});
+	}
+
 	/**
 	 * Get title expression with specific context
 	 */
@@ -267,6 +282,20 @@ export class Collection<TState extends CollectionBuilderState> {
 		const i18nAccessor = this.createI18nAccessor(context);
 		return this.titleFn({
 			table: this.table,
+			i18n: i18nAccessor,
+			context,
+		});
+	}
+
+	public getTitleForVersions(context: any): TState["title"] {
+		if (!this.titleFn || !this.versionsTable) return this.state.title;
+		const i18nAccessor = this.createI18nAccessorForVersions(
+			this.versionsTable,
+			this.i18nVersionsTable,
+			context,
+		);
+		return this.titleFn({
+			table: this.versionsTable,
 			i18n: i18nAccessor,
 			context,
 		});
@@ -374,25 +403,65 @@ export class Collection<TState extends CollectionBuilderState> {
 		if (typeof versioning === "object" && !versioning.enabled) return null;
 
 		const tableName = `${this.state.options.tableName || this.state.name}_versions`;
+		const columns: Record<string, any> = {
+			versionId: uuid("version_id").primaryKey().default(sql`uuidv7()`),
+			id: uuid("id").notNull(),
+			versionNumber: integer("version_number").notNull(),
+			versionOperation: text("version_operation").notNull(), // 'create' | 'update' | 'delete'
+			versionUserId: text("version_user_id"), // Nullable if unknown
+			versionCreatedAt: timestamp("version_created_at", { mode: "date" })
+				.defaultNow()
+				.notNull(),
+		};
 
-		return pgTable(
-			tableName,
-			{
-				id: uuid("id").primaryKey().default(sql`uuidv7()`),
-				parentId: uuid("parent_id").notNull(),
-				version: integer("version").notNull(),
-				operation: text("operation").notNull(), // 'create' | 'update' | 'delete'
-				data: jsonb("data").notNull(),
-				userId: text("user_id"), // Nullable if unknown
-				createdAt: timestamp("created_at", { mode: "date" })
-					.defaultNow()
-					.notNull(),
-			},
-			(t) => ({
-				parentVersionIdx: index().on(t.parentId, t.version),
-				createdAtIdx: index().on(t.createdAt),
-			}),
-		);
+		for (const [fieldName, column] of Object.entries(this.state.fields)) {
+			if (this.state.localized.includes(fieldName as any)) continue;
+			columns[fieldName as string] = column;
+		}
+
+		if (this.state.options.timestamps !== false) {
+			Object.assign(columns, Collection.timestampsCols());
+		}
+
+		if (this.state.options.softDelete) {
+			Object.assign(columns, Collection.softDeleteCols());
+		}
+
+		return pgTable(tableName, columns as any, (t) => ({
+			recordVersionIdx: index().on(t.id, t.versionNumber),
+			versionCreatedAtIdx: index().on(t.versionCreatedAt),
+		}));
+	}
+
+	private generateI18nVersionsTable(): PgTable | null {
+		const versioning = this.state.options.versioning;
+		if (!versioning) return null;
+		if (typeof versioning === "object" && !versioning.enabled) return null;
+		if (this.state.localized.length === 0) return null;
+
+		const tableName = `${this.state.options.tableName || this.state.name}_i18n_versions`;
+		const columns: Record<string, any> = {
+			id: uuid("id").primaryKey().default(sql`uuidv7()`),
+			parentId: uuid("parent_id").notNull(),
+			versionNumber: integer("version_number").notNull(),
+			locale: text("locale").notNull(),
+		};
+
+		for (const fieldName of this.state.localized) {
+			const column = this.state.fields[fieldName];
+			if (column) {
+				columns[fieldName as string] = column;
+			}
+		}
+
+		return pgTable(tableName, columns as any, (t) => ({
+			parentVersionLocaleIdx: uniqueIndex().on(
+				t.parentId,
+				t.versionNumber,
+				t.locale,
+			),
+			parentVersionIdx: index().on(t.parentId, t.versionNumber),
+		}));
 	}
 
 	/**
@@ -419,6 +488,30 @@ export class Collection<TState extends CollectionBuilderState> {
 				${i18nRef[fieldName]},
 				(SELECT ${i18nRef[fieldName]} FROM ${i18nTable}
 				 WHERE ${i18nRef.parentId} = ${(table as any).id}
+				 AND ${i18nRef.locale} = ${defaultLocale} LIMIT 1)
+			)`;
+		}
+
+		return accessor;
+	}
+
+	private createI18nAccessorForVersions(
+		table: any,
+		i18nTable: any | null,
+		context: any,
+	): I18nFieldAccessor<TState["fields"], TState["localized"]> {
+		const accessor: any = {};
+		const defaultLocale = context?.defaultLocale || "en";
+
+		if (!i18nTable) return accessor;
+
+		for (const fieldName of this.state.localized) {
+			const i18nRef = i18nTable as any;
+			accessor[fieldName] = sql`COALESCE(
+				${i18nRef[fieldName]},
+				(SELECT ${i18nRef[fieldName]} FROM ${i18nTable}
+				 WHERE ${i18nRef.parentId} = ${(table as any).id}
+				 AND ${i18nRef.versionNumber} = ${(table as any).versionNumber}
 				 AND ${i18nRef.locale} = ${defaultLocale} LIMIT 1)
 			)`;
 		}
@@ -473,9 +566,12 @@ export class Collection<TState extends CollectionBuilderState> {
 			this.table,
 			this.i18nTable,
 			this.versionsTable,
+			this.i18nVersionsTable,
 			db,
 			this.getVirtuals.bind(this),
 			this.getTitle.bind(this),
+			this.getVirtualsForVersions.bind(this),
+			this.getTitleForVersions.bind(this),
 			this.getRawTitle.bind(this),
 			cms,
 		);

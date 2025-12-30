@@ -157,6 +157,10 @@ export interface FindManyOptions<TFields = any, TRelations = any> {
 	limit?: number;
 	offset?: number;
 	extras?: Extras;
+	/**
+	 * Include soft-deleted records (only applies when softDelete is enabled)
+	 */
+	includeDeleted?: boolean;
 }
 
 /**
@@ -169,6 +173,10 @@ export interface FindFirstOptions<TFields = any, TRelations = any> {
 	with?: With<TRelations>;
 	orderBy?: OrderBy<TFields>;
 	extras?: Extras;
+	/**
+	 * Include soft-deleted records (only applies when softDelete is enabled)
+	 */
+	includeDeleted?: boolean;
 }
 
 /**
@@ -302,6 +310,13 @@ export interface DeleteParams {
 }
 
 /**
+ * Restore soft-deleted record params
+ */
+export interface RestoreParams {
+	id: string; // UUID
+}
+
+/**
  * Delete many records params
  */
 export interface DeleteManyParams<TFields = any, TRelations = any> {
@@ -314,24 +329,20 @@ export interface FindVersionsOptions {
 	offset?: number;
 }
 
-export interface FindVersionOptions {
-	id: string;
-	version: number;
-}
-
 export interface RevertVersionOptions {
 	id: string;
-	version: number;
+	version?: number;
+	versionId?: string;
 }
 
 export interface VersionRecord {
 	id: string;
-	parentId: string;
-	version: number;
-	operation: string;
-	data: any;
-	userId: string | null;
-	createdAt: Date;
+	versionId: string;
+	versionNumber: number;
+	versionOperation: string;
+	versionUserId: string | null;
+	versionCreatedAt: Date;
+	[key: string]: any;
 }
 
 export interface PaginatedResult<T> {
@@ -469,7 +480,7 @@ export interface CRUD<
 	 * Count records matching query
 	 */
 	count(
-		options?: Pick<FindManyOptions<TSelect, TRelations>, "where">,
+		options?: Pick<FindManyOptions<TSelect, TRelations>, "where" | "includeDeleted">,
 		context?: CRUDContext,
 	): Promise<number>;
 
@@ -505,6 +516,14 @@ export interface CRUD<
 		params: DeleteParams,
 		context?: CRUDContext,
 	): Promise<{ success: boolean }>;
+
+	/**
+	 * Restore a single soft-deleted record by ID
+	 */
+	restoreById(
+		params: RestoreParams,
+		context?: CRUDContext,
+	): Promise<TSelect>;
 
 	/**
 	 * Delete multiple records matching where clause

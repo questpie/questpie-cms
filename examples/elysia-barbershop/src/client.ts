@@ -136,16 +136,19 @@ async function exampleUsage() {
 	console.log();
 
 	// Example when authenticated:
-	/*
+
 	const myAppointments = await client.api.my.appointments.get();
 
 	if (myAppointments.data) {
-		console.log(`You have ${myAppointments.data.appointments.length} appointments:`);
+		console.log(
+			`You have ${myAppointments.data.appointments.length} appointments:`,
+		);
 		for (const apt of myAppointments.data.appointments) {
-			console.log(`  - ${apt.scheduledAt}: ${apt.service.name} with ${apt.barber.name}`);
+			console.log(
+				`  - ${apt.scheduledAt}: ${apt.service.name} with ${apt.barber.name}`,
+			);
 		}
 	}
-	*/
 
 	// ========================================================================
 	// 6. Cancel Appointment (Custom API)

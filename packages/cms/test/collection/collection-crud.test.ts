@@ -42,61 +42,6 @@ const lockedProducts = defineCollection("locked_products")
 	})
 	.build();
 
-// const ddl = [
-// 	testUuidFunctionSql,
-// 	`CREATE TABLE products (
-// 		id uuid PRIMARY KEY DEFAULT test_uuid(),
-// 		sku varchar(50) NOT NULL,
-// 		_title text,
-// 		created_at timestamp NOT NULL DEFAULT now(),
-// 		updated_at timestamp NOT NULL DEFAULT now(),
-// 		deleted_at timestamp
-// 	)`,
-// 	`CREATE TABLE products_i18n (
-// 		id uuid PRIMARY KEY DEFAULT test_uuid(),
-// 		parent_id uuid NOT NULL REFERENCES products(id) ON DELETE CASCADE,
-// 		locale text NOT NULL,
-// 		_title text,
-// 		name text,
-// 		description text,
-// 		UNIQUE(parent_id, locale)
-// 	)`,
-// 	`CREATE TABLE products_versions (
-// 		id uuid PRIMARY KEY DEFAULT test_uuid(),
-// 		parent_id uuid NOT NULL,
-// 		version integer NOT NULL,
-// 		operation text NOT NULL,
-// 		data jsonb NOT NULL,
-// 		user_id text,
-// 		created_at timestamp NOT NULL DEFAULT now()
-// 	)`,
-// 	`CREATE TABLE locked_products (
-// 		id uuid PRIMARY KEY DEFAULT test_uuid(),
-// 		sku varchar(50) NOT NULL,
-// 		_title text,
-// 		created_at timestamp NOT NULL DEFAULT now(),
-// 		updated_at timestamp NOT NULL DEFAULT now(),
-// 		deleted_at timestamp
-// 	)`,
-// 	`CREATE TABLE locked_products_i18n (
-// 		id uuid PRIMARY KEY DEFAULT test_uuid(),
-// 		parent_id uuid NOT NULL REFERENCES locked_products(id) ON DELETE CASCADE,
-// 		locale text NOT NULL,
-// 		_title text,
-// 		name text,
-// 		UNIQUE(parent_id, locale)
-// 	)`,
-// 	`CREATE TABLE locked_products_versions (
-// 		id uuid PRIMARY KEY DEFAULT test_uuid(),
-// 		parent_id uuid NOT NULL,
-// 		version integer NOT NULL,
-// 		operation text NOT NULL,
-// 		data jsonb NOT NULL,
-// 		user_id text,
-// 		created_at timestamp NOT NULL DEFAULT now()
-// 	)`,
-// ];
-
 describe("collection CRUD", () => {
 	let db: any;
 	let client: any;

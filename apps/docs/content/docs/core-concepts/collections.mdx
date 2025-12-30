@@ -223,6 +223,18 @@ defineCollection("posts")
   ])
 ```
 
+**Soft-delete-aware unique indexes (Postgres):**
+
+```typescript
+import { softDeleteUniqueIndex } from "@questpie/cms/server";
+
+defineCollection("posts")
+  .options({ softDelete: true })
+  .indexes(({ table }) => [
+    softDeleteUniqueIndex("posts_slug_active_idx", table.deletedAt, table.slug),
+  ])
+```
+
 ### `.options()`
 
 Configure collection behavior:
@@ -545,7 +557,7 @@ const versions = await cms.api.collections.posts.findVersions({
 // Revert to a version
 await cms.api.collections.posts.revertToVersion({
   id: postId,
-  versionId: versions[0].versionId,
+  version: versions[0].versionNumber,
 }, context);
 ```
 
@@ -568,6 +580,9 @@ const posts = await cms.api.collections.posts.find({}, context);
 const allPosts = await cms.api.collections.posts.find({
   includeDeleted: true,
 }, context);
+
+// Restore a soft-deleted record
+await cms.api.collections.posts.restoreById({ id: postId }, context);
 ```
 
 ### Custom Table Names

@@ -48,9 +48,23 @@ export function createCollectionMigration(
 					),
 				);
 			}
+
+			if (includeVersions && collection.i18nVersionsTable) {
+				await db.execute(
+					sql.raw(
+						`CREATE TABLE ${tableName}_i18n_versions AS SELECT * FROM ${tableName}_i18n_versions WHERE false`,
+					),
+				);
+			}
 		},
 		async down({ db }) {
 			const tableName = collection.name;
+
+			if (includeVersions && collection.i18nVersionsTable) {
+				await db.execute(
+					sql.raw(`DROP TABLE IF EXISTS ${tableName}_i18n_versions`),
+				);
+			}
 
 			if (includeVersions && collection.versionsTable) {
 				await db.execute(sql.raw(`DROP TABLE IF EXISTS ${tableName}_versions`));

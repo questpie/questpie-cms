@@ -11,6 +11,7 @@ export type {
 	CreateInputWithRelations,
 	UpdateParams,
 	DeleteParams,
+	RestoreParams,
 	Where,
 	WhereOperators,
 	Columns,

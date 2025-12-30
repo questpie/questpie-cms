@@ -452,6 +452,46 @@ describe("collection query operations", () => {
 			);
 			expect(post).toBeNull();
 		});
+
+		it("includeDeleted returns soft-deleted posts", async () => {
+			const ctx = createTestContext();
+			// Use cms.api.collections.posts directly
+
+			await cms.api.collections.posts.deleteById({ id: testPosts[0].id }, ctx);
+
+			const result = await cms.api.collections.posts.find(
+				{ includeDeleted: true },
+				ctx,
+			);
+			const posts = result.docs;
+			expect(posts.length).toBe(5);
+			expect(posts.find((p: any) => p.id === testPosts[0].id)).toBeDefined();
+
+			const count = await cms.api.collections.posts.count(
+				{ includeDeleted: true },
+				ctx,
+			);
+			expect(count).toBe(5);
+		});
+
+		it("restores soft-deleted post", async () => {
+			const ctx = createTestContext();
+			// Use cms.api.collections.posts directly
+
+			await cms.api.collections.posts.deleteById({ id: testPosts[0].id }, ctx);
+
+			const restored = await cms.api.collections.posts.restoreById(
+				{ id: testPosts[0].id },
+				ctx,
+			);
+			expect(restored.id).toBe(testPosts[0].id);
+
+			const post = await cms.api.collections.posts.findOne(
+				{ where: { id: testPosts[0].id } },
+				ctx,
+			);
+			expect(post).not.toBeNull();
+		});
 	});
 
 	describe("field selection", () => {

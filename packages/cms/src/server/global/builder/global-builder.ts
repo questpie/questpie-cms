@@ -268,6 +268,10 @@ export class GlobalBuilder<TState extends GlobalBuilderState> {
 		return this.build().versionsTable;
 	}
 
+	get i18nVersionsTable() {
+		return this.build().i18nVersionsTable;
+	}
+
 	get name() {
 		return this.state.name;
 	}

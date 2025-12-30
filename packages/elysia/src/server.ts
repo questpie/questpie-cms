@@ -212,6 +212,11 @@ export function questpieElysia(
 				if (parsedQuery.where) options.where = parsedQuery.where;
 				if (parsedQuery.orderBy) options.orderBy = parsedQuery.orderBy;
 				if (parsedQuery.with) options.with = parsedQuery.with;
+				if (parsedQuery.includeDeleted !== undefined) {
+					options.includeDeleted =
+						parsedQuery.includeDeleted === true ||
+						parsedQuery.includeDeleted === "true";
+				}
 
 				return await crud.find(options, cmsContext);
 			},
@@ -258,6 +263,11 @@ export function questpieElysia(
 
 				const options: any = { where: { id: params.id } };
 				if (parsedQuery.with) options.with = parsedQuery.with;
+				if (parsedQuery.includeDeleted !== undefined) {
+					options.includeDeleted =
+						parsedQuery.includeDeleted === true ||
+						parsedQuery.includeDeleted === "true";
+				}
 
 				const result = await crud.findOne(options, cmsContext);
 				if (!result) {
@@ -302,6 +312,24 @@ export function questpieElysia(
 
 				await crud.deleteById({ id: params.id }, cmsContext);
 				return { success: true };
+			},
+			{
+				params: t.Object({
+					collection: t.String(),
+					id: t.String(),
+				}),
+			},
+		)
+		.post(
+			"/cms/:collection/:id/restore",
+			async ({ params, cms, cmsContext }) => {
+				const crud = cms.api.collections[params.collection as any];
+
+				if (!crud) {
+					throw new Error(`Collection "${params.collection}" not found`);
+				}
+
+				return await crud.restoreById({ id: params.id }, cmsContext);
 			},
 			{
 				params: t.Object({
