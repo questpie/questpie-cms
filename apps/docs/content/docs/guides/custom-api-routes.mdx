@@ -15,15 +15,18 @@ The CMS integrates directly into a Hono application.
 ```typescript
 // src/server.ts
 import { Hono } from "hono";
-import { questpieHono } from "@questpie/hono";
+import { questpieHono, questpieMiddleware } from "@questpie/hono";
 import { cms } from "./cms";
 
 const app = new Hono();
 
-// 1. Mount Standard CMS Routes
-app.route("/", questpieHono(cms, { basePath: "/api" }));
+// 1. Shared CMS context for custom routes
+app.use(questpieMiddleware(cms));
 
-// 2. Add Custom Routes
+// 2. Mount Standard CMS Routes
+app.route("/", questpieHono(cms, { basePath: "/cms" }));
+
+// 3. Add Custom Routes
 app.post("/api/checkout", async (c) => {
   const body = await c.req.json();
   const context = c.get("cmsContext"); // Access CMS context
@@ -45,4 +48,4 @@ export default app;
 
 ## Accessing CMS Context
 
-The `questpieHono` middleware populates `c.get("cmsContext")` and `c.get("user")`, allowing your custom routes to share the same database transaction scope and authentication state as the core CMS.
+Use `questpieMiddleware(cms)` to populate `c.get("cmsContext")` and `c.get("user")` for custom routes.

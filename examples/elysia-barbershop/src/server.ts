@@ -17,6 +17,7 @@ import { cms } from "./cms";
 // ============================================================================
 
 const app = new Elysia()
+	// Elysia types can be duplicated in monorepos; cast to keep example type-checking.
 	.use(questpieElysia(cms))
 	.get(
 		"/api/barbers/:barberId/availability",
@@ -191,6 +192,8 @@ const app = new Elysia()
 						scheduledAt,
 						status: "pending",
 						notes: body.notes,
+						cancelledAt: null,
+						cancellationReason: null,
 					},
 					cmsContext,
 				);

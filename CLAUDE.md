@@ -166,7 +166,7 @@ defineCollection("posts")
 
 ### Assets & Storage
 - All uploads create records in `questpie_assets` collection
-- Upload endpoint: `POST /api/storage/upload`
+- Upload endpoint: `POST /cms/storage/upload`
 - **Use foreign key relations to reference assets** (not JSON fields)
 - Multi-driver support (configure default disk and drivers)
 
@@ -217,7 +217,7 @@ defineCollection("posts")
 
 ### Authentication
 - Better Auth integration creates managed tables
-- Auth routes: `/api/auth/*`
+- Auth routes: `/cms/auth/*`
 - User access via `context.user` in all operations
 
 ## Testing

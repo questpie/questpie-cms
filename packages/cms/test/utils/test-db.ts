@@ -3,10 +3,15 @@ import { pg_uuidv7 } from "@electric-sql/pglite/pg_uuidv7";
 import { sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/pglite";
 import type { createTestCms } from "./test-cms";
-import { join } from "node:path";
+import path, { join } from "node:path";
+import { fileURLToPath } from "node:url";
 
 export type TestDb = ReturnType<typeof drizzle>;
-export const testMigrationDir = join(process.cwd(), "test-migrations-generate");
+
+const filename = fileURLToPath(import.meta.url);
+const dirname = path.dirname(filename);
+
+export const testMigrationDir = join(dirname, "test-migrations-generate");
 
 export const createTestDb = async () => {
 	const client = await PGlite.create({

@@ -1385,8 +1385,8 @@ export class CRUDGenerator<
 				}),
 			);
 
-			// Execute in transaction
-			return db.transaction(async (tx: any) => {
+			let changeEvent: any = null;
+			const record = await db.transaction(async (tx: any) => {
 				// Separate nested relation operations from regular fields
 				let { regularFields, nestedRelations } =
 					this.separateNestedRelations(input);
@@ -1453,8 +1453,20 @@ export class CRUDGenerator<
 				// Index to search (outside transaction)
 				await this.indexToSearch(record, context);
 
+				changeEvent = await this.appendRealtimeChange(
+					{
+						operation: "create",
+						recordId: record.id,
+					},
+					context,
+					tx,
+				);
+
 				return record;
 			});
+
+			await this.notifyRealtimeChange(changeEvent);
+			return record;
 		};
 	}
 
@@ -1523,8 +1535,8 @@ export class CRUDGenerator<
 				}),
 			);
 
-			// Execute in transaction
-			return db.transaction(async (tx: any) => {
+			let changeEvent: any = null;
+			const updatedRecord = await db.transaction(async (tx: any) => {
 				const { localized, nonLocalized } = this.splitLocalizedFields(data);
 
 				// Update main table
@@ -1604,8 +1616,20 @@ export class CRUDGenerator<
 				// Index to search (outside transaction)
 				await this.indexToSearch(updated, context);
 
+				changeEvent = await this.appendRealtimeChange(
+					{
+						operation: "update",
+						recordId: updated.id,
+					},
+					context,
+					tx,
+				);
+
 				return updated;
 			});
+
+			await this.notifyRealtimeChange(changeEvent);
+			return updatedRecord;
 		};
 	}
 
@@ -1666,6 +1690,7 @@ export class CRUDGenerator<
 			// Handle cascade operations BEFORE delete
 			await this.handleCascadeDelete(id, existing, context);
 
+			let changeEvent: any = null;
 			// Use transaction for delete + version
 			await db.transaction(async (tx: any) => {
 				// Create version BEFORE delete
@@ -1680,6 +1705,15 @@ export class CRUDGenerator<
 				} else {
 					await tx.delete(this.table).where(eq((this.table as any).id, id));
 				}
+
+				changeEvent = await this.appendRealtimeChange(
+					{
+						operation: "delete",
+						recordId: id,
+					},
+					context,
+					tx,
+				);
 			});
 
 			// Execute afterDelete hooks
@@ -1696,6 +1730,8 @@ export class CRUDGenerator<
 
 			// Remove from search index
 			await this.removeFromSearch(id, context);
+
+			await this.notifyRealtimeChange(changeEvent);
 
 			return { success: true };
 		};
@@ -1830,7 +1866,8 @@ export class CRUDGenerator<
 			}
 
 			// 3. Batched UPDATE query
-			return db.transaction(async (tx: any) => {
+			let changeEvent: any = null;
+			const updatedRecords = await db.transaction(async (tx: any) => {
 				const { localized, nonLocalized } = this.splitLocalizedFields(
 					params.data,
 				);
@@ -1917,8 +1954,20 @@ export class CRUDGenerator<
 					await this.indexToSearch(updated, context);
 				}
 
+				changeEvent = await this.appendRealtimeChange(
+					{
+						operation: "bulk_update",
+						payload: { count: updatedRows.length },
+					},
+					context,
+					tx,
+				);
+
 				return updatedRows;
 			});
+
+			await this.notifyRealtimeChange(changeEvent);
+			return updatedRecords;
 		};
 	}
 
@@ -1981,6 +2030,7 @@ export class CRUDGenerator<
 				await this.handleCascadeDelete(record.id, record, context);
 			}
 
+			let changeEvent: any = null;
 			// 3. Batched DELETE query
 			await db.transaction(async (tx: any) => {
 				const recordIds = records.map((r: any) => r.id);
@@ -2001,6 +2051,15 @@ export class CRUDGenerator<
 						.delete(this.table)
 						.where(inArray((this.table as any).id, recordIds));
 				}
+
+				changeEvent = await this.appendRealtimeChange(
+					{
+						operation: "bulk_delete",
+						payload: { count: records.length },
+					},
+					context,
+					tx,
+				);
 			});
 
 			// 4. Loop through afterDelete hooks
@@ -2020,6 +2079,8 @@ export class CRUDGenerator<
 				// Remove from search index
 				await this.removeFromSearch(record.id, context);
 			}
+
+			await this.notifyRealtimeChange(changeEvent);
 
 			return { success: true, count: records.length };
 		};
@@ -3387,6 +3448,36 @@ export class CRUDGenerator<
 			metadata,
 			embedding,
 		});
+	}
+
+	private async appendRealtimeChange(
+		params: {
+			operation: "create" | "update" | "delete" | "bulk_update" | "bulk_delete";
+			recordId?: string | null;
+			payload?: Record<string, unknown>;
+		},
+		context: CRUDContext,
+		db: any,
+	) {
+		if (!this.cms?.realtime) return null;
+		const normalized = this.normalizeContext(context);
+
+		return this.cms.realtime.appendChange(
+			{
+				resourceType: "collection",
+				resource: this.state.name,
+				operation: params.operation,
+				recordId: params.recordId ?? null,
+				locale: normalized.locale ?? null,
+				payload: params.payload ?? {},
+			},
+			{ db },
+		);
+	}
+
+	private async notifyRealtimeChange(change: unknown) {
+		if (!change || !this.cms?.realtime) return;
+		await this.cms.realtime.notify(change as any);
 	}
 
 	/**

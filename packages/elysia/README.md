@@ -64,7 +64,7 @@ import { cms } from "./cms";
 
 const app = new Elysia().use(
 	questpieElysia(cms, {
-		basePath: "/cms-api", // Default: '/api'
+		basePath: "/cms-api", // Default: '/cms'
 		cors: {
 			origin: "https://example.com",
 			credentials: true,
@@ -89,25 +89,25 @@ The adapter automatically creates the following routes:
 
 ### Collections
 
-- `GET /api/cms/:collection` - Find all items
-- `POST /api/cms/:collection` - Create item
-- `GET /api/cms/:collection/:id` - Find one item
-- `PATCH /api/cms/:collection/:id` - Update item
-- `DELETE /api/cms/:collection/:id` - Delete item
-- `POST /api/cms/:collection/:id/restore` - Restore soft-deleted item
+- `GET /cms/:collection` - Find all items
+- `POST /cms/:collection` - Create item
+- `GET /cms/:collection/:id` - Find one item
+- `PATCH /cms/:collection/:id` - Update item
+- `DELETE /cms/:collection/:id` - Delete item
+- `POST /cms/:collection/:id/restore` - Restore soft-deleted item
 
 ### Globals
 
-- `GET /api/cms/globals/:global` - Get global settings
-- `PATCH /api/cms/globals/:global` - Update global settings
+- `GET /cms/globals/:global` - Get global settings
+- `PATCH /cms/globals/:global` - Update global settings
 
 ### Storage
 
-- `POST /api/storage/upload` - Upload file
+- `POST /cms/storage/upload` - Upload file
 
 ### Authentication
 
-- `ALL /api/auth/*` - Better Auth routes
+- `ALL /cms/auth/*` - Better Auth routes
 
 ## Type-Safe Client Examples
 
@@ -189,7 +189,7 @@ import type { cms } from "./server";
 
 const client = createQCMSClient<typeof cms>({
 	baseURL: "http://localhost:3000",
-	basePath: "/api",
+	basePath: "/cms",
 });
 
 // Still type-safe but uses fetch under the hood

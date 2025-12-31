@@ -4,14 +4,56 @@
  * Creates all tables and seeds initial data
  */
 
+import { sql } from "drizzle-orm";
+import { generateDrizzleJson, generateMigration } from "drizzle-kit/api-postgres";
 import { cms } from "./src/cms";
+
+const runSchemaMigrations = async () => {
+	const schema = cms.getSchema();
+	const emptySnapshot = {
+		id: "00000000-0000-0000-0000-000000000000",
+		dialect: "postgres" as const,
+		prevIds: [],
+		version: "8" as const,
+		ddl: [],
+		renames: [],
+	};
+
+	const snapshot = await generateDrizzleJson(schema, emptySnapshot.id);
+	const upStatements = await generateMigration(emptySnapshot, snapshot);
+	const downStatements = await generateMigration(snapshot, emptySnapshot);
+
+	const migration = {
+		id: "auto_migration",
+		async up({ db }: any) {
+			for (const statement of upStatements) {
+				if (statement.trim()) {
+					await db.execute(sql.raw(statement));
+				}
+			}
+		},
+		async down({ db }: any) {
+			for (const statement of downStatements) {
+				if (statement.trim()) {
+					await db.execute(sql.raw(statement));
+				}
+			}
+		},
+	};
+
+	cms.config.migrations = {
+		migrations: [migration],
+	};
+
+	await cms.migrations.up();
+};
 
 async function migrate() {
 	console.log("🔄 Running migrations...\n");
 
 	try {
-		// Generate and apply migrations
-		await cms.migrations.push();
+		// Generate and apply migrations from the current schema
+		await runSchemaMigrations();
 
 		console.log("✅ Migrations completed successfully!\n");
 
@@ -31,7 +73,8 @@ async function migrate() {
 				phone: "+1-555-0101",
 				bio: "Master barber with 15 years of experience. Specializes in classic cuts and hot towel shaves.",
 				isActive: true,
-				workingHours: JSON.stringify({
+				avatar: null,
+				workingHours: {
 					monday: { start: "09:00", end: "17:00" },
 					tuesday: { start: "09:00", end: "17:00" },
 					wednesday: { start: "09:00", end: "17:00" },
@@ -39,7 +82,7 @@ async function migrate() {
 					friday: { start: "09:00", end: "17:00" },
 					saturday: { start: "10:00", end: "16:00" },
 					sunday: null,
-				}),
+				},
 			},
 			systemContext,
 		);
@@ -51,7 +94,8 @@ async function migrate() {
 				phone: "+1-555-0102",
 				bio: "Modern stylist specializing in fades and contemporary cuts. Always up-to-date with latest trends.",
 				isActive: true,
-				workingHours: JSON.stringify({
+				avatar: null,
+				workingHours: {
 					monday: { start: "10:00", end: "18:00" },
 					tuesday: { start: "10:00", end: "18:00" },
 					wednesday: { start: "10:00", end: "18:00" },
@@ -59,7 +103,7 @@ async function migrate() {
 					friday: { start: "10:00", end: "18:00" },
 					saturday: { start: "09:00", end: "15:00" },
 					sunday: null,
-				}),
+				},
 			},
 			systemContext,
 		);

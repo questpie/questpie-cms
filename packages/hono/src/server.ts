@@ -1,7 +1,11 @@
 import { Hono } from "hono";
 import { createMiddleware } from "hono/factory";
-import type { QCMS } from "@questpie/cms/server";
-import qs from "qs";
+import {
+	createCMSAdapterContext,
+	createCMSFetchHandler,
+	type CMSAdapterContext,
+	type QCMS,
+} from "@questpie/cms/server";
 
 /**
  * Variables stored in Hono context
@@ -20,7 +24,8 @@ export type QCMSVariables<
 export type HonoAdapterConfig = {
 	/**
 	 * Base path for CMS routes
-	 * @default '/api'
+	 * Use '/cms' for server-only apps or '/api/cms' for fullstack apps.
+	 * @default '/cms'
 	 */
 	basePath?: string;
 };
@@ -32,23 +37,12 @@ export function questpieMiddleware<TQCMS extends QCMS<any, any, any>>(
 		Variables: QCMSVariables<TQCMS>;
 	}>(async (c, next) => {
 		c.set("cms", cms);
+		const adapterContext = await createCMSAdapterContext(cms, c.req.raw, {
+			accessMode: "user",
+		});
 
-		if (!cms.auth) {
-			c.set("user", null);
-			await next();
-			return;
-		}
-
-		try {
-			const session = await cms.auth.api.getSession({
-				headers: c.req.raw.headers,
-			});
-			c.set("user", session?.user || null);
-		} catch {
-			c.set("user", null);
-		}
-
-		c.set("cmsContext", await cms.createContext({ user: c.get("user") }));
+		c.set("user", adapterContext.user);
+		c.set("cmsContext", adapterContext.cmsContext);
 
 		await next();
 	});
@@ -85,238 +79,32 @@ export function questpieHono(
 	cms: QCMS<any, any, any>,
 	config: HonoAdapterConfig = {},
 ) {
-	const basePath = config.basePath || "/api";
-	const app = new Hono()
-		.all(`${basePath}/auth/*`, async (c) => {
-			if (!cms.auth) {
-				return c.json({ error: "Auth not configured" }, 500);
-			}
-			return cms.auth.handler(c.req.raw);
-		})
-		.post(`${basePath}/storage/upload`, async (c) => {
-			const formData = await c.req.formData();
-			const file = formData.get("file");
+	const basePath = config.basePath || "/cms";
+	const handler = createCMSFetchHandler(cms, {
+		basePath,
+		accessMode: "user",
+	});
 
-			if (!file || !(file instanceof File)) {
-				return c.json(
-					{ error: "No file uploaded. Send 'file' in form-data." },
-					400,
-				);
-			}
+	const resolveContext = (context?: QCMSVariables["cmsContext"], user?: any) => {
+		if (!context) {
+			return undefined;
+		}
 
-			const key = `${crypto.randomUUID()}-${file.name}`;
-			const buffer = await file.arrayBuffer();
-			await cms.storage.put(key, new Uint8Array(buffer));
+		return {
+			user: user ?? context.user ?? null,
+			session: context.session,
+			locale: context.locale,
+			cmsContext: context,
+		} satisfies CMSAdapterContext;
+	};
 
-			const url = await cms.storage.getUrl(key);
-			const context = c.get("cmsContext");
-
-			const asset = await cms.api.collections["questpie_assets" as any].create(
-				{
-					key,
-					url,
-					filename: file.name,
-					mimeType: file.type,
-					size: file.size,
-					// TODO: Add image processing for width/height
-				},
-				context,
-			);
-
-			return c.json(asset);
-		})
-		.get(`${basePath}/cms/:collection`, async (c) => {
-			const collection = c.req.param("collection");
-			const context = c.get("cmsContext");
-			const crud = cms.api.collections[collection as any];
-
-			if (!crud) {
-				return c.json({ error: `Collection "${collection}" not found` }, 404);
-			}
-
-			// Parse query string with qs for nested objects support
-			const queryString = c.req.url.split("?")[1] || "";
-			const parsedQuery = qs.parse(queryString, {
-				allowDots: true,
-				comma: true,
-			});
-
-			const options: any = {};
-			if (parsedQuery.limit) options.limit = Number(parsedQuery.limit);
-			if (parsedQuery.offset) options.offset = Number(parsedQuery.offset);
-			if (parsedQuery.where) options.where = parsedQuery.where;
-			if (parsedQuery.orderBy) options.orderBy = parsedQuery.orderBy;
-			if (parsedQuery.with) options.with = parsedQuery.with;
-			if (parsedQuery.includeDeleted !== undefined) {
-				options.includeDeleted =
-					parsedQuery.includeDeleted === true ||
-					parsedQuery.includeDeleted === "true";
-			}
-
-			try {
-				const result = await crud.find(options, context);
-				return c.json(result);
-			} catch (error) {
-				return c.json(
-					{ error: error instanceof Error ? error.message : "Unknown error" },
-					500,
-				);
-			}
-		})
-		.post(`${basePath}/cms/:collection`, async (c) => {
-			const collection = c.req.param("collection");
-			const context = c.get("cmsContext");
-			const crud = cms.api.collections[collection as any];
-
-			if (!crud) {
-				return c.json({ error: `Collection "${collection}" not found` }, 404);
-			}
-
-			const body = await c.req.json();
-
-			try {
-				const result = await crud.create(body, context);
-				return c.json(result);
-			} catch (error) {
-				return c.json(
-					{ error: error instanceof Error ? error.message : "Unknown error" },
-					400,
-				);
-			}
-		})
-		.get(`${basePath}/cms/:collection/:id`, async (c) => {
-			const collection = c.req.param("collection");
-			const id = c.req.param("id");
-			const context = c.get("cmsContext");
-			const crud = cms.api.collections[collection as any];
-
-			if (!crud) {
-				return c.json({ error: `Collection "${collection}" not found` }, 404);
-			}
-
-			// Parse query string with qs
-			const queryString = c.req.url.split("?")[1] || "";
-			const parsedQuery = qs.parse(queryString, {
-				allowDots: true,
-				comma: true,
-			});
-
-			const options: any = { where: { id } };
-			if (parsedQuery.with) options.with = parsedQuery.with;
-			if (parsedQuery.includeDeleted !== undefined) {
-				options.includeDeleted =
-					parsedQuery.includeDeleted === true ||
-					parsedQuery.includeDeleted === "true";
-			}
-
-			try {
-				const result = await crud.findOne(options, context);
-				if (!result) {
-					return c.json({ error: "Not found" }, 404);
-				}
-				return c.json(result);
-			} catch (error) {
-				return c.json(
-					{ error: error instanceof Error ? error.message : "Unknown error" },
-					500,
-				);
-			}
-		})
-		.patch(`${basePath}/cms/:collection/:id`, async (c) => {
-			const collection = c.req.param("collection");
-			const id = c.req.param("id");
-			const context = c.get("cmsContext");
-			const crud = cms.api.collections[collection as any];
-
-			if (!crud) {
-				return c.json({ error: `Collection "${collection}" not found` }, 404);
-			}
-
-			const body = await c.req.json();
-
-			try {
-				const result = await crud.updateById({ id, data: body }, context);
-				return c.json(result);
-			} catch (error) {
-				return c.json(
-					{ error: error instanceof Error ? error.message : "Unknown error" },
-					400,
-				);
-			}
-		})
-		.delete(`${basePath}/cms/:collection/:id`, async (c) => {
-			const collection = c.req.param("collection");
-			const id = c.req.param("id");
-			const context = c.get("cmsContext");
-			const crud = cms.api.collections[collection as any];
-
-			if (!crud) {
-				return c.json({ error: `Collection "${collection}" not found` }, 404);
-			}
-
-			try {
-				await crud.deleteById({ id }, context);
-				return c.json({ success: true });
-			} catch (error) {
-				return c.json(
-					{ error: error instanceof Error ? error.message : "Unknown error" },
-					400,
-				);
-			}
-		})
-		.post(`${basePath}/cms/:collection/:id/restore`, async (c) => {
-			const collection = c.req.param("collection");
-			const id = c.req.param("id");
-			const context = c.get("cmsContext");
-			const crud = cms.api.collections[collection as any];
-
-			if (!crud) {
-				return c.json({ error: `Collection "${collection}" not found` }, 404);
-			}
-
-			try {
-				const result = await crud.restoreById({ id }, context);
-				return c.json(result);
-			} catch (error) {
-				return c.json(
-					{ error: error instanceof Error ? error.message : "Unknown error" },
-					400,
-				);
-			}
-		})
-		.get(`${basePath}/cms/globals/:global`, async (c) => {
-			const global = c.req.param("global");
-			const context = c.get("cmsContext");
-
-			try {
-				const globalInstance = cms.getGlobalConfig(global as any);
-				const crud = globalInstance.generateCRUD(context.db, cms);
-				const result = await crud.get({}, context);
-				return c.json(result);
-			} catch (error) {
-				return c.json(
-					{ error: error instanceof Error ? error.message : "Unknown error" },
-					500,
-				);
-			}
-		})
-		.patch(`${basePath}/cms/globals/:global`, async (c) => {
-			const global = c.req.param("global");
-			const context = c.get("cmsContext");
-			const body = await c.req.json();
-
-			try {
-				const globalInstance = cms.getGlobalConfig(global as any);
-				const crud = globalInstance.generateCRUD(context.db, cms);
-				const result = await crud.update(body, context);
-				return c.json(result);
-			} catch (error) {
-				return c.json(
-					{ error: error instanceof Error ? error.message : "Unknown error" },
-					400,
-				);
-			}
-		});
+	const app = new Hono().all(`${basePath}/*`, async (c) => {
+		const response = await handler(
+			c.req.raw,
+			resolveContext(c.get("cmsContext"), c.get("user")),
+		);
+		return response ?? c.notFound();
+	});
 
 	return app;
 }

@@ -1,0 +1,26 @@
+{
+	"name": "@questpie/tanstack-start",
+	"version": "1.0.0",
+	"type": "module",
+	"scripts": {
+		"build": "tsdown",
+		"check-types": "tsc --noEmit"
+	},
+	"dependencies": {
+		"@questpie/cms": "workspace:*"
+	},
+	"devDependencies": {
+		"@questpie/typescript-config": "workspace:*",
+		"bun-types": "latest",
+		"tsdown": "^0.18.3"
+	},
+	"peerDependencies": {
+		"@questpie/cms": "workspace:*"
+	},
+	"exports": {
+		".": {
+			"import": "./dist/server.mjs",
+			"types": "./dist/server.d.mts"
+		}
+	}
+}

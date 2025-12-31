@@ -7,6 +7,11 @@ import type {
 	RunMigrationsOptions,
 } from "./types";
 
+export type MigrationRunnerOptions = {
+	/** Suppress info/warn logs */
+	silent?: boolean;
+};
+
 /**
  * Migration runner service
  *
@@ -16,9 +21,31 @@ import type {
 export class MigrationRunner {
 	private db: MigrationDb;
 	private tableName = "questpie_migrations";
+	private readonly silent: boolean;
 
-	constructor(db: MigrationDb) {
+	constructor(db: MigrationDb, options: MigrationRunnerOptions = {}) {
 		this.db = db;
+		this.silent = options.silent ?? this.readSilentEnv();
+	}
+
+	private readSilentEnv(): boolean {
+		const value = process.env.QCMS_MIGRATIONS_SILENT;
+		if (!value) {
+			return false;
+		}
+		return ["1", "true", "yes"].includes(value.toLowerCase());
+	}
+
+	private log(message: string): void {
+		if (!this.silent) {
+			console.log(message);
+		}
+	}
+
+	private warn(message: string): void {
+		if (!this.silent) {
+			console.warn(message);
+		}
 	}
 
 	/**
@@ -50,11 +77,11 @@ export class MigrationRunner {
 		const pending = migrations.filter((m) => !executedIds.has(m.id));
 
 		if (pending.length === 0) {
-			console.log("✅ No pending migrations");
+			this.log("✅ No pending migrations");
 			return;
 		}
 
-		console.log(`📦 Running ${pending.length} pending migrations...`);
+		this.log(`📦 Running ${pending.length} pending migrations...`);
 
 		// Get next batch number
 		const currentBatch = await this.getCurrentBatch();
@@ -62,13 +89,13 @@ export class MigrationRunner {
 
 		for (const migration of pending) {
 			if (options.targetMigration && migration.id === options.targetMigration) {
-				console.log(
+				this.log(
 					`🎯 Reached target migration: ${migration.id}, stopping here`,
 				);
 				break;
 			}
 
-			console.log(`⬆️  Running migration: ${migration.id}`);
+			this.log(`⬆️  Running migration: ${migration.id}`);
 
 			try {
 				// Run the migration
@@ -79,7 +106,7 @@ export class MigrationRunner {
 					`INSERT INTO ${this.tableName} (id, name, batch) VALUES ('${migration.id}', '${migration.id}', ${nextBatch})`
 				));
 
-				console.log(`✅ Migration completed: ${migration.id}`);
+				this.log(`✅ Migration completed: ${migration.id}`);
 			} catch (error) {
 				console.error(`❌ Migration failed: ${migration.id}`, error);
 				throw error;
@@ -90,7 +117,7 @@ export class MigrationRunner {
 			}
 		}
 
-		console.log("✅ All migrations completed successfully");
+		this.log("✅ All migrations completed successfully");
 	}
 
 	/**
@@ -102,7 +129,7 @@ export class MigrationRunner {
 		const currentBatch = await this.getCurrentBatch();
 
 		if (currentBatch === 0) {
-			console.log("ℹ️  No migrations to rollback");
+			this.log("ℹ️  No migrations to rollback");
 			return;
 		}
 
@@ -119,11 +146,11 @@ export class MigrationRunner {
 		const batchMigrations = await this.getMigrationsByBatch(batch);
 
 		if (batchMigrations.length === 0) {
-			console.log(`ℹ️  No migrations found in batch ${batch}`);
+			this.log(`ℹ️  No migrations found in batch ${batch}`);
 			return;
 		}
 
-		console.log(
+		this.log(
 			`📦 Rolling back ${batchMigrations.length} migrations from batch ${batch}...`,
 		);
 
@@ -133,13 +160,13 @@ export class MigrationRunner {
 			const migration = migrations.find((m) => m.id === record.id);
 
 			if (!migration) {
-				console.warn(
+				this.warn(
 					`⚠️  Migration definition not found: ${record.id}, skipping`,
 				);
 				continue;
 			}
 
-			console.log(`⬇️  Rolling back migration: ${migration.id}`);
+			this.log(`⬇️  Rolling back migration: ${migration.id}`);
 
 			try {
 				// Run the down migration
@@ -150,14 +177,14 @@ export class MigrationRunner {
 					`DELETE FROM ${this.tableName} WHERE id = '${migration.id}'`
 				));
 
-				console.log(`✅ Rollback completed: ${migration.id}`);
+				this.log(`✅ Rollback completed: ${migration.id}`);
 			} catch (error) {
 				console.error(`❌ Rollback failed: ${migration.id}`, error);
 				throw error;
 			}
 		}
 
-		console.log("✅ All migrations rolled back successfully");
+		this.log("✅ All migrations rolled back successfully");
 	}
 
 	/**
@@ -179,7 +206,7 @@ export class MigrationRunner {
 		// Get all migrations after target (reverse order)
 		const toRollback = executed.slice(targetIndex).reverse();
 
-		console.log(
+		this.log(
 			`📦 Rolling back ${toRollback.length} migrations to ${targetId}...`,
 		);
 
@@ -187,27 +214,27 @@ export class MigrationRunner {
 			const migration = migrations.find((m) => m.id === record.id);
 
 			if (!migration) {
-				console.warn(
+				this.warn(
 					`⚠️  Migration definition not found: ${record.id}, skipping`,
 				);
 				continue;
 			}
 
-			console.log(`⬇️  Rolling back migration: ${migration.id}`);
+			this.log(`⬇️  Rolling back migration: ${migration.id}`);
 
 			try {
 				await migration.down({ db: this.db });
 				await this.db.execute(sql.raw(
 					`DELETE FROM ${this.tableName} WHERE id = '${migration.id}'`
 				));
-				console.log(`✅ Rollback completed: ${migration.id}`);
+				this.log(`✅ Rollback completed: ${migration.id}`);
 			} catch (error) {
 				console.error(`❌ Rollback failed: ${migration.id}`, error);
 				throw error;
 			}
 		}
 
-		console.log("✅ Rollback completed successfully");
+		this.log("✅ Rollback completed successfully");
 	}
 
 	/**
@@ -219,11 +246,11 @@ export class MigrationRunner {
 		const executed = await this.getExecutedMigrations();
 
 		if (executed.length === 0) {
-			console.log("ℹ️  No migrations to reset");
+			this.log("ℹ️  No migrations to reset");
 			return;
 		}
 
-		console.log(`📦 Resetting ${executed.length} migrations...`);
+		this.log(`📦 Resetting ${executed.length} migrations...`);
 
 		// Rollback in reverse order
 		for (let i = executed.length - 1; i >= 0; i--) {
@@ -231,27 +258,27 @@ export class MigrationRunner {
 			const migration = migrations.find((m) => m.id === record.id);
 
 			if (!migration) {
-				console.warn(
+				this.warn(
 					`⚠️  Migration definition not found: ${record.id}, skipping`,
 				);
 				continue;
 			}
 
-			console.log(`⬇️  Rolling back migration: ${migration.id}`);
+			this.log(`⬇️  Rolling back migration: ${migration.id}`);
 
 			try {
 				await migration.down({ db: this.db });
 				await this.db.execute(sql.raw(
 					`DELETE FROM ${this.tableName} WHERE id = '${migration.id}'`
 				));
-				console.log(`✅ Rollback completed: ${migration.id}`);
+				this.log(`✅ Rollback completed: ${migration.id}`);
 			} catch (error) {
 				console.error(`❌ Rollback failed: ${migration.id}`, error);
 				throw error;
 			}
 		}
 
-		console.log("✅ All migrations reset successfully");
+		this.log("✅ All migrations reset successfully");
 	}
 
 	/**
@@ -277,27 +304,27 @@ export class MigrationRunner {
 
 		const currentBatch = await this.getCurrentBatch();
 
-		console.log("\n📊 Migration Status:\n");
-		console.log(`Current batch: ${currentBatch}`);
-		console.log(`Executed: ${executed.length}`);
-		console.log(`Pending: ${pending.length}\n`);
+		this.log("\n📊 Migration Status:\n");
+		this.log(`Current batch: ${currentBatch}`);
+		this.log(`Executed: ${executed.length}`);
+		this.log(`Pending: ${pending.length}\n`);
 
 		if (executed.length > 0) {
-			console.log("✅ Executed migrations:");
+			this.log("✅ Executed migrations:");
 			for (const record of executed) {
-				console.log(
+				this.log(
 					`  - ${record.name} (batch ${record.batch}, ${record.executedAt})`,
 				);
 			}
-			console.log("");
+			this.log("");
 		}
 
 		if (pending.length > 0) {
-			console.log("⏳ Pending migrations:");
+			this.log("⏳ Pending migrations:");
 			for (const p of pending) {
-				console.log(`  - ${p.name}`);
+				this.log(`  - ${p.name}`);
 			}
-			console.log("");
+			this.log("");
 		}
 
 		return {

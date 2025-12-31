@@ -14,6 +14,8 @@ import {
 	defineCollection,
 	defineJob,
 	pgBossAdapter,
+	ConsoleAdapter,
+	SmtpAdapter,
 	getCMSFromContext,
 } from "@questpie/cms/server";
 import {
@@ -25,7 +27,6 @@ import {
 	jsonb,
 } from "drizzle-orm/pg-core";
 import { z } from "zod";
-import { sql } from "drizzle-orm";
 
 // ============================================================================
 // Collections
@@ -37,40 +38,36 @@ type WorkingHours = {
 	wednesday: { start: string; end: string };
 	thursday: { start: string; end: string };
 	friday: { start: string; end: string };
-	saturday?: { start: string; end: string };
-	sunday?: { start: string; end: string };
+	saturday?: { start: string; end: string } | null;
+	sunday?: { start: string; end: string } | null;
 };
 
 /**
  * Barbers Collection
  * Represents staff members who provide services
  */
-export const barbers = defineCollection("barbers")
-	.fields({
-		name: varchar("name", { length: 255 }).notNull(),
-		email: varchar("email", { length: 255 }).notNull().unique(),
-		phone: varchar("phone", { length: 50 }),
-		bio: text("bio"),
-		avatar: varchar("avatar", { length: 500 }),
-		isActive: boolean("is_active").default(true).notNull(),
-		// Working hours stored as JSON
-		workingHours: jsonb("working_hours").$type<WorkingHours>(),
-	})
-	.title(({ table }) => sql`${table.name}`);
+export const barbers = defineCollection("barbers").fields({
+	name: varchar("name", { length: 255 }).notNull(),
+	email: varchar("email", { length: 255 }).notNull().unique(),
+	phone: varchar("phone", { length: 50 }),
+	bio: text("bio"),
+	avatar: varchar("avatar", { length: 500 }),
+	isActive: boolean("is_active").default(true).notNull(),
+	// Working hours stored as JSON
+	workingHours: jsonb("working_hours").$type<WorkingHours>(),
+});
 
 /**
  * Services Collection
  * Available services at the barbershop
  */
-export const services = defineCollection("services")
-	.fields({
-		name: varchar("name", { length: 255 }).notNull(),
-		description: text("description"),
-		duration: integer("duration").notNull(), // in minutes
-		price: integer("price").notNull(), // in cents
-		isActive: boolean("is_active").default(true).notNull(),
-	})
-	.title(({ table }) => sql`${table.name}`);
+export const services = defineCollection("services").fields({
+	name: varchar("name", { length: 255 }).notNull(),
+	description: text("description"),
+	duration: integer("duration").notNull(), // in minutes
+	price: integer("price").notNull(), // in cents
+	isActive: boolean("is_active").default(true).notNull(),
+});
 
 /**
  * Appointments Collection
@@ -88,7 +85,6 @@ export const appointments = defineCollection("appointments")
 		cancelledAt: timestamp("cancelled_at", { mode: "date" }),
 		cancellationReason: text("cancellation_reason"),
 	})
-	.title(({ table }) => sql`Appointment at  ${table.scheduledAt}`)
 	.relations(({ one, table }) => ({
 		// Note: customerId references Better Auth's users table
 		customer: one("questpie_users", {
@@ -139,7 +135,6 @@ export const reviews = defineCollection("reviews")
 		rating: integer("rating").notNull(), // 1-5
 		comment: text("comment"),
 	})
-	.title(({ table }) => sql`'Review #' || ${table.id}`)
 	.relations(({ one, table }) => ({
 		appointment: one("appointments", {
 			fields: [table.appointmentId],
@@ -245,11 +240,16 @@ export const cms = defineQCMS({ name: "barbershop" })
 	})
 	// Configure email
 	.email({
-		transport: {
-			host: process.env.SMTP_HOST || "localhost",
-			port: Number.parseInt(process.env.SMTP_PORT || "1025", 10),
-			secure: false,
-		},
+		adapter:
+			process.env.MAIL_ADAPTER === "console"
+				? new ConsoleAdapter({ logHtml: false })
+				: new SmtpAdapter({
+						transport: {
+							host: process.env.SMTP_HOST || "localhost",
+							port: Number.parseInt(process.env.SMTP_PORT || "1025", 10),
+							secure: false,
+						},
+					}),
 		templates: {},
 	})
 	// Configure queue adapter

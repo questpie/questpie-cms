@@ -9,8 +9,7 @@
  */
 
 import { createClientFromEden } from "@questpie/elysia/client";
-// eslint-disable-next-line @typescript-eslint/consistent-type-imports
-import type { cms } from "./cms"; // MUST be runtime import for typeof to work!
+import type { AppCMS } from "./cms";
 import type { App } from "./server";
 
 // ============================================================================
@@ -21,8 +20,9 @@ const SERVER = "localhost:3001";
 
 // Unified client - combines CMS CRUD with Eden Treaty
 // ✨ Single client with full type safety!
-// IMPORTANT: Use `typeof cms` directly for proper type inference
-const client = createClientFromEden<App, typeof cms>({
+// NOTE: Use AppCMS for CMS types; keep custom routes untyped to avoid duplicate Elysia types in monorepo builds.
+// Cast to avoid workspace type duplication between @questpie/cms packages.
+const client = createClientFromEden<App, AppCMS>({
 	server: SERVER,
 });
 
@@ -213,6 +213,28 @@ async function exampleUsage() {
 	console.log();
 
 	// ========================================================================
+	// 9. Globals API Example
+	// ========================================================================
+
+	console.log("⚙️  Globals API (singleton settings):");
+	console.log("  • client.globals.*: Access singleton global settings");
+	console.log("  • Example: client.globals.siteSettings.get()");
+	console.log("  • Example: client.globals.siteSettings.update({ ... })");
+	console.log();
+
+	// Example (if you have globals defined):
+	/*
+	const siteSettings = await client.globals.siteSettings.get();
+	console.log('Site name:', siteSettings.siteName);
+
+	// Update settings
+	await client.globals.siteSettings.update({
+		siteName: 'New Name',
+		maintenanceMode: false
+	});
+	*/
+
+	// ========================================================================
 	// Summary
 	// ========================================================================
 
@@ -221,6 +243,7 @@ async function exampleUsage() {
 		"  • Unified Client: Single client for both CMS CRUD and custom routes",
 	);
 	console.log("  • client.collections.*: CMS CRUD operations");
+	console.log("  • client.globals.*: Singleton global settings");
 	console.log(
 		"  • client.api.*: Eden Treaty for custom routes (NO $get/$post!)",
 	);
@@ -240,7 +263,7 @@ async function _authExample() {
 	console.log("Registering new customer...");
 
 	const registerResponse = await fetch(
-		`http://${SERVER}/api/auth/sign-up/email`,
+		`http://${SERVER}/cms/auth/sign-up/email`,
 		{
 			method: "POST",
 			headers: { "Content-Type": "application/json" },

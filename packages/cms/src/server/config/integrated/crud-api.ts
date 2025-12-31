@@ -10,56 +10,17 @@ import type {
 	JobDefinition,
 	QCMS,
 } from "#questpie/cms/exports/server.js";
-import type { RelationConfig } from "#questpie/cms/server/collection/builder/types.js";
-
-type CollectionInfer<T> = T extends { $infer: infer Infer } ? Infer : never;
-type CollectionSelect<T> =
-	CollectionInfer<T> extends { select: infer Select } ? Select : never;
-type CollectionInsert<T> =
-	CollectionInfer<T> extends { insert: infer Insert } ? Insert : never;
-type CollectionUpdate<T> =
-	CollectionInfer<T> extends { update: infer Update } ? Update : never;
-type CollectionState<T> = T extends { state: infer State } ? State : never;
-type CollectionRelations<T> = CollectionState<T> extends {
-	relations: infer Relations;
-}
-	? Relations extends Record<string, RelationConfig>
-		? Relations
-		: Record<string, RelationConfig>
-	: Record<string, RelationConfig>;
-
-type ResolveCollectionSelect<
-	TCollections extends AnyCollectionOrBuilder[],
-	C,
-> = C extends CollectionNames<TCollections>
-	? CollectionSelect<GetCollection<TCollections, C>>
-	: any;
-
-type ResolvePolymorphic<
-	TCollections extends AnyCollectionOrBuilder[],
-	TRelation extends RelationConfig,
-> = TRelation extends { collections: Record<string, infer C> }
-	? ResolveCollectionSelect<TCollections, C>
-	: any;
-
-type ResolveRelations<
-	TRelations extends Record<string, RelationConfig>,
-	TCollections extends AnyCollectionOrBuilder[],
-> = {
-	[K in keyof TRelations]: TRelations[K] extends {
-		type: "many" | "manyToMany";
-		collection: infer C;
-	}
-		? ResolveCollectionSelect<TCollections, C>[]
-		: TRelations[K] extends {
-					type: "one";
-					collection: infer C;
-				}
-			? ResolveCollectionSelect<TCollections, C>
-			: TRelations[K] extends { type: "polymorphic" }
-				? ResolvePolymorphic<TCollections, TRelations[K]>
-				: never;
-};
+import type {
+	CollectionSelect,
+	CollectionInsert,
+	CollectionUpdate,
+	CollectionRelations,
+	GlobalSelect,
+	GlobalInsert,
+	GlobalUpdate,
+	GlobalRelations,
+	ResolveRelations,
+} from "#questpie/cms/shared/type-utils.js";
 
 export class QCMSCrudAPI<
 	TCollections extends AnyCollectionOrBuilder[] = AnyCollectionOrBuilder[],
@@ -103,10 +64,10 @@ export class QCMSCrudAPI<
 
 	public get globals(): {
 		[K in GlobalNames<TGlobals>]: GlobalCRUD<
-			GetGlobal<TGlobals, K>["$infer"]["select"],
-			GetGlobal<TGlobals, K>["$infer"]["insert"],
-			GetGlobal<TGlobals, K>["$infer"]["update"],
-			GetGlobal<TGlobals, K>["state"]["relations"]
+			GlobalSelect<GetGlobal<TGlobals, K>>,
+			GlobalInsert<GetGlobal<TGlobals, K>>,
+			GlobalUpdate<GetGlobal<TGlobals, K>>,
+			GlobalRelations<GetGlobal<TGlobals, K>>
 		>;
 	} {
 		const globalsProxy = {} as any;

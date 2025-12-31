@@ -23,7 +23,7 @@ export type ElysiaClientConfig = {
 
 	/**
 	 * Base path for CMS routes
-	 * @default '/api'
+	 * @default '/cms'
 	 */
 	basePath?: string;
 
@@ -73,7 +73,7 @@ export function createClientFromEden<
 
 	// Create Eden Treaty client for custom routes
 	const edenClient = treaty<TApp>(config.server, {
-		fetch: config.fetch,
+		fetcher: config.fetch,
 		headers: config.headers,
 	});
 
@@ -81,5 +81,6 @@ export function createClientFromEden<
 	return {
 		...edenClient,
 		collections: cmsClient.collections,
+		globals: cmsClient.globals,
 	} as QCMSClient<TCMS> & Treaty.Create<TApp>;
 }

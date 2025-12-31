@@ -22,7 +22,7 @@ export type HonoClientConfig = {
 
 	/**
 	 * Base path for CMS routes
-	 * @default '/api'
+	 * @default '/cms'
 	 */
 	basePath?: string;
 
@@ -79,9 +79,11 @@ export function createClientFromHono<
 		...config.honoOptions,
 	});
 
+	// Merge both clients
 	(honoClient as typeof honoClient & typeof cmsClient).collections =
 		cmsClient.collections;
+	(honoClient as typeof honoClient & typeof cmsClient).globals =
+		cmsClient.globals;
 
-	// Merge both clients
 	return honoClient as typeof honoClient & typeof cmsClient;
 }

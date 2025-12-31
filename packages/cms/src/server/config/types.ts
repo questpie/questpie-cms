@@ -11,6 +11,29 @@ import type {
 	LocalizedFields,
 	NonLocalizedFields,
 } from "#questpie/cms/server/collection/builder/types";
+import type {
+	AnyCollectionOrBuilder,
+	AnyGlobal,
+	AnyGlobalBuilder,
+	AnyGlobalOrBuilder,
+	CollectionNames,
+	GetCollection,
+	GlobalNames,
+	GetGlobal,
+} from "#questpie/cms/shared/type-utils.js";
+
+// Re-export for convenience (many files import from here)
+export type {
+	AnyCollectionOrBuilder,
+	AnyGlobal,
+	AnyGlobalBuilder,
+	AnyGlobalOrBuilder,
+	CollectionNames,
+	GetCollection,
+	GlobalNames,
+	GetGlobal,
+};
+
 import type { assetsCollection } from "#questpie/cms/server/collection/defaults/assets";
 import type {
 	accountsCollection,
@@ -27,15 +50,9 @@ import type {
 	JobDefinition,
 } from "../integrated/queue/types";
 import type { SearchConfig } from "../integrated/search";
+import type { RealtimeConfig } from "../integrated/realtime";
 import type { DriverContract } from "flydrive/types";
 import type { Migration } from "../migration/types";
-
-export type AnyCollectionOrBuilder =
-	| Collection<AnyCollectionState>
-	| CollectionBuilder<AnyCollectionState>;
-export type AnyGlobal = Global<AnyGlobalState>;
-export type AnyGlobalBuilder = GlobalBuilder<AnyGlobalState>;
-export type AnyGlobalOrBuilder = AnyGlobal | AnyGlobalBuilder;
 
 export type CoreCollections = [
 	typeof assetsCollection,
@@ -106,56 +123,6 @@ export type DrizzleSchemaFromCollections<
 				: never
 			: never;
 };
-
-export type CollectionNames<TCollections extends AnyCollectionOrBuilder[]> =
-	ResolvedCollections<TCollections>[number] extends { name: infer Name }
-		? Name extends string
-			? Name
-			: never
-		: never;
-
-export type CollectionMap<TCollections extends AnyCollectionOrBuilder[]> = {
-	[K in ResolvedCollections<TCollections>[number] as K extends Collection<
-		infer TState
-	>
-		? TState["name"]
-		: K extends CollectionBuilder<infer TState>
-			? TState["name"]
-			: never]: K extends Collection<infer TState>
-		? Collection<TState>
-		: K extends CollectionBuilder<infer TState>
-			? Collection<TState>
-			: never;
-};
-
-export type GetCollection<
-	TCollections extends AnyCollectionOrBuilder[],
-	Name extends CollectionNames<TCollections>,
-> = CollectionMap<TCollections>[Name];
-
-export type GlobalNames<TGlobals extends AnyGlobalOrBuilder[]> =
-	TGlobals[number] extends { name: infer Name }
-		? Name extends string
-			? Name
-			: never
-		: never;
-
-export type GlobalMap<TGlobals extends AnyGlobalOrBuilder[]> = {
-	[K in TGlobals[number] as K extends Global<infer TState>
-		? TState["name"]
-		: K extends GlobalBuilder<infer TState>
-			? TState["name"]
-			: never]: K extends Global<infer TState>
-		? Global<TState>
-		: K extends GlobalBuilder<infer TState>
-			? Global<TState>
-			: never;
-};
-
-export type GetGlobal<
-	TGlobals extends AnyGlobalOrBuilder[],
-	Name extends GlobalNames<TGlobals>,
-> = GlobalMap<TGlobals>[Name];
 
 export type DrizzleSchemaFromGlobals<TGlobals extends AnyGlobalOrBuilder[]> = {
 	[K in TGlobals[number] as K extends Global<infer TState>
@@ -347,6 +314,11 @@ export interface CMSConfig<
 	 * Enables full-text search with BM25 ranking, fuzzy matching, and optional embeddings
 	 */
 	search?: SearchConfig;
+
+	/**
+	 * Realtime configuration (outbox + SSE/WS adapters)
+	 */
+	realtime?: RealtimeConfig;
 
 	/**
 	 * Migration configuration

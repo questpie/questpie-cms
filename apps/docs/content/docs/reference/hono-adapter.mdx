@@ -21,14 +21,19 @@ path: ../../../packages/hono/src/server.ts
 name: HonoAdapterConfig
 ---
 
-### Middleware
+### Context Middleware
 
-The adapter automatically registers middleware to:
-1.  Initialize request context (`c.set("cmsContext", ...)`).
-2.  Handle authentication (populating `c.get("user")`).
+Use `questpieMiddleware(cms)` to populate `c.get("cmsContext")` and `c.get("user")` for your custom routes. The CMS handler itself is a catch-all under `basePath`.
 
 ## Example
 
 ```typescript
-app.route("/", questpieHono(cms, { basePath: "/api" }));
+import { Hono } from "hono";
+import { questpieHono, questpieMiddleware } from "@questpie/hono";
+import { cms } from "./cms";
+
+const app = new Hono();
+
+app.use(questpieMiddleware(cms));
+app.route("/", questpieHono(cms, { basePath: "/cms" }));
 ```

@@ -30,7 +30,7 @@ const bookingSchema = z.object({
 
 const app = new Hono()
 	.use(questpieMiddleware(cms))
-	.route("/*/", questpieHono(cms))
+	.route("/", questpieHono(cms, { basePath: "/cms" }))
 	.get(
 		"/api/barbers/:barberId/availability",
 		zValidator(
@@ -240,6 +240,8 @@ const app = new Hono()
 					scheduledAt,
 					status: "pending",
 					notes: data.notes,
+					cancelledAt: null,
+					cancellationReason: null,
 				},
 				context,
 			);

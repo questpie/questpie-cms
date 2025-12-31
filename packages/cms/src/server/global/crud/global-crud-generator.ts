@@ -30,6 +30,7 @@ import type {
 	GlobalFindVersionsOptions,
 	GlobalGetOptions,
 	GlobalRevertVersionOptions,
+	GlobalUpdateOptions,
 	GlobalVersionRecord,
 } from "./types";
 
@@ -48,8 +49,8 @@ export class GlobalCRUDGenerator<TState extends GlobalBuilderState> {
 
 	generate(): GlobalCRUD {
 		const crud: GlobalCRUD = {
-			get: this.wrapWithCMSContext(this.createGet()),
-			update: this.wrapWithCMSContext(this.createUpdate()),
+			get: this.wrapGetWithCMSContext(this.createGet()),
+			update: this.wrapUpdateWithCMSContext(this.createUpdate()),
 			findVersions: this.wrapWithCMSContext(this.createFindVersions()),
 			revertToVersion: this.wrapWithCMSContext(this.createRevertToVersion()),
 		};
@@ -76,6 +77,36 @@ export class GlobalCRUDGenerator<TState extends GlobalBuilderState> {
 		};
 	}
 
+	private async appendRealtimeChange(
+		params: {
+			operation: "create" | "update" | "delete" | "bulk_update" | "bulk_delete";
+			recordId?: string | null;
+			payload?: Record<string, unknown>;
+		},
+		context: CRUDContext,
+		db: any,
+	) {
+		if (!this.cms?.realtime) return null;
+		const normalized = this.normalizeContext(context);
+
+		return this.cms.realtime.appendChange(
+			{
+				resourceType: "global",
+				resource: this.state.name,
+				operation: params.operation,
+				recordId: params.recordId ?? null,
+				locale: normalized.locale ?? null,
+				payload: params.payload ?? {},
+			},
+			{ db },
+		);
+	}
+
+	private async notifyRealtimeChange(change: unknown) {
+		if (!change || !this.cms?.realtime) return;
+		await this.cms.realtime.notify(change as any);
+	}
+
 	private async runWithCMSContext<TResult>(
 		context: CRUDContext | undefined,
 		fn: () => Promise<TResult>,
@@ -88,19 +119,110 @@ export class GlobalCRUDGenerator<TState extends GlobalBuilderState> {
 		return runWithCMSContext(this.cms, normalized, fn);
 	}
 
-	private wrapWithCMSContext<TArgs extends any[], TResult>(
+	/**
+	 * Wrapper for get() method: (options?, context?)
+	 */
+	private wrapGetWithCMSContext<TArgs extends any[], TResult>(
 		fn: (...args: TArgs) => Promise<TResult>,
 	): (...args: TArgs) => Promise<TResult> {
 		return (...args: TArgs) => {
-			const context = (args.length > 1 ? args[1] : undefined) as
-				| CRUDContext
-				| undefined;
+			let context: CRUDContext | undefined;
+
+			if (args.length > 0) {
+				const lastArg = args[args.length - 1];
+				const isCRUDContext =
+					lastArg &&
+					typeof lastArg === "object" &&
+					("user" in lastArg ||
+						"session" in lastArg ||
+						"locale" in lastArg ||
+						"accessMode" in lastArg ||
+						"db" in lastArg ||
+						"defaultLocale" in lastArg);
+
+				if (isCRUDContext) {
+					context = lastArg as CRUDContext;
+				}
+			}
+
 			return this.runWithCMSContext(context, () => fn(...args));
 		};
 	}
 
-	private buildSelectQuery(db: any, context: CRUDContext) {
-		const selectObj = this.buildSelectObject(context);
+	/**
+	 * Wrapper for update() method: (data, options?, context?)
+	 * Handles backwards compatibility for update(data, context)
+	 */
+	private wrapUpdateWithCMSContext<TArgs extends any[], TResult>(
+		fn: (...args: TArgs) => Promise<TResult>,
+	): (...args: TArgs) => Promise<TResult> {
+		return (...args: TArgs) => {
+			let context: CRUDContext | undefined;
+			let adjustedArgs = args;
+
+			if (args.length > 0) {
+				const lastArg = args[args.length - 1];
+				const isCRUDContext =
+					lastArg &&
+					typeof lastArg === "object" &&
+					("user" in lastArg ||
+						"session" in lastArg ||
+						"locale" in lastArg ||
+						"accessMode" in lastArg ||
+						"db" in lastArg ||
+						"defaultLocale" in lastArg);
+
+				if (isCRUDContext) {
+					context = lastArg as CRUDContext;
+
+					// If we have 2 args: update(data, context)
+					// Need to rearrange to: update(data, {}, context)
+					if (args.length === 2) {
+						adjustedArgs = [args[0], {}, args[1]] as any;
+					}
+				}
+			}
+
+			return this.runWithCMSContext(context, () => fn(...adjustedArgs));
+		};
+	}
+
+	/**
+	 * Generic wrapper for other methods where context is always last
+	 */
+	private wrapWithCMSContext<TArgs extends any[], TResult>(
+		fn: (...args: TArgs) => Promise<TResult>,
+	): (...args: TArgs) => Promise<TResult> {
+		return (...args: TArgs) => {
+			let context: CRUDContext | undefined;
+
+			if (args.length > 0) {
+				const lastArg = args[args.length - 1];
+				const isCRUDContext =
+					lastArg &&
+					typeof lastArg === "object" &&
+					("user" in lastArg ||
+						"session" in lastArg ||
+						"locale" in lastArg ||
+						"accessMode" in lastArg ||
+						"db" in lastArg ||
+						"defaultLocale" in lastArg);
+
+				if (isCRUDContext) {
+					context = lastArg as CRUDContext;
+				}
+			}
+
+			return this.runWithCMSContext(context, () => fn(...args));
+		};
+	}
+
+	private buildSelectQuery(
+		db: any,
+		context: CRUDContext,
+		columns?: Record<string, boolean>,
+	) {
+		const selectObj = this.buildSelectObject(context, columns);
 		let query = db.select(selectObj).from(this.table);
 
 		if (this.i18nTable && context.locale) {
@@ -148,7 +270,11 @@ export class GlobalCRUDGenerator<TState extends GlobalBuilderState> {
 				context: normalized,
 			});
 
-			const rows = await this.buildSelectQuery(db, normalized).limit(1);
+			const rows = await this.buildSelectQuery(
+				db,
+				normalized,
+				options.columns,
+			).limit(1);
 			let row = rows[0] || null;
 
 			if (!row) {
@@ -160,7 +286,11 @@ export class GlobalCRUDGenerator<TState extends GlobalBuilderState> {
 
 					await this.createVersion(tx, inserted, "create", normalized);
 
-					const createdRows = await this.buildSelectQuery(tx, normalized)
+					const createdRows = await this.buildSelectQuery(
+						tx,
+						normalized,
+						options.columns,
+					)
 						.where(eq((this.table as any).id, inserted.id))
 						.limit(1);
 					return createdRows[0] || inserted;
@@ -187,7 +317,11 @@ export class GlobalCRUDGenerator<TState extends GlobalBuilderState> {
 	}
 
 	private createUpdate() {
-		return async (data: any, context: CRUDContext = {}) => {
+		return async (
+			data: any,
+			options: GlobalUpdateOptions = {},
+			context: CRUDContext = {},
+		) => {
 			const db = this.getDb(context);
 			const normalized = this.normalizeContext(context);
 			const existing = await this.getCurrentRow(db);
@@ -218,7 +352,8 @@ export class GlobalCRUDGenerator<TState extends GlobalBuilderState> {
 				context: normalized,
 			});
 
-			return db.transaction(async (tx: any) => {
+			let changeEvent: any = null;
+			const updatedRecord = await db.transaction(async (tx: any) => {
 				const { localized, nonLocalized } = this.splitLocalizedFields(data);
 
 				let updatedId = existing?.id;
@@ -308,8 +443,25 @@ export class GlobalCRUDGenerator<TState extends GlobalBuilderState> {
 					context: normalized,
 				});
 
+				changeEvent = await this.appendRealtimeChange(
+					{
+						operation: existing ? "update" : "create",
+						recordId: baseRecord.id,
+					},
+					normalized,
+					tx,
+				);
+
 				return updatedRecord;
 			});
+
+			// Resolve relations if requested
+			if (updatedRecord && options.with && this.cms) {
+				await this.resolveRelations([updatedRecord], options.with, normalized);
+			}
+
+			await this.notifyRealtimeChange(changeEvent);
+			return updatedRecord;
 		};
 	}
 
@@ -649,13 +801,22 @@ export class GlobalCRUDGenerator<TState extends GlobalBuilderState> {
 		}
 	}
 
-	private buildSelectObject(context: CRUDContext) {
+	private buildSelectObject(
+		context: CRUDContext,
+		columns?: Record<string, boolean>,
+	) {
 		const select: any = {
 			id: (this.table as any).id,
 		};
 		const defaultLocale = context?.defaultLocale || "en";
 
+		// If columns is specified, use partial selection
+		const includeAllFields = !columns;
+
 		for (const [name, _column] of Object.entries(this.state.fields)) {
+			// Skip if columns filter is active and this field is not selected
+			if (columns && !columns[name]) continue;
+
 			if (
 				this.state.localized.includes(name as any) &&
 				this.i18nTable &&
@@ -675,12 +836,17 @@ export class GlobalCRUDGenerator<TState extends GlobalBuilderState> {
 
 		const virtuals = this.getVirtuals ? this.getVirtuals(context) : this.state.virtuals;
 		for (const [name, sqlExpr] of Object.entries(virtuals)) {
+			if (columns && !columns[name]) continue;
 			select[name] = sqlExpr;
 		}
 
 		if (this.state.options.timestamps !== false) {
-			select.createdAt = (this.table as any).createdAt;
-			select.updatedAt = (this.table as any).updatedAt;
+			if (includeAllFields || columns?.createdAt) {
+				select.createdAt = (this.table as any).createdAt;
+			}
+			if (includeAllFields || columns?.updatedAt) {
+				select.updatedAt = (this.table as any).updatedAt;
+			}
 		}
 
 		return select;

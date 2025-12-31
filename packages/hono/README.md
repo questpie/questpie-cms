@@ -62,22 +62,7 @@ import { cms } from "./cms";
 const app = new Hono().route(
 	"/",
 	questpieHono(cms, {
-		basePath: "/cms-api", // Default: '/api'
-		cors: {
-			origin: "https://example.com",
-			credentials: true,
-		},
-	}),
-);
-```
-
-### Disable CORS
-
-```typescript
-const app = new Hono().route(
-	"/",
-	questpieHono(cms, {
-		cors: false, // Disable CORS middleware
+		basePath: "/cms-api", // Default: '/cms'
 	}),
 );
 ```
@@ -88,25 +73,25 @@ The adapter automatically creates the following routes:
 
 ### Collections
 
-- `GET /api/cms/:collection` - Find all items
-- `POST /api/cms/:collection` - Create item
-- `GET /api/cms/:collection/:id` - Find one item
-- `PATCH /api/cms/:collection/:id` - Update item
-- `DELETE /api/cms/:collection/:id` - Delete item
-- `POST /api/cms/:collection/:id/restore` - Restore soft-deleted item
+- `GET /cms/:collection` - Find all items
+- `POST /cms/:collection` - Create item
+- `GET /cms/:collection/:id` - Find one item
+- `PATCH /cms/:collection/:id` - Update item
+- `DELETE /cms/:collection/:id` - Delete item
+- `POST /cms/:collection/:id/restore` - Restore soft-deleted item
 
 ### Globals
 
-- `GET /api/cms/globals/:global` - Get global settings
-- `PATCH /api/cms/globals/:global` - Update global settings
+- `GET /cms/globals/:global` - Get global settings
+- `PATCH /cms/globals/:global` - Update global settings
 
 ### Storage
 
-- `POST /api/storage/upload` - Upload file
+- `POST /cms/storage/upload` - Upload file
 
 ### Authentication
 
-- `ALL /api/auth/*` - Better Auth routes
+- `ALL /cms/auth/*` - Better Auth routes
 
 ## Unified Client Examples
 
@@ -181,7 +166,7 @@ const booking = await client.api.appointments.book.$post({
 const formData = new FormData();
 formData.append("file", file);
 
-const response = await fetch(`${baseURL}/api/storage/upload`, {
+const response = await fetch(`${baseURL}/cms/storage/upload`, {
 	method: "POST",
 	body: formData,
 });
@@ -199,7 +184,7 @@ import type { cms } from "./server";
 
 const client = createQCMSClient<typeof cms>({
 	baseURL: "http://localhost:3000",
-	basePath: "/api",
+	basePath: "/cms",
 });
 
 // Type-safe CMS CRUD only (no custom routes)

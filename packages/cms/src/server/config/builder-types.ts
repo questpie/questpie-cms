@@ -10,6 +10,7 @@ import type {
 import type { MailerConfig } from "#questpie/cms/server/integrated/mailer";
 import type { StorageConfig } from "#questpie/cms/server/config/types";
 import type { SearchConfig } from "#questpie/cms/server/integrated/search";
+import type { RealtimeConfig } from "#questpie/cms/server/integrated/realtime";
 import type { Migration } from "#questpie/cms/server/migration/types";
 import type { LocaleConfig } from "#questpie/cms/server/config/types";
 
@@ -40,6 +41,7 @@ export interface QCMSBuilderState<
 	storage?: StorageConfig;
 	email?: MailerConfig;
 	search?: SearchConfig;
+	realtime?: RealtimeConfig;
 	locale?: LocaleConfig;
 
 	// Queue adapter (required if jobs are defined)
@@ -112,6 +114,7 @@ export type EmptyNamedBuilderState<TName extends string> = QCMSBuilderState<
 	storage: undefined;
 	email: undefined;
 	search: undefined;
+	realtime: undefined;
 	locale: undefined;
 	queueAdapter: undefined;
 	migrations: undefined;

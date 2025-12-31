@@ -18,6 +18,7 @@ import type {
 } from "#questpie/cms/server/integrated/queue/types";
 import type { MailerConfig } from "#questpie/cms/server/integrated/mailer";
 import type { SearchConfig } from "#questpie/cms/server/integrated/search";
+import type { RealtimeConfig } from "#questpie/cms/server/integrated/realtime";
 import type { Migration } from "#questpie/cms/server/migration/types";
 import { QCMS } from "#questpie/cms/server/config/cms";
 
@@ -228,6 +229,24 @@ export class QCMSBuilder<TState extends QCMSBuilderState = QCMSBuilderState> {
 	}
 
 	/**
+	 * Configure realtime (outbox + transport adapters)
+	 * Override strategy: Last wins
+	 *
+	 * @example
+	 * ```ts
+	 * .realtime({ adapter: pgNotifyAdapter({ ... }) })
+	 * ```
+	 */
+	realtime(
+		realtime: RealtimeConfig,
+	): QCMSBuilder<Omit<TState, "realtime"> & { realtime: RealtimeConfig }> {
+		return new QCMSBuilder({
+			...this.state,
+			realtime,
+		} as any);
+	}
+
+	/**
 	 * Configure localization
 	 * Override strategy: Last wins
 	 *
@@ -351,6 +370,9 @@ export class QCMSBuilder<TState extends QCMSBuilderState = QCMSBuilderState> {
 		search: TOtherState["search"] extends undefined
 			? TState["search"]
 			: TOtherState["search"];
+		realtime: TOtherState["realtime"] extends undefined
+			? TState["realtime"]
+			: TOtherState["realtime"];
 		locale: TOtherState["locale"] extends undefined
 			? TState["locale"]
 			: TOtherState["locale"];
@@ -380,6 +402,7 @@ export class QCMSBuilder<TState extends QCMSBuilderState = QCMSBuilderState> {
 			storage: otherState.storage ?? this.state.storage,
 			email: otherState.email ?? this.state.email,
 			search: otherState.search ?? this.state.search,
+			realtime: otherState.realtime ?? this.state.realtime,
 			locale: otherState.locale ?? this.state.locale,
 			queueAdapter: otherState.queueAdapter ?? this.state.queueAdapter,
 			migrations: [
@@ -451,6 +474,7 @@ export class QCMSBuilder<TState extends QCMSBuilderState = QCMSBuilderState> {
 						}
 					: undefined,
 			search: this.state.search,
+			realtime: this.state.realtime,
 			migrations: {
 				directory: runtimeConfig.migrations?.directory,
 				migrations: this.state.migrations,
@@ -483,6 +507,7 @@ export function defineQCMS<TName extends string>(config: {
 		storage: undefined,
 		email: undefined,
 		search: undefined,
+		realtime: undefined,
 		locale: undefined,
 		queueAdapter: undefined,
 		migrations: undefined,

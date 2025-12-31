@@ -5,6 +5,7 @@
 		"authentication",
 		"storage-upload",
 		"queue-jobs",
+		"realtime-subscriptions",
 		"custom-api-routes",
 		"typescript-best-practices"
 	]

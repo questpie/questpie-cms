@@ -534,10 +534,10 @@ config.enableNewsletter; // ✅ boolean
 When using the Hono adapter, globals get RESTful endpoints:
 
 ```
-GET    /api/globals/site-config       # Get global
-PATCH  /api/globals/site-config       # Update global
-GET    /api/globals/site-config/versions  # Get version history
-POST   /api/globals/site-config/revert    # Revert to version
+GET    /cms/globals/site-config       # Get global
+PATCH  /cms/globals/site-config       # Update global
+GET    /cms/globals/site-config/versions  # Get version history
+POST   /cms/globals/site-config/revert    # Revert to version
 ```
 
 **Note:** No POST (create) or DELETE endpoints - globals are singletons.

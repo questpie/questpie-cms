@@ -108,7 +108,7 @@ const createUser = async () => {
 
 // Use auth handler in your routes
 const _authHandler = cmsQuickStart.auth.handler;
-// app.all('/api/auth/*', (req) => authHandler(req))
+// app.all('/cms/auth/*', (req) => authHandler(req))
 
 // ============================================================================
 // PATTERN 2: Direct with defaultQCMSAuth() - Legacy

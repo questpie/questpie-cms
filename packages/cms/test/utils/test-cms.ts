@@ -4,6 +4,7 @@ import type {
 	AnyCollectionOrBuilder,
 	CMSConfig,
 } from "../../src/server/config/types";
+import { RealtimeService } from "../../src/server/integrated/realtime/service";
 
 export const createTestCms = (
 	collections: AnyCollectionOrBuilder[],
@@ -73,6 +74,10 @@ export const createTestCms = (
 		client: db,
 		drizzle: db,
 	};
+
+	if (cms.config.realtime) {
+		cms.realtime = new RealtimeService(cms.db.drizzle, cms.config.realtime);
+	}
 
 	// Reinitialize migrations API and CRUD API with the correct db reference
 	const { QCMSMigrationsAPI } = require("../../src/server/config/integrated/migrations-api");

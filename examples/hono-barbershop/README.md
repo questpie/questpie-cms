@@ -104,22 +104,22 @@ bun run worker
 ### CMS CRUD Endpoints (Auto-generated)
 
 **Collections:**
-- `GET /api/cms/barbers` - List barbers
-- `GET /api/cms/barbers/:id` - Get barber
-- `POST /api/cms/barbers` - Create barber
-- `PATCH /api/cms/barbers/:id` - Update barber
-- `DELETE /api/cms/barbers/:id` - Delete barber
+- `GET /cms/barbers` - List barbers
+- `GET /cms/barbers/:id` - Get barber
+- `POST /cms/barbers` - Create barber
+- `PATCH /cms/barbers/:id` - Update barber
+- `DELETE /cms/barbers/:id` - Delete barber
 
 Similarly for: `services`, `appointments`, `reviews`
 
 **Authentication:**
-- `POST /api/auth/sign-up/email` - Register
-- `POST /api/auth/sign-in/email` - Login
-- `POST /api/auth/sign-out` - Logout
-- `GET /api/auth/session` - Get session
+- `POST /cms/auth/sign-up/email` - Register
+- `POST /cms/auth/sign-in/email` - Login
+- `POST /cms/auth/sign-out` - Logout
+- `GET /cms/auth/session` - Get session
 
 **Storage:**
-- `POST /api/storage/upload` - Upload file (avatars, etc.)
+- `POST /cms/storage/upload` - Upload file (avatars, etc.)
 
 ### Custom Business Logic Endpoints
 

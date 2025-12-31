@@ -16,7 +16,6 @@ import {
 	type DrizzleClientFromCMSConfig,
 	type GetCollection,
 	type GetGlobal,
-	type Global,
 	GlobalBuilder,
 	type GlobalNames,
 	type JobDefinition,
@@ -39,6 +38,10 @@ import { betterAuth } from "better-auth";
 import { KVService } from "#questpie/cms/server/integrated/kv";
 import { LoggerService } from "#questpie/cms/server/integrated/logger";
 import { MailerService } from "#questpie/cms/server/integrated/mailer";
+import {
+	RealtimeService,
+	questpieRealtimeLogTable,
+} from "#questpie/cms/server/integrated/realtime";
 import {
 	createSearchService,
 	type SearchService,
@@ -63,6 +66,7 @@ export class QCMS<
 	public kv: KVService;
 	public logger: LoggerService;
 	public search: SearchService;
+	public realtime?: RealtimeService;
 
 	public migrations: QCMSMigrationsAPI<TCollections, TGlobals, TJobs>;
 	public api: QCMSCrudAPI<TCollections, TGlobals, TJobs>;
@@ -106,6 +110,14 @@ export class QCMS<
 			this.db.drizzle as any,
 			config.search || {},
 		);
+
+		// Initialize realtime service if configured
+		if (config.realtime) {
+			this.realtime = new RealtimeService(
+				this.db.drizzle as any,
+				config.realtime,
+			);
+		}
 
 		// Initialize queue if configured
 		if (config.queue?.jobs) {
@@ -339,6 +351,10 @@ export class QCMS<
 			if (global.i18nVersionsTable) {
 				schema[`${name}_i18n_versions`] = global.i18nVersionsTable;
 			}
+		}
+
+		if (this.config.realtime) {
+			schema.questpie_realtime_log = questpieRealtimeLogTable;
 		}
 
 		// 2. Add relations (Placeholder)

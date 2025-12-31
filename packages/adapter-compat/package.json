@@ -1,0 +1,20 @@
+{
+	"name": "@questpie/adapter-compat",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"test": "bun test"
+	},
+	"devDependencies": {
+		"@electric-sql/pglite": "^0.3.14",
+		"@questpie/cms": "workspace:*",
+		"@questpie/elysia": "workspace:*",
+		"@questpie/hono": "workspace:*",
+		"@questpie/next": "workspace:*",
+		"@questpie/tanstack-start": "workspace:*",
+		"@questpie/typescript-config": "workspace:*",
+		"bun-types": "latest",
+		"drizzle-kit": "^1.0.0-beta.6-4414a19",
+		"drizzle-orm": "^1.0.0-beta.6-4414a19"
+	}
+}

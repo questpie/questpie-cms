@@ -8,7 +8,7 @@
  */
 
 import { createClientFromHono } from "@questpie/hono/client";
-import type { cms } from "./cms";
+import type { AppCMS } from "./cms";
 import type { AppType } from "./server";
 
 // ============================================================================
@@ -19,10 +19,19 @@ const BASE_URL = "http://localhost:3000";
 
 // Unified client - combines CMS CRUD with Hono RPC
 // ✨ Single client for everything!
-// IMPORTANT: Use `typeof cms` directly for proper type inference
-const client = createClientFromHono<AppType, typeof cms>({
+// IMPORTANT: Use the exported AppCMS type for proper type inference
+// Cast to avoid workspace type duplication between @questpie/cms packages.
+const client = createClientFromHono<AppType, AppCMS>({
 	baseURL: BASE_URL,
-	basePath: "/api",
+	basePath: "/cms",
+});
+
+client.collections.barbers.find({
+	where: {
+		createdAt: {
+			gte: new Date().toISOString(),
+		},
+	},
 });
 
 // ============================================================================
@@ -212,6 +221,28 @@ async function exampleUsage() {
 	console.log();
 
 	// ========================================================================
+	// 9. Globals API Example
+	// ========================================================================
+
+	console.log("⚙️  Globals API (singleton settings):");
+	console.log("  • client.globals.*: Access singleton global settings");
+	console.log("  • Example: client.globals.siteSettings.get()");
+	console.log("  • Example: client.globals.siteSettings.update({ ... })");
+	console.log();
+
+	// Example (if you have globals defined):
+	/*
+	const siteSettings = await client.globals.siteSettings.get();
+	console.log('Site name:', siteSettings.siteName);
+
+	// Update settings
+	await client.globals.siteSettings.update({
+		siteName: 'New Name',
+		maintenanceMode: false
+	});
+	*/
+
+	// ========================================================================
 	// Summary
 	// ========================================================================
 
@@ -220,6 +251,7 @@ async function exampleUsage() {
 		"  • Unified Client: Single client for both CMS CRUD and custom routes",
 	);
 	console.log("  • client.collections.*: CMS CRUD operations");
+	console.log("  • client.globals.*: Singleton global settings");
 	console.log("  • client.api.*: Hono RPC for custom business logic");
 	console.log("  • Fully type-safe end-to-end");
 	console.log("  • Relations are automatically typed and loaded");
@@ -235,7 +267,7 @@ async function _authExample() {
 	// Register new user
 	console.log("Registering new customer...");
 
-	const registerResponse = await fetch(`${BASE_URL}/api/auth/sign-up/email`, {
+	const registerResponse = await fetch(`${BASE_URL}/cms/auth/sign-up/email`, {
 		method: "POST",
 		headers: { "Content-Type": "application/json" },
 		body: JSON.stringify({

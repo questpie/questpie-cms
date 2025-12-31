@@ -121,11 +121,11 @@ elysia-barbershop/
 
 All collections are accessible via REST API:
 
-- `GET /api/cms/:collection` - List all
-- `POST /api/cms/:collection` - Create
-- `GET /api/cms/:collection/:id` - Get one
-- `PATCH /api/cms/:collection/:id` - Update
-- `DELETE /api/cms/:collection/:id` - Delete
+- `GET /cms/:collection` - List all
+- `POST /cms/:collection` - Create
+- `GET /cms/:collection/:id` - Get one
+- `PATCH /cms/:collection/:id` - Update
+- `DELETE /cms/:collection/:id` - Delete
 
 ### Custom Routes
 
@@ -137,10 +137,10 @@ All collections are accessible via REST API:
 
 ### Authentication Routes (Better Auth)
 
-- `POST /api/auth/sign-up/email` - Register
-- `POST /api/auth/sign-in/email` - Login
-- `POST /api/auth/sign-out` - Logout
-- `GET /api/auth/session` - Get session
+- `POST /cms/auth/sign-up/email` - Register
+- `POST /cms/auth/sign-in/email` - Login
+- `POST /cms/auth/sign-out` - Logout
+- `GET /cms/auth/session` - Get session
 
 ## Eden Treaty vs Hono RPC
 

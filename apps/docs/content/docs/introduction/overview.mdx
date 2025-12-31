@@ -206,21 +206,20 @@ Migrations are **auto-generated** from your collection definitions - no manual S
 When using an adapter (Hono, Elysia), RESTful endpoints are generated automatically:
 
 ```
-GET    /api/collections/posts           # List posts
-POST   /api/collections/posts           # Create post
-GET    /api/collections/posts/:id       # Get post by ID
-PATCH  /api/collections/posts/:id       # Update post
-DELETE /api/collections/posts/:id       # Delete post
+GET    /cms/posts                       # List posts
+POST   /cms/posts                       # Create post
+GET    /cms/posts/:id                   # Get post by ID
+PATCH  /cms/posts/:id                   # Update post
+DELETE /cms/posts/:id                   # Delete post
 
-GET    /api/globals/site-config         # Get global
-PATCH  /api/globals/site-config         # Update global
+GET    /cms/globals/site-config         # Get global
+PATCH  /cms/globals/site-config         # Update global
 
-POST   /api/storage/upload              # Upload file
-GET    /api/storage/:path               # Serve file
+POST   /cms/storage/upload              # Upload file
 
-POST   /api/auth/sign-in                # Authentication endpoints
-POST   /api/auth/sign-up
-POST   /api/auth/sign-out
+POST   /cms/auth/sign-in                # Authentication endpoints
+POST   /cms/auth/sign-up
+POST   /cms/auth/sign-out
 ```
 
 All endpoints respect access control and execute hooks automatically.
@@ -418,7 +417,7 @@ import { cms } from "./cms";
 
 const app = new Hono();
 
-app.route("/api", questpieHono(cms));
+app.route("/", questpieHono(cms, { basePath: "/cms" }));
 
 export default {
   port: 3000,
@@ -427,7 +426,7 @@ export default {
 ```
 
 Now you have a fully functional CMS with:
-- RESTful API at `/api/collections/posts`
+- RESTful API at `/cms/posts`
 - Type-safe CRUD operations
 - Access control enforced
 - Auto-generated migrations

@@ -1,16 +1,3 @@
-import type { QCMS } from "../server/index.js";
-import type {
-	CollectionSelect,
-	CollectionInsert,
-	CollectionUpdate,
-	Collection,
-	CollectionBuilder,
-} from "../server/collection/builder/collection.js";
-import type { WithCoreCollections } from "../server/config/types.js";
-import type {
-	AnyCollectionState,
-	RelationConfig,
-} from "../server/collection/builder/types.js";
 import type {
 	FindManyOptions,
 	FindFirstOptions,
@@ -19,9 +6,28 @@ import type {
 	CreateInputBase,
 	CreateInputWithRelations,
 	UpdateParams,
-	DeleteParams,
+	With,
+	Columns,
 } from "../server/collection/crud/types.js";
+import type {
+	Global,
+	GlobalBuilder,
+} from "../server/global/builder/index.js";
+import type {
+	AnyCollection,
+	CollectionNames as SharedCollectionNames,
+	GlobalNames as SharedGlobalNames,
+	CollectionSelect,
+	CollectionInsert,
+	CollectionUpdate,
+	GlobalSelect,
+	GlobalUpdate,
+	GetCollection,
+	ResolveRelations,
+} from "#questpie/cms/shared/type-utils.js";
 import qs from "qs";
+import type { AnyGlobal,
+QCMS } from "../exports/server.js";
 
 /**
  * Client configuration
@@ -41,7 +47,8 @@ export type QCMSClientConfig = {
 
 	/**
 	 * Base path for API routes
-	 * @default '/api'
+	 * Use '/cms' for server-only apps or '/api/cms' for fullstack apps.
+	 * @default '/cms'
 	 */
 	basePath?: string;
 
@@ -51,91 +58,71 @@ export type QCMSClientConfig = {
 	headers?: Record<string, string>;
 };
 
-type ResolvedCollections<T> = T extends QCMS<infer TCollections, any, any>
-	? WithCoreCollections<TCollections>
-	: never;
+/**
+ * Resolve collections from QCMS instance (including core collections)
+ * Uses $inferCms helper property for reliable type extraction
+ */
+type ResolvedCollections<T extends QCMS<any, any, any>> =
+	T["config"]["collections"];
 
 /**
- * Extract collection names from QCMS type
+ * Resolve globals from QCMS instance
+ * Uses $inferCms helper property for reliable type extraction
  */
-type CollectionNames<T> = ResolvedCollections<T>[number] extends
-	| Collection<infer TState>
-	| CollectionBuilder<infer TState>
-	? TState extends AnyCollectionState
-		? TState["name"]
-		: never
-	: never;
+type ResolvedGlobals<T extends QCMS<any, any, any>> = T["config"]["globals"];
 
 /**
- * Extract collection state by name
+ * Extract collection names from QCMS instance
  */
-type GetCollectionState<T, Name extends string> = Extract<
-	ResolvedCollections<T>[number],
-	{ name: Name }
-> extends infer C
-	? C extends Collection<infer TState>
-		? TState
-		: C extends CollectionBuilder<infer TState>
-			? TState
-			: never
-	: never;
+type CollectionNames<T extends QCMS<any, any, any>> = SharedCollectionNames<
+	ResolvedCollections<T>
+>;
 
-// Helper type to extract collection from builder or collection
-type ExtractCollection<T> =
-	T extends CollectionBuilder<infer TState> ? Collection<TState> : T;
+/**
+ * Extract global names from QCMS instance
+ */
+type GlobalNames<T extends QCMS<any, any, any>> = SharedGlobalNames<
+	ResolvedGlobals<T>
+>;
 
-// Helper type to find a collection by name in the tuple
-type GetCollection<
-	TCollections extends any[],
+/**
+ * Extract global state by name from QCMS instance
+ */
+type GetGlobalState<
+	T extends QCMS<any, any, any>,
 	Name extends string,
-> = ExtractCollection<Extract<TCollections[number], { name: Name }>>;
-
-/**
- * Resolve relations from config to actual types
- */
-type ResolveRelations<
-	TRelations extends Record<string, RelationConfig>,
-	TCollections extends any[],
-> = {
-	[K in keyof TRelations]: TRelations[K] extends {
-		type: "many" | "manyToMany";
-		collection: infer C extends string;
-	}
-		? GetCollection<TCollections, C> extends never
-			? never
-			: GetCollection<TCollections, C>["$infer"]["select"][]
-		: TRelations[K] extends {
-					type: "one";
-					collection: infer C extends string;
-				}
-			? GetCollection<TCollections, C> extends never
-				? never
-				: GetCollection<TCollections, C>["$infer"]["select"]
-			: never;
-};
+> = Extract<ResolvedGlobals<T>[number], { name: Name }> extends Global<
+	infer TState
+>
+	? TState
+	: Extract<ResolvedGlobals<T>[number], { name: Name }> extends GlobalBuilder<
+				infer TState
+			>
+		? TState
+		: never;
 
 /**
  * Type-safe collection API for a single collection
  */
 type CollectionAPI<
-	TState extends AnyCollectionState,
-	TCollections extends any[],
+	TCollection extends AnyCollection,
+	TCollections extends AnyCollection[],
 > = {
 	/**
 	 * Find many records (paginated)
 	 */
 	find: <
 		TQuery extends FindManyOptions<
-			CollectionSelect<TState>,
-			ResolveRelations<TState["relations"], TCollections>
+			CollectionSelect<TCollection>,
+			ResolveRelations<TCollection["state"]["relations"], TCollections>
 		>,
 	>(
 		options?: TQuery,
 	) => Promise<
 		PaginatedResult<
 			ApplyQuery<
-				CollectionSelect<TState>,
-				ResolveRelations<TState["relations"], TCollections>,
+				CollectionSelect<TCollection>,
+				ResolveRelations<TCollection["state"]["relations"], TCollections>,
 				TQuery
 			>
 		>
@@ -147,42 +134,39 @@ type CollectionAPI<
 	 */
 	findOne: <
 		TQuery extends FindFirstOptions<
-			CollectionSelect<TState>,
-			ResolveRelations<TState["relations"], TCollections>
+			CollectionSelect<TCollection>,
+			ResolveRelations<TCollection["state"]["relations"], TCollections>
 		> & { where: { id: string } },
 	>(
 		options: TQuery,
-	) => Promise<
-		ApplyQuery<
-			CollectionSelect<TState>,
-			ResolveRelations<TState["relations"], TCollections>,
-			TQuery
-		> | null
-	>;
+	) => Promise<ApplyQuery<
+		CollectionSelect<TCollection>,
+		ResolveRelations<TCollection["state"]["relations"], TCollections>,
+		TQuery
+	> | null>;
 
 	/**
 	 * Create a new record
 	 */
 	create: <
 		TInput extends CreateInputBase<
-			CollectionInsert<TState>,
-			ResolveRelations<TState["relations"], TCollections>
+			CollectionInsert<TCollection>,
+			ResolveRelations<TCollection["state"]["relations"], TCollections>
 		>,
 	>(
 		data: CreateInputWithRelations<
-			CollectionInsert<TState>,
-			ResolveRelations<TState["relations"], TCollections>,
+			CollectionInsert<TCollection>,
+			ResolveRelations<TCollection["state"]["relations"], TCollections>,
 			TInput
 		>,
-	) => Promise<CollectionSelect<TState>>;
-
+	) => Promise<CollectionSelect<TCollection>>;
 	/**
 	 * Update a single record by ID
 	 */
 	update: (
 		id: string,
-		data: UpdateParams<CollectionUpdate<TState>>["data"],
-	) => Promise<CollectionSelect<TState>>;
+		data: UpdateParams<CollectionUpdate<TCollection>>["data"],
+	) => Promise<CollectionSelect<TCollection>>;
 
 	/**
 	 * Delete a single record by ID
@@ -192,28 +176,92 @@ type CollectionAPI<
 	/**
 	 * Restore a soft-deleted record by ID
 	 */
-	restore: (id: string) => Promise<CollectionSelect<TState>>;
+	restore: (id: string) => Promise<CollectionSelect<TCollection>>;
 };
 
 /**
  * Collections API proxy with type-safe collection methods
  */
-type CollectionsAPI<T> = T extends QCMS<any, any, any>
-	? {
-			[K in CollectionNames<T>]: GetCollectionState<T, K> extends never
-				? never
-				: CollectionAPI<
-						GetCollectionState<T, K>,
-						ResolvedCollections<T>
-					>;
-		}
-	: never;
+type CollectionsAPI<T extends QCMS<any, any, any>> = {
+	[K in CollectionNames<T>]: GetCollection<
+		ResolvedCollections<T>,
+		K
+	> extends AnyCollection
+		? CollectionAPI<
+				GetCollection<ResolvedCollections<T>, K>,
+				ResolvedCollections<T>
+			>
+		: never;
+};
+
+/**
+ * Type-safe global API for a single global
+ */
+type GlobalAPI<
+	TGlobal extends AnyGlobal,
+	TCollections extends AnyCollection[],
+> = {
+	/**
+	 * Get the global record (singleton)
+	 * Supports partial selection and relation loading
+	 */
+	get: <
+		TQuery extends {
+			with?: With<ResolveRelations<TGlobal["state"]["relations"], TCollections>>;
+			columns?: any;
+		},
+	>(
+		options?: TQuery,
+	) => Promise<
+		ApplyQuery<
+			GlobalSelect<TGlobal>,
+			ResolveRelations<TGlobal["state"]["relations"], TCollections>,
+			TQuery
+		>
+	>;
+
+	/**
+	 * Update the global record
+	 * Supports loading relations in response
+	 */
+	update: <
+		TQuery extends {
+			with?: With<ResolveRelations<TGlobal["state"]["relations"], TCollections>>;
+		},
+	>(
+		data: GlobalUpdate<TGlobal>,
+		options?: TQuery,
+	) => Promise<
+		ApplyQuery<
+			GlobalSelect<TGlobal>,
+			ResolveRelations<TGlobal["state"]["relations"], TCollections>,
+			TQuery
+		>
+	>;
+};
+
+/**
+ * Globals API proxy with type-safe global methods
+ */
+type GlobalsAPI<T extends QCMS<any, any, any>> = ResolvedGlobals<T> extends never
+	? {}
+	: {
+			[K in GlobalNames<T>]: K extends string
+				? Extract<ResolvedGlobals<T>[number], { name: K }> extends AnyGlobal
+					? GlobalAPI<
+							Extract<ResolvedGlobals<T>[number], { name: K }>,
+							ResolvedCollections<T>
+						>
+					: never
+				: never;
+		};
 
 /**
  * QCMS Client
  */
-export type QCMSClient<T = any> = {
+export type QCMSClient<T extends QCMS<any, any, any>> = {
 	collections: CollectionsAPI<T>;
+	globals: GlobalsAPI<T>;
 };
 
 /**
@@ -235,15 +283,28 @@ export type QCMSClient<T = any> = {
  * const result = await client.functions.addToCart({ productId: '123' })
  * ```
  */
-export function createQCMSClient<T = any>(config: QCMSClientConfig): QCMSClient<T> {
+export function createQCMSClient<T extends QCMS<any, any, any> = any>(
+	config: QCMSClientConfig,
+): QCMSClient<T> {
 	const fetcher = config.fetch || globalThis.fetch;
-	const basePath = config.basePath || "/api";
+	const basePath = config.basePath ?? "/cms";
+	const normalizedBasePath = basePath.startsWith("/")
+		? basePath
+		: `/${basePath}`;
+	const trimmedBasePath = normalizedBasePath.replace(/\/$/, "");
+	const cmsBasePath =
+		trimmedBasePath.endsWith("/cms") || trimmedBasePath === "/cms"
+			? trimmedBasePath
+			: `${trimmedBasePath}/cms`;
 	const defaultHeaders = config.headers || {};
 
 	/**
 	 * Make a request to the CMS API
 	 */
-	async function request(path: string, options: RequestInit = {}): Promise<any> {
+	async function request(
+		path: string,
+		options: RequestInit = {},
+	): Promise<any> {
 		const url = `${config.baseURL}${path}`;
 		const headers = {
 			"Content-Type": "application/json",
@@ -257,7 +318,9 @@ export function createQCMSClient<T = any>(config: QCMSClientConfig): QCMSClient<
 		});
 
 		if (!response.ok) {
-			const error = await response.json().catch(() => ({ error: response.statusText }));
+			const error = await response
+				.json()
+				.catch(() => ({ error: response.statusText }));
 			throw new Error(error.error || `Request failed: ${response.statusText}`);
 		}
 
@@ -270,19 +333,19 @@ export function createQCMSClient<T = any>(config: QCMSClientConfig): QCMSClient<
 	const collections = new Proxy({} as CollectionsAPI<T>, {
 		get(_, collectionName: string) {
 			return {
-				find: async (options = {}) => {
+				find: async (options: any = {}) => {
 					// Use qs for cleaner query strings with nested objects
 					const queryString = qs.stringify(options, {
 						skipNulls: true,
 						arrayFormat: "brackets",
 					});
 
-					const path = `${basePath}/cms/${collectionName}${queryString ? `?${queryString}` : ""}`;
+					const path = `${cmsBasePath}/${collectionName}${queryString ? `?${queryString}` : ""}`;
 
 					return request(path);
 				},
 
-				findOne: async (options) => {
+				findOne: async (options: any) => {
 					const where = options.where;
 					if (!where.id) {
 						throw new Error("findOne requires where.id");
@@ -300,33 +363,33 @@ export function createQCMSClient<T = any>(config: QCMSClientConfig): QCMSClient<
 						},
 					);
 
-					const path = `${basePath}/cms/${collectionName}/${where.id}${queryString ? `?${queryString}` : ""}`;
+					const path = `${cmsBasePath}/${collectionName}/${where.id}${queryString ? `?${queryString}` : ""}`;
 
 					return request(path);
 				},
 
-				create: async (data) => {
-					return request(`${basePath}/cms/${collectionName}`, {
+				create: async (data: any) => {
+					return request(`${cmsBasePath}/${collectionName}`, {
 						method: "POST",
 						body: JSON.stringify(data),
 					});
 				},
 
-				update: async (id, data) => {
-					return request(`${basePath}/cms/${collectionName}/${id}`, {
+				update: async (id: string, data: any) => {
+					return request(`${cmsBasePath}/${collectionName}/${id}`, {
 						method: "PATCH",
 						body: JSON.stringify(data),
 					});
 				},
 
-				delete: async (id) => {
-					return request(`${basePath}/cms/${collectionName}/${id}`, {
+				delete: async (id: string) => {
+					return request(`${cmsBasePath}/${collectionName}/${id}`, {
 						method: "DELETE",
 					});
 				},
 
-				restore: async (id) => {
-					return request(`${basePath}/cms/${collectionName}/${id}/restore`, {
+				restore: async (id: string) => {
+					return request(`${cmsBasePath}/${collectionName}/${id}/restore`, {
 						method: "POST",
 					});
 				},
@@ -334,7 +397,43 @@ export function createQCMSClient<T = any>(config: QCMSClientConfig): QCMSClient<
 		},
 	});
 
+	/**
+	 * Globals API
+	 */
+	const globals = new Proxy({} as GlobalsAPI<T>, {
+		get(_, globalName: string) {
+			return {
+				get: async (options: { with?: any; columns?: any } = {}) => {
+					const queryString = qs.stringify(
+						{
+							with: options.with,
+							columns: options.columns,
+						},
+						{ skipNulls: true, arrayFormat: "brackets" },
+					);
+					const path = `${cmsBasePath}/globals/${globalName}${queryString ? `?${queryString}` : ""}`;
+					return request(path);
+				},
+
+				update: async (data: any, options: { with?: any } = {}) => {
+					const queryString = qs.stringify(
+						{ with: options.with },
+						{ skipNulls: true, arrayFormat: "brackets" },
+					);
+					return request(
+						`${cmsBasePath}/globals/${globalName}${queryString ? `?${queryString}` : ""}`,
+						{
+							method: "PATCH",
+							body: JSON.stringify(data),
+						},
+					);
+				},
+			};
+		},
+	});
+
 	return {
 		collections,
+		globals,
 	};
 }
