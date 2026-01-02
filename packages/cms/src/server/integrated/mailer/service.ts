@@ -1,27 +1,30 @@
 import { render } from "@react-email/render";
 import { convert } from "html-to-text";
-import type { ComponentType } from "react";
-import type * as React from "react";
-import type { MailAdapter } from "./adapter";
 import type {
 	EmailTemplateDefinition,
 	EmailTemplateNames,
 	GetEmailTemplate,
 	InferEmailTemplateContext,
 } from "./template";
-import type { MailOptions, MailerConfig, SerializableMailOptions } from "./types";
+import type {
+	MailOptions,
+	MailerConfig,
+	SerializableMailOptions,
+} from "./types";
 
 /**
  * Main mailer service
  */
-export class MailerService<TTemplates extends any[] = any[]> {
+export class MailerService<
+	TTemplates extends Record<string, any> = Record<string, any>,
+> {
 	private templates: Map<string, EmailTemplateDefinition<any, any>>;
 	private defaultFrom?: string;
 
 	constructor(private config: MailerConfig<TTemplates>) {
 		this.templates = new Map();
 		if (config.templates) {
-			for (const template of config.templates) {
+			for (const [_key, template] of Object.entries(config.templates)) {
 				this.templates.set(template.name, template);
 			}
 		}

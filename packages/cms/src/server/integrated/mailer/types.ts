@@ -37,7 +37,9 @@ export type SerializableMailOptions = Omit<
 /**
  * Mailer configuration
  */
-export interface MailerConfig<TTemplates extends any[] = any[]> {
+export interface MailerConfig<
+	TTemplates extends Record<string, any> = Record<string, any>,
+> {
 	/**
 	 * Mail adapter (SMTP, Console, Resend, etc.)
 	 */

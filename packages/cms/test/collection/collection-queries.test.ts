@@ -3,7 +3,13 @@ import { describe, beforeEach, afterEach, it, expect } from "bun:test";
 import { buildMockCMS } from "../utils/mocks/mock-cms-builder";
 import { createTestContext } from "../utils/test-context";
 import { runTestDbMigrations } from "../utils/test-db";
-import { boolean, integer, text, timestamp, varchar } from "drizzle-orm/pg-core";
+import {
+	boolean,
+	integer,
+	text,
+	timestamp,
+	varchar,
+} from "drizzle-orm/pg-core";
 
 const testModule = defineQCMS({ name: "test-module" }).collections({
 	posts: defineCollection("posts")

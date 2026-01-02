@@ -5,11 +5,8 @@ import {
 	type RunMigrationsOptions,
 	MigrationRunner,
 	type MigrationStatus,
-	type AnyCollectionOrBuilder,
-	type AnyGlobalOrBuilder,
-	type JobDefinition,
 	type QCMS,
-	type CMSDbConfig,
+	type CMSConfig,
 } from "#questpie/cms/exports/server.js";
 import { toCamelCase } from "drizzle-orm/casing";
 
@@ -33,24 +30,10 @@ import { toCamelCase } from "drizzle-orm/casing";
  * const status = await cms.migrations.status()
  * ```
  */
-export class QCMSMigrationsAPI<
-	TCollections extends AnyCollectionOrBuilder[] = AnyCollectionOrBuilder[],
-	TGlobals extends AnyGlobalOrBuilder[] = AnyGlobalOrBuilder[],
-	TJobs extends JobDefinition<any, any>[] = JobDefinition<any, any>[],
-	TEmailTemplates extends any[] = any[],
-> {
+export class QCMSMigrationsAPI<TConfig extends CMSConfig = CMSConfig> {
 	private readonly runner: MigrationRunner;
 
-	constructor(
-		private readonly cms: QCMS<
-			TCollections,
-			TGlobals,
-			TJobs,
-			TEmailTemplates,
-			any,
-			CMSDbConfig
-		>,
-	) {
+	constructor(private readonly cms: QCMS<TConfig>) {
 		this.runner = new MigrationRunner(this.cms.db);
 	}
 
@@ -144,6 +127,11 @@ export class QCMSMigrationsAPI<
 			"gentle",
 			"jolly",
 			"kind",
+			"lucky",
+			"merry",
+			"nice",
+			"proud",
+			"quick",
 		];
 		const colors = [
 			"red",
@@ -156,6 +144,11 @@ export class QCMSMigrationsAPI<
 			"crimson",
 			"azure",
 			"emerald",
+			"amber",
+			"violet",
+			"indigo",
+			"scarlet",
+			"teal",
 		];
 		const animals = [
 			"zebra",
@@ -168,6 +161,11 @@ export class QCMSMigrationsAPI<
 			"dragon",
 			"griffin",
 			"unicorn",
+			"lion",
+			"wolf",
+			"otter",
+			"koala",
+			"lemur",
 		];
 
 		const randomItem = (arr: string[]) =>

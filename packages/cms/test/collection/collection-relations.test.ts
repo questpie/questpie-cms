@@ -108,7 +108,7 @@ const comments = defineCollection("comments")
 	}));
 
 // Products with restricted delete
-const restrictedCategories = defineCollection("restricted_categories")
+const restrictedCategories = defineCollection("restrictedCategories")
 	.fields({
 		name: text("name").notNull(),
 	})
@@ -126,7 +126,7 @@ const restrictedProducts = defineCollection("restricted_products")
 			}),
 	})
 	.relations(({ table, one }) => ({
-		category: one("restricted_categories", {
+		category: one("restrictedCategories", {
 			fields: [table.categoryId],
 			references: ["id"],
 			relationName: "category",
@@ -134,7 +134,7 @@ const restrictedProducts = defineCollection("restricted_products")
 	}));
 
 // Polymorphic relations setup
-const polymorphicComments = defineCollection("polymorphic_comments")
+const polymorphicComments = defineCollection("polymorphicComments")
 	.fields({
 		content: text("content").notNull(),
 		commentableType: text("commentable_type").notNull(),
@@ -157,26 +157,26 @@ const articles = defineCollection("articles")
 		title: text("title").notNull(),
 	})
 	.relations(({ manyToMany }) => ({
-		tags: manyToMany("article_tags", {
-			through: "article_tag_junction",
+		tags: manyToMany("articleTags", {
+			through: "articleTagJunction",
 			sourceField: "articleId",
 			targetField: "tagId",
 		}),
 	}));
 
-const articleTags = defineCollection("article_tags")
+const articleTags = defineCollection("articleTags")
 	.fields({
 		name: text("name").notNull(),
 	})
 	.relations(({ manyToMany }) => ({
 		articles: manyToMany("articles", {
-			through: "article_tag_junction",
+			through: "articleTagJunction",
 			sourceField: "tagId",
 			targetField: "articleId",
 		}),
 	}));
 
-const articleTagJunction = defineCollection("article_tag_junction").fields({
+const articleTagJunction = defineCollection("articleTagJunction").fields({
 	articleId: uuid("article_id")
 		.notNull()
 		.references(() => articles.table.id, { onDelete: "cascade" }),
@@ -195,7 +195,7 @@ const categories = defineCollection("categories")
 	.relations(({ many, manyToMany }) => ({
 		products: many("products", { relationName: "category" }),
 		tags: manyToMany("tags", {
-			through: "category_tags",
+			through: "categoryTags",
 			sourceField: "categoryId",
 			targetField: "tagId",
 		}),
@@ -215,7 +215,7 @@ const products = defineCollection("products")
 			relationName: "products",
 		}),
 		tags: manyToMany("tags", {
-			through: "product_tags",
+			through: "productTags",
 			sourceField: "productId",
 			targetField: "tagId",
 		}),
@@ -227,18 +227,18 @@ const tags = defineCollection("tags")
 	})
 	.relations(({ manyToMany }) => ({
 		products: manyToMany("products", {
-			through: "product_tags",
+			through: "productTags",
 			sourceField: "tagId",
 			targetField: "productId",
 		}),
 		categories: manyToMany("categories", {
-			through: "category_tags",
+			through: "categoryTags",
 			sourceField: "tagId",
 			targetField: "categoryId",
 		}),
 	}));
 
-const categoryTags = defineCollection("category_tags").fields({
+const categoryTags = defineCollection("categoryTags").fields({
 	categoryId: uuid("category_id")
 		.notNull()
 		.references(() => categories.table.id),
@@ -247,7 +247,7 @@ const categoryTags = defineCollection("category_tags").fields({
 		.references(() => tags.table.id),
 });
 
-const productTags = defineCollection("product_tags").fields({
+const productTags = defineCollection("productTags").fields({
 	productId: uuid("product_id")
 		.notNull()
 		.references(() => products.table.id),
@@ -850,8 +850,7 @@ describe("collection relations", () => {
 		it("connects existing records in many-to-many relation", async () => {
 			const ctx = createTestContext();
 			const articlesCrud = cms.api.collections.articles;
-			const tagsCrud = cms.api.collections.article_tags;
-
+			const tagsCrud = cms.api.collections.articleTags;
 			// Create tags first
 			const tag1 = await tagsCrud.create(
 				{ id: crypto.randomUUID(), name: "JavaScript" },
@@ -897,7 +896,7 @@ describe("collection relations", () => {
 		it("creates new record if it doesn't exist, otherwise connects", async () => {
 			const ctx = createTestContext();
 			const articlesCrud = cms.api.collections.articles;
-			const tagsCrud = cms.api.collections.article_tags;
+			const tagsCrud = cms.api.collections.articleTags;
 
 			// Create one existing tag
 			const existingTag = await tagsCrud.create(
@@ -954,7 +953,7 @@ describe("collection relations", () => {
 		it("handles create + connect in single mutation", async () => {
 			const ctx = createTestContext();
 			const articlesCrud = cms.api.collections.articles;
-			const tagsCrud = cms.api.collections.article_tags;
+			const tagsCrud = cms.api.collections.articleTags;
 
 			// Create one existing tag
 			const existingTag = await tagsCrud.create(
@@ -1138,7 +1137,7 @@ describe("collection relations", () => {
 	describe("restrict delete", () => {
 		it("prevents delete when related records exist (onDelete: restrict)", async () => {
 			const ctx = createTestContext();
-			const categoriesCrud = cms.api.collections.restricted_categories;
+			const categoriesCrud = cms.api.collections.restrictedCategories;
 			const productsCrud = cms.api.collections.restricted_products;
 
 			const category = await categoriesCrud.create(
@@ -1180,7 +1179,7 @@ describe("collection relations", () => {
 			const postsCrud = cms.api.collections.posts;
 			const profilesCrud = cms.api.collections.profiles;
 			const usersCrud = cms.api.collections.users;
-			const commentsCrud = cms.api.collections.polymorphic_comments;
+			const commentsCrud = cms.api.collections.polymorphicComments;
 			const authorsCrud = cms.api.collections.authors;
 
 			// Create a post
@@ -1251,10 +1250,10 @@ describe("collection relations", () => {
 			expect(commentsWithRelations.docs).toHaveLength(2);
 
 			const postComment = commentsWithRelations.docs.find(
-				(c: any) => c.id === commentOnPost.id,
+				(c) => c.id === commentOnPost.id,
 			);
 			const profileComment = commentsWithRelations.docs.find(
-				(c: any) => c.id === commentOnProfile.id,
+				(c) => c.id === commentOnProfile.id,
 			);
 
 			expect(postComment?.commentable?.title).toBe("Commentable Post");
@@ -1264,7 +1263,7 @@ describe("collection relations", () => {
 		it("filters by polymorphic relation type", async () => {
 			const ctx = createTestContext();
 			const postsCrud = cms.api.collections.posts;
-			const commentsCrud = cms.api.collections.polymorphic_comments;
+			const commentsCrud = cms.api.collections.polymorphicComments;
 			const authorsCrud = cms.api.collections.authors;
 
 			const author = await authorsCrud.create(
@@ -1585,7 +1584,7 @@ describe("collection relations", () => {
 			const categoriesCrud = cms.api.collections.categories;
 			const productsCrud = cms.api.collections.products;
 			const tagsCrud = cms.api.collections.tags;
-			const categoryTagsCrud = cms.api.collections.category_tags;
+			const categoryTagsCrud = cms.api.collections.categoryTags;
 
 			const categoryA = await categoriesCrud.create(
 				{ id: crypto.randomUUID(), name: "Trololo" },
@@ -1659,7 +1658,7 @@ describe("collection relations", () => {
 			const categoriesCrud = cms.api.collections.categories;
 			const productsCrud = cms.api.collections.products;
 			const tagsCrud = cms.api.collections.tags;
-			const categoryTagsCrud = cms.api.collections.category_tags;
+			const categoryTagsCrud = cms.api.collections.categoryTags;
 
 			const categoryA = await categoriesCrud.create(
 				{ id: crypto.randomUUID(), name: "Trololo" },

@@ -25,26 +25,19 @@ import {
 	verificationsCollection,
 } from "#questpie/cms/server/collection/defaults/auth";
 
-type BuilderCollectionsArray<TState extends QCMSBuilderState> = Array<
-	BuilderMapValues<TState["collections"]>
->;
-type BuilderGlobalsArray<TState extends QCMSBuilderState> = Array<
-	BuilderMapValues<TState["globals"]>
->;
-type BuilderJobsArray<TState extends QCMSBuilderState> = Array<
-	BuilderMapValues<TState["jobs"]>
->;
-type BuilderEmailTemplatesArray<TState extends QCMSBuilderState> = Array<
-	BuilderMapValues<TState["emailTemplates"]>
->;
 type QCMSFromState<TState extends QCMSBuilderState> = QCMS<
-	BuilderCollectionsArray<TState>,
-	BuilderGlobalsArray<TState>,
-	BuilderJobsArray<TState>,
-	BuilderEmailTemplatesArray<TState>,
-	TState["functions"],
-	CMSDbConfig,
-	TState["auth"]
+	CMSConfig & {
+		collections: TState["collections"];
+		globals: TState["globals"];
+		functions: TState["functions"];
+		auth: TState["auth"];
+		queue: TState["jobs"] extends Record<string, never>
+			? undefined
+			: { jobs: TState["jobs"]; adapter: any };
+		email: TState["emailTemplates"] extends Record<string, never>
+			? undefined
+			: { templates: TState["emailTemplates"]; adapter: any };
+	}
 >;
 
 /**
@@ -434,33 +427,13 @@ export class QCMSBuilder<TState extends QCMSBuilderState = QCMSBuilderState> {
 	build<TDbConfig extends CMSDbConfig = CMSDbConfig>(
 		runtimeConfig: QCMSRuntimeConfig<TDbConfig>,
 	): QCMSFromState<TState> {
-		// Convert maps to arrays for CMSConfig
-		const collections = Object.values(
-			this.state.collections,
-		) as BuilderCollectionsArray<TState>;
-		const globals = Object.values(
-			this.state.globals,
-		) as BuilderGlobalsArray<TState>;
-		const jobs = Object.values(this.state.jobs) as BuilderJobsArray<TState>;
-		const emailTemplates = Object.values(
-			this.state.emailTemplates,
-		) as BuilderEmailTemplatesArray<TState>;
-
-		// Build CMSConfig compatible with current QCMS constructor
-		const cmsConfig: CMSConfig<
-			BuilderCollectionsArray<TState>,
-			BuilderGlobalsArray<TState>,
-			BuilderJobsArray<TState>,
-			BuilderEmailTemplatesArray<TState>,
-			TState["functions"],
-			TDbConfig,
-			TState["auth"]
-		> = {
+		// Build CMSConfig with object-based collections, globals, jobs, templates
+		const cmsConfig: CMSConfig = {
 			app: runtimeConfig.app,
 			db: runtimeConfig.db,
 			secret: runtimeConfig.secret,
-			collections,
-			globals,
+			collections: this.state.collections,
+			globals: this.state.globals,
 			functions: this.state.functions,
 			locale: this.state.locale,
 			auth: this.state.auth,
@@ -468,13 +441,13 @@ export class QCMSBuilder<TState extends QCMSBuilderState = QCMSBuilderState> {
 			email: runtimeConfig.email
 				? {
 						...runtimeConfig.email,
-						templates: emailTemplates,
+						templates: this.state.emailTemplates,
 					}
 				: undefined,
 			queue:
-				jobs.length > 0 && runtimeConfig.queue
+				Object.keys(this.state.jobs).length > 0 && runtimeConfig.queue
 					? {
-							jobs,
+							jobs: this.state.jobs,
 							adapter: runtimeConfig.queue.adapter,
 						}
 					: undefined,
@@ -488,7 +461,7 @@ export class QCMSBuilder<TState extends QCMSBuilderState = QCMSBuilderState> {
 			},
 		};
 
-		return new QCMS(cmsConfig);
+		return new QCMS(cmsConfig) as any;
 	}
 }
 

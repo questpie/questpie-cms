@@ -151,40 +151,32 @@ export class GlobalCRUDGenerator<TState extends GlobalBuilderState> {
 	}
 
 	/**
-	 * Wrapper for update() method: (data, options?, context?)
-	 * Handles backwards compatibility for update(data, context)
+	 * Wrapper for update() method: (data, context?, options?)
 	 */
 	private wrapUpdateWithCMSContext<TArgs extends any[], TResult>(
 		fn: (...args: TArgs) => Promise<TResult>,
 	): (...args: TArgs) => Promise<TResult> {
 		return (...args: TArgs) => {
 			let context: CRUDContext | undefined;
-			let adjustedArgs = args;
 
-			if (args.length > 0) {
-				const lastArg = args[args.length - 1];
+			if (args.length > 1) {
+				const secondArg = args[1];
 				const isCRUDContext =
-					lastArg &&
-					typeof lastArg === "object" &&
-					("user" in lastArg ||
-						"session" in lastArg ||
-						"locale" in lastArg ||
-						"accessMode" in lastArg ||
-						"db" in lastArg ||
-						"defaultLocale" in lastArg);
+					secondArg &&
+					typeof secondArg === "object" &&
+					("user" in secondArg ||
+						"session" in secondArg ||
+						"locale" in secondArg ||
+						"accessMode" in secondArg ||
+						"db" in secondArg ||
+						"defaultLocale" in secondArg);
 
 				if (isCRUDContext) {
-					context = lastArg as CRUDContext;
-
-					// If we have 2 args: update(data, context)
-					// Need to rearrange to: update(data, {}, context)
-					if (args.length === 2) {
-						adjustedArgs = [args[0], {}, args[1]] as any;
-					}
+					context = secondArg as CRUDContext;
 				}
 			}
 
-			return this.runWithCMSContext(context, () => fn(...adjustedArgs));
+			return this.runWithCMSContext(context, () => fn(...args));
 		};
 	}
 
@@ -320,8 +312,8 @@ export class GlobalCRUDGenerator<TState extends GlobalBuilderState> {
 	private createUpdate() {
 		return async (
 			data: any,
-			options: GlobalUpdateOptions = {},
 			context: CRUDContext = {},
+			options: GlobalUpdateOptions = {},
 		) => {
 			const db = this.getDb(context);
 			const normalized = this.normalizeContext(context);

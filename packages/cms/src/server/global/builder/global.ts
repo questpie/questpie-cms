@@ -85,13 +85,33 @@ export class Global<TState extends GlobalBuilderState> {
 	 */
 	public readonly $infer!: {
 		select: InferGlobalSelect<
-			any, // Simplified
+			InferGlobalTableWithColumns<
+				TState["name"],
+				NonLocalizedFields<TState["fields"], TState["localized"]>,
+				TState["options"]
+			>,
 			TState["fields"],
 			TState["localized"],
 			TState["virtuals"]
 		>;
-		insert: InferGlobalInsert<any, TState["fields"], TState["localized"]>;
-		update: InferGlobalUpdate<any, TState["fields"], TState["localized"]>;
+		insert: InferGlobalInsert<
+			InferGlobalTableWithColumns<
+				TState["name"],
+				NonLocalizedFields<TState["fields"], TState["localized"]>,
+				TState["options"]
+			>,
+			TState["fields"],
+			TState["localized"]
+		>;
+		update: InferGlobalUpdate<
+			InferGlobalTableWithColumns<
+				TState["name"],
+				NonLocalizedFields<TState["fields"], TState["localized"]>,
+				TState["options"]
+			>,
+			TState["fields"],
+			TState["localized"]
+		>;
 	};
 
 	constructor(
@@ -196,7 +216,7 @@ export class Global<TState extends GlobalBuilderState> {
 	}
 
 	private generateMainTable(): PgTable {
-		const tableName = this.state.options.tableName || this.state.name;
+		const tableName = this.state.name;
 		const columns: Record<string, any> = {
 			id: uuid("id").primaryKey().default(sql`uuidv7()`),
 		};
@@ -216,7 +236,7 @@ export class Global<TState extends GlobalBuilderState> {
 	private generateI18nTable(): PgTable | null {
 		if (this.state.localized.length === 0) return null;
 
-		const tableName = `${this.state.options.tableName || this.state.name}_i18n`;
+		const tableName = `${this.state.name}_i18n`;
 		const columns: Record<string, any> = {
 			id: uuid("id").primaryKey().default(sql`uuidv7()`),
 			parentId: uuid("parent_id")
@@ -242,7 +262,7 @@ export class Global<TState extends GlobalBuilderState> {
 		if (!versioning) return null;
 		if (typeof versioning === "object" && !versioning.enabled) return null;
 
-		const tableName = `${this.state.options.tableName || this.state.name}_versions`;
+		const tableName = `${this.state.name}_versions`;
 		const columns: Record<string, any> = {
 			versionId: uuid("version_id").primaryKey().default(sql`uuidv7()`),
 			id: uuid("id").notNull(),
@@ -275,7 +295,7 @@ export class Global<TState extends GlobalBuilderState> {
 		if (typeof versioning === "object" && !versioning.enabled) return null;
 		if (this.state.localized.length === 0) return null;
 
-		const tableName = `${this.state.options.tableName || this.state.name}_i18n_versions`;
+		const tableName = `${this.state.name}_i18n_versions`;
 		const columns: Record<string, any> = {
 			id: uuid("id").primaryKey().default(sql`uuidv7()`),
 			parentId: uuid("parent_id").notNull(),

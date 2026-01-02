@@ -6,21 +6,22 @@ import { buildMockCMS } from "../utils/mocks/mock-cms-builder";
 import { createTestContext } from "../utils/test-context";
 import { runTestDbMigrations } from "../utils/test-db";
 
+const products = defineCollection("products")
+	.fields({
+		sku: varchar("sku", { length: 50 }).notNull(),
+		name: text("name").notNull(),
+		description: text("description"),
+	})
+	.localized(["name", "description"] as const)
+	.title(({ table, i18n }) => sql`${i18n.name} || ' - ' || ${table.sku}`)
+	.options({
+		timestamps: true,
+		softDelete: true,
+		versioning: true,
+	});
+
 const testModule = defineQCMS({ name: "test-module" }).collections({
-	products: defineCollection("products")
-		.fields({
-			sku: varchar("sku", { length: 50 }).notNull(),
-			name: text("name").notNull(),
-			description: text("description"),
-		})
-		.localized(["name", "description"] as const)
-		.title(({ table, i18n }) => sql`${i18n.name} || ' - ' || ${table.sku}`)
-		.options({
-			timestamps: true,
-			softDelete: true,
-			versioning: true,
-		})
-		.build(),
+	products,
 	locked_products: defineCollection("locked_products")
 		.fields({
 			sku: varchar("sku", { length: 50 }).notNull(),
@@ -35,8 +36,7 @@ const testModule = defineQCMS({ name: "test-module" }).collections({
 		})
 		.access({
 			create: () => false,
-		})
-		.build(),
+		}),
 });
 
 describe("collection CRUD", () => {

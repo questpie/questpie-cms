@@ -29,6 +29,9 @@ import type {
 	CollectionBuilderVirtualsFn,
 	CollectionBuilderTitleFn,
 	CollectionBuilderIndexesFn,
+	InferVersionedTableWithColumns,
+	InferI18nVersionedTableWithColumns,
+	InferI18nTableWithColumns,
 } from "#questpie/cms/server/collection/builder/types";
 import { CRUDGenerator } from "#questpie/cms/server/collection/crud";
 import type { CRUD } from "#questpie/cms/server/collection/crud/types";
@@ -122,6 +125,43 @@ export type CollectionUpdate<TState extends CollectionBuilderState> =
  * Uses single generic state pattern for better type performance
  */
 export class Collection<TState extends CollectionBuilderState> {
+	static readonly pkCols = () => ({
+		id: uuid("id").primaryKey().default(sql`uuidv7()`),
+	});
+
+	static readonly timestampsCols = () => ({
+		createdAt: timestamp("created_at", { mode: "string" })
+			.defaultNow()
+			.notNull(),
+		updatedAt: timestamp("updated_at", { mode: "string" })
+			.defaultNow()
+			.notNull(),
+	});
+
+	static readonly softDeleteCols = () => ({
+		deletedAt: timestamp("deleted_at", { mode: "string" }),
+	});
+
+	static readonly versionCols = () => ({
+		// primary key of a version table
+		versionId: uuid("version_id").primaryKey().default(sql<string>`uuidv7()`),
+		// reference to the main record, name kept as id for easier queries when doing virtuals and title generation
+		id: uuid("id").notNull(),
+		versionNumber: integer("version_number").notNull(),
+		versionOperation: text("version_operation").notNull(), // 'create' | 'update' | 'delete'
+		versionUserId: text("version_user_id"), // Nullable if unknown
+		versionCreatedAt: timestamp("version_created_at", { mode: "string" })
+			.defaultNow()
+			.notNull(),
+	});
+
+	static readonly i18nVersionCols = () => ({
+		id: uuid("id").primaryKey().default(sql`uuidv7()`),
+		parentId: uuid("parent_id").notNull(),
+		versionNumber: integer("version_number").notNull(),
+		locale: text("locale").notNull(),
+	});
+
 	public readonly name: TState["name"];
 	public readonly table: InferTableWithColumns<
 		TState["name"],
@@ -131,32 +171,29 @@ export class Collection<TState extends CollectionBuilderState> {
 	>;
 	public readonly i18nTable: TState["localized"][number] extends never
 		? null
-		: InferTableWithColumns<
+		: InferI18nTableWithColumns<
 				LocalizedTableName<TState["name"]>,
 				LocalizedFields<TState["fields"], TState["localized"]>,
-				TState["title"],
-				TState["options"]
+				TState["title"]
 			>;
-	public readonly versionsTable: PgTable | null;
-	public readonly i18nVersionsTable: PgTable | null;
+	public readonly versionsTable: TState["options"]["versioning"] extends true
+		? InferVersionedTableWithColumns<
+				TState["name"],
+				NonLocalizedFields<TState["fields"], TState["localized"]>,
+				TState["title"]
+			>
+		: null;
+	public readonly i18nVersionsTable: TState["localized"][number] extends never
+		? null
+		: TState["options"]["versioning"] extends true
+			? InferI18nVersionedTableWithColumns<
+					TState["name"],
+					LocalizedFields<TState["fields"], TState["localized"]>,
+					TState["title"]
+				>
+			: null;
+
 	public readonly state: TState;
-
-	static pkCols = () => ({
-		id: uuid("id").primaryKey().default(sql`uuidv7()`),
-	});
-
-	static timestampsCols = () => ({
-		createdAt: timestamp("created_at", { mode: "string" })
-			.defaultNow()
-			.notNull(),
-		updatedAt: timestamp("updated_at", { mode: "string" })
-			.defaultNow()
-			.notNull(),
-	});
-
-	static softDeleteCols = () => ({
-		deletedAt: timestamp("deleted_at", { mode: "string" }),
-	});
 
 	/**
 	 * Type inference helper
@@ -176,7 +213,10 @@ export class Collection<TState extends CollectionBuilderState> {
 		>,
 		private readonly relationsFn?: CollectionBuilderRelationFn<TState, any>,
 		readonly indexesFn?: CollectionBuilderIndexesFn<TState, TState["indexes"]>,
-		private readonly titleFn?: CollectionBuilderTitleFn<TState, TState["title"]>,
+		private readonly titleFn?: CollectionBuilderTitleFn<
+			TState,
+			TState["title"]
+		>,
 	) {
 		this.state = state;
 		this.name = state.name;
@@ -188,8 +228,13 @@ export class Collection<TState extends CollectionBuilderState> {
 		this.i18nTable = this.generateI18nTable() as any;
 
 		// Build the versions table
-		this.versionsTable = this.generateVersionsTable();
-		this.i18nVersionsTable = this.generateI18nVersionsTable();
+		this.versionsTable = this.generateVersionsTable() as any;
+		this.i18nVersionsTable = this.generateI18nVersionsTable() as any;
+
+		// Ensure virtuals is always initialized
+		if (!state.virtuals) {
+			state.virtuals = {} as TState["virtuals"];
+		}
 
 		// Execute virtual fields function now that we have the table
 		if (virtualsFn) {
@@ -251,7 +296,8 @@ export class Collection<TState extends CollectionBuilderState> {
 	 * This allows regenerating virtual field SQL with runtime context
 	 */
 	public getVirtuals(context: any): TState["virtuals"] {
-		if (!this.virtualsFn) return this.state.virtuals;
+		if (!this.virtualsFn)
+			return this.state.virtuals || ({} as TState["virtuals"]);
 		const i18nAccessor = this.createI18nAccessor(context);
 		return this.virtualsFn({
 			table: this.table,
@@ -261,14 +307,17 @@ export class Collection<TState extends CollectionBuilderState> {
 	}
 
 	public getVirtualsForVersions(context: any): TState["virtuals"] {
-		if (!this.virtualsFn || !this.versionsTable) return this.state.virtuals;
+		if (!this.virtualsFn || !this.versionsTable)
+			return this.state.virtuals || ({} as TState["virtuals"]);
 		const i18nAccessor = this.createI18nAccessorForVersions(
 			this.versionsTable,
 			this.i18nVersionsTable,
 			context,
 		);
+		// TODO: fix typing, plus we should have profix that maps parentId to id
+
 		return this.virtualsFn({
-			table: this.versionsTable,
+			table: this.versionsTable as any,
 			i18n: i18nAccessor,
 			context,
 		});
@@ -294,8 +343,9 @@ export class Collection<TState extends CollectionBuilderState> {
 			this.i18nVersionsTable,
 			context,
 		);
+		// TODO: fix typing, plus we should have profix that maps parentId to id
 		return this.titleFn({
-			table: this.versionsTable,
+			table: this.versionsTable as any,
 			i18n: i18nAccessor,
 			context,
 		});
@@ -321,7 +371,7 @@ export class Collection<TState extends CollectionBuilderState> {
 		indexesFn?: CollectionBuilderIndexesFn<TState, TState["indexes"]>,
 		_titleFn?: CollectionBuilderTitleFn<TState, TState["title"]>,
 	): PgTable {
-		const tableName = this.state.options.tableName || this.state.name;
+		const tableName = this.state.name;
 		const columns: Record<string, any> = {
 			id: uuid("id").primaryKey().default(sql`uuidv7()`),
 		};
@@ -350,7 +400,7 @@ export class Collection<TState extends CollectionBuilderState> {
 
 			// User-defined indexes
 			if (indexesFn) {
-				Object.assign(constraints, indexesFn({ table: t }));
+				Object.assign(constraints, indexesFn({ table: t as any }));
 			}
 
 			// Auto-index on deletedAt for soft delete
@@ -360,7 +410,7 @@ export class Collection<TState extends CollectionBuilderState> {
 				);
 			}
 
-			return constraints;
+			return Object.values(constraints);
 		});
 
 		return table;
@@ -372,7 +422,7 @@ export class Collection<TState extends CollectionBuilderState> {
 	private generateI18nTable(): PgTable | null {
 		if (this.state.localized.length === 0) return null;
 
-		const tableName = `${this.state.options.tableName || this.state.name}_i18n`;
+		const tableName = `${this.state.name}_i18n`;
 		const columns: Record<string, any> = {
 			id: uuid("id").primaryKey().default(sql`uuidv7()`),
 			parentId: uuid("parent_id")
@@ -397,28 +447,26 @@ export class Collection<TState extends CollectionBuilderState> {
 	/**
 	 * Generate the versions table
 	 */
-	private generateVersionsTable(): PgTable | null {
+	private generateVersionsTable(): InferVersionedTableWithColumns<
+		TState["name"],
+		NonLocalizedFields<TState["fields"], TState["localized"]>,
+		TState["title"]
+	> | null {
 		const versioning = this.state.options.versioning;
 		if (!versioning) return null;
 		if (typeof versioning === "object" && !versioning.enabled) return null;
 
-		const tableName = `${this.state.options.tableName || this.state.name}_versions`;
-		const columns: Record<string, any> = {
-			versionId: uuid("version_id").primaryKey().default(sql`uuidv7()`),
-			id: uuid("id").notNull(),
-			versionNumber: integer("version_number").notNull(),
-			versionOperation: text("version_operation").notNull(), // 'create' | 'update' | 'delete'
-			versionUserId: text("version_user_id"), // Nullable if unknown
-			versionCreatedAt: timestamp("version_created_at", { mode: "date" })
-				.defaultNow()
-				.notNull(),
-		};
+		const tableName = `${this.state.name}_versions`;
+		const columns: Record<string, any> = Collection.versionCols();
 
 		for (const [fieldName, column] of Object.entries(this.state.fields)) {
 			if (this.state.localized.includes(fieldName as any)) continue;
 			columns[fieldName as string] = column;
 		}
 
+		/*
+		//  we don't want timestamps in versions table, they are represented by versionCreatedAt
+		//  also no point of soft delete in versions table
 		if (this.state.options.timestamps !== false) {
 			Object.assign(columns, Collection.timestampsCols());
 		}
@@ -426,26 +474,26 @@ export class Collection<TState extends CollectionBuilderState> {
 		if (this.state.options.softDelete) {
 			Object.assign(columns, Collection.softDeleteCols());
 		}
+		*/
 
-		return pgTable(tableName, columns as any, (t) => ({
-			recordVersionIdx: index().on(t.id, t.versionNumber),
-			versionCreatedAtIdx: index().on(t.versionCreatedAt),
-		}));
+		return pgTable(tableName, columns as any, (t) => [
+			index().on(t.id, t.versionNumber),
+			index().on(t.versionCreatedAt),
+		]) as any;
 	}
 
-	private generateI18nVersionsTable(): PgTable | null {
+	private generateI18nVersionsTable(): InferI18nVersionedTableWithColumns<
+		TState["name"],
+		LocalizedFields<TState["fields"], TState["localized"]>,
+		TState["title"]
+	> | null {
 		const versioning = this.state.options.versioning;
 		if (!versioning) return null;
 		if (typeof versioning === "object" && !versioning.enabled) return null;
 		if (this.state.localized.length === 0) return null;
 
-		const tableName = `${this.state.options.tableName || this.state.name}_i18n_versions`;
-		const columns: Record<string, any> = {
-			id: uuid("id").primaryKey().default(sql`uuidv7()`),
-			parentId: uuid("parent_id").notNull(),
-			versionNumber: integer("version_number").notNull(),
-			locale: text("locale").notNull(),
-		};
+		const tableName = `${this.state.name}_i18n_versions`;
+		const columns: Record<string, any> = Collection.i18nVersionCols();
 
 		for (const fieldName of this.state.localized) {
 			const column = this.state.fields[fieldName];
@@ -454,14 +502,10 @@ export class Collection<TState extends CollectionBuilderState> {
 			}
 		}
 
-		return pgTable(tableName, columns as any, (t) => ({
-			parentVersionLocaleIdx: uniqueIndex().on(
-				t.parentId,
-				t.versionNumber,
-				t.locale,
-			),
-			parentVersionIdx: index().on(t.parentId, t.versionNumber),
-		}));
+		return pgTable(tableName, columns as any, (t) => [
+			uniqueIndex().on(t.parentId, t.versionNumber, t.locale),
+			index().on(t.parentId, t.versionNumber),
+		]) as any;
 	}
 
 	/**

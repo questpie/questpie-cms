@@ -7,14 +7,11 @@ import type {
 	CreateInputWithRelations,
 	UpdateParams,
 	With,
-	Columns,
 } from "../server/collection/crud/types.js";
-import type {
-	Global,
-	GlobalBuilder,
-} from "../server/global/builder/index.js";
+import type { Global, GlobalBuilder } from "../server/global/builder/index.js";
 import type {
 	AnyCollection,
+	AnyCollectionOrBuilder,
 	CollectionNames as SharedCollectionNames,
 	GlobalNames as SharedGlobalNames,
 	CollectionSelect,
@@ -91,55 +88,49 @@ export type QCMSClientConfig = {
  * Resolve collections from QCMS instance (including core collections)
  * Uses $inferCms helper property for reliable type extraction
  */
-type ResolvedCollections<T extends QCMS<any, any, any>> =
-	T["config"]["collections"];
+type ResolvedCollections<T extends QCMS<any>> = T["config"]["collections"];
 
 /**
  * Resolve globals from QCMS instance
  * Uses $inferCms helper property for reliable type extraction
  */
-type ResolvedGlobals<T extends QCMS<any, any, any>> = T["config"]["globals"];
+type ResolvedGlobals<T extends QCMS<any>> = T["config"]["globals"];
 
 /**
  * Resolve root functions from QCMS instance
  */
-type ResolvedFunctions<T extends QCMS<any, any, any>> = T["config"]["functions"];
+type ResolvedFunctions<T extends QCMS<any>> = T["config"]["functions"];
 
 /**
  * Extract collection names from QCMS instance
  */
-type CollectionNames<T extends QCMS<any, any, any>> = SharedCollectionNames<
+type CollectionNames<T extends QCMS<any>> = SharedCollectionNames<
 	ResolvedCollections<T>
 >;
 
 /**
  * Extract global names from QCMS instance
  */
-type GlobalNames<T extends QCMS<any, any, any>> = SharedGlobalNames<
-	ResolvedGlobals<T>
->;
+type GlobalNames<T extends QCMS<any>> = SharedGlobalNames<ResolvedGlobals<T>>;
 
 /**
  * Extract global state by name from QCMS instance
  */
 type GetGlobalState<
-	T extends QCMS<any, any, any>,
+	T extends QCMS<any>,
 	Name extends string,
-> = Extract<ResolvedGlobals<T>[number], { name: Name }> extends Global<
-	infer TState
->
+> = ResolvedGlobals<T>[Name] extends Global<infer TState>
 	? TState
-	: Extract<ResolvedGlobals<T>[number], { name: Name }> extends GlobalBuilder<
-				infer TState
-			>
+	: ResolvedGlobals<T>[Name] extends GlobalBuilder<infer TState>
 		? TState
 		: never;
 
-type JsonFunctionCaller<TDefinition extends JsonFunctionDefinition<any, any>> = (
-	input: InferFunctionInput<TDefinition>,
-) => Promise<InferFunctionOutput<TDefinition>>;
+type JsonFunctionCaller<TDefinition extends JsonFunctionDefinition<any, any>> =
+	(
+		input: InferFunctionInput<TDefinition>,
+	) => Promise<InferFunctionOutput<TDefinition>>;
 
-type RootFunctionsAPI<T extends QCMS<any, any, any>> =
+type RootFunctionsAPI<T extends QCMS<any>> =
 	ResolvedFunctions<T> extends Record<string, any>
 		? {
 				[K in keyof ExtractJsonFunctions<
@@ -151,15 +142,23 @@ type RootFunctionsAPI<T extends QCMS<any, any, any>> =
 type CollectionFunctionsAPI<TCollection> = {
 	[K in keyof ExtractJsonFunctions<
 		CollectionFunctions<TCollection>
-	>]: JsonFunctionCaller<
-		ExtractJsonFunctions<CollectionFunctions<TCollection>>[K]
-	>;
+	>]: ExtractJsonFunctions<
+		CollectionFunctions<TCollection>
+	>[K] extends JsonFunctionDefinition<any, any>
+		? JsonFunctionCaller<
+				ExtractJsonFunctions<CollectionFunctions<TCollection>>[K]
+			>
+		: never;
 };
 
 type GlobalFunctionsAPI<TGlobal> = {
-	[K in keyof ExtractJsonFunctions<GlobalFunctions<TGlobal>>]: JsonFunctionCaller<
-		ExtractJsonFunctions<GlobalFunctions<TGlobal>>[K]
-	>;
+	[K in keyof ExtractJsonFunctions<
+		GlobalFunctions<TGlobal>
+	>]: ExtractJsonFunctions<
+		GlobalFunctions<TGlobal>
+	>[K] extends JsonFunctionDefinition<any, any>
+		? JsonFunctionCaller<ExtractJsonFunctions<GlobalFunctions<TGlobal>>[K]>
+		: never;
 };
 
 /**
@@ -167,7 +166,7 @@ type GlobalFunctionsAPI<TGlobal> = {
  */
 type CollectionAPI<
 	TCollection extends AnyCollection,
-	TCollections extends AnyCollection[],
+	TCollections extends Record<string, AnyCollectionOrBuilder>,
 > = {
 	/**
 	 * Find many records (paginated)
@@ -243,7 +242,7 @@ type CollectionAPI<
 /**
  * Collections API proxy with type-safe collection methods
  */
-type CollectionsAPI<T extends QCMS<any, any, any>> = {
+type CollectionsAPI<T extends QCMS<any>> = {
 	[K in CollectionNames<T>]: GetCollection<
 		ResolvedCollections<T>,
 		K
@@ -260,7 +259,7 @@ type CollectionsAPI<T extends QCMS<any, any, any>> = {
  */
 type GlobalAPI<
 	TGlobal extends AnyGlobal,
-	TCollections extends AnyCollection[],
+	TCollections extends Record<string, AnyCollectionOrBuilder>,
 > = {
 	/**
 	 * Get the global record (singleton)
@@ -268,7 +267,9 @@ type GlobalAPI<
 	 */
 	get: <
 		TQuery extends {
-			with?: With<ResolveRelations<TGlobal["state"]["relations"], TCollections>>;
+			with?: With<
+				ResolveRelations<TGlobal["state"]["relations"], TCollections>
+			>;
 			columns?: any;
 		},
 	>(
@@ -287,7 +288,9 @@ type GlobalAPI<
 	 */
 	update: <
 		TQuery extends {
-			with?: With<ResolveRelations<TGlobal["state"]["relations"], TCollections>>;
+			with?: With<
+				ResolveRelations<TGlobal["state"]["relations"], TCollections>
+			>;
 		},
 	>(
 		data: GlobalUpdate<TGlobal>,
@@ -304,23 +307,21 @@ type GlobalAPI<
 /**
  * Globals API proxy with type-safe global methods
  */
-type GlobalsAPI<T extends QCMS<any, any, any>> = ResolvedGlobals<T> extends never
-	? {}
-	: {
-			[K in GlobalNames<T>]: K extends string
-				? Extract<ResolvedGlobals<T>[number], { name: K }> extends AnyGlobal
-					? GlobalAPI<
-							Extract<ResolvedGlobals<T>[number], { name: K }>,
-							ResolvedCollections<T>
-						>
-					: never
-				: never;
-		};
+type GlobalsAPI<T extends QCMS<any>> =
+	ResolvedGlobals<T> extends never
+		? {}
+		: {
+				[K in GlobalNames<T>]: K extends string
+					? ResolvedGlobals<T>[K] extends AnyGlobal
+						? GlobalAPI<ResolvedGlobals<T>[K], ResolvedCollections<T>>
+						: never
+					: never;
+			};
 
 /**
  * QCMS Client
  */
-export type QCMSClient<T extends QCMS<any, any, any>> = {
+export type QCMSClient<T extends QCMS<any>> = {
 	collections: CollectionsAPI<T>;
 	globals: GlobalsAPI<T>;
 	functions: RootFunctionsAPI<T>;
@@ -347,7 +348,7 @@ export type QCMSClient<T extends QCMS<any, any, any>> = {
  * const result = await client.functions.addToCart({ productId: '123' })
  * ```
  */
-export function createQCMSClient<T extends QCMS<any, any, any> = any>(
+export function createQCMSClient<T extends QCMS<any> = any>(
 	config: QCMSClientConfig,
 ): QCMSClient<T> {
 	const fetcher = config.fetch || globalThis.fetch;

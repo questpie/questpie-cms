@@ -2,37 +2,25 @@ import qs from "qs";
 import { ZodError } from "zod";
 import type { QCMS } from "../config/cms";
 import type { RequestContext } from "../config/context";
-import type {
-	AccessMode,
-	AnyCollectionOrBuilder,
-	AnyGlobalOrBuilder,
-} from "../config/types";
-import type { JobDefinition } from "../integrated/queue/types";
+import type { AccessMode, CMSConfig } from "../config/types";
 import type { FunctionDefinition, FunctionsMap } from "../functions/types";
 import { executeJsonFunction } from "../functions/execute";
 
-export type CMSAdapterConfig<
-	TCollections extends AnyCollectionOrBuilder[] = AnyCollectionOrBuilder[],
-	TGlobals extends AnyGlobalOrBuilder[] = AnyGlobalOrBuilder[],
-	TJobs extends JobDefinition<any, any>[] = JobDefinition<any, any>[],
-> = {
+export type CMSAdapterConfig<TConfig extends CMSConfig = CMSConfig> = {
 	basePath?: string;
 	accessMode?: AccessMode;
 	extendContext?: (params: {
 		request: Request;
-		cms: QCMS<TCollections, TGlobals, TJobs>;
+		cms: QCMS<TConfig>;
 		context: CMSAdapterBaseContext;
 	}) =>
 		| Promise<Record<string, any> | undefined>
 		| Record<string, any>
 		| undefined;
-	getLocale?: (
-		request: Request,
-		cms: QCMS<TCollections, TGlobals, TJobs>,
-	) => string | undefined;
+	getLocale?: (request: Request, cms: QCMS<TConfig>) => string | undefined;
 	getSession?: (
 		request: Request,
-		cms: QCMS<TCollections, TGlobals, TJobs>,
+		cms: QCMS<TConfig>,
 	) => Promise<{ user?: any; session?: any } | null>;
 };
 
@@ -202,14 +190,10 @@ const resolveUploadFile = async (
 const normalizeMimeType = (value: string) =>
 	value.split(";")[0]?.trim() || value;
 
-const resolveSession = async <
-	TCollections extends AnyCollectionOrBuilder[] = AnyCollectionOrBuilder[],
-	TGlobals extends AnyGlobalOrBuilder[] = AnyGlobalOrBuilder[],
-	TJobs extends JobDefinition<any, any>[] = JobDefinition<any, any>[],
->(
-	cms: QCMS<TCollections, TGlobals, TJobs>,
+const resolveSession = async <TConfig extends CMSConfig = CMSConfig>(
+	cms: QCMS<TConfig>,
 	request: Request,
-	config: CMSAdapterConfig<TCollections, TGlobals, TJobs>,
+	config: CMSAdapterConfig<TConfig>,
 ) => {
 	if (config.getSession) {
 		return config.getSession(request, cms);
@@ -229,14 +213,10 @@ const resolveSession = async <
 	}
 };
 
-const resolveLocale = async <
-	TCollections extends AnyCollectionOrBuilder[] = AnyCollectionOrBuilder[],
-	TGlobals extends AnyGlobalOrBuilder[] = AnyGlobalOrBuilder[],
-	TJobs extends JobDefinition<any, any>[] = JobDefinition<any, any>[],
->(
-	cms: QCMS<TCollections, TGlobals, TJobs>,
+const resolveLocale = async <TConfig extends CMSConfig = CMSConfig>(
+	cms: QCMS<TConfig>,
 	request: Request,
-	config: CMSAdapterConfig<TCollections, TGlobals, TJobs>,
+	config: CMSAdapterConfig<TConfig>,
 ) => {
 	if (config.getLocale) {
 		return config.getLocale(request, cms);
@@ -246,14 +226,10 @@ const resolveLocale = async <
 	return header?.split(",")[0]?.trim() || undefined;
 };
 
-export const createCMSAdapterContext = async <
-	TCollections extends AnyCollectionOrBuilder[] = AnyCollectionOrBuilder[],
-	TGlobals extends AnyGlobalOrBuilder[] = AnyGlobalOrBuilder[],
-	TJobs extends JobDefinition<any, any>[] = JobDefinition<any, any>[],
->(
-	cms: QCMS<TCollections, TGlobals, TJobs>,
+export const createCMSAdapterContext = async <TConfig extends CMSConfig = CMSConfig>(
+	cms: QCMS<TConfig>,
 	request: Request,
-	config: CMSAdapterConfig<TCollections, TGlobals, TJobs> = {},
+	config: CMSAdapterConfig<TConfig> = {},
 ): Promise<CMSAdapterContext> => {
 	const [sessionInfo, locale] = await Promise.all([
 		resolveSession(cms, request, config),
@@ -334,14 +310,10 @@ const parseGlobalUpdateOptions = (url: URL) => {
 	return options;
 };
 
-const resolveContext = async <
-	TCollections extends AnyCollectionOrBuilder[] = AnyCollectionOrBuilder[],
-	TGlobals extends AnyGlobalOrBuilder[] = AnyGlobalOrBuilder[],
-	TJobs extends JobDefinition<any, any>[] = JobDefinition<any, any>[],
->(
-	cms: QCMS<TCollections, TGlobals, TJobs>,
+const resolveContext = async <TConfig extends CMSConfig = CMSConfig>(
+	cms: QCMS<TConfig>,
 	request: Request,
-	config: CMSAdapterConfig<TCollections, TGlobals, TJobs>,
+	config: CMSAdapterConfig<TConfig>,
 	context?: CMSAdapterContext,
 ) => {
 	if (context?.cmsContext) {
@@ -370,13 +342,9 @@ const parseRpcBody = async (request: Request) => {
 	}
 };
 
-export const createCMSAdapterRoutes = <
-	TCollections extends AnyCollectionOrBuilder[] = AnyCollectionOrBuilder[],
-	TGlobals extends AnyGlobalOrBuilder[] = AnyGlobalOrBuilder[],
-	TJobs extends JobDefinition<any, any>[] = JobDefinition<any, any>[],
->(
-	cms: QCMS<TCollections, TGlobals, TJobs>,
-	config: CMSAdapterConfig<TCollections, TGlobals, TJobs> = {},
+export const createCMSAdapterRoutes = <TConfig extends CMSConfig = CMSConfig>(
+	cms: QCMS<TConfig>,
+	config: CMSAdapterConfig<TConfig> = {},
 ): CMSAdapterRoutes => {
 	const executeFunction = async (
 		definition: FunctionDefinition,
@@ -910,7 +878,7 @@ export const createCMSAdapterRoutes = <
 					const options = parseGlobalUpdateOptions(new URL(request.url));
 					const globalInstance = cms.getGlobalConfig(params.global as any);
 					const crud = globalInstance.generateCRUD(resolved.cmsContext.db, cms);
-					const result = await crud.update(body, options, resolved.cmsContext);
+					const result = await crud.update(body, resolved.cmsContext, options);
 					return jsonResponse(result);
 				} catch (error) {
 					const message =
@@ -923,7 +891,7 @@ export const createCMSAdapterRoutes = <
 };
 
 export const createCMSFetchHandler = (
-	cms: QCMS<any, any, any, any>,
+	cms: QCMS<any>,
 	config: CMSAdapterConfig = {},
 ): CMSFetchHandler => {
 	const routes = createCMSAdapterRoutes(cms, config);

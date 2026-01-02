@@ -122,34 +122,30 @@ export interface PublishOptions {
 }
 
 /**
- * Extract job names from job definitions array
+ * Extract job names from job definitions map
  */
-export type JobNames<TJobs extends JobDefinition<any, any>[]> =
-	TJobs[number]["name"];
+export type JobNames<TJobs extends Record<string, JobDefinition<any, any>>> =
+	keyof TJobs;
 
 /**
- * Map job definitions array to object by name
- */
-export type JobMap<TJobs extends JobDefinition<any, any>[]> = {
-	[K in TJobs[number] as K["name"]]: K;
-};
-
-/**
- * Get specific job by name from jobs array
+ * Get specific job by name from jobs map
  */
 export type GetJob<
-	TJobs extends JobDefinition<any, any>[],
+	TJobs extends Record<string, JobDefinition<any, any>>,
 	Name extends JobNames<TJobs>,
-> = JobMap<TJobs>[Name];
+> = TJobs[Name];
 
 /**
  * Queue configuration
  */
 export interface QueueConfig<
-	TJobs extends JobDefinition<any, any>[] = JobDefinition<any, any>[],
+	TJobs extends Record<string, JobDefinition<any, any>> = Record<
+		string,
+		JobDefinition<any, any>
+	>,
 > {
 	/**
-	 * Job definitions array
+	 * Job definitions map
 	 */
 	jobs: TJobs;
 
@@ -162,13 +158,15 @@ export interface QueueConfig<
 /**
  * Typesafe queue client for publishing jobs
  */
-export type QueueClient<TJobs extends JobDefinition<any, any>[]> = {
-	[K in TJobs[number]["name"]]: {
+export type QueueClient<
+	TJobs extends Record<string, JobDefinition<any, any>>,
+> = {
+	[K in keyof TJobs]: {
 		/**
 		 * Publish a job to the queue
 		 */
 		publish: (
-			payload: InferJobPayload<GetJob<TJobs, K>>,
+			payload: InferJobPayload<TJobs[K]>,
 			options?: PublishOptions,
 		) => Promise<string | null>;
 
@@ -176,7 +174,7 @@ export type QueueClient<TJobs extends JobDefinition<any, any>[]> = {
 		 * Schedule a recurring job with cron
 		 */
 		schedule: (
-			payload: InferJobPayload<GetJob<TJobs, K>>,
+			payload: InferJobPayload<TJobs[K]>,
 			cron: string,
 			options?: Omit<PublishOptions, "startAfter">,
 		) => Promise<void>;

@@ -40,17 +40,10 @@ export class GlobalBuilder<TState extends GlobalBuilderState> {
 	fields<TNewFields extends Record<string, any>>(
 		fields: TNewFields,
 	): GlobalBuilder<
-		GlobalBuilderState<
-			TState["name"],
-			TNewFields,
-			[], // Reset localized when fields change
-			TState["virtuals"],
-			TState["relations"],
-			TState["options"],
-			TState["hooks"],
-			TState["access"],
-			TState["functions"]
-		>
+		Omit<TState, "fields" | "localized"> & {
+			fields: TNewFields;
+			localized: [];
+		}
 	> {
 		const newState = {
 			...this.state,
@@ -70,17 +63,9 @@ export class GlobalBuilder<TState extends GlobalBuilderState> {
 	localized<TKeys extends ReadonlyArray<keyof TState["fields"]>>(
 		keys: TKeys,
 	): GlobalBuilder<
-		GlobalBuilderState<
-			TState["name"],
-			TState["fields"],
-			TKeys,
-			TState["virtuals"],
-			TState["relations"],
-			TState["options"],
-			TState["hooks"],
-			TState["access"],
-			TState["functions"]
-		>
+		Omit<TState, "localized"> & {
+			localized: TKeys;
+		}
 	> {
 		const newState = {
 			...this.state,
@@ -108,17 +93,9 @@ export class GlobalBuilder<TState extends GlobalBuilderState> {
 			context: any,
 		) => TNewVirtuals,
 	): GlobalBuilder<
-		GlobalBuilderState<
-			TState["name"],
-			TState["fields"],
-			TState["localized"],
-			TNewVirtuals,
-			TState["relations"],
-			TState["options"],
-			TState["hooks"],
-			TState["access"],
-			TState["functions"]
-		>
+		Omit<TState, "virtuals"> & {
+			virtuals: TNewVirtuals;
+		}
 	> {
 		const newState = {
 			...this.state,
@@ -137,17 +114,9 @@ export class GlobalBuilder<TState extends GlobalBuilderState> {
 	relations<TNewRelations extends Record<string, RelationConfig>>(
 		fn: GlobalBuilderRelationFn<TState, TNewRelations>,
 	): GlobalBuilder<
-		GlobalBuilderState<
-			TState["name"],
-			TState["fields"],
-			TState["localized"],
-			TState["virtuals"],
-			TNewRelations,
-			TState["options"],
-			TState["hooks"],
-			TState["access"],
-			TState["functions"]
-		>
+		Omit<TState, "relations"> & {
+			relations: TNewRelations;
+		}
 	> {
 		const newState = {
 			...this.state,
@@ -166,17 +135,9 @@ export class GlobalBuilder<TState extends GlobalBuilderState> {
 	options<TNewOptions extends GlobalOptions>(
 		options: TNewOptions,
 	): GlobalBuilder<
-		GlobalBuilderState<
-			TState["name"],
-			TState["fields"],
-			TState["localized"],
-			TState["virtuals"],
-			TState["relations"],
-			TNewOptions,
-			TState["hooks"],
-			TState["access"],
-			TState["functions"]
-		>
+		Omit<TState, "options"> & {
+			options: TNewOptions;
+		}
 	> {
 		const newState = {
 			...this.state,
@@ -195,17 +156,9 @@ export class GlobalBuilder<TState extends GlobalBuilderState> {
 	hooks<TNewHooks extends GlobalHooks>(
 		hooks: TNewHooks,
 	): GlobalBuilder<
-		GlobalBuilderState<
-			TState["name"],
-			TState["fields"],
-			TState["localized"],
-			TState["virtuals"],
-			TState["relations"],
-			TState["options"],
-			TNewHooks,
-			TState["access"],
-			TState["functions"]
-		>
+		Omit<TState, "hooks"> & {
+			hooks: TNewHooks;
+		}
 	> {
 		const newState = {
 			...this.state,
@@ -224,17 +177,9 @@ export class GlobalBuilder<TState extends GlobalBuilderState> {
 	access<TNewAccess extends GlobalAccess>(
 		access: TNewAccess,
 	): GlobalBuilder<
-		GlobalBuilderState<
-			TState["name"],
-			TState["fields"],
-			TState["localized"],
-			TState["virtuals"],
-			TState["relations"],
-			TState["options"],
-			TState["hooks"],
-			TNewAccess,
-			TState["functions"]
-		>
+		Omit<TState, "access"> & {
+			access: TNewAccess;
+		}
 	> {
 		const newState = {
 			...this.state,
@@ -253,17 +198,9 @@ export class GlobalBuilder<TState extends GlobalBuilderState> {
 	functions<TNewFunctions extends Record<string, FunctionDefinition>>(
 		functions: TNewFunctions,
 	): GlobalBuilder<
-		GlobalBuilderState<
-			TState["name"],
-			TState["fields"],
-			TState["localized"],
-			TState["virtuals"],
-			TState["relations"],
-			TState["options"],
-			TState["hooks"],
-			TState["access"],
-			Omit<TState["functions"], keyof TNewFunctions> & TNewFunctions
-		>
+		Omit<TState, "functions"> & {
+			functions: Omit<TState["functions"], keyof TNewFunctions> & TNewFunctions;
+		}
 	> {
 		const newState = {
 			...this.state,

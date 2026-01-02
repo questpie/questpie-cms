@@ -79,8 +79,8 @@ export interface GlobalCRUD<
 	 */
 	update<TQuery extends GlobalUpdateOptions<TRelations>>(
 		data: TUpdate,
-		options?: TQuery,
 		context?: CRUDContext,
+		options?: TQuery,
 	): Promise<ApplyQuery<TSelect, TRelations, TQuery>>;
 
 	findVersions(

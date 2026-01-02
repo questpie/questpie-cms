@@ -21,11 +21,6 @@ export interface GlobalOptions {
 	 */
 	timestamps?: boolean;
 	/**
-	 * Optional override for the database table name.
-	 * If not specified, the global name is used.
-	 */
-	tableName?: string;
-	/**
 	 * Versioning configuration
 	 */
 	versioning?: boolean | CollectionVersioningOptions;
@@ -121,63 +116,41 @@ export type GlobalBuilderRelationFn<
 /**
  * Main builder state for Global
  */
-export type GlobalBuilderState<
-	TName extends string = string,
-	TFields extends Record<string, any> = Record<string, any>,
-	TLocalized extends readonly any[] = readonly any[],
-	TVirtuals extends Record<string, SQL> = Record<string, SQL>,
-	TRelations extends Record<string, RelationConfig> = Record<
-		string,
-		RelationConfig
-	>,
-	TOptions extends GlobalOptions = GlobalOptions,
-	THooks extends GlobalHooks = GlobalHooks,
-	TAccess extends GlobalAccess = GlobalAccess,
-	TFunctions extends Record<string, FunctionDefinition> = Record<
-		string,
-		FunctionDefinition
-	>,
-> = {
-	name: TName;
-	fields: TFields;
-	localized: TLocalized;
-	virtuals: TVirtuals;
-	relations: TRelations;
-	options: TOptions;
-	hooks: THooks;
-	access: TAccess;
-	functions: TFunctions;
-};
+/**
+ * Global builder state - simplified interface
+ * Type inference happens from builder usage, not from explicit generics
+ */
+export interface GlobalBuilderState {
+	name: string;
+	fields: Record<string, any>;
+	localized: readonly any[];
+	virtuals: Record<string, SQL>;
+	relations: Record<string, RelationConfig>;
+	options: GlobalOptions;
+	hooks: GlobalHooks;
+	access: GlobalAccess;
+	functions: Record<string, FunctionDefinition>;
+}
 
 /**
  * Default empty state for a new global
  */
-export type EmptyGlobalState<TName extends string> = GlobalBuilderState<
-	TName,
-	{},
-	[],
-	{},
-	{},
-	{},
-	{},
-	{},
-	{}
->;
+export type EmptyGlobalState<TName extends string> = GlobalBuilderState & {
+	name: TName;
+	fields: {};
+	localized: [];
+	virtuals: {};
+	relations: {};
+	options: {};
+	hooks: {};
+	access: {};
+	functions: {};
+};
 
 /**
  * Any global builder state
  */
-export type AnyGlobalState = GlobalBuilderState<
-	any,
-	any,
-	any,
-	any,
-	any,
-	any,
-	any,
-	any,
-	any
->;
+export type AnyGlobalState = GlobalBuilderState;
 
 // Helper types for inference (similar to Collection)
 export type InferGlobalColumnsFromFields<

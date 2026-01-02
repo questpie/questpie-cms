@@ -63,11 +63,17 @@ export type Where<TFields = any, TRelations = any> = {
 	NOT?: Where<TFields, TRelations>;
 	// RAW allows custom SQL expressions
 	RAW?: (table: any) => SQL;
-} & (TRelations extends Record<string, any>
-		? {
-				[K in keyof TRelations]?: RelationFilter<any, any>;
-			}
-		: {});
+} & ([TRelations] extends [never]
+		? {}
+		: [TRelations] extends [any]
+			? {} // When TRelations is `any`, don't create index signature
+			: [TRelations] extends [Record<string, any>]
+				? keyof TRelations extends never
+					? {} // Empty relations object
+					: {
+							[K in keyof TRelations]?: RelationFilter<any, any>;
+						}
+				: {});
 
 /**
  * Columns selection for partial field selection
@@ -215,12 +221,21 @@ export type NestedRelationMutation<TInsert = any> = {
 };
 
 type RelationKeys<TRelations> =
-	TRelations extends Record<string, any> ? keyof TRelations & string : string;
+	[TRelations] extends [never]
+		? never
+		: [TRelations] extends [Record<string, any>]
+			? keyof TRelations & string
+			: never;
 
-type RelationMutations<TRelations> =
-	TRelations extends Record<string, any>
-		? { [K in keyof TRelations]?: NestedRelationMutation<any> }
-		: Record<string, NestedRelationMutation<any> | undefined>;
+type RelationMutations<TRelations> = [TRelations] extends [never]
+	? {}
+	: [TRelations] extends [any]
+		? {} // When TRelations is `any`, don't create index signature
+		: [TRelations] extends [Record<string, any>]
+			? keyof TRelations extends never
+				? {} // No relations, return empty object
+				: { [K in keyof TRelations]?: NestedRelationMutation<any> }
+			: {}; // Not a record type or unknown, return empty object instead of permissive Record
 
 type RelationIdKey<TInsert, K extends string> = Extract<
 	Extract<keyof TInsert, string>,
@@ -260,26 +275,44 @@ type UnionToIntersection<U> = (
 	: never;
 
 type RequireRelationForMissingFk<TInsert, TRelations, TInput> =
-	RelationKeys<TRelations> extends infer K
-		? K extends string
-			? RelationIdKey<TInsert, K> extends never
-				? {}
-				: RelationIdKey<TInsert, K> extends keyof TInsert
-					? IsRequiredKey<TInsert, RelationIdKey<TInsert, K>> extends true
-						? RelationIdKey<TInsert, K> extends keyof TInput
-							? {}
-							: Required<Pick<RelationMutations<TRelations>, K>>
+	[TRelations] extends [never]
+		? {} // Never type, nothing to require
+		: [TRelations] extends [any]
+			? {} // Any type, don't enforce anything
+			: [TRelations] extends [Record<string, any>]
+				? keyof TRelations extends never
+					? {} // No relations, nothing to require
+					: RelationKeys<TRelations> extends infer K
+						? K extends string
+							? RelationIdKey<TInsert, K> extends never
+								? {}
+								: RelationIdKey<TInsert, K> extends keyof TInsert
+									? IsRequiredKey<TInsert, RelationIdKey<TInsert, K>> extends true
+										? RelationIdKey<TInsert, K> extends keyof TInput
+											? {}
+											: K extends keyof TRelations
+												? K extends keyof RelationMutations<TRelations>
+													? Required<Pick<RelationMutations<TRelations>, K>>
+													: {}
+												: {}
+										: {}
+									: {}
+							: {}
 						: {}
-					: {}
-			: {}
-		: {};
+				: {};
 
 type EnforceRelationForMissingFk<TInsert, TRelations, TInput> =
-	RelationKeys<TRelations> extends never
+	[TRelations] extends [never]
 		? {}
-		: UnionToIntersection<
-				RequireRelationForMissingFk<TInsert, TRelations, TInput>
-			>;
+		: [TRelations] extends [any]
+			? {} // Any type, don't enforce anything
+			: [TRelations] extends [Record<string, any>]
+				? keyof TRelations extends never
+					? {}
+					: UnionToIntersection<
+							RequireRelationForMissingFk<TInsert, TRelations, TInput>
+						>
+				: {};
 
 /**
  * Create input with optional nested relations
@@ -288,7 +321,7 @@ export type CreateInputBase<
 	TInsert = any,
 	TRelations = any,
 > = OptionalizeRelationForeignKeys<TInsert, TRelations> &
-	RelationMutations<TRelations>;
+	Omit<RelationMutations<TRelations>, keyof TInsert>;
 
 export type CreateInputWithRelations<
 	TInsert = any,
@@ -386,7 +419,7 @@ export interface PaginatedResult<T> {
  */
 export type SelectResult<TSelect, TQuery> = [TQuery] extends [never]
 	? TSelect
-	: TQuery extends { columns?: Record<string, boolean> }
+	: TQuery extends { columns: Record<string, boolean> }
 		? Pick<
 				TSelect,
 				| Extract<keyof TQuery["columns"], keyof TSelect>

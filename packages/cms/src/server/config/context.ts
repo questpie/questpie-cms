@@ -62,7 +62,7 @@ export function runWithCMSContext<TCMS, TResult>(
 }
 
 export function getCMSFromContext<
-	TCMS extends QCMS<any, any, any, any, any, any> | QCMSBuilder<any>,
+	TCMS extends QCMS<any> | QCMSBuilder<any>,
 >(): TCMS extends { $inferCms: infer U } ? U : TCMS {
 	const store = cmsContextStorage.getStore();
 	if (!store?.cms) {

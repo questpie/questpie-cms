@@ -24,7 +24,7 @@ export interface CollectionVersioningOptions {
  */
 export interface CollectionOptions {
 	/**
-	 * Whether to automatically add `createdAt` and `updatedAt` timestamp fields.
+	 * Whether to automatically add `createdAt` and `updatedAt` timestamp fields
 	 * @default true
 	 */
 	timestamps?: boolean;
@@ -33,11 +33,6 @@ export interface CollectionOptions {
 	 * @default false
 	 */
 	softDelete?: boolean;
-	/**
-	 * Optional override for the database table name.
-	 * If not specified, the collection name is used.
-	 */
-	tableName?: string;
 	/**
 	 * Versioning configuration
 	 */
@@ -332,38 +327,24 @@ export type CollectionFunctionsMap = Record<string, FunctionDefinition>;
  * Main builder state that accumulates configuration through the chain
  * Using Drizzle-style single generic pattern for better type performance
  */
-export type CollectionBuilderState<
-	TName extends string = string,
-	TFields extends Record<string, any> = Record<string, any>,
-	TLocalized extends readonly any[] = readonly any[],
-	TVirtuals extends Record<string, SQL> = Record<string, SQL>,
-	TRelations extends Record<string, RelationConfig> = Record<
-		string,
-		RelationConfig
-	>,
-	TIndexes extends Record<string, any> = Record<string, any>,
-	TTitle extends SQL | undefined = SQL | undefined,
-	TOptions extends CollectionOptions = CollectionOptions,
-	THooks extends CollectionHooks = CollectionHooks,
-	TAccess extends CollectionAccess = CollectionAccess,
-	TFunctions extends CollectionFunctionsMap = CollectionFunctionsMap,
-	TSearchable extends SearchableConfig | undefined =
-		| SearchableConfig
-		| undefined,
-> = {
-	name: TName;
-	fields: TFields;
-	localized: TLocalized;
-	virtuals: TVirtuals;
-	relations: TRelations;
-	indexes: TIndexes;
-	title: TTitle;
-	options: TOptions;
-	hooks: THooks;
-	access: TAccess;
-	functions: TFunctions;
-	searchable: TSearchable;
-};
+/**
+ * Collection builder state - simplified interface
+ * Type inference happens from builder usage, not from explicit generics
+ */
+export interface CollectionBuilderState {
+	name: string;
+	fields: Record<string, any>; // Allow any Drizzle column type
+	localized: readonly any[];
+	virtuals: Record<string, SQL>;
+	relations: Record<string, RelationConfig>;
+	indexes: Record<string, any>;
+	title: SQL | undefined;
+	options: CollectionOptions;
+	hooks: CollectionHooks;
+	access: CollectionAccess;
+	functions: CollectionFunctionsMap;
+	searchable: SearchableConfig | undefined;
+}
 
 /**
  * Type helpers for extracting parts of the state
@@ -393,38 +374,26 @@ export type ExtractFunctions<TState extends CollectionBuilderState> =
 /**
  * Default empty state for a new collection
  */
-export type EmptyCollectionState<TName extends string> = CollectionBuilderState<
-	TName,
-	{},
-	[],
-	{},
-	{},
-	{},
-	undefined,
-	{},
-	{},
-	{},
-	{},
-	undefined
->;
+export type EmptyCollectionState<TName extends string> =
+	CollectionBuilderState & {
+		name: TName;
+		fields: {};
+		localized: [];
+		virtuals: {};
+		relations: {};
+		indexes: {};
+		title: undefined;
+		options: {};
+		hooks: {};
+		access: {};
+		functions: {};
+		searchable: undefined;
+	};
 
 /**
  * Any collection builder state (for type constraints)
  */
-export type AnyCollectionState = CollectionBuilderState<
-	any,
-	any,
-	any,
-	any,
-	any,
-	any,
-	any,
-	any,
-	any,
-	any,
-	any,
-	any
->;
+export type AnyCollectionState = CollectionBuilderState;
 
 /**
  * Extract non-localized fields from field definitions
@@ -472,6 +441,26 @@ export type InferColumnsFromFields<
 		? ReturnType<typeof Collection.softDeleteCols>
 		: {});
 
+export type InferVersionColumnFromFields<
+	// TName extends string,
+	TFields extends Record<string, any>,
+	_TTitle extends SQL | undefined,
+> = ReturnType<typeof Collection.versionCols> & {
+	[K in keyof TFields]: TFields[K];
+};
+export type InferI18nVersionColumnFromFields<
+	// TName extends string,
+	TFields extends Record<string, any>,
+	_TTitle extends SQL | undefined,
+> = ReturnType<typeof Collection.i18nVersionCols> & {
+	[K in keyof TFields]: TFields[K];
+};
+
+export type LocalizedTableName<TName extends string> = `${TName}_i18n`;
+export type VersionedTableName<TName extends string> = `${TName}_versions`;
+export type I18nVersionedTableName<TName extends string> =
+	`${TName}_i18n_versions`;
+
 /**
  * Infer table type from fields (excluding localized fields)
  * This builds the Drizzle PgTable type progressively
@@ -491,4 +480,48 @@ export type InferTableWithColumns<
 	>;
 	dialect: "pg";
 }>;
-export type LocalizedTableName<TName extends string> = `${TName}_i18n`;
+
+export type InferI18nTableWithColumns<
+	TName extends string,
+	TFields extends Record<string, any>,
+	TTitle extends SQL | undefined,
+> = PgTableWithColumns<{
+	name: LocalizedTableName<TName>;
+	schema: undefined;
+	columns: BuildColumns<
+		LocalizedTableName<TName>,
+		InferColumnsFromFields<TFields, {}, TTitle>,
+		"pg"
+	>;
+	dialect: "pg";
+}>;
+
+export type InferVersionedTableWithColumns<
+	TName extends string,
+	TFields extends Record<string, any>,
+	TTitle extends SQL | undefined,
+> = PgTableWithColumns<{
+	name: VersionedTableName<TName>;
+	schema: undefined;
+	columns: BuildColumns<
+		VersionedTableName<TName>,
+		InferVersionColumnFromFields<TFields, TTitle>,
+		"pg"
+	>;
+	dialect: "pg";
+}>;
+
+export type InferI18nVersionedTableWithColumns<
+	TName extends string,
+	TFields extends Record<string, any>,
+	TTitle extends SQL | undefined,
+> = PgTableWithColumns<{
+	name: I18nVersionedTableName<TName>;
+	schema: undefined;
+	columns: BuildColumns<
+		I18nVersionedTableName<TName>,
+		InferI18nVersionColumnFromFields<TFields, TTitle>,
+		"pg"
+	>;
+	dialect: "pg";
+}>;

@@ -24,8 +24,7 @@ const testModule = defineQCMS({ name: "test-module" }).collections({
 		})
 		.options({
 			timestamps: true,
-		})
-		.build(),
+		}),
 });
 
 describe("collection field types", () => {

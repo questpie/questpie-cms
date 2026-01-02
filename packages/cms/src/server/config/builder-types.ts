@@ -43,7 +43,7 @@ export type EmptyBuilderMap = Record<never, never>;
 /**
  * Core collections that are always available in every QCMS instance
  */
-export type CoreCollectionsMap = {
+export type CoreCollectionsMap = BuilderCollectionsMap & {
 	questpie_assets: typeof assetsCollection;
 	user: typeof usersCollection;
 	session: typeof sessionsCollection;

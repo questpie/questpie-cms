@@ -1,93 +1,69 @@
+import type {
+	CreateInput,
+	CRUD,
+	CRUDContext,
+	DeleteParams,
+	FindFirstOptions,
+	FindManyOptions,
+	QCMS,
+	RestoreParams,
+	UpdateParams,
+	Where,
+	With,
+} from "#questpie/cms/exports/server";
+import type {
+	AccessWhere,
+	CollectionAccess,
+	CollectionBuilderState,
+	CollectionHooks,
+	CollectionOptions,
+	HookContext,
+	HookFunction,
+	RelationConfig,
+} from "#questpie/cms/server/collection/builder/types";
+import type {
+	Columns,
+	Extras,
+	FindVersionsOptions,
+	OrderBy,
+	RevertVersionOptions,
+} from "#questpie/cms/server/collection/crud/types";
+import { runWithCMSContext } from "#questpie/cms/server/config/context";
 import {
-	eq,
 	and,
-	or,
-	not,
-	sql,
-	inArray,
-	count,
-	sum,
 	avg,
-	min,
+	count,
+	eq,
+	inArray,
 	max,
+	min,
+	not,
+	or,
+	sql,
+	sum,
 	type SQL,
 } from "drizzle-orm";
 import type { PgTable } from "drizzle-orm/pg-core";
-import type {
-	CollectionBuilderState,
-	CollectionHooks,
-	CollectionAccess,
-	CollectionOptions,
-	RelationConfig,
-	HookFunction,
-	AccessWhere,
-	HookContext,
-} from "#questpie/cms/server/collection/builder/types";
-import { runWithCMSContext } from "#questpie/cms/server/config/context";
-import type {
-	CRUD,
-	FindManyOptions,
-	CRUDContext,
-	FindFirstOptions,
-	With,
-	CreateInput,
-	UpdateParams,
-	DeleteParams,
-	RestoreParams,
-	Where,
-	QCMS,
-	AnyCollectionOrBuilder,
-	AnyGlobalOrBuilder,
-} from "#questpie/cms/exports/server";
-import type {
-	FindVersionsOptions,
-	RevertVersionOptions,
-	Columns,
-	Extras,
-	OrderBy,
-} from "#questpie/cms/server/collection/crud/types";
 
-export class CRUDGenerator<
-	TName extends string,
-	TFields extends Record<string, any>,
-	TLocalized extends ReadonlyArray<keyof TFields>,
-	TVirtuals extends Record<string, SQL>,
-	TRelations extends Record<string, any>,
-	TOptions extends CollectionOptions, // Use CollectionOptions
-	THooks extends CollectionHooks,
-	TAccess extends CollectionAccess,
-> {
+export class CRUDGenerator<TState extends CollectionBuilderState> {
 	// Public accessors for internal use by relation resolution
 	public get relatedTable() {
 		return this.table;
 	}
 
 	constructor(
-		public state: CollectionBuilderState<
-			TName,
-			TFields,
-			TLocalized,
-			TVirtuals,
-			TRelations,
-			any,
-			any,
-			TOptions,
-			THooks,
-			TAccess,
-			any,
-			any
-		>,
+		public state: TState,
 		private table: PgTable,
 		private i18nTable: PgTable | null,
 		private versionsTable: PgTable | null,
 		private i18nVersionsTable: PgTable | null,
 		private db: any,
-		private getVirtuals?: (context: any) => TVirtuals,
+		private getVirtuals?: (context: any) => TState["virtuals"],
 		private getTitle?: (context: any) => SQL | undefined,
-		private getVirtualsForVersions?: (context: any) => TVirtuals,
+		private getVirtualsForVersions?: (context: any) => TState["virtuals"],
 		private getTitleForVersions?: (context: any) => SQL | undefined,
 		_getRawTitle?: (context: any) => SQL | undefined,
-		private cms?: QCMS<AnyCollectionOrBuilder[], AnyGlobalOrBuilder[]>,
+		private cms?: QCMS<any>,
 	) {}
 
 	/**
@@ -148,7 +124,7 @@ export class CRUDGenerator<
 		}
 
 		const normalized = this.normalizeContext(context ?? {});
-		return runWithCMSContext(this.cms, normalized, fn);
+		return runWithCMSContext(this.cms, normalized, fn) as Promise<TResult>;
 	}
 
 	private wrapWithCMSContext<TArgs extends any[], TResult>(
@@ -2108,27 +2084,38 @@ export class CRUDGenerator<
 			);
 			if (!canRead) throw new Error("Access denied: read versions");
 
-			let query = db
-				.select(this.buildVersionsSelectObject(normalized))
-				.from(this.versionsTable)
-				.where(eq((this.versionsTable as any).id, options.id))
-				.orderBy(sql`${(this.versionsTable as any).versionNumber} ASC`);
+			let query: any;
 
 			if (this.i18nVersionsTable && normalized.locale) {
-				query = query.leftJoin(
-					this.i18nVersionsTable,
-					and(
-						eq(
-							(this.i18nVersionsTable as any).parentId,
-							(this.versionsTable as any).id,
+				// When we have i18n, use select-from-join pattern
+				const selectObj = this.buildVersionsSelectObject(normalized);
+				query = db
+					.select(selectObj)
+					.from(this.versionsTable)
+					.$dynamic()
+					.leftJoin(
+						this.i18nVersionsTable,
+						and(
+							eq(
+								(this.i18nVersionsTable as any).parentId,
+								(this.versionsTable as any).id,
+							),
+							eq(
+								(this.i18nVersionsTable as any).versionNumber,
+								(this.versionsTable as any).versionNumber,
+							),
+							eq((this.i18nVersionsTable as any).locale, normalized.locale),
 						),
-						eq(
-							(this.i18nVersionsTable as any).versionNumber,
-							(this.versionsTable as any).versionNumber,
-						),
-						eq((this.i18nVersionsTable as any).locale, normalized.locale),
-					),
-				);
+					)
+					.where(eq((this.versionsTable as any).id, options.id))
+					.orderBy(sql`${(this.versionsTable as any).versionNumber} ASC`);
+			} else {
+				// Without i18n, simpler select
+				query = db
+					.select(this.buildVersionsSelectObject(normalized))
+					.from(this.versionsTable)
+					.where(eq((this.versionsTable as any).id, options.id))
+					.orderBy(sql`${(this.versionsTable as any).versionNumber} ASC`);
 			}
 
 			if (options.limit) {
@@ -3222,8 +3209,10 @@ export class CRUDGenerator<
 		const versionVirtuals = this.getVirtualsForVersions
 			? this.getVirtualsForVersions(context)
 			: {};
-		for (const [name, sqlExpr] of Object.entries(versionVirtuals)) {
-			select[name] = sqlExpr;
+		if (versionVirtuals) {
+			for (const [name, sqlExpr] of Object.entries(versionVirtuals)) {
+				select[name] = sqlExpr;
+			}
 		}
 
 		if (this.state.title) {
@@ -3233,14 +3222,9 @@ export class CRUDGenerator<
 			select._title = titleExpr || versionsTable.id;
 		}
 
-		if (this.state.options.timestamps !== false) {
-			select.createdAt = versionsTable.createdAt;
-			select.updatedAt = versionsTable.updatedAt;
-		}
-
-		if (this.state.options.softDelete) {
-			select.deletedAt = versionsTable.deletedAt;
-		}
+		// Note: versions table doesn't have timestamps or soft delete
+		// Those are represented by versionCreatedAt in the versions table
+		// Don't add these fields as they don't exist in versions table
 
 		return select;
 	}

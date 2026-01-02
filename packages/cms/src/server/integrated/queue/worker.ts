@@ -50,7 +50,9 @@ export interface WorkerOptions {
  * });
  * ```
  */
-export async function startJobWorker<TJobs extends JobDefinition<any, any>[]>(
+export async function startJobWorker<
+	TJobs extends Record<string, JobDefinition<any, any>>,
+>(
 	queueClient: QueueClient<TJobs>,
 	jobs: TJobs,
 	createContext: () => Promise<RequestContext>,
@@ -63,7 +65,7 @@ export async function startJobWorker<TJobs extends JobDefinition<any, any>[]>(
 	const adapter = queueClient._adapter;
 
 	// Register workers for each job
-	for (const jobDef of jobs) {
+	for (const [jobName, jobDef] of Object.entries(jobs)) {
 		const workOptions = options?.teamSize
 			? { teamSize: options.teamSize }
 			: undefined;
@@ -99,7 +101,7 @@ export async function startJobWorker<TJobs extends JobDefinition<any, any>[]>(
 	}
 
 	console.log(
-		`[QUESTPIE Queue] Worker started, listening to ${jobs.length} job(s)`,
+		`[QUESTPIE Queue] Worker started, listening to ${Object.keys(jobs).length} job(s)`,
 	);
 }
 
@@ -113,7 +115,7 @@ export async function startJobWorker<TJobs extends JobDefinition<any, any>[]>(
  * ```
  */
 export async function startJobWorkerForJobs<
-	TJobs extends JobDefinition<any, any>[],
+	TJobs extends Record<string, JobDefinition<any, any>>,
 >(
 	queueClient: QueueClient<TJobs>,
 	jobs: TJobs,

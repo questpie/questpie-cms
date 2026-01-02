@@ -2,26 +2,23 @@
 // This file consolidates all type inference helpers used by both server and client
 
 import type {
-	AnyGlobalState,
 	Collection,
 	CollectionBuilder,
 	GlobalBuilder,
 	Global,
 	FunctionDefinition,
 } from "#questpie/cms/server";
-import type { AnyCollectionState } from "#questpie/cms/server/collection/builder/types";
 import type { RelationConfig } from "#questpie/cms/server/collection/builder/types";
+import type { SearchableConfig } from "#questpie/cms/server/integrated/search";
 
 // ============================================================================
 // Base Type Helpers
 // ============================================================================
 
-export type AnyCollectionOrBuilder =
-	| Collection<AnyCollectionState>
-	| CollectionBuilder<AnyCollectionState>;
-export type AnyCollection = Collection<AnyCollectionState>;
-export type AnyGlobal = Global<AnyGlobalState>;
-export type AnyGlobalBuilder = GlobalBuilder<AnyGlobalState>;
+export type AnyCollectionOrBuilder = Collection<any> | CollectionBuilder<any>;
+export type AnyCollection = Collection<any>;
+export type AnyGlobal = Global<any>;
+export type AnyGlobalBuilder = GlobalBuilder<any>;
 export type AnyGlobalOrBuilder = AnyGlobal | AnyGlobalBuilder;
 
 // ============================================================================
@@ -97,6 +94,14 @@ export type CollectionRelations<T> =
 			: Record<string, RelationConfig>
 		: Record<string, RelationConfig>;
 
+/**
+ * Extract search metadata type from a Collection or CollectionBuilder
+ */
+export type CollectionSearchMetadata<T> =
+	CollectionState<T> extends { searchable: SearchableConfig }
+		? Record<string, any>
+		: Record<string, any>;
+
 // ============================================================================
 // Global Type Inference (from $infer property)
 // ============================================================================
@@ -135,11 +140,12 @@ export type GlobalState<T> = T extends { state: infer State } ? State : never;
 /**
  * Extract functions from a Global or GlobalBuilder
  */
-export type GlobalFunctions<T> = GlobalState<T> extends { functions: infer F }
-	? F extends Record<string, FunctionDefinition>
-		? F
-		: Record<string, FunctionDefinition>
-	: Record<string, FunctionDefinition>;
+export type GlobalFunctions<T> =
+	GlobalState<T> extends { functions: infer F }
+		? F extends Record<string, FunctionDefinition>
+			? F
+			: Record<string, FunctionDefinition>
+		: Record<string, FunctionDefinition>;
 
 /**
  * Extract relations from a Global or GlobalBuilder
@@ -158,78 +164,62 @@ export type GlobalRelations<T> =
 // ============================================================================
 
 /**
- * Extract all collection names from a tuple of collections
- * @example type Names = CollectionNames<[typeof posts, typeof pages]> // "posts" | "pages"
+ * Extract all collection names from a collections object
+ * @example type Names = CollectionNames<{ posts: typeof posts, pages: typeof pages }> // "posts" | "pages"
  */
-export type CollectionNames<TCollections extends AnyCollectionOrBuilder[]> =
-	TCollections[number] extends { name: infer Name }
-		? Name extends string
-			? Name
-			: never
+export type CollectionNames<
+	TCollections extends Record<string, AnyCollectionOrBuilder>,
+> = keyof TCollections;
+
+/**
+ * Get a Collection by name from collections object
+ * @example type Posts = GetCollection<{ posts: typeof posts, pages: typeof pages }, "posts">
+ */
+export type GetCollection<
+	TCollections extends Record<string, AnyCollectionOrBuilder>,
+	Name extends CollectionNames<TCollections>,
+> = TCollections[Name] extends Collection<infer TState>
+	? Collection<TState>
+	: TCollections[Name] extends CollectionBuilder<infer TState>
+		? Collection<TState>
 		: never;
 
 /**
- * Create a map of collection names to Collection instances
+ * Extract searchable collection names from a collections map
  */
-export type CollectionMap<TCollections extends AnyCollectionOrBuilder[]> = {
-	[K in TCollections[number] as K extends Collection<infer TState>
-		? TState["name"]
-		: K extends CollectionBuilder<infer TState>
-			? TState["name"]
-			: never]: K extends Collection<infer TState>
-		? Collection<TState>
-		: K extends CollectionBuilder<infer TState>
-			? Collection<TState>
-			: never;
-};
-
-/**
- * Get a Collection by name from a tuple of collections
- * @example type Posts = GetCollection<[typeof posts, typeof pages], "posts">
- */
-export type GetCollection<
-	TCollections extends AnyCollectionOrBuilder[],
-	Name extends CollectionNames<TCollections>,
-> = CollectionMap<TCollections>[Name];
+export type SearchableCollectionNames<
+	TCollections extends Record<string, AnyCollectionOrBuilder>,
+> = {
+	[K in CollectionNames<TCollections>]: CollectionState<
+		GetCollection<TCollections, K>
+	> extends { searchable: SearchableConfig }
+		? K
+		: never;
+}[CollectionNames<TCollections>];
 
 // ============================================================================
 // Global Name Extraction & Lookup
 // ============================================================================
 
 /**
- * Extract all global names from a tuple of globals
- * @example type Names = GlobalNames<[typeof siteSettings, typeof themeConfig]> // "siteSettings" | "themeConfig"
+ * Extract all global names from a globals object
+ * @example type Names = GlobalNames<{ siteSettings: typeof siteSettings, themeConfig: typeof themeConfig }> // "siteSettings" | "themeConfig"
  */
-export type GlobalNames<TGlobals extends AnyGlobalOrBuilder[]> =
-	TGlobals[number] extends { name: infer Name }
-		? Name extends string
-			? Name
-			: never
-		: never;
+export type GlobalNames<TGlobals extends Record<string, AnyGlobalOrBuilder>> =
+	keyof TGlobals;
 
 /**
- * Create a map of global names to Global instances
- */
-export type GlobalMap<TGlobals extends AnyGlobalOrBuilder[]> = {
-	[K in TGlobals[number] as K extends Global<infer TState>
-		? TState["name"]
-		: K extends GlobalBuilder<infer TState>
-			? TState["name"]
-			: never]: K extends Global<infer TState>
-		? Global<TState>
-		: K extends GlobalBuilder<infer TState>
-			? Global<TState>
-			: never;
-};
-
-/**
- * Get a Global by name from a tuple of globals
- * @example type Settings = GetGlobal<[typeof siteSettings, typeof themeConfig], "siteSettings">
+ * Get a Global by name from globals object
+ * @example type Settings = GetGlobal<{ siteSettings: typeof siteSettings, themeConfig: typeof themeConfig }, "siteSettings">
  */
 export type GetGlobal<
-	TGlobals extends AnyGlobalOrBuilder[],
+	TGlobals extends Record<string, AnyGlobalOrBuilder>,
 	Name extends GlobalNames<TGlobals>,
-> = GlobalMap<TGlobals>[Name];
+> = TGlobals[Name] extends Global<infer TState>
+	? Global<TState>
+	: TGlobals[Name] extends GlobalBuilder<infer TState>
+		? Global<TState>
+		: never;
 
 // ============================================================================
 // Relation Resolution
@@ -239,7 +229,7 @@ export type GetGlobal<
  * Resolve a collection select type by name
  */
 type ResolveCollectionSelect<
-	TCollections extends AnyCollectionOrBuilder[],
+	TCollections extends Record<string, AnyCollectionOrBuilder>,
 	C,
 > = C extends CollectionNames<TCollections>
 	? CollectionSelect<GetCollection<TCollections, C>>
@@ -249,9 +239,11 @@ type ResolveCollectionSelect<
  * Resolve polymorphic relation types
  */
 type ResolvePolymorphic<
-	TCollections extends AnyCollectionOrBuilder[],
+	TCollections extends Record<string, AnyCollectionOrBuilder>,
 	TRelation extends RelationConfig,
-> = TRelation extends { collections: Record<string, infer C> }
+> = TRelation extends {
+	types: Record<string, { collection: infer C }>;
+}
 	? ResolveCollectionSelect<TCollections, C>
 	: any;
 
@@ -262,13 +254,13 @@ type ResolvePolymorphic<
  * @example
  * type PostRelations = ResolveRelations<
  *   typeof posts.state.relations,
- *   [typeof posts, typeof comments, typeof users]
+ *   { posts: typeof posts, comments: typeof comments, users: typeof users }
  * >
  * // => { author: User, comments: Comment[], tags: Tag[] }
  */
 export type ResolveRelations<
 	TRelations extends Record<string, RelationConfig>,
-	TCollections extends AnyCollectionOrBuilder[],
+	TCollections extends Record<string, AnyCollectionOrBuilder>,
 > = {
 	[K in keyof TRelations]: TRelations[K] extends {
 		type: "many" | "manyToMany";

@@ -6,10 +6,9 @@ import type { QueueAdapter } from "./adapter";
  *
  * @internal Used by QCMS to create the queue instance
  */
-export function createQueueClient<TJobs extends JobDefinition<any, any>[]>(
-	jobs: TJobs,
-	adapter: QueueAdapter,
-): QueueClient<TJobs> {
+export function createQueueClient<
+	TJobs extends Record<string, JobDefinition<any, any>>,
+>(jobs: TJobs, adapter: QueueAdapter): QueueClient<TJobs> {
 	// Track if started
 	let started = false;
 
@@ -40,8 +39,8 @@ export function createQueueClient<TJobs extends JobDefinition<any, any>[]>(
 		},
 	};
 
-	// Create typesafe methods for each job (convert array to object by name)
-	for (const jobDef of jobs) {
+	// Create typesafe methods for each job (iterate over object entries)
+	for (const [jobName, jobDef] of Object.entries(jobs)) {
 		client[jobDef.name] = {
 			/**
 			 * Publish a job

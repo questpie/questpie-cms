@@ -37,143 +37,154 @@ const articleDeletedJob = defineJob({
 	handler: async () => {},
 });
 
-describe("integration: full CMS workflow", () => {
-	let setup: Awaited<ReturnType<typeof buildMockCMS>>;
+const createTestModule = () => {
+	const authors = defineCollection("authors")
+		.fields({
+			name: text("name").notNull(),
+			email: varchar("email", { length: 255 }).notNull(),
+			bio: text("bio"),
+		})
+		.title(({ table }) => sql`${table.name}`)
+		.hooks({
+			afterCreate: async ({ data }) => {
+				const cms = getCMSFromContext();
+				// Send welcome email when author is created
+				await cms.email?.send({
+					to: data.email,
+					subject: "Welcome to our platform!",
+					text: `Hi ${data.name}, welcome!`,
+				});
+			},
+		})
+		.build();
 
-	beforeEach(async () => {
-		// Define authors collection
-		const authors = defineCollection("authors")
-			.fields({
-				name: text("name").notNull(),
-				email: varchar("email", { length: 255 }).notNull(),
-				bio: text("bio"),
-			})
-			.title(({ table }) => sql`${table.name}`)
-			.hooks({
-				afterCreate: async ({ data }) => {
-					const cms = getCMSFromContext();
-					// Send welcome email when author is created
-					await cms.email?.send({
-						to: data.email,
-						subject: "Welcome to our platform!",
-						text: `Hi ${data.name}, welcome!`,
+	// Define articles collection with relations
+	const articles = defineCollection("articles")
+		.fields({
+			authorId: uuidCol("author_id")
+				.notNull()
+				.references(() => authors.table.id),
+			title: text("title").notNull(),
+			slug: varchar("slug", { length: 255 }).notNull(),
+			content: jsonb("content"),
+			featuredImage: jsonb("featured_image").$type<{
+				key: string;
+				url: string;
+				alt?: string;
+				width?: number;
+				height?: number;
+			}>(),
+			status: varchar("status", { length: 50 }),
+			viewCount: integer("view_count"),
+			publishedAt: timestamp("published_at", { mode: "date" }),
+		})
+		.title(({ table }) => sql`${table.title}`)
+		.relations(({ one, manyToMany }) => ({
+			author: one("authors", {
+				fields: ["authorId"] as any,
+				references: ["id"] as any,
+			}),
+			tags: manyToMany("tags", {
+				through: "article_tags",
+				sourceField: "articleId",
+				targetField: "tagId",
+			}),
+		}))
+		.options({
+			timestamps: true,
+			softDelete: true,
+			versioning: true,
+		})
+		.hooks({
+			beforeCreate: async ({ data }) => {
+				// Auto-generate slug if not provided
+				if (!data.slug && data.title) {
+					data.slug = data.title
+						.toLowerCase()
+						.replace(/\s+/g, "-")
+						.replace(/[^a-z0-9-]/g, "");
+				}
+				return data;
+			},
+			afterCreate: async ({ data }) => {
+				const cms = getCMSFromContext();
+				await cms.logger?.info("Article created", {
+					id: data.id,
+					title: data.title,
+				});
+			},
+			afterUpdate: async ({ data, original }) => {
+				const cms = getCMSFromContext<any>();
+				// Track publication
+				if (original.status !== "published" && data.status === "published") {
+					await cms.queue["article:published"].publish({
+						articleId: data.id,
+						title: data.title,
+						authorId: data.authorId,
 					});
-				},
-			})
-			.build();
 
-		// Define articles collection with relations
-		const articles = defineCollection("articles")
-			.fields({
-				authorId: uuidCol("author_id")
-					.notNull()
-					.references(() => authors.table.id),
-				title: text("title").notNull(),
-				slug: varchar("slug", { length: 255 }).notNull(),
-				content: jsonb("content"),
-				featuredImage: jsonb("featured_image"),
-				status: varchar("status", { length: 50 }),
-				viewCount: integer("view_count"),
-				publishedAt: timestamp("published_at", { mode: "date" }),
-			})
-			.title(({ table }) => sql`${table.title}`)
-			.relations(({ one, manyToMany }) => ({
-				author: one("authors", {
-					fields: ["authorId"] as any,
-					references: ["id"] as any,
-				}),
-				tags: manyToMany("tags", {
-					through: "article_tags",
-					sourceField: "articleId",
-					targetField: "tagId",
-				}),
-			}))
-			.options({
-				timestamps: true,
-				softDelete: true,
-				versioning: true,
-			})
-			.hooks({
-				beforeCreate: async ({ data }) => {
-					// Auto-generate slug if not provided
-					if (!data.slug && data.title) {
-						data.slug = data.title
-							.toLowerCase()
-							.replace(/\s+/g, "-")
-							.replace(/[^a-z0-9-]/g, "");
-					}
-					return data;
-				},
-				afterCreate: async ({ data }) => {
-					const cms = getCMSFromContext();
-					await cms.logger?.info("Article created", {
+					await cms.logger?.info("Article published", {
 						id: data.id,
 						title: data.title,
 					});
-				},
-				afterUpdate: async ({ data, original }) => {
-					const cms = getCMSFromContext<any>();
-					// Track publication
-					if (original.status !== "published" && data.status === "published") {
-						await cms.queue["article:published"].publish({
-							articleId: data.id,
-							title: data.title,
-							authorId: data.authorId,
-						});
+				}
+			},
+			afterDelete: async ({ data }) => {
+				const cms = getCMSFromContext<any>();
+				await cms.queue["article:deleted"].publish({ articleId: data.id });
+			},
+		})
+		.build();
 
-						await cms.logger?.info("Article published", {
-							id: data.id,
-							title: data.title,
-						});
-					}
-				},
-				afterDelete: async ({ data }) => {
-					const cms = getCMSFromContext<any>();
-					await cms.queue["article:deleted"].publish({ articleId: data.id });
-				},
-			})
-			.build();
+	// Define tags collection
+	const tags = defineCollection("tags")
+		.fields({
+			name: text("name").notNull(),
+		})
+		.title(({ table }) => sql`${table.name}`)
+		.relations(({ manyToMany }) => ({
+			articles: manyToMany("articles", {
+				through: "article_tags",
+				sourceField: "tagId",
+				targetField: "articleId",
+			}),
+		}))
+		.build();
 
-		// Define tags collection
-		const tags = defineCollection("tags")
-			.fields({
-				name: text("name").notNull(),
-			})
-			.title(({ table }) => sql`${table.name}`)
-			.relations(({ manyToMany }) => ({
-				articles: manyToMany("articles", {
-					through: "article_tags",
-					sourceField: "tagId",
-					targetField: "articleId",
-				}),
-			}))
-			.build();
+	// Define junction table
+	const articleTags = defineCollection("article_tags")
+		.fields({
+			articleId: uuidCol("article_id")
+				.notNull()
+				.references(() => articles.table.id),
+			tagId: uuidCol("tag_id")
+				.notNull()
+				.references(() => tags.table.id),
+		})
+		.build();
 
-		// Define junction table
-		const articleTags = defineCollection("article_tags")
-			.fields({
-				articleId: uuidCol("article_id")
-					.notNull()
-					.references(() => articles.table.id),
-				tagId: uuidCol("tag_id")
-					.notNull()
-					.references(() => tags.table.id),
-			})
-			.build();
+	return defineQCMS({ name: "integration-test" })
+		.collections({
+			authors,
+			articles,
+			tags,
+			article_tags: articleTags,
+		})
+		.jobs({
+			articlePublished: articlePublishedJob,
+			articleDeleted: articleDeletedJob,
+		});
+};
 
-		const testModule = defineQCMS({ name: "integration-test" })
-			.collections({
-				authors,
-				articles,
-				tags,
-				article_tags: articleTags,
-			})
-			.jobs({
-				articlePublished: articlePublishedJob,
-				articleDeleted: articleDeletedJob,
-			});
+describe("integration: full CMS workflow", () => {
+	let setup: Awaited<
+		ReturnType<typeof buildMockCMS<ReturnType<typeof createTestModule>>>
+	>;
 
-		setup = await buildMockCMS(testModule);
+	beforeEach(async () => {
+		// Define authors collection
+		const testModule = createTestModule();
+		setup = (await buildMockCMS(testModule)) as any;
 		await runTestDbMigrations(setup.cms);
 	});
 
@@ -198,11 +209,10 @@ describe("integration: full CMS workflow", () => {
 
 		// Verify welcome email was sent
 		expect(setup.cms.mocks.mailer.getSentCount()).toBe(1);
-		const sent = setup.cms.mocks.mailer.getSentMails().at(-1);
-		expect(sent?.to).toBe("jane@example.com");
-		expect(sent?.subject).toBe(
-			"Welcome to our platform!",
-		);
+		const sentEmail = setup.cms.mocks.mailer.getSentMails();
+		const lastSent = sentEmail[sentEmail.length - 1];
+		expect(lastSent?.to).toBe("jane@example.com");
+		expect(lastSent?.subject).toBe("Welcome to our platform!");
 
 		// 2. Create a draft article
 		const articlesCrud = setup.cms.api.collections.articles;
@@ -211,6 +221,7 @@ describe("integration: full CMS workflow", () => {
 				id: crypto.randomUUID(),
 				authorId: author.id,
 				title: "Getting Started with TypeScript",
+				slug: `getting-started-with-typescript`,
 				content: {
 					type: "doc",
 					content: [

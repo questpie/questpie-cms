@@ -1,14 +1,12 @@
 import type {
 	AnyCollectionOrBuilder,
-	AnyGlobalOrBuilder,
-	CMSDbConfig,
+	CMSConfig,
 	CollectionNames,
 	CRUD,
 	GetCollection,
 	GetGlobal,
 	GlobalCRUD,
 	GlobalNames,
-	JobDefinition,
 	QCMS,
 } from "#questpie/cms/exports/server.js";
 import type { RequestContext } from "#questpie/cms/server/config/context";
@@ -73,7 +71,7 @@ type GlobalFunctionsAPI<TGlobal> = {
 
 type CollectionAPI<
 	TCollection,
-	TCollections extends AnyCollectionOrBuilder[],
+	TCollections extends Record<string, AnyCollectionOrBuilder>,
 > = CRUD<
 	CollectionSelect<TCollection>,
 	CollectionInsert<TCollection>,
@@ -82,40 +80,22 @@ type CollectionAPI<
 > &
 	CollectionFunctionsAPI<TCollection, TCollections>;
 
-type GlobalAPI<TGlobal> = GlobalCRUD<
+type GlobalAPI<
+	TGlobal,
+	TCollections extends Record<string, AnyCollectionOrBuilder>,
+> = GlobalCRUD<
 	GlobalSelect<TGlobal>,
 	GlobalInsert<TGlobal>,
 	GlobalUpdate<TGlobal>,
-	GlobalRelations<TGlobal>
+	ResolveRelations<GlobalRelations<TGlobal>, TCollections>
 > &
 	GlobalFunctionsAPI<TGlobal>;
 
-export type QCMSApi<
-	TCollections extends AnyCollectionOrBuilder[] = AnyCollectionOrBuilder[],
-	TGlobals extends AnyGlobalOrBuilder[] = AnyGlobalOrBuilder[],
-	TJobs extends JobDefinition<any, any>[] = JobDefinition<any, any>[],
-	TEmailTemplates extends any[] = any[],
-	TFunctions extends FunctionsMap = FunctionsMap,
-> = QCMSAPI<TCollections, TGlobals, TJobs, TEmailTemplates, TFunctions> &
-	RootFunctionsAPI<TFunctions>;
+export type QCMSApi<TConfig extends CMSConfig = CMSConfig> = QCMSAPI<TConfig> &
+	RootFunctionsAPI<NonNullable<TConfig["functions"]>>;
 
-export class QCMSAPI<
-	TCollections extends AnyCollectionOrBuilder[] = AnyCollectionOrBuilder[],
-	TGlobals extends AnyGlobalOrBuilder[] = AnyGlobalOrBuilder[],
-	TJobs extends JobDefinition<any, any>[] = JobDefinition<any, any>[],
-	TEmailTemplates extends any[] = any[],
-	TFunctions extends FunctionsMap = FunctionsMap,
-> {
-	constructor(
-		readonly cms: QCMS<
-			TCollections,
-			TGlobals,
-			TJobs,
-			TEmailTemplates,
-			TFunctions,
-			CMSDbConfig
-		>,
-	) {
+export class QCMSAPI<TConfig extends CMSConfig = CMSConfig> {
+	constructor(readonly cms: QCMS<TConfig>) {
 		this.registerRootFunctions();
 	}
 
@@ -186,15 +166,15 @@ export class QCMSAPI<
 	 * await cms.api.collections.posts.find({ where: { status: 'published' } })
 	 */
 	public get collections(): {
-		[K in CollectionNames<TCollections>]: CollectionAPI<
-			GetCollection<TCollections, K>,
-			TCollections
+		[K in keyof TConfig["collections"]]: CollectionAPI<
+			GetCollection<TConfig["collections"], K>,
+			TConfig["collections"]
 		>;
 	} {
-		const collectionsProxy = {} as any;
+		const collectionsProxy = {};
+		const collectionsObj = this.cms.getCollections();
 
-		for (const collection of this.cms.getCollections()) {
-			const name = collection.name as CollectionNames<TCollections>;
+		for (const [name, collection] of Object.entries(collectionsObj)) {
 			Object.defineProperty(collectionsProxy, name, {
 				get: () => {
 					const crud = collection.generateCRUD(this.cms.db, this.cms) as any;
@@ -211,16 +191,24 @@ export class QCMSAPI<
 			});
 		}
 
-		return collectionsProxy;
+		return collectionsProxy as {
+			[K in keyof TConfig["collections"]]: CollectionAPI<
+				GetCollection<TConfig["collections"], K>,
+				TConfig["collections"]
+			>;
+		};
 	}
 
 	public get globals(): {
-		[K in GlobalNames<TGlobals>]: GlobalAPI<GetGlobal<TGlobals, K>>;
+		[K in keyof NonNullable<TConfig["globals"]>]: GlobalAPI<
+			GetGlobal<NonNullable<TConfig["globals"]>, K>,
+			TConfig["collections"]
+		>;
 	} {
-		const globalsProxy = {} as any;
+		const globalsProxy = {};
+		const globalsObj = this.cms.getGlobals();
 
-		for (const global of this.cms.getGlobals()) {
-			const name = global.name as GlobalNames<TGlobals>;
+		for (const [name, global] of Object.entries(globalsObj)) {
 			Object.defineProperty(globalsProxy, name, {
 				get: () => {
 					const crud = global.generateCRUD(this.cms.db, this.cms) as any;
@@ -237,6 +225,11 @@ export class QCMSAPI<
 			});
 		}
 
-		return globalsProxy;
+		return globalsProxy as {
+			[K in keyof NonNullable<TConfig["globals"]>]: GlobalAPI<
+				GetGlobal<NonNullable<TConfig["globals"]>, K>,
+				TConfig["collections"]
+			>;
+		};
 	}
 }

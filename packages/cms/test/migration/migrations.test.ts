@@ -28,21 +28,19 @@ describe("Migration System - Programmatic", () => {
 		pgClient = await createTestDb();
 
 		// Define test collections
-		const posts = defineCollection("posts")
-			.fields({
-title: varchar("title", { length: 255 }).notNull(),
-				content: text("content"),
-				published: boolean("published").default(false),
-			});
+		const posts = defineCollection("posts").fields({
+			title: varchar("title", { length: 255 }).notNull(),
+			content: text("content"),
+			published: boolean("published").default(false),
+		});
 
 		// Create CMS instance
-		const builder = defineQCMS({ name: "test-cms" })
-			.collections({ posts });
+		const builder = defineQCMS({ name: "test-cms" }).collections({ posts });
 
 		qcms = builder.build({
-app: { url: "http://localhost:3000" },
-db: { pglite: pgClient },
-email: { adapter: new MockMailAdapter() },
+			app: { url: "http://localhost:3000" },
+			db: { pglite: pgClient },
+			email: { adapter: new MockMailAdapter() },
 			queue: { adapter: new MockQueueAdapter() },
 			kv: { adapter: new MockKVAdapter() },
 			logger: { adapter: new MockLogger() },
@@ -61,7 +59,7 @@ email: { adapter: new MockMailAdapter() },
 			id: "create_posts_table",
 			async up({ db: migDb }) {
 				await migDb.execute(
-sql.raw(`
+					sql.raw(`
 CREATE TABLE posts (
 id TEXT PRIMARY KEY,
 title VARCHAR(255) NOT NULL,
@@ -69,7 +67,7 @@ content TEXT,
 published BOOLEAN DEFAULT false
 )
 `),
-);
+				);
 			},
 			async down({ db: migDb }) {
 				await migDb.execute(sql.raw(`DROP TABLE posts`));
@@ -96,8 +94,8 @@ AND table_name = 'posts'
 
 		// Verify migration was recorded
 		const migrationsResult = await pgClient.query(
-"SELECT * FROM questpie_migrations WHERE id = 'create_posts_table'",
-);
+			"SELECT * FROM questpie_migrations WHERE id = 'create_posts_table'",
+		);
 		expect(migrationsResult.rows.length).toBe(1);
 	});
 
@@ -153,7 +151,7 @@ AND table_name = 'posts'
 			id: "create_comments_table",
 			async up({ db: migDb }) {
 				await migDb.execute(
-sql.raw(`
+					sql.raw(`
 CREATE TABLE comments (
 id TEXT PRIMARY KEY,
 post_id TEXT NOT NULL,
@@ -161,7 +159,7 @@ author VARCHAR(255) NOT NULL,
 content TEXT NOT NULL
 )
 `),
-);
+				);
 			},
 			async down({ db: migDb }) {
 				await migDb.execute(sql.raw(`DROP TABLE comments`));
@@ -258,24 +256,22 @@ describe("Migration System - Generation", () => {
 
 	test("should generate migration from collection schema", async () => {
 		// Define a simple collection
-		const posts = defineCollection("posts")
-			.fields({
-title: varchar("title", { length: 255 }).notNull(),
-				content: text("content"),
-				published: boolean("published").default(false),
-			});
+		const posts = defineCollection("posts").fields({
+			title: varchar("title", { length: 255 }).notNull(),
+			content: text("content"),
+			published: boolean("published").default(false),
+		});
 
 		// Create CMS instance
-		const builder = defineQCMS({ name: "test-cms" })
-			.collections({ posts });
+		const builder = defineQCMS({ name: "test-cms" }).collections({ posts });
 
 		qcms = builder.build({
-app: { url: "http://localhost:3000" },
-db: { pglite: pgClient },
-migrations: {
-directory: testMigrationDir,
-},
-email: { adapter: new MockMailAdapter() },
+			app: { url: "http://localhost:3000" },
+			db: { pglite: pgClient },
+			migrations: {
+				directory: testMigrationDir,
+			},
+			email: { adapter: new MockMailAdapter() },
 			queue: { adapter: new MockQueueAdapter() },
 			kv: { adapter: new MockKVAdapter() },
 			logger: { adapter: new MockLogger() },
@@ -283,8 +279,8 @@ email: { adapter: new MockMailAdapter() },
 
 		// Generate migration
 		const result = await qcms.migrations.generate({
-name: "create_posts_table",
-});
+			name: "create_posts_table",
+		});
 
 		// Verify result
 		expect(result.skipped).toBe(false);
@@ -296,10 +292,10 @@ name: "create_posts_table",
 
 		// Verify snapshot file was created
 		const snapshotFile = join(
-testMigrationDir,
-"snapshots",
-`${result.fileName}.json`,
-);
+			testMigrationDir,
+			"snapshots",
+			`${result.fileName}.json`,
+		);
 		expect(existsSync(snapshotFile)).toBe(true);
 
 		// Verify index.ts was created
@@ -319,21 +315,19 @@ testMigrationDir,
 	});
 
 	test("should skip generation if no schema changes", async () => {
-		const posts = defineCollection("posts")
-			.fields({
-title: varchar("title", { length: 255 }).notNull(),
-			});
+		const posts = defineCollection("posts").fields({
+			title: varchar("title", { length: 255 }).notNull(),
+		});
 
-		const builder = defineQCMS({ name: "test-cms" })
-			.collections({ posts });
+		const builder = defineQCMS({ name: "test-cms" }).collections({ posts });
 
 		qcms = builder.build({
-app: { url: "http://localhost:3000" },
-db: { pglite: pgClient },
-migrations: {
-directory: testMigrationDir,
-},
-email: { adapter: new MockMailAdapter() },
+			app: { url: "http://localhost:3000" },
+			db: { pglite: pgClient },
+			migrations: {
+				directory: testMigrationDir,
+			},
+			email: { adapter: new MockMailAdapter() },
 			queue: { adapter: new MockQueueAdapter() },
 			kv: { adapter: new MockKVAdapter() },
 			logger: { adapter: new MockLogger() },
@@ -341,39 +335,37 @@ email: { adapter: new MockMailAdapter() },
 
 		// Generate first migration
 		const result1 = await qcms.migrations.generate({
-name: "initial",
-});
+			name: "initial",
+		});
 		expect(result1.skipped).toBe(false);
 
 		// Try to generate again without changes
 		const result2 = await qcms.migrations.generate({
-name: "no_changes",
-});
+			name: "no_changes",
+		});
 		expect(result2.skipped).toBe(true);
 
 		// Verify only one migration file exists
 		const files = readdirSync(testMigrationDir).filter(
-(f) => f.endsWith(".ts") && f !== "index.ts",
+			(f) => f.endsWith(".ts") && f !== "index.ts",
 		);
 		expect(files.length).toBe(1);
 	});
 
 	test("should generate new migration after schema changes", async () => {
-		const posts = defineCollection("posts")
-			.fields({
-title: varchar("title", { length: 255 }).notNull(),
-			});
+		const posts = defineCollection("posts").fields({
+			title: varchar("title", { length: 255 }).notNull(),
+		});
 
-		let builder = defineQCMS({ name: "test-cms" })
-			.collections({ posts });
+		let builder = defineQCMS({ name: "test-cms" }).collections({ posts });
 
 		qcms = builder.build({
-app: { url: "http://localhost:3000" },
-db: { pglite: pgClient },
-migrations: {
-directory: testMigrationDir,
-},
-email: { adapter: new MockMailAdapter() },
+			app: { url: "http://localhost:3000" },
+			db: { pglite: pgClient },
+			migrations: {
+				directory: testMigrationDir,
+			},
+			email: { adapter: new MockMailAdapter() },
 			queue: { adapter: new MockQueueAdapter() },
 			kv: { adapter: new MockKVAdapter() },
 			logger: { adapter: new MockLogger() },
@@ -381,28 +373,28 @@ email: { adapter: new MockMailAdapter() },
 
 		// Generate first migration
 		const result1 = await qcms.migrations.generate({
-name: "initial",
-});
+			name: "initial",
+		});
 		expect(result1.skipped).toBe(false);
 
 		// Modify schema - add new field
-		const postsV2 = defineCollection("posts")
-			.fields({
-title: varchar("title", { length: 255 }).notNull(),
-				content: text("content"), // New field
-			});
+		const postsV2 = defineCollection("posts").fields({
+			title: varchar("title", { length: 255 }).notNull(),
+			content: text("content"), // New field
+		});
 
 		// Update CMS schema
-		builder = defineQCMS({ name: "test-cms" })
-			.collections({ posts: postsV2 });
+		builder = defineQCMS({ name: "test-cms" }).collections({
+			posts: postsV2,
+		}) as any;
 
 		qcms = builder.build({
-app: { url: "http://localhost:3000" },
-db: { pglite: pgClient },
-migrations: {
-directory: testMigrationDir,
-},
-email: { adapter: new MockMailAdapter() },
+			app: { url: "http://localhost:3000" },
+			db: { pglite: pgClient },
+			migrations: {
+				directory: testMigrationDir,
+			},
+			email: { adapter: new MockMailAdapter() },
 			queue: { adapter: new MockQueueAdapter() },
 			kv: { adapter: new MockKVAdapter() },
 			logger: { adapter: new MockLogger() },
@@ -410,13 +402,13 @@ email: { adapter: new MockMailAdapter() },
 
 		// Generate second migration
 		const result2 = await qcms.migrations.generate({
-name: "add_content_field",
-});
+			name: "add_content_field",
+		});
 		expect(result2.skipped).toBe(false);
 
 		// Verify two migration files exist
 		const files = readdirSync(testMigrationDir).filter(
-(f) => f.endsWith(".ts") && f !== "index.ts",
+			(f) => f.endsWith(".ts") && f !== "index.ts",
 		);
 		expect(files.length).toBe(2);
 
@@ -426,35 +418,35 @@ name: "add_content_field",
 	});
 
 	test("should generate migration with multiple collections", async () => {
-		const posts = defineCollection("posts")
-			.fields({
-title: varchar("title", { length: 255 }).notNull(),
-			});
+		const posts = defineCollection("posts").fields({
+			title: varchar("title", { length: 255 }).notNull(),
+		});
 
-		const comments = defineCollection("comments")
-			.fields({
-postId: varchar("post_id", { length: 255 }).notNull(),
-				author: varchar("author", { length: 255 }).notNull(),
-			});
+		const comments = defineCollection("comments").fields({
+			postId: varchar("post_id", { length: 255 }).notNull(),
+			author: varchar("author", { length: 255 }).notNull(),
+		});
 
-		const builder = defineQCMS({ name: "test-cms" })
-			.collections({ posts, comments });
+		const builder = defineQCMS({ name: "test-cms" }).collections({
+			posts,
+			comments,
+		});
 
 		qcms = builder.build({
-app: { url: "http://localhost:3000" },
-db: { pglite: pgClient },
-migrations: {
-directory: testMigrationDir,
-},
-email: { adapter: new MockMailAdapter() },
+			app: { url: "http://localhost:3000" },
+			db: { pglite: pgClient },
+			migrations: {
+				directory: testMigrationDir,
+			},
+			email: { adapter: new MockMailAdapter() },
 			queue: { adapter: new MockQueueAdapter() },
 			kv: { adapter: new MockKVAdapter() },
 			logger: { adapter: new MockLogger() },
 		});
 
 		const result = await qcms.migrations.generate({
-name: "create_posts_and_comments",
-});
+			name: "create_posts_and_comments",
+		});
 
 		expect(result.skipped).toBe(false);
 
@@ -468,21 +460,19 @@ name: "create_posts_and_comments",
 	});
 
 	test("should handle generated migrations in index.ts", async () => {
-		const posts = defineCollection("posts")
-			.fields({
-title: varchar("title", { length: 255 }).notNull(),
-			});
+		const posts = defineCollection("posts").fields({
+			title: varchar("title", { length: 255 }).notNull(),
+		});
 
-		let builder = defineQCMS({ name: "test-cms" })
-			.collections({ posts });
+		let builder = defineQCMS({ name: "test-cms" }).collections({ posts });
 
 		qcms = builder.build({
-app: { url: "http://localhost:3000" },
-db: { pglite: pgClient },
-migrations: {
-directory: testMigrationDir,
-},
-email: { adapter: new MockMailAdapter() },
+			app: { url: "http://localhost:3000" },
+			db: { pglite: pgClient },
+			migrations: {
+				directory: testMigrationDir,
+			},
+			email: { adapter: new MockMailAdapter() },
 			queue: { adapter: new MockQueueAdapter() },
 			kv: { adapter: new MockKVAdapter() },
 			logger: { adapter: new MockLogger() },
@@ -492,22 +482,22 @@ email: { adapter: new MockMailAdapter() },
 		await qcms.migrations.generate({ name: "first" });
 
 		// Modify schema for second migration
-		const postsV2 = defineCollection("posts")
-			.fields({
-title: varchar("title", { length: 255 }).notNull(),
-				description: text("description"), // New field
-			});
+		const postsV2 = defineCollection("posts").fields({
+			title: varchar("title", { length: 255 }).notNull(),
+			description: text("description"), // New field
+		});
 
-		builder = defineQCMS({ name: "test-cms" })
-			.collections({ posts: postsV2 });
+		builder = defineQCMS({ name: "test-cms" }).collections({
+			posts: postsV2,
+		}) as any;
 
 		qcms = builder.build({
-app: { url: "http://localhost:3000" },
-db: { pglite: pgClient },
-migrations: {
-directory: testMigrationDir,
-},
-email: { adapter: new MockMailAdapter() },
+			app: { url: "http://localhost:3000" },
+			db: { pglite: pgClient },
+			migrations: {
+				directory: testMigrationDir,
+			},
+			email: { adapter: new MockMailAdapter() },
 			queue: { adapter: new MockQueueAdapter() },
 			kv: { adapter: new MockKVAdapter() },
 			logger: { adapter: new MockLogger() },
@@ -527,22 +517,20 @@ email: { adapter: new MockMailAdapter() },
 	});
 
 	test("should be able to run generated migrations", async () => {
-		const posts = defineCollection("posts")
-			.fields({
-title: varchar("title", { length: 255 }).notNull(),
-				views: integer("views").default(0),
-			});
+		const posts = defineCollection("posts").fields({
+			title: varchar("title", { length: 255 }).notNull(),
+			views: integer("views").default(0),
+		});
 
-		const builder = defineQCMS({ name: "test-cms" })
-			.collections({ posts });
+		const builder = defineQCMS({ name: "test-cms" }).collections({ posts });
 
 		qcms = builder.build({
-app: { url: "http://localhost:3000" },
-db: { pglite: pgClient },
-migrations: {
-directory: testMigrationDir,
-},
-email: { adapter: new MockMailAdapter() },
+			app: { url: "http://localhost:3000" },
+			db: { pglite: pgClient },
+			migrations: {
+				directory: testMigrationDir,
+			},
+			email: { adapter: new MockMailAdapter() },
 			queue: { adapter: new MockQueueAdapter() },
 			kv: { adapter: new MockKVAdapter() },
 			logger: { adapter: new MockLogger() },
@@ -550,14 +538,14 @@ email: { adapter: new MockMailAdapter() },
 
 		// Generate migration
 		const result = await qcms.migrations.generate({
-name: "create_posts",
-});
+			name: "create_posts",
+		});
 
 		expect(result.skipped).toBe(false);
 
 		// Import generated migrations
 		const migrationsIndex = await import(
-`${join(testMigrationDir, "index.ts")}?t=${Date.now()}`
+			`${join(testMigrationDir, "index.ts")}?t=${Date.now()}`
 		);
 		qcms.config.migrations!.migrations = [...migrationsIndex.migrations];
 
@@ -580,21 +568,19 @@ AND table_name = 'posts'
 	});
 
 	test("should handle migration rollback after generation", async () => {
-		const posts = defineCollection("posts")
-			.fields({
-title: varchar("title", { length: 255 }).notNull(),
-			});
+		const posts = defineCollection("posts").fields({
+			title: varchar("title", { length: 255 }).notNull(),
+		});
 
-		const builder = defineQCMS({ name: "test-cms" })
-			.collections({ posts });
+		const builder = defineQCMS({ name: "test-cms" }).collections({ posts });
 
 		qcms = builder.build({
-app: { url: "http://localhost:3000" },
-db: { pglite: pgClient },
-migrations: {
-directory: testMigrationDir,
-},
-email: { adapter: new MockMailAdapter() },
+			app: { url: "http://localhost:3000" },
+			db: { pglite: pgClient },
+			migrations: {
+				directory: testMigrationDir,
+			},
+			email: { adapter: new MockMailAdapter() },
 			queue: { adapter: new MockQueueAdapter() },
 			kv: { adapter: new MockKVAdapter() },
 			logger: { adapter: new MockLogger() },
@@ -604,7 +590,7 @@ email: { adapter: new MockMailAdapter() },
 		await qcms.migrations.generate({ name: "create_posts" });
 
 		const migrationsIndex = await import(
-`${join(testMigrationDir, "index.ts")}?t=${Date.now()}`
+			`${join(testMigrationDir, "index.ts")}?t=${Date.now()}`
 		);
 		qcms.config.migrations!.migrations = [...migrationsIndex.migrations];
 

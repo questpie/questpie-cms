@@ -1,27 +1,23 @@
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { betterAuth } from "better-auth";
 import { SQL } from "bun";
 import { drizzle as drizzleBun } from "drizzle-orm/bun-sql";
-import { drizzle as drizzlePgLite } from "drizzle-orm/pglite";
 import type { PgTable } from "drizzle-orm/pg-core";
+import { drizzle as drizzlePgLite } from "drizzle-orm/pglite";
 import { DriveManager } from "flydrive";
 import {
 	type AccessMode,
 	type AnyCollectionOrBuilder,
 	type AnyGlobal,
 	type AnyGlobalBuilder,
-	type AnyGlobalOrBuilder,
-	type CMSConfig,
-	type CMSDbConfig,
 	type Collection,
 	CollectionBuilder,
-	type CollectionNames,
 	createQueueClient,
 	type DrizzleClientFromCMSConfig,
-	type GetCollection,
-	type GetGlobal,
+	type Global,
 	GlobalBuilder,
-	type GlobalNames,
 	type InferyDbClientType,
-	type JobDefinition,
 	type Locale,
 	type QueueClient,
 	startJobWorkerForJobs,
@@ -34,49 +30,29 @@ import {
 	type QCMSApi,
 } from "#questpie/cms/server/config/integrated/cms-api.js";
 import { QCMSMigrationsAPI } from "#questpie/cms/server/config/integrated/migrations-api.js";
-import { betterAuth } from "better-auth";
 import { KVService } from "#questpie/cms/server/integrated/kv";
 import { LoggerService } from "#questpie/cms/server/integrated/logger";
 import { MailerService } from "#questpie/cms/server/integrated/mailer";
 import {
-	RealtimeService,
 	questpieRealtimeLogTable,
+	RealtimeService,
 } from "#questpie/cms/server/integrated/realtime";
 import {
 	createSearchService,
 	type SearchService,
 } from "#questpie/cms/server/integrated/search";
 import { createDiskDriver } from "#questpie/cms/server/integrated/storage/create-driver";
-import { join } from "node:path";
-import { tmpdir } from "node:os";
-import type { FunctionsMap } from "#questpie/cms/server/functions/types";
-import type { AuthConfig, InferAuthFromConfig } from "./types";
+import type { CMSConfig, GetFunctions, InferAuthFromConfig } from "./types";
 
-export class QCMS<
-	TCollections extends AnyCollectionOrBuilder[] = AnyCollectionOrBuilder[],
-	TGlobals extends AnyGlobalOrBuilder[] = AnyGlobalOrBuilder[],
-	TJobs extends JobDefinition<any, any>[] = JobDefinition<any, any>[],
-	TEmailTemplates extends any[] = any[],
-	TFunctions extends FunctionsMap = FunctionsMap,
-	TDBClientConfig extends CMSDbConfig = CMSDbConfig,
-	TAuthConfig extends AuthConfig | undefined = AuthConfig | undefined,
-> {
+export class QCMS<TConfig extends CMSConfig = CMSConfig> {
 	static readonly __internal = {
 		storageDriverServiceName: "cmsDefault",
 	};
 
-	private _collections = new Map<string, Collection<AnyCollectionState>>();
-	private _globals = new Map<string, AnyGlobal>();
-	private _functions: TFunctions;
-	public readonly config: CMSConfig<
-		TCollections,
-		TGlobals,
-		TJobs,
-		TEmailTemplates,
-		TFunctions,
-		TDBClientConfig,
-		TAuthConfig
-	>;
+	private _collections: Record<string, Collection<AnyCollectionState>> = {};
+	private _globals: Record<string, AnyGlobal> = {};
+	private _functions: GetFunctions<TConfig>;
+	public readonly config: TConfig;
 	private resolvedLocales: Locale[] | null = null;
 	private pgConnectionString?: string;
 
@@ -84,61 +60,40 @@ export class QCMS<
 	 * Better Auth instance - properly typed based on auth configuration
 	 * Type is inferred from the AuthConfig passed to .auth() in the builder
 	 */
-	public auth: TAuthConfig extends undefined
+	public auth: TConfig["auth"] extends undefined
 		? undefined
-		: InferAuthFromConfig<TAuthConfig>;
+		: InferAuthFromConfig<NonNullable<TConfig["auth"]>>;
 	public storage: DriveManager<{
 		[QCMS.__internal
 			.storageDriverServiceName]: () => import("flydrive/types").DriverContract;
 	}>;
-	public queue: QueueClient<TJobs>;
+	public queue: QueueClient<NonNullable<TConfig["queue"]>["jobs"]>;
 	public email: MailerService;
 	public kv: KVService;
 	public logger: LoggerService;
 	public search: SearchService;
 	public realtime: RealtimeService;
 
-	public migrations: QCMSMigrationsAPI<
-		TCollections,
-		TGlobals,
-		TJobs,
-		TEmailTemplates
-	>;
-	public api: QCMSApi<
-		TCollections,
-		TGlobals,
-		TJobs,
-		TEmailTemplates,
-		TFunctions
-	>;
+	public migrations: QCMSMigrationsAPI<TConfig>;
+	public api: QCMSApi<TConfig>;
 
 	public db: DrizzleClientFromCMSConfig<
-		TCollections,
-		TGlobals,
-		InferyDbClientType<TDBClientConfig>
+		TConfig["collections"],
+		NonNullable<TConfig["globals"]>,
+		InferyDbClientType<TConfig["db"]>
 	>;
 
-	constructor(
-		config: CMSConfig<
-			TCollections,
-			TGlobals,
-			TJobs,
-			TEmailTemplates,
-			TFunctions,
-			TDBClientConfig,
-			TAuthConfig
-		>,
-	) {
+	constructor(config: TConfig) {
 		this.config = config;
 
-		// Core collections are now already included in config.collections from the builder
+		// Register collections from config
 		this.registerCollections(config.collections);
 
 		if (config.globals) {
 			this.registerGlobals(config.globals);
 		}
 
-		this._functions = (config.functions || {}) as TFunctions;
+		this._functions = (config.functions || {}) as GetFunctions<TConfig>;
 
 		// Initialize database client from config
 		if ("url" in config.db) {
@@ -250,60 +205,66 @@ export class QCMS<
 		}
 
 		this.migrations = new QCMSMigrationsAPI(this);
-		this.api = new QCMSAPI(this) as QCMSApi<
-			TCollections,
-			TGlobals,
-			TJobs,
-			TEmailTemplates,
-			TFunctions
-		>;
+		this.api = new QCMSAPI(this) as QCMSApi<TConfig>;
 	}
 
-	private registerCollections(collections: AnyCollectionOrBuilder[]) {
-		for (const item of collections) {
+	private registerCollections(
+		collections: Record<string, AnyCollectionOrBuilder>,
+	) {
+		for (const [_key, item] of Object.entries(collections)) {
 			// Auto-build if it's a CollectionBuilder
 			const collection =
 				item instanceof CollectionBuilder ? item.build() : item;
 
-			if (this._collections.has(collection.name)) {
+			if (this._collections[collection.name]) {
 				throw new Error(
 					`Collection "${collection.name}" is already registered.`,
 				);
 			}
-			this._collections.set(collection.name, collection);
+			this._collections[collection.name] = collection;
 		}
 	}
 
-	private registerGlobals(globals: (AnyGlobal | AnyGlobalBuilder)[]) {
-		for (const item of globals) {
+	private registerGlobals(
+		globals: Record<string, AnyGlobal | AnyGlobalBuilder>,
+	) {
+		for (const [_key, item] of Object.entries(globals)) {
 			// Auto-build if it's a GlobalBuilder
 			const global = item instanceof GlobalBuilder ? item.build() : item;
 
-			if (this._globals.has(global.name)) {
+			if (this._globals[global.name]) {
 				throw new Error(`Global "${global.name}" is already registered.`);
 			}
-			this._globals.set(global.name, global);
+			this._globals[global.name] = global;
 		}
 	}
 
-	public getCollectionConfig<TName extends CollectionNames<TCollections>>(
+	public getCollectionConfig<TName extends keyof TConfig["collections"]>(
 		name: TName,
-	): GetCollection<TCollections, TName> {
-		const collection = this._collections.get(name);
+	): TConfig["collections"][TName] extends Collection<infer TState>
+		? Collection<TState>
+		: TConfig["collections"][TName] extends CollectionBuilder<infer TState>
+			? Collection<TState>
+			: never {
+		const collection = this._collections[name as string];
 		if (!collection) {
-			throw new Error(`Collection "${name}" not found.`);
+			throw new Error(`Collection "${String(name)}" not found.`);
 		}
-		return collection as GetCollection<TCollections, TName>;
+		return collection as any;
 	}
 
-	public getGlobalConfig<TName extends GlobalNames<TGlobals>>(
+	public getGlobalConfig<TName extends keyof NonNullable<TConfig["globals"]>>(
 		name: TName,
-	): GetGlobal<TGlobals, TName> {
-		const global = this._globals.get(name);
+	): NonNullable<TConfig["globals"]>[TName] extends Global<infer TState>
+		? Global<TState>
+		: NonNullable<TConfig["globals"]>[TName] extends GlobalBuilder<infer TState>
+			? Global<TState>
+			: never {
+		const global = this._globals[name as string];
 		if (!global) {
-			throw new Error(`Global "${name}" not found.`);
+			throw new Error(`Global "${String(name)}" not found.`);
 		}
-		return global as GetGlobal<TGlobals, TName>;
+		return global as any;
 	}
 
 	public async getLocales(): Promise<Locale[]> {
@@ -370,21 +331,37 @@ export class QCMS<
 		};
 	}
 
-	public getCollections(): Collection<AnyCollectionState>[] {
-		return Array.from(this._collections.values());
+	public getCollections(): {
+		[K in keyof TConfig["collections"]]: TConfig["collections"][K] extends Collection<
+			infer TState
+		>
+			? Collection<TState>
+			: TConfig["collections"][K] extends CollectionBuilder<infer TState>
+				? Collection<TState>
+				: never;
+	} {
+		return this._collections as any;
 	}
 
-	public getGlobals(): AnyGlobal[] {
-		return Array.from(this._globals.values());
+	public getGlobals(): {
+		[K in keyof NonNullable<TConfig["globals"]>]: NonNullable<
+			TConfig["globals"]
+		>[K] extends Global<infer TState>
+			? Global<TState>
+			: NonNullable<TConfig["globals"]>[K] extends GlobalBuilder<infer TState>
+				? Global<TState>
+				: never;
+	} {
+		return this._globals as any;
 	}
 
-	public getFunctions(): TFunctions {
+	public getFunctions(): GetFunctions<TConfig> {
 		return this._functions;
 	}
 
 	public getTables(): Record<string, PgTable> {
 		const tables: Record<string, PgTable> = {};
-		for (const [name, collection] of this._collections) {
+		for (const [name, collection] of Object.entries(this._collections)) {
 			tables[name] = collection.table as unknown as PgTable;
 			if (collection.i18nTable) {
 				tables[`${name}_i18n`] = collection.i18nTable as unknown as PgTable;
@@ -398,7 +375,7 @@ export class QCMS<
 					collection.i18nVersionsTable as unknown as PgTable;
 			}
 		}
-		for (const [name, global] of this._globals) {
+		for (const [name, global] of Object.entries(this._globals)) {
 			tables[name] = global.table as unknown as PgTable;
 			if (global.i18nTable) {
 				tables[`${name}_i18n`] = global.i18nTable as unknown as PgTable;
@@ -418,7 +395,7 @@ export class QCMS<
 		const schema: Record<string, unknown> = {};
 
 		// 1. Add tables
-		for (const [name, collection] of this._collections) {
+		for (const [name, collection] of Object.entries(this._collections)) {
 			schema[name] = collection.table;
 			if (collection.i18nTable) {
 				schema[`${name}_i18n`] = collection.i18nTable;
@@ -430,7 +407,7 @@ export class QCMS<
 				schema[`${name}_i18n_versions`] = collection.i18nVersionsTable;
 			}
 		}
-		for (const [name, global] of this._globals) {
+		for (const [name, global] of Object.entries(this._globals)) {
 			schema[name] = global.table;
 			if (global.i18nTable) {
 				schema[`${name}_i18n`] = global.i18nTable;
@@ -470,9 +447,7 @@ export class QCMS<
 			return dependencies;
 		}
 
-		const collectionMap = new Map(
-			this.getCollections().map((collection) => [collection.name, collection]),
-		);
+		const collectionMap = this.getCollections();
 
 		this.visitCollectionRelations(
 			collectionMap,
@@ -504,15 +479,11 @@ export class QCMS<
 			return dependencies;
 		}
 
-		const globalMap = new Map(
-			this.getGlobals().map((global) => [global.name, global]),
-		);
-		const global = globalMap.get(globalName);
+		const globalMap = this.getGlobals();
+		const global = globalMap[globalName];
 		if (!global) return dependencies;
 
-		const collectionMap = new Map(
-			this.getCollections().map((collection) => [collection.name, collection]),
-		);
+		const collectionMap = this.getCollections();
 
 		for (const [relationName, relationOptions] of Object.entries(withConfig)) {
 			if (!relationOptions) continue;
@@ -564,7 +535,7 @@ export class QCMS<
 	 * Visit collection relations recursively to build dependency tree.
 	 */
 	private visitCollectionRelations(
-		collectionMap: Map<string, any>,
+		collectionMap: Record<string, any>,
 		dependencies: Set<string>,
 		collectionName: string,
 		withConfig?: Record<string, any>,
@@ -577,7 +548,7 @@ export class QCMS<
 			return;
 		}
 
-		const collection = collectionMap.get(collectionName);
+		const collection = collectionMap[collectionName];
 		if (!collection) return;
 
 		for (const [relationName, relationOptions] of Object.entries(withConfig)) {
@@ -587,7 +558,7 @@ export class QCMS<
 
 			if (relation.type === "polymorphic" && relation.collections) {
 				for (const target of Object.values(relation.collections)) {
-					dependencies.add(target);
+					dependencies.add(target as string);
 				}
 			} else {
 				dependencies.add(relation.collection);
@@ -622,7 +593,7 @@ export class QCMS<
 						this.visitCollectionRelations(
 							collectionMap,
 							dependencies,
-							target,
+							target as string,
 							nestedWith as Record<string, any>,
 						);
 					}

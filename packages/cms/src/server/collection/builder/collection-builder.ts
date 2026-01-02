@@ -42,20 +42,10 @@ export class CollectionBuilder<TState extends CollectionBuilderState> {
 	fields<TNewFields extends Record<string, any>>(
 		fields: TNewFields,
 	): CollectionBuilder<
-		CollectionBuilderState<
-			TState["name"],
-			TNewFields,
-			[], // Reset localized when fields change
-			TState["virtuals"],
-			TState["relations"],
-			TState["indexes"],
-			TState["title"],
-			TState["options"],
-			TState["hooks"],
-			TState["access"],
-			TState["functions"],
-			TState["searchable"]
-		>
+		Omit<TState, "fields" | "localized"> & {
+			fields: TNewFields;
+			localized: []; // Reset localized when fields change
+		}
 	> {
 		const newState = {
 			...this.state,
@@ -81,20 +71,9 @@ export class CollectionBuilder<TState extends CollectionBuilderState> {
 	localized<TKeys extends ReadonlyArray<keyof TState["fields"]>>(
 		keys: TKeys,
 	): CollectionBuilder<
-		CollectionBuilderState<
-			TState["name"],
-			TState["fields"],
-			TKeys,
-			TState["virtuals"],
-			TState["relations"],
-			TState["indexes"],
-			TState["title"],
-			TState["options"],
-			TState["hooks"],
-			TState["access"],
-			TState["functions"],
-			TState["searchable"]
-		>
+		Omit<TState, "localized"> & {
+			localized: TKeys;
+		}
 	> {
 		const newState = {
 			...this.state,
@@ -119,20 +98,9 @@ export class CollectionBuilder<TState extends CollectionBuilderState> {
 	virtuals<TNewVirtuals extends Record<string, SQL>>(
 		fn: CollectionBuilderVirtualsFn<TState, TNewVirtuals>,
 	): CollectionBuilder<
-		CollectionBuilderState<
-			TState["name"],
-			TState["fields"],
-			TState["localized"],
-			TNewVirtuals,
-			TState["relations"],
-			TState["indexes"],
-			TState["title"],
-			TState["options"],
-			TState["hooks"],
-			TState["access"],
-			TState["functions"],
-			TState["searchable"]
-		>
+		Omit<TState, "virtuals"> & {
+			virtuals: TNewVirtuals;
+		}
 	> {
 		const newState = {
 			...this.state,
@@ -156,20 +124,9 @@ export class CollectionBuilder<TState extends CollectionBuilderState> {
 	relations<TNewRelations extends Record<string, RelationConfig>>(
 		fn: CollectionBuilderRelationFn<TState, TNewRelations>,
 	): CollectionBuilder<
-		CollectionBuilderState<
-			TState["name"],
-			TState["fields"],
-			TState["localized"],
-			TState["virtuals"],
-			TNewRelations,
-			TState["indexes"],
-			TState["title"],
-			TState["options"],
-			TState["hooks"],
-			TState["access"],
-			TState["functions"],
-			TState["searchable"]
-		>
+		Omit<TState, "relations"> & {
+			relations: TNewRelations;
+		}
 	> {
 		const newState = {
 			...this.state,
@@ -194,20 +151,9 @@ export class CollectionBuilder<TState extends CollectionBuilderState> {
 	indexes<TNewIndexes extends PgTableExtraConfigValue[]>(
 		fn: CollectionBuilderIndexesFn<TState, TNewIndexes>,
 	): CollectionBuilder<
-		CollectionBuilderState<
-			TState["name"],
-			TState["fields"],
-			TState["localized"],
-			TState["virtuals"],
-			TState["relations"],
-			TNewIndexes,
-			TState["title"],
-			TState["options"],
-			TState["hooks"],
-			TState["access"],
-			TState["functions"],
-			TState["searchable"]
-		>
+		Omit<TState, "indexes"> & {
+			indexes: TNewIndexes;
+		}
 	> {
 		const newState = {
 			...this.state,
@@ -232,20 +178,9 @@ export class CollectionBuilder<TState extends CollectionBuilderState> {
 	title<TNewTitle extends SQL>(
 		fn: CollectionBuilderTitleFn<TState, TNewTitle>,
 	): CollectionBuilder<
-		CollectionBuilderState<
-			TState["name"],
-			TState["fields"],
-			TState["localized"],
-			TState["virtuals"],
-			TState["relations"],
-			TState["indexes"],
-			TNewTitle,
-			TState["options"],
-			TState["hooks"],
-			TState["access"],
-			TState["functions"],
-			TState["searchable"]
-		>
+		Omit<TState, "title"> & {
+			title: TNewTitle;
+		}
 	> {
 		const newState = {
 			...this.state,
@@ -264,25 +199,14 @@ export class CollectionBuilder<TState extends CollectionBuilderState> {
 	}
 
 	/**
-	 * Set collection options (timestamps, softDelete, tableName)
+	 * Set collection options (timestamps, softDelete, versioning)
 	 */
 	options<TNewOptions extends CollectionOptions>(
 		options: TNewOptions,
 	): CollectionBuilder<
-		CollectionBuilderState<
-			TState["name"],
-			TState["fields"],
-			TState["localized"],
-			TState["virtuals"],
-			TState["relations"],
-			TState["indexes"],
-			TState["title"],
-			TNewOptions,
-			TState["hooks"],
-			TState["access"],
-			TState["functions"],
-			TState["searchable"]
-		>
+		Omit<TState, "options"> & {
+			options: TNewOptions;
+		}
 	> {
 		const newState = {
 			...this.state,
@@ -306,20 +230,9 @@ export class CollectionBuilder<TState extends CollectionBuilderState> {
 	hooks<TNewHooks extends CollectionHooks>(
 		hooks: TNewHooks,
 	): CollectionBuilder<
-		CollectionBuilderState<
-			TState["name"],
-			TState["fields"],
-			TState["localized"],
-			TState["virtuals"],
-			TState["relations"],
-			TState["indexes"],
-			TState["title"],
-			TState["options"],
-			TNewHooks,
-			TState["access"],
-			TState["functions"],
-			TState["searchable"]
-		>
+		Omit<TState, "hooks"> & {
+			hooks: TNewHooks;
+		}
 	> {
 		const newState = {
 			...this.state,
@@ -343,20 +256,9 @@ export class CollectionBuilder<TState extends CollectionBuilderState> {
 	access<TNewAccess extends CollectionAccess>(
 		access: TNewAccess,
 	): CollectionBuilder<
-		CollectionBuilderState<
-			TState["name"],
-			TState["fields"],
-			TState["localized"],
-			TState["virtuals"],
-			TState["relations"],
-			TState["indexes"],
-			TState["title"],
-			TState["options"],
-			TState["hooks"],
-			TNewAccess,
-			TState["functions"],
-			TState["searchable"]
-		>
+		Omit<TState, "access"> & {
+			access: TNewAccess;
+		}
 	> {
 		const newState = {
 			...this.state,
@@ -380,20 +282,9 @@ export class CollectionBuilder<TState extends CollectionBuilderState> {
 	functions<TNewFunctions extends CollectionFunctionsMap>(
 		functions: TNewFunctions,
 	): CollectionBuilder<
-		CollectionBuilderState<
-			TState["name"],
-			TState["fields"],
-			TState["localized"],
-			TState["virtuals"],
-			TState["relations"],
-			TState["indexes"],
-			TState["title"],
-			TState["options"],
-			TState["hooks"],
-			TState["access"],
-			Omit<TState["functions"], keyof TNewFunctions> & TNewFunctions,
-			TState["searchable"]
-		>
+		Omit<TState, "functions"> & {
+			functions: Omit<TState["functions"], keyof TNewFunctions> & TNewFunctions;
+		}
 	> {
 		const newState = {
 			...this.state,
@@ -428,20 +319,9 @@ export class CollectionBuilder<TState extends CollectionBuilderState> {
 	searchable<TNewSearchable extends SearchableConfig>(
 		searchable: TNewSearchable,
 	): CollectionBuilder<
-		CollectionBuilderState<
-			TState["name"],
-			TState["fields"],
-			TState["localized"],
-			TState["virtuals"],
-			TState["relations"],
-			TState["indexes"],
-			TState["title"],
-			TState["options"],
-			TState["hooks"],
-			TState["access"],
-			TState["functions"],
-			TNewSearchable
-		>
+		Omit<TState, "searchable"> & {
+			searchable: TNewSearchable;
+		}
 	> {
 		const newState = {
 			...this.state,
@@ -531,41 +411,26 @@ export class CollectionBuilder<TState extends CollectionBuilderState> {
 	 * Combines fields, hooks, access control, etc.
 	 * Both builders must have the same collection name
 	 */
-	merge<
-		TOtherState extends CollectionBuilderState<
-			TState["name"],
-			any,
-			any,
-			any,
-			any,
-			any,
-			any,
-			any,
-			any,
-			any,
-			any,
-			any
-		>,
-	>(
+	merge<TOtherState extends CollectionBuilderState & { name: TState["name"] }>(
 		other: CollectionBuilder<TOtherState>,
 	): CollectionBuilder<
-		CollectionBuilderState<
-			TState["name"],
-			TState["fields"] & TOtherState["fields"],
-			TState["localized"] | TOtherState["localized"],
-			TState["virtuals"] & TOtherState["virtuals"],
-			TState["relations"] & TOtherState["relations"],
-			TState["indexes"] & TOtherState["indexes"],
-			TOtherState["title"] extends undefined
+		Omit<TState, "fields" | "localized" | "virtuals" | "relations" | "indexes" | "title" | "options" | "hooks" | "access" | "functions" | "searchable"> & {
+			name: TState["name"];
+			fields: TState["fields"] & TOtherState["fields"];
+			localized: TState["localized"] | TOtherState["localized"];
+			virtuals: TState["virtuals"] & TOtherState["virtuals"];
+			relations: TState["relations"] & TOtherState["relations"];
+			indexes: TState["indexes"] & TOtherState["indexes"];
+			title: TOtherState["title"] extends undefined
 				? TState["title"]
-				: TOtherState["title"], // Other's title overrides
-			TState["options"] & TOtherState["options"],
-			CollectionHooks, // Merged hooks
-			CollectionAccess, // Merged access
-			Omit<TState["functions"], keyof TOtherState["functions"]> &
-				TOtherState["functions"],
-			TState["searchable"] | TOtherState["searchable"]
-		>
+				: TOtherState["title"];
+			options: TState["options"] & TOtherState["options"];
+			hooks: CollectionHooks;
+			access: CollectionAccess;
+			functions: Omit<TState["functions"], keyof TOtherState["functions"]> &
+				TOtherState["functions"];
+			searchable: TState["searchable"] | TOtherState["searchable"];
+		}
 	> {
 		// Merge hooks - combine arrays
 		const mergedHooks = this.mergeHooks(this.state.hooks, other.state.hooks);

@@ -49,20 +49,20 @@ import type { Migration } from "../migration/types";
 import type { PGlite } from "@electric-sql/pglite";
 
 export type DrizzleSchemaFromCollections<
-	TCollections extends AnyCollectionOrBuilder[],
+	TCollections extends Record<string, AnyCollectionOrBuilder>,
 > = {
-	[K in TCollections[number] as K extends Collection<infer TState>
+	[K in keyof TCollections as TCollections[K] extends Collection<infer TState>
 		? TState["name"]
-		: K extends CollectionBuilder<infer TState>
+		: TCollections[K] extends CollectionBuilder<infer TState>
 			? TState["name"]
-			: never]: K extends Collection<infer TState>
+			: never]: TCollections[K] extends Collection<infer TState>
 		? InferTableWithColumns<
 				TState["name"],
 				NonLocalizedFields<TState["fields"], TState["localized"]>,
 				TState["title"],
 				TState["options"]
 			>
-		: K extends CollectionBuilder<infer TState>
+		: TCollections[K] extends CollectionBuilder<infer TState>
 			? InferTableWithColumns<
 					TState["name"],
 					NonLocalizedFields<TState["fields"], TState["localized"]>,
@@ -71,15 +71,15 @@ export type DrizzleSchemaFromCollections<
 				>
 			: never;
 } & {
-	[K in TCollections[number] as K extends Collection<infer TState>
+	[K in keyof TCollections as TCollections[K] extends Collection<infer TState>
 		? TState["localized"][number] extends string
 			? `${TState["name"]}_i18n`
 			: never
-		: K extends CollectionBuilder<infer TState>
+		: TCollections[K] extends CollectionBuilder<infer TState>
 			? TState["localized"][number] extends string
 				? `${TState["name"]}_i18n`
 				: never
-			: never]: K extends Collection<infer TState>
+			: never]: TCollections[K] extends Collection<infer TState>
 		? TState["localized"][number] extends string
 			? InferTableWithColumns<
 					TState["name"],
@@ -88,7 +88,7 @@ export type DrizzleSchemaFromCollections<
 					TState["options"]
 				>
 			: never
-		: K extends CollectionBuilder<infer TState>
+		: TCollections[K] extends CollectionBuilder<infer TState>
 			? TState["localized"][number] extends string
 				? InferTableWithColumns<
 						TState["name"],
@@ -100,19 +100,21 @@ export type DrizzleSchemaFromCollections<
 			: never;
 };
 
-export type DrizzleSchemaFromGlobals<TGlobals extends AnyGlobalOrBuilder[]> = {
-	[K in TGlobals[number] as K extends Global<infer TState>
+export type DrizzleSchemaFromGlobals<
+	TGlobals extends Record<string, AnyGlobalOrBuilder>,
+> = {
+	[K in keyof TGlobals as TGlobals[K] extends Global<infer TState>
 		? TState["name"]
-		: K extends GlobalBuilder<infer TState>
+		: TGlobals[K] extends GlobalBuilder<infer TState>
 			? TState["name"]
-			: never]: K extends Global<infer TState>
+			: never]: TGlobals[K] extends Global<infer TState>
 		? InferTableWithColumns<
 				TState["name"],
 				NonLocalizedFields<TState["fields"], TState["localized"]>,
 				never,
 				{}
 			>
-		: K extends GlobalBuilder<infer TState>
+		: TGlobals[K] extends GlobalBuilder<infer TState>
 			? InferTableWithColumns<
 					TState["name"],
 					NonLocalizedFields<TState["fields"], TState["localized"]>,
@@ -121,15 +123,15 @@ export type DrizzleSchemaFromGlobals<TGlobals extends AnyGlobalOrBuilder[]> = {
 				>
 			: never;
 } & {
-	[K in TGlobals[number] as K extends Global<infer TState>
+	[K in keyof TGlobals as TGlobals[K] extends Global<infer TState>
 		? TState["localized"][number] extends string
 			? `${TState["name"]}_i18n`
 			: never
-		: K extends GlobalBuilder<infer TState>
+		: TGlobals[K] extends GlobalBuilder<infer TState>
 			? TState["localized"][number] extends string
 				? `${TState["name"]}_i18n`
 				: never
-			: never]: K extends Global<infer TState>
+			: never]: TGlobals[K] extends Global<infer TState>
 		? TState["localized"][number] extends string
 			? InferTableWithColumns<
 					TState["name"],
@@ -138,7 +140,7 @@ export type DrizzleSchemaFromGlobals<TGlobals extends AnyGlobalOrBuilder[]> = {
 					{}
 				>
 			: never
-		: K extends GlobalBuilder<infer TState>
+		: TGlobals[K] extends GlobalBuilder<infer TState>
 			? TState["localized"][number] extends string
 				? InferTableWithColumns<
 						TState["name"],
@@ -176,8 +178,8 @@ export interface LocaleConfig {
 export type DbClientType = "postgres" | "pglite";
 
 export type DrizzleClientFromCMSConfig<
-	TCollections extends AnyCollectionOrBuilder[],
-	TGlobals extends AnyGlobalOrBuilder[],
+	TCollections extends Record<string, AnyCollectionOrBuilder>,
+	TGlobals extends Record<string, AnyGlobalOrBuilder>,
 	TDbClientType extends DbClientType = "postgres",
 > = ReturnType<
 	TDbClientType extends "postgres"
@@ -192,8 +194,8 @@ export type DrizzleClientFromCMSConfig<
 >;
 
 export type CmsDbClient<
-	TCollections extends AnyCollectionOrBuilder[],
-	TGlobals extends AnyGlobalOrBuilder[],
+	TCollections extends Record<string, AnyCollectionOrBuilder>,
+	TGlobals extends Record<string, AnyGlobalOrBuilder>,
 > = DrizzleClientFromCMSConfig<TCollections, TGlobals>;
 
 export type AccessMode = "user" | "system";
@@ -208,7 +210,7 @@ export type AccessMode = "user" | "system";
 export type AuthConfig =
 	| BetterAuthOptions
 	| Auth
-	| ((db: SQL) => BetterAuthOptions | Auth);
+	| ((db: any) => BetterAuthOptions | Auth);
 
 /**
  * Infer the Better Auth instance type from AuthConfig
@@ -219,7 +221,7 @@ export type InferAuthFromConfig<TAuthConfig> = TAuthConfig extends Auth
 	? TAuthConfig
 	: TAuthConfig extends BetterAuthOptions
 		? Auth
-		: TAuthConfig extends (db: SQL) => infer TReturn
+		: TAuthConfig extends (db: any) => infer TReturn
 			? TReturn extends Auth
 				? TReturn
 				: TReturn extends BetterAuthOptions
@@ -252,36 +254,29 @@ export type InferyDbClientType<TDbConfig extends CMSDbConfig> =
 			? "pglite"
 			: never;
 
-export interface CMSConfig<
-	TCollections extends AnyCollectionOrBuilder[] = AnyCollectionOrBuilder[],
-	TGlobals extends AnyGlobalOrBuilder[] = AnyGlobalOrBuilder[],
-	TJobs extends JobDefinition<any, any>[] = JobDefinition<any, any>[],
-	TEmailTemplates extends any[] = any[],
-	TFunctions extends FunctionsMap = FunctionsMap,
-	TDbConfig extends CMSDbConfig = CMSDbConfig,
-	TAuthConfig extends AuthConfig | undefined = AuthConfig | undefined,
-> {
+export interface CMSConfig {
 	app: {
 		url: string;
 	};
 
-	db: TDbConfig;
+	db: CMSDbConfig;
+
 	/**
-	 * List of collections to register
+	 * Collections map - register collections as object with keys
 	 * Can be Collection instances or CollectionBuilder instances
 	 * Builders will be automatically built during registration
 	 */
-	collections: TCollections;
+	collections: Record<string, AnyCollectionOrBuilder>;
 
 	/**
-	 * List of globals to register
+	 * Globals map - register globals as object with keys
 	 */
-	globals?: TGlobals;
+	globals?: Record<string, AnyGlobalOrBuilder>;
 
 	/**
 	 * RPC functions (root-level)
 	 */
-	functions?: TFunctions;
+	functions?: FunctionsMap;
 
 	/**
 	 * Global localization settings
@@ -323,7 +318,7 @@ export interface CMSConfig<
 	 * })
 	 * ```
 	 */
-	auth?: TAuthConfig;
+	auth?: AuthConfig;
 
 	/**
 	 * Storage configuration
@@ -333,12 +328,12 @@ export interface CMSConfig<
 	/**
 	 * Email configuration (Nodemailer + React Email)
 	 */
-	email?: MailerConfig<TEmailTemplates>;
+	email?: MailerConfig;
 
 	/**
 	 * Queue configuration (pg-boss)
 	 */
-	queue?: BaseQueueConfig<TJobs>;
+	queue?: BaseQueueConfig;
 
 	/**
 	 * Search configuration (Postgres 18+ BM25, FTS, Trigrams)
@@ -379,6 +374,15 @@ export interface CMSConfig<
 		migrations?: Migration[];
 	};
 }
+
+/**
+ * Utility types to extract info from a concrete CMSConfig
+ */
+export type GetCollections<T extends CMSConfig> = T["collections"];
+export type GetGlobals<T extends CMSConfig> = NonNullable<T["globals"]>;
+export type GetFunctions<T extends CMSConfig> = NonNullable<T["functions"]>;
+export type GetAuth<T extends CMSConfig> = T["auth"];
+export type GetDbConfig<T extends CMSConfig> = T["db"];
 
 export interface CMSContextExtensions {
 	// To be extended by plugins or user config

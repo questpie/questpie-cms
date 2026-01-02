@@ -36,28 +36,27 @@ export type InferEmailTemplateContext<T> =
 	T extends EmailTemplateDefinition<infer C, any> ? C : never;
 
 /**
- * Extract template names from email template definitions array
+ * Extract template names from email template definitions Record
  */
 export type EmailTemplateNames<
-	TTemplates extends EmailTemplateDefinition<any, any>[],
-> = TTemplates[number]["name"];
+	TTemplates extends Record<string, EmailTemplateDefinition<any, any>>,
+> = keyof TTemplates;
 
 /**
- * Map email template definitions array to object by name
+ * Map email template definitions Record to object by name
+ * @deprecated No longer needed since templates are already in Record form
  */
 export type EmailTemplateMap<
-	TTemplates extends EmailTemplateDefinition<any, any>[],
-> = {
-	[K in TTemplates[number] as K["name"]]: K;
-};
+	TTemplates extends Record<string, EmailTemplateDefinition<any, any>>,
+> = TTemplates;
 
 /**
- * Get specific email template by name from templates array
+ * Get specific email template by name from templates Record
  */
 export type GetEmailTemplate<
-	TTemplates extends EmailTemplateDefinition<any, any>[],
+	TTemplates extends Record<string, EmailTemplateDefinition<any, any>>,
 	Name extends EmailTemplateNames<TTemplates>,
-> = EmailTemplateMap<TTemplates>[Name];
+> = TTemplates[Name];
 
 /**
  * Define a typesafe email template
