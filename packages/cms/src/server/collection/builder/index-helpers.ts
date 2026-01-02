@@ -7,6 +7,6 @@ export const softDeleteUniqueIndex = (
 	...columns: PgColumn[]
 ) => {
 	return uniqueIndex(name)
-		.on(...columns)
+		.on([...columns])
 		.where(sql`${deletedAtColumn} IS NULL`);
 };
