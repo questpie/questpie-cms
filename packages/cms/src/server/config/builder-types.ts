@@ -3,30 +3,23 @@ import type {
 	AnyGlobalOrBuilder,
 	AuthConfig,
 	CMSDbConfig,
+	LocaleConfig,
+	StorageConfig,
 } from "#questpie/cms/server/config/types";
 import type { FunctionDefinition } from "#questpie/cms/server/functions/types";
-import type {
-	JobDefinition,
-	QueueAdapter,
-} from "#questpie/cms/server/integrated/queue/types";
+import type { KVConfig } from "#questpie/cms/server/integrated/kv";
+import type { LoggerConfig } from "#questpie/cms/server/integrated/logger";
 import type {
 	EmailTemplateDefinition,
 	MailerConfig,
 } from "#questpie/cms/server/integrated/mailer";
-import type { StorageConfig } from "#questpie/cms/server/config/types";
-import type { SearchConfig } from "#questpie/cms/server/integrated/search";
-import type { RealtimeConfig } from "#questpie/cms/server/integrated/realtime";
-import type { Migration } from "#questpie/cms/server/migration/types";
-import type { LocaleConfig } from "#questpie/cms/server/config/types";
-import type { LoggerConfig } from "#questpie/cms/server/integrated/logger";
-import type { KVConfig } from "#questpie/cms/server/integrated/kv";
-import type { assetsCollection } from "#questpie/cms/server/collection/defaults/assets";
 import type {
-	accountsCollection,
-	sessionsCollection,
-	usersCollection,
-	verificationsCollection,
-} from "#questpie/cms/server/collection/defaults/auth";
+	JobDefinition,
+	QueueAdapter,
+} from "#questpie/cms/server/integrated/queue/types";
+import type { RealtimeConfig } from "#questpie/cms/server/integrated/realtime";
+import type { SearchConfig } from "#questpie/cms/server/integrated/search";
+import type { Migration } from "#questpie/cms/server/migration/types";
 
 export type BuilderCollectionsMap = Record<string, AnyCollectionOrBuilder>;
 export type BuilderGlobalsMap = Record<string, AnyGlobalOrBuilder>;
@@ -39,28 +32,6 @@ export type BuilderFunctionsMap = Record<string, FunctionDefinition>;
 export type BuilderMapValues<TMap extends Record<PropertyKey, any>> =
 	TMap[keyof TMap];
 export type EmptyBuilderMap = Record<never, never>;
-
-/**
- * Core collections that are always available in every QCMS instance
- */
-export type CoreCollectionsMap = BuilderCollectionsMap & {
-	questpie_assets: typeof assetsCollection;
-	user: typeof usersCollection;
-	session: typeof sessionsCollection;
-	account: typeof accountsCollection;
-	verification: typeof verificationsCollection;
-};
-
-/**
- * Core collections as an array (for type constraints)
- */
-export type CoreCollectionsArray = [
-	typeof assetsCollection,
-	typeof usersCollection,
-	typeof sessionsCollection,
-	typeof accountsCollection,
-	typeof verificationsCollection,
-];
 
 /**
  * Builder state - definition-time configuration (type-inferrable)
@@ -165,7 +136,7 @@ export interface QCMSRuntimeConfig<
  */
 export type EmptyNamedBuilderState<TName extends string> = QCMSBuilderState<
 	TName,
-	CoreCollectionsMap,
+	EmptyBuilderMap,
 	EmptyBuilderMap,
 	EmptyBuilderMap,
 	EmptyBuilderMap,

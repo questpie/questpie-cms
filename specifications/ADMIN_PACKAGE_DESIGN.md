@@ -573,7 +573,7 @@ The current `apps/admin` app has a solid foundation with shadcn UI components an
 ### Phase 3: Relations and advanced features
 1. Relation fields (RelationSelect, RelationPicker)
 2. Embedded collections (inline editing with ordering)
-3. File upload integration (with `questpie_assets`)
+3. File upload integration (with `assets`)
 4. Realtime support (SSE + TanStack DB)
 
 ### Phase 4: Polish and UX

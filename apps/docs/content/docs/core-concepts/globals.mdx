@@ -290,11 +290,11 @@ export const siteSettings = defineGlobal("site_settings")
     enableNewsletter: boolean("enable_newsletter").default(true),
   })
   .relations(({ table, one }) => ({
-    logoAsset: one("questpie_assets", {
+    logoAsset: one("assets", {
       fields: [table.logo],
       references: ["id"],
     }),
-    faviconAsset: one("questpie_assets", {
+    faviconAsset: one("assets", {
       fields: [table.favicon],
       references: ["id"],
     }),
@@ -323,7 +323,7 @@ export const homepage = defineGlobal("homepage")
   })
   .localized(["heroTitle", "heroSubtitle", "heroCtaText", "featuredSectionTitle"])
   .relations(({ table, one }) => ({
-    heroBackground: one("questpie_assets", {
+    heroBackground: one("assets", {
       fields: [table.heroBackgroundImage],
       references: ["id"],
     }),
@@ -358,7 +358,7 @@ export const seoDefaults = defineGlobal("seo_defaults")
   })
   .localized(["defaultTitle", "defaultDescription"])
   .relations(({ table, one }) => ({
-    ogImage: one("questpie_assets", {
+    ogImage: one("assets", {
       fields: [table.defaultOgImage],
       references: ["id"],
     }),

@@ -226,7 +226,9 @@ const resolveLocale = async <TConfig extends CMSConfig = CMSConfig>(
 	return header?.split(",")[0]?.trim() || undefined;
 };
 
-export const createCMSAdapterContext = async <TConfig extends CMSConfig = CMSConfig>(
+export const createCMSAdapterContext = async <
+	TConfig extends CMSConfig = CMSConfig,
+>(
 	cms: QCMS<TConfig>,
 	request: Request,
 	config: CMSAdapterConfig<TConfig> = {},
@@ -421,8 +423,8 @@ export const createCMSAdapterRoutes = <TConfig extends CMSConfig = CMSConfig>(
 
 				const url = await cms.storage.use().getUrl(key);
 				const mimeType = normalizeMimeType(uploadFile.type);
-				// Core collections (including questpie_assets) are always available
-				const asset = await (cms.api.collections as any).questpie_assets.create(
+				// Core collections (including assets) are always available
+				const asset = await (cms.api.collections as any).assets.create(
 					{
 						key,
 						url,

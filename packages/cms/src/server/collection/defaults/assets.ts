@@ -2,7 +2,7 @@ import { defineCollection } from "#questpie/cms/exports/server.js";
 import { sql } from "drizzle-orm";
 import { varchar, text, integer } from "drizzle-orm/pg-core";
 
-export const assetsCollection = defineCollection("questpie_assets")
+export const assetsCollection = defineCollection("assets")
 	.options({
 		timestamps: true,
 	})

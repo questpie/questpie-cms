@@ -253,7 +253,7 @@ export const postImages = defineCollection("post_images")
 export const posts = defineCollection("posts")
   .fields({ /* ... */ })
   .relations(({ manyToMany }) => ({
-    images: manyToMany("questpie_assets", {
+    images: manyToMany("assets", {
       through: "post_images",
       sourceField: "postId",
       targetField: "assetId",

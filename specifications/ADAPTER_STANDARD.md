@@ -35,7 +35,7 @@ Delegates to `cms.auth.handler(request)`.
 ### Storage
 - `POST {basePath}/storage/upload`
 
-Accepts `multipart/form-data` with a `file` field. Returns the created `questpie_assets` record.
+Accepts `multipart/form-data` with a `file` field. Returns the created `assets` record.
 
 ### Collections
 - `GET {basePath}/:collection`

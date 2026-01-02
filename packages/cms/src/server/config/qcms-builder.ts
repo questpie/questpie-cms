@@ -1,14 +1,13 @@
 import type {
 	BuilderCollectionsMap,
 	BuilderEmailTemplatesMap,
+	BuilderFunctionsMap,
 	BuilderGlobalsMap,
 	BuilderJobsMap,
-	BuilderFunctionsMap,
-	BuilderMapValues,
-	EmptyNamedBuilderState,
 	QCMSBuilderState,
 	QCMSRuntimeConfig,
 } from "#questpie/cms/server/config/builder-types";
+import { QCMS } from "#questpie/cms/server/config/cms";
 import type {
 	AuthConfig,
 	CMSConfig,
@@ -16,14 +15,7 @@ import type {
 	LocaleConfig,
 } from "#questpie/cms/server/config/types";
 import type { Migration } from "#questpie/cms/server/migration/types";
-import { QCMS } from "#questpie/cms/server/config/cms";
-import { assetsCollection } from "#questpie/cms/server/collection/defaults/assets";
-import {
-	accountsCollection,
-	sessionsCollection,
-	usersCollection,
-	verificationsCollection,
-} from "#questpie/cms/server/collection/defaults/auth";
+import { coreModule } from "#questpie/cms/server/modules/core/core.module.js";
 
 type QCMSFromState<TState extends QCMSBuilderState> = QCMS<
 	CMSConfig & {
@@ -77,6 +69,20 @@ type QCMSFromState<TState extends QCMSBuilderState> = QCMS<
 export class QCMSBuilder<TState extends QCMSBuilderState = QCMSBuilderState> {
 	private state: TState;
 	public declare readonly $inferCms: QCMSFromState<TState>;
+
+	static empty<TName extends string>(name: TName) {
+		return new QCMSBuilder({
+			name,
+			collections: {},
+			globals: {},
+			jobs: {},
+			emailTemplates: {},
+			functions: {},
+			auth: undefined,
+			locale: undefined,
+			migrations: undefined,
+		});
+	}
 
 	constructor(state: TState) {
 		this.state = state;
@@ -366,7 +372,9 @@ export class QCMSBuilder<TState extends QCMSBuilderState = QCMSBuilderState> {
 				TOtherState["emailTemplates"],
 			Omit<TState["functions"], keyof TOtherState["functions"]> &
 				TOtherState["functions"],
-			TOtherState["auth"] extends undefined ? TState["auth"] : TOtherState["auth"]
+			TOtherState["auth"] extends undefined
+				? TState["auth"]
+				: TOtherState["auth"]
 		> & {
 			locale: TOtherState["locale"] extends undefined
 				? TState["locale"]
@@ -483,8 +491,8 @@ export class QCMSBuilder<TState extends QCMSBuilderState = QCMSBuilderState> {
  * // Extend core assets collection
  * const cms = defineQCMS({ name: 'my-app' })
  *   .collections({
- *     questpie_assets: assetsCollection.merge(
- *       defineCollection("questpie_assets").fields({
+ *     assets: assetsCollection.merge(
+ *       defineCollection("assets").fields({
  *         folder: varchar("folder", { length: 255 }),
  *       })
  *     )
@@ -492,24 +500,6 @@ export class QCMSBuilder<TState extends QCMSBuilderState = QCMSBuilderState> {
  *   .build({ ... })
  * ```
  */
-export function defineQCMS<TName extends string>(config: {
-	name: TName;
-}): QCMSBuilder<EmptyNamedBuilderState<TName>> {
-	return new QCMSBuilder({
-		name: config.name,
-		collections: {
-			questpie_assets: assetsCollection,
-			user: usersCollection,
-			session: sessionsCollection,
-			account: accountsCollection,
-			verification: verificationsCollection,
-		},
-		globals: {},
-		jobs: {},
-		emailTemplates: {},
-		functions: {},
-		auth: undefined,
-		locale: undefined,
-		migrations: undefined,
-	} as EmptyNamedBuilderState<TName>);
+export function defineQCMS<TName extends string>(config: { name: TName }) {
+	return QCMSBuilder.empty(config.name).use(coreModule);
 }

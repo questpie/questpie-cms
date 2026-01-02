@@ -414,7 +414,20 @@ export class CollectionBuilder<TState extends CollectionBuilderState> {
 	merge<TOtherState extends CollectionBuilderState & { name: TState["name"] }>(
 		other: CollectionBuilder<TOtherState>,
 	): CollectionBuilder<
-		Omit<TState, "fields" | "localized" | "virtuals" | "relations" | "indexes" | "title" | "options" | "hooks" | "access" | "functions" | "searchable"> & {
+		Omit<
+			TState,
+			| "fields"
+			| "localized"
+			| "virtuals"
+			| "relations"
+			| "indexes"
+			| "title"
+			| "options"
+			| "hooks"
+			| "access"
+			| "functions"
+			| "searchable"
+		> & {
 			name: TState["name"];
 			fields: TState["fields"] & TOtherState["fields"];
 			localized: TState["localized"] | TOtherState["localized"];
