@@ -1,27 +1,47 @@
 import { describe, it, beforeEach, afterEach, expect } from "bun:test";
 import { text, varchar } from "drizzle-orm/pg-core";
-import {
-	closeTestDb,
-	createTestDb,
-	runTestDbMigrations,
-} from "../utils/test-db";
-import { createTestCms } from "../utils/test-cms";
+import { runTestDbMigrations } from "../utils/test-db";
+import { buildMockCMS } from "../utils/mocks/mock-cms-builder";
 import { createTestContext } from "../utils/test-context";
-import { createMockServices } from "../utils/test-services";
-import { defineCollection, getCMSFromContext } from "#questpie/cms/server/index.js";
+import { z } from "zod";
+import {
+	defineCollection,
+	defineJob,
+	defineQCMS,
+	getCMSFromContext,
+} from "#questpie/cms/server/index.js";
 
-describe("collection hooks", () => {
-	let db: any;
-	let client: any;
-	let cms: ReturnType<typeof createTestCms> & { __hookCallOrder?: string[] };
-	let services: any;
+const articleCreatedJob = defineJob({
+	name: "article:created",
+	schema: z.object({
+		articleId: z.string(),
+		title: z.string(),
+	}),
+	handler: async () => {},
+});
 
-	describe("beforeCreate and afterCreate hooks", () => {
-		beforeEach(async () => {
-			services = createMockServices();
-			const hookCallOrder: string[] = [];
+const articleCleanupJob = defineJob({
+	name: "article:cleanup",
+	schema: z.object({
+		articleId: z.string(),
+	}),
+	handler: async () => {},
+});
 
-			const articles = defineCollection("articles")
+const articleEnrichedJob = defineJob({
+	name: "article:enriched",
+	schema: z.object({
+		articleId: z.string(),
+		enrichment: z.any(),
+	}),
+	handler: async () => {},
+});
+
+// Module definitions at top level for stable types
+const createBeforeAfterModule = (hookCallOrder: string[]) =>
+	defineQCMS({ name: "test-module" })
+		.collections({
+			articles: defineCollection("articles")
 				.fields({
 					title: text("title").notNull(),
 					slug: varchar("slug", { length: 255 }),
@@ -30,7 +50,6 @@ describe("collection hooks", () => {
 				.hooks({
 					beforeCreate: async ({ data }) => {
 						hookCallOrder.push("beforeCreate");
-						// Auto-generate slug from title
 						if (!data.slug && data.title) {
 							data.slug = data.title
 								.toLowerCase()
@@ -41,128 +60,204 @@ describe("collection hooks", () => {
 					},
 					afterCreate: async ({ data }) => {
 						hookCallOrder.push("afterCreate");
-						const cms = getCMSFromContext<ReturnType<typeof createTestCms>>();
-						// Publish job to queue
-						await cms.queue?.publish("article:created", {
+						const cms = getCMSFromContext<typeof testModuleBeforeAfter>();
+						await cms.queue["article:created"].publish({
 							articleId: data.id,
 							title: data.title,
 						});
 					},
 				})
-				.build();
-
-			const setup = await createTestDb();
-			db = setup.db;
-			client = setup.client;
-			cms = createTestCms([articles], db, services);
-			await runTestDbMigrations(cms);
-			cms.__hookCallOrder = hookCallOrder;
+				.build(),
+		})
+		.jobs({
+			articleCreated: articleCreatedJob,
 		});
 
+const testModuleBeforeAfter = createBeforeAfterModule([]);
+
+const testModuleUpdate = defineQCMS({ name: "test-module" }).collections({
+	articles: defineCollection("articles")
+		.fields({
+			title: text("title").notNull(),
+			status: varchar("status", { length: 50 }),
+			viewCount: varchar("view_count"),
+		})
+		.hooks({
+			beforeUpdate: async ({ data }) => {
+				const cms = getCMSFromContext<typeof testModuleUpdate>();
+				if (data.status === "published") {
+					cms.logger.info("Article being published", {
+						title: data.title,
+					});
+				}
+				return data;
+			},
+			afterUpdate: async ({ data, original }) => {
+				const cms = getCMSFromContext<typeof testModuleUpdate>();
+				if (original.status !== "published" && data.status === "published") {
+					cms.email?.send({
+						to: "admin@example.com",
+						subject: "Article Published",
+						text: `Article "${data.title}" has been published`,
+					});
+				}
+			},
+		})
+		.build(),
+});
+
+const testModuleDelete = defineQCMS({ name: "test-module" })
+	.collections({
+		articles: defineCollection("articles")
+			.fields({
+				title: text("title").notNull(),
+			})
+			.hooks({
+				beforeDelete: async ({ data }) => {
+					const cms = getCMSFromContext<typeof testModuleDelete>();
+					await cms.logger?.warn("Article deletion requested", {
+						id: data.id,
+					});
+				},
+				afterDelete: async ({ data }) => {
+					const cms = getCMSFromContext<typeof testModuleDelete>();
+					await cms.queue["article:cleanup"].publish({
+						articleId: data.id,
+					});
+				},
+			})
+			.build(),
+	})
+	.jobs({
+		articleCleanup: articleCleanupJob,
+	});
+
+const testModuleError = defineQCMS({ name: "test-module" }).collections({
+	articles: defineCollection("articles")
+		.fields({
+			title: text("title").notNull(),
+			status: varchar("status", { length: 50 }),
+		})
+		.hooks({
+			beforeCreate: async ({ data }) => {
+				if (data.title === "forbidden") {
+					throw new Error("Forbidden title");
+				}
+				return data;
+			},
+		})
+		.build(),
+});
+
+const createEnrichmentModule = (enrichmentData: Map<string, any>) =>
+	defineQCMS({ name: "test-module" })
+		.collections({
+			articles: defineCollection("articles")
+				.fields({
+					title: text("title").notNull(),
+				})
+				.hooks({
+					beforeCreate: async ({ data }) => {
+						enrichmentData.set(data.id, {
+							enriched: true,
+							timestamp: Date.now(),
+						});
+						return data;
+					},
+					afterCreate: async ({ data }) => {
+						const cms = getCMSFromContext<typeof testModuleEnrichment>();
+						const enrichment = enrichmentData.get(data.id);
+						await cms.queue["article:enriched"].publish({
+							articleId: data.id,
+							enrichment,
+						});
+					},
+				})
+				.build(),
+		})
+		.jobs({
+			articleEnriched: articleEnrichedJob,
+		});
+
+const testModuleEnrichment = createEnrichmentModule(new Map());
+
+describe("collection hooks", () => {
+	describe("beforeCreate and afterCreate hooks", () => {
+		const hookCallOrder: string[] = [];
+		let setup: Awaited<
+			ReturnType<typeof buildMockCMS<typeof testModuleBeforeAfter>>
+		>;
+
 		afterEach(async () => {
-			await closeTestDb(client);
+			if (setup) await setup.cleanup();
+		});
+
+		beforeEach(async () => {
+			hookCallOrder.length = 0;
+			const testModule = createBeforeAfterModule(hookCallOrder);
+
+			setup = await buildMockCMS(testModule);
+			await runTestDbMigrations(setup.cms);
 		});
 
 		it("executes beforeCreate to transform data", async () => {
-			const ctx = createTestContext(services);
-
-			const created = await cms.api.collections.articles.create(
+			const ctx = createTestContext();
+			const created = await setup.cms.api.collections.articles.create(
 				{
 					id: crypto.randomUUID(),
 					title: "Hello World",
 				},
 				ctx,
 			);
-
 			expect(created.slug).toBe("hello-world");
 		});
 
 		it("executes afterCreate with access to services", async () => {
-			const ctx = createTestContext(services);
-			// Use cms.api.collections.articles directly
-
-			const created = await cms.api.collections.articles.create(
+			const ctx = createTestContext();
+			const created = await setup.cms.api.collections.articles.create(
 				{
 					id: crypto.randomUUID(),
 					title: "Test Article",
 				},
 				ctx,
 			);
-
-			expect(services.queue.__jobs).toHaveLength(1);
-			expect(services.queue.__jobs[0].name).toBe("article:created");
-			expect(services.queue.__jobs[0].payload.articleId).toBe(created.id);
+			expect(setup.cms.mocks.queue.getJobs()).toHaveLength(1);
+			expect(setup.cms.mocks.queue.getJobs()[0].name).toBe("article:created");
+			expect(setup.cms.mocks.queue.getJobs()[0].payload.articleId).toBe(
+				created.id,
+			);
 		});
 
 		it("executes hooks in correct order", async () => {
-			const ctx = createTestContext(services);
-			// Use cms.api.collections.articles directly
-
-			await cms.api.collections.articles.create(
+			const ctx = createTestContext();
+			await setup.cms.api.collections.articles.create(
 				{
 					id: crypto.randomUUID(),
 					title: "Order Test",
 				},
 				ctx,
 			);
-
-			expect(cms.__hookCallOrder).toEqual(["beforeCreate", "afterCreate"]);
+			expect(hookCallOrder).toEqual(["beforeCreate", "afterCreate"]);
 		});
 	});
 
 	describe("beforeUpdate and afterUpdate hooks", () => {
-		beforeEach(async () => {
-			services = createMockServices();
-			const articles = defineCollection("articles")
-				.fields({
-					title: text("title").notNull(),
-					status: varchar("status", { length: 50 }),
-					viewCount: varchar("view_count"),
-				})
-				.hooks({
-					beforeUpdate: async ({ data }) => {
-						const cms = getCMSFromContext<ReturnType<typeof createTestCms>>();
-						// Auto-publish when status changes to 'published'
-						if (data.status === "published") {
-							await cms.logger?.info("Article being published", {
-								title: data.title,
-							});
-						}
-						return data;
-					},
-					afterUpdate: async ({ data, original }) => {
-						const cms = getCMSFromContext<ReturnType<typeof createTestCms>>();
-						// Send email when published
-						if (
-							original.status !== "published" &&
-							data.status === "published"
-						) {
-							await cms.email?.send({
-								to: "admin@example.com",
-								subject: "Article Published",
-								text: `Article "${data.title}" has been published`,
-							});
-						}
-					},
-				})
-				.build();
-
-			const setup = await createTestDb();
-			db = setup.db;
-			client = setup.client;
-			cms = createTestCms([articles], db, services);
-			await runTestDbMigrations(cms);
-		});
+		let setup: Awaited<
+			ReturnType<typeof buildMockCMS<typeof testModuleUpdate>>
+		>;
 
 		afterEach(async () => {
-			await closeTestDb(client);
+			if (setup) await setup.cleanup();
+		});
+
+		beforeEach(async () => {
+			setup = await buildMockCMS(testModuleUpdate);
+			await runTestDbMigrations(setup.cms);
 		});
 
 		it("executes beforeUpdate with data transformation", async () => {
-			const ctx = createTestContext(services);
-			// Use cms.api.collections.articles directly
-
-			const created = await cms.api.collections.articles.create(
+			const ctx = createTestContext();
+			const created = await setup.cms.api.collections.articles.create(
 				{
 					id: crypto.randomUUID(),
 					title: "Draft Article",
@@ -171,7 +266,7 @@ describe("collection hooks", () => {
 				ctx,
 			);
 
-			await cms.api.collections.articles.updateById(
+			await setup.cms.api.collections.articles.updateById(
 				{
 					id: created.id,
 					data: { status: "published" },
@@ -179,15 +274,15 @@ describe("collection hooks", () => {
 				ctx,
 			);
 
-			expect(services.logger.__logs).toHaveLength(1);
-			expect(services.logger.__logs[0].message).toBe("Article being published");
+			expect(setup.cms.mocks.logger.getLogs()).toHaveLength(1);
+			expect(setup.cms.mocks.logger.getLogs()[0].message).toBe(
+				"Article being published",
+			);
 		});
 
 		it("executes afterUpdate with access to original data", async () => {
-			const ctx = createTestContext(services);
-			// Use cms.api.collections.articles directly
-
-			const created = await cms.api.collections.articles.create(
+			const ctx = createTestContext();
+			const created = await setup.cms.api.collections.articles.create(
 				{
 					id: crypto.randomUUID(),
 					title: "Test Article",
@@ -196,7 +291,7 @@ describe("collection hooks", () => {
 				ctx,
 			);
 
-			await cms.api.collections.articles.updateById(
+			await setup.cms.api.collections.articles.updateById(
 				{
 					id: created.id,
 					data: { status: "published" },
@@ -204,16 +299,17 @@ describe("collection hooks", () => {
 				ctx,
 			);
 
-			expect(services.email.__sent).toHaveLength(1);
-			expect(services.email.__sent[0].subject).toBe("Article Published");
-			expect(services.email.__sent[0].to).toBe("admin@example.com");
+			expect(setup.cms.mocks.mailer.getSentCount()).toBe(1);
+			const sent = setup.cms.mocks.mailer.getSentMails();
+			const lastIndex = sent.length - 1;
+			const sentMail = sent[lastIndex];
+			expect(sentMail?.subject).toBe("Article Published");
+			expect(sentMail?.to).toBe("admin@example.com");
 		});
 
 		it("does not trigger email when status unchanged", async () => {
-			const ctx = createTestContext(services);
-			// Use cms.api.collections.articles directly
-
-			const created = await cms.api.collections.articles.create(
+			const ctx = createTestContext();
+			const created = await setup.cms.api.collections.articles.create(
 				{
 					id: crypto.randomUUID(),
 					title: "Published Article",
@@ -222,7 +318,7 @@ describe("collection hooks", () => {
 				ctx,
 			);
 
-			await cms.api.collections.articles.updateById(
+			await setup.cms.api.collections.articles.updateById(
 				{
 					id: created.id,
 					data: { title: "Updated Title" },
@@ -230,50 +326,27 @@ describe("collection hooks", () => {
 				ctx,
 			);
 
-			// Email should not be sent since status was already published
-			expect(services.email.__sent).toHaveLength(0);
+			expect(setup.cms.mocks.mailer.getSentCount()).toBe(0);
 		});
 	});
 
 	describe("beforeDelete and afterDelete hooks", () => {
-		beforeEach(async () => {
-			services = createMockServices();
-			const articles = defineCollection("articles")
-				.fields({
-					title: text("title").notNull(),
-				})
-				.hooks({
-					beforeDelete: async ({ data }) => {
-						const cms = getCMSFromContext<ReturnType<typeof createTestCms>>();
-						// Log deletion attempt
-						await cms.logger?.warn("Article deletion requested", {
-							id: data.id,
-						});
-					},
-					afterDelete: async ({ data }) => {
-						const cms = getCMSFromContext<ReturnType<typeof createTestCms>>();
-						// Clean up related data via queue job
-						await cms.queue?.publish("article:cleanup", { articleId: data.id });
-					},
-				})
-				.build();
-
-			const setup = await createTestDb();
-			db = setup.db;
-			client = setup.client;
-			cms = createTestCms([articles], db, services);
-			await runTestDbMigrations(cms);
-		});
+		let setup: Awaited<
+			ReturnType<typeof buildMockCMS<typeof testModuleDelete>>
+		>;
 
 		afterEach(async () => {
-			await closeTestDb(client);
+			if (setup) await setup.cleanup();
+		});
+
+		beforeEach(async () => {
+			setup = await buildMockCMS(testModuleDelete);
+			await runTestDbMigrations(setup.cms);
 		});
 
 		it("executes beforeDelete with logging", async () => {
-			const ctx = createTestContext(services);
-			// Use cms.api.collections.articles directly
-
-			const created = await cms.api.collections.articles.create(
+			const ctx = createTestContext();
+			const created = await setup.cms.api.collections.articles.create(
 				{
 					id: crypto.randomUUID(),
 					title: "To Delete",
@@ -281,20 +354,21 @@ describe("collection hooks", () => {
 				ctx,
 			);
 
-			await cms.api.collections.articles.deleteById({ id: created.id }, ctx);
+			await setup.cms.api.collections.articles.deleteById(
+				{ id: created.id },
+				ctx,
+			);
 
-			expect(services.logger.__logs).toHaveLength(1);
-			expect(services.logger.__logs[0].level).toBe("warn");
-			expect(services.logger.__logs[0].message).toBe(
+			expect(setup.cms.mocks.logger.getLogs()).toHaveLength(1);
+			expect(setup.cms.mocks.logger.getLogs()[0].level).toBe("warn");
+			expect(setup.cms.mocks.logger.getLogs()[0].message).toBe(
 				"Article deletion requested",
 			);
 		});
 
 		it("executes afterDelete with cleanup job", async () => {
-			const ctx = createTestContext(services);
-			// Use cms.api.collections.articles directly
-
-			const created = await cms.api.collections.articles.create(
+			const ctx = createTestContext();
+			const created = await setup.cms.api.collections.articles.create(
 				{
 					id: crypto.randomUUID(),
 					title: "To Delete",
@@ -302,48 +376,35 @@ describe("collection hooks", () => {
 				ctx,
 			);
 
-			await cms.api.collections.articles.deleteById({ id: created.id }, ctx);
+			await setup.cms.api.collections.articles.deleteById(
+				{ id: created.id },
+				ctx,
+			);
 
-			expect(services.queue.__jobs).toHaveLength(1);
-			expect(services.queue.__jobs[0].name).toBe("article:cleanup");
-			expect(services.queue.__jobs[0].payload.articleId).toBe(created.id);
+			expect(setup.cms.mocks.queue.getJobs()).toHaveLength(1);
+			expect(setup.cms.mocks.queue.getJobs()[0].name).toBe("article:cleanup");
+			expect(setup.cms.mocks.queue.getJobs()[0].payload.articleId).toBe(
+				created.id,
+			);
 		});
 	});
 
 	describe("hook error handling", () => {
-		beforeEach(async () => {
-			const articles = defineCollection("articles")
-				.fields({
-					title: text("title").notNull(),
-					status: varchar("status", { length: 50 }),
-				})
-				.hooks({
-					beforeCreate: async ({ data }) => {
-						if (data.title === "forbidden") {
-							throw new Error("Forbidden title");
-						}
-						return data;
-					},
-				})
-				.build();
-
-			const setup = await createTestDb();
-			db = setup.db;
-			client = setup.client;
-			cms = createTestCms([articles], db);
-			await runTestDbMigrations(cms);
-		});
+		let setup: Awaited<ReturnType<typeof buildMockCMS<typeof testModuleError>>>;
 
 		afterEach(async () => {
-			await closeTestDb(client);
+			if (setup) await setup.cleanup();
+		});
+
+		beforeEach(async () => {
+			setup = await buildMockCMS(testModuleError);
+			await runTestDbMigrations(setup.cms);
 		});
 
 		it("prevents creation when beforeCreate throws", async () => {
 			const ctx = createTestContext();
-			// Use cms.api.collections.articles directly
-
 			await expect(
-				cms.api.collections.articles.create(
+				setup.cms.api.collections.articles.create(
 					{
 						id: crypto.randomUUID(),
 						title: "forbidden",
@@ -352,59 +413,33 @@ describe("collection hooks", () => {
 				),
 			).rejects.toThrow("Forbidden title");
 
-			// Verify nothing was created
-			const all = await cms.api.collections.articles.find({}, ctx);
+			const all = await setup.cms.api.collections.articles.find({}, ctx);
 			expect(all.docs.length).toBe(0);
 			expect(all.totalDocs).toBe(0);
 		});
 	});
 
 	describe("multiple hooks with context sharing", () => {
-		beforeEach(async () => {
-			services = createMockServices();
-			const enrichmentData: Map<string, any> = new Map();
-
-			const articles = defineCollection("articles")
-				.fields({
-					title: text("title").notNull(),
-				})
-				.hooks({
-					beforeCreate: async ({ data }) => {
-						// First hook enriches data
-						enrichmentData.set(data.id, {
-							enriched: true,
-							timestamp: Date.now(),
-						});
-						return data;
-					},
-					afterCreate: async ({ data }) => {
-						const cms = getCMSFromContext<ReturnType<typeof createTestCms>>();
-						// Second hook accesses enrichment
-						const enrichment = enrichmentData.get(data.id);
-						await cms.queue?.publish("article:enriched", {
-							articleId: data.id,
-							enrichment,
-						});
-					},
-				})
-				.build();
-
-			const setup = await createTestDb();
-			db = setup.db;
-			client = setup.client;
-			cms = createTestCms([articles], db, services);
-			await runTestDbMigrations(cms);
-		});
+		const enrichmentData: Map<string, any> = new Map();
+		let setup: Awaited<
+			ReturnType<typeof buildMockCMS<typeof testModuleEnrichment>>
+		>;
 
 		afterEach(async () => {
-			await closeTestDb(client);
+			if (setup) await setup.cleanup();
+		});
+
+		beforeEach(async () => {
+			enrichmentData.clear();
+			const testModule = createEnrichmentModule(enrichmentData);
+
+			setup = await buildMockCMS(testModule);
+			await runTestDbMigrations(setup.cms);
 		});
 
 		it("shares data between hooks", async () => {
-			const ctx = createTestContext(services);
-			// Use cms.api.collections.articles directly
-
-			await cms.api.collections.articles.create(
+			const ctx = createTestContext();
+			await setup.cms.api.collections.articles.create(
 				{
 					id: crypto.randomUUID(),
 					title: "Enriched Article",
@@ -412,9 +447,13 @@ describe("collection hooks", () => {
 				ctx,
 			);
 
-			expect(services.queue.__jobs).toHaveLength(1);
-			expect(services.queue.__jobs[0].payload.enrichment).toBeDefined();
-			expect(services.queue.__jobs[0].payload.enrichment.enriched).toBe(true);
+			expect(setup.cms.mocks.queue.getJobs()).toHaveLength(1);
+			expect(
+				setup.cms.mocks.queue.getJobs()[0].payload.enrichment,
+			).toBeDefined();
+			expect(
+				setup.cms.mocks.queue.getJobs()[0].payload.enrichment.enriched,
+			).toBe(true);
 		});
 	});
 });

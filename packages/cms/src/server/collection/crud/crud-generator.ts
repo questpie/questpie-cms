@@ -73,7 +73,9 @@ export class CRUDGenerator<
 			any,
 			TOptions,
 			THooks,
-			TAccess
+			TAccess,
+			any,
+			any
 		>,
 		private table: PgTable,
 		private i18nTable: PgTable | null,
@@ -111,9 +113,9 @@ export class CRUDGenerator<
 			findVersions: this.wrapWithCMSContext(this.createFindVersions()),
 			revertToVersion: this.wrapWithCMSContext(this.createRevertToVersion()),
 		};
-		crud.__internalState = this.state;
-		crud.__internalRelatedTable = this.table;
-		crud.__internalI18nTable = this.i18nTable;
+		crud["~internalState"] = this.state;
+		crud["~internalRelatedTable"] = this.table;
+		crud["~internalI18nTable"] = this.i18nTable;
 		return crud;
 	}
 
@@ -555,15 +557,15 @@ export class CRUDGenerator<
 				if (!reverseRelationName) continue;
 
 				const reverseRelation =
-					relatedCrud.__internalState.relations?.[reverseRelationName];
+					relatedCrud["~internalState"].relations?.[reverseRelationName];
 				if (!reverseRelation?.fields || reverseRelation.fields.length === 0)
 					continue;
 
 				const foreignKeyField =
 					this.resolveFieldKey(
-						relatedCrud.__internalState,
+						relatedCrud["~internalState"],
 						reverseRelation.fields[0],
-						relatedCrud.__internalRelatedTable,
+						relatedCrud["~internalRelatedTable"],
 					) ?? reverseRelation.fields[0].name;
 				const primaryKeyField = reverseRelation.references?.[0] || "id";
 
@@ -581,7 +583,7 @@ export class CRUDGenerator<
 				// Check if aggregation is requested
 				if (nestedOptions._count || nestedOptions._aggregate) {
 					// Perform aggregation query
-					const relatedTable = relatedCrud.__internalRelatedTable;
+					const relatedTable = relatedCrud["~internalRelatedTable"];
 					const foreignKeyCol = relatedTable[foreignKeyField];
 
 					// Build SELECT clause with aggregations
@@ -647,8 +649,8 @@ export class CRUDGenerator<
 							false,
 							relatedTable,
 							context,
-							relatedCrud.__internalState,
-							relatedCrud.__internalI18nTable,
+							relatedCrud["~internalState"],
+							relatedCrud["~internalI18nTable"],
 						);
 						if (additionalWhere) {
 							whereConditions.push(additionalWhere);
@@ -946,15 +948,15 @@ export class CRUDGenerator<
 
 				const relatedCrud = this.cms.api.collections[relation.collection];
 				const reverseRelation =
-					relatedCrud.__internalState.relations?.[reverseRelationName];
+					relatedCrud["~internalState"].relations?.[reverseRelationName];
 				if (!reverseRelation?.fields || reverseRelation.fields.length === 0)
 					continue;
 
 				const foreignKeyField =
 					this.resolveFieldKey(
-						relatedCrud.__internalState,
+						relatedCrud["~internalState"],
 						reverseRelation.fields[0],
-						relatedCrud.__internalRelatedTable,
+						relatedCrud["~internalRelatedTable"],
 					) ?? reverseRelation.fields[0].name;
 				const primaryKeyField = reverseRelation.references?.[0] || "id";
 
@@ -1184,15 +1186,15 @@ export class CRUDGenerator<
 
 				const relatedCrud = this.cms.api.collections[relation.collection];
 				const reverseRelation =
-					relatedCrud.__internalState.relations?.[reverseRelationName];
+					relatedCrud["~internalState"].relations?.[reverseRelationName];
 				if (!reverseRelation?.fields || reverseRelation.fields.length === 0)
 					continue;
 
 				const foreignKeyField =
 					this.resolveFieldKey(
-						relatedCrud.__internalState,
+						relatedCrud["~internalState"],
 						reverseRelation.fields[0],
-						relatedCrud.__internalRelatedTable,
+						relatedCrud["~internalRelatedTable"],
 					) ?? reverseRelation.fields[0].name;
 				const primaryKeyField = reverseRelation.references?.[0] || "id";
 
@@ -1457,6 +1459,7 @@ export class CRUDGenerator<
 					{
 						operation: "create",
 						recordId: record.id,
+						payload: record as Record<string, unknown>,
 					},
 					context,
 					tx,
@@ -1620,6 +1623,7 @@ export class CRUDGenerator<
 					{
 						operation: "update",
 						recordId: updated.id,
+						payload: updated as Record<string, unknown>,
 					},
 					context,
 					tx,
@@ -2122,10 +2126,7 @@ export class CRUDGenerator<
 							(this.i18nVersionsTable as any).versionNumber,
 							(this.versionsTable as any).versionNumber,
 						),
-						eq(
-							(this.i18nVersionsTable as any).locale,
-							normalized.locale,
-						),
+						eq((this.i18nVersionsTable as any).locale, normalized.locale),
 					),
 				);
 			}
@@ -2163,17 +2164,11 @@ export class CRUDGenerator<
 					hasVersionId
 						? and(
 								eq((this.versionsTable as any).id, options.id),
-								eq(
-									(this.versionsTable as any).versionId,
-									options.versionId,
-								),
+								eq((this.versionsTable as any).versionId, options.versionId),
 							)
 						: and(
 								eq((this.versionsTable as any).id, options.id),
-								eq(
-									(this.versionsTable as any).versionNumber,
-									options.version,
-								),
+								eq((this.versionsTable as any).versionNumber, options.version),
 							),
 				)
 				.limit(1);
@@ -2201,7 +2196,7 @@ export class CRUDGenerator<
 				nonLocalized.deletedAt = version.deletedAt ?? null;
 			}
 
-			let localizedForContext: Record<string, any> = {};
+			const localizedForContext: Record<string, any> = {};
 			if (this.i18nVersionsTable && normalized.locale) {
 				const localeRows = await db
 					.select()
@@ -2424,26 +2419,30 @@ export class CRUDGenerator<
 				const versionNumbers = versionsToDelete.map(
 					(v: any) => v.versionNumber,
 				);
-				await tx.delete(this.versionsTable).where(
-					and(
-						eq((this.versionsTable as any).id, row.id),
-						inArray(
-							(this.versionsTable as any).versionNumber,
-							versionNumbers,
-						),
-					),
-				);
-
-				if (this.i18nVersionsTable) {
-					await tx.delete(this.i18nVersionsTable).where(
+				await tx
+					.delete(this.versionsTable)
+					.where(
 						and(
-							eq((this.i18nVersionsTable as any).parentId, row.id),
+							eq((this.versionsTable as any).id, row.id),
 							inArray(
-								(this.i18nVersionsTable as any).versionNumber,
+								(this.versionsTable as any).versionNumber,
 								versionNumbers,
 							),
 						),
 					);
+
+				if (this.i18nVersionsTable) {
+					await tx
+						.delete(this.i18nVersionsTable)
+						.where(
+							and(
+								eq((this.i18nVersionsTable as any).parentId, row.id),
+								inArray(
+									(this.i18nVersionsTable as any).versionNumber,
+									versionNumbers,
+								),
+							),
+						);
 				}
 			}
 		}
@@ -2736,8 +2735,8 @@ export class CRUDGenerator<
 		}
 
 		const relatedCrud = this.cms.api.collections[relation.collection];
-		const relatedTable = relatedCrud.__internalRelatedTable;
-		const relatedState = relatedCrud.__internalState;
+		const relatedTable = relatedCrud["~internalRelatedTable"];
+		const relatedState = relatedCrud["~internalState"];
 
 		const joinConditions = relation.fields
 			.map((sourceField, index) => {
@@ -2760,7 +2759,7 @@ export class CRUDGenerator<
 				relatedTable,
 				context,
 				relatedState,
-				relatedCrud.__internalI18nTable,
+				relatedCrud["~internalI18nTable"],
 			);
 			if (nestedClause) whereConditions.push(nestedClause);
 		}
@@ -2787,8 +2786,8 @@ export class CRUDGenerator<
 		if (!this.cms || relation.fields) return undefined;
 
 		const relatedCrud = this.cms.api.collections[relation.collection];
-		const relatedTable = relatedCrud.__internalRelatedTable;
-		const relatedState = relatedCrud.__internalState;
+		const relatedTable = relatedCrud["~internalRelatedTable"];
+		const relatedState = relatedCrud["~internalState"];
 		const reverseRelationName = relation.relationName;
 		const reverseRelation = reverseRelationName
 			? relatedState.relations?.[reverseRelationName]
@@ -2819,7 +2818,7 @@ export class CRUDGenerator<
 				relatedTable,
 				context,
 				relatedState,
-				relatedCrud.__internalI18nTable,
+				relatedCrud["~internalI18nTable"],
 			);
 			if (nestedClause) whereConditions.push(nestedClause);
 		}
@@ -2847,10 +2846,10 @@ export class CRUDGenerator<
 
 		const relatedCrud = this.cms.api.collections[relation.collection];
 		const junctionCrud = this.cms.api.collections[relation.through];
-		const relatedTable = relatedCrud.__internalRelatedTable;
-		const junctionTable = junctionCrud.__internalRelatedTable;
-		const relatedState = relatedCrud.__internalState;
-		const junctionState = junctionCrud.__internalState;
+		const relatedTable = relatedCrud["~internalRelatedTable"];
+		const junctionTable = junctionCrud["~internalRelatedTable"];
+		const relatedState = relatedCrud["~internalState"];
+		const junctionState = junctionCrud["~internalState"];
 
 		const sourceKey = relation.sourceKey || "id";
 		const targetKey = relation.targetKey || "id";
@@ -2884,7 +2883,7 @@ export class CRUDGenerator<
 				relatedTable,
 				context,
 				relatedState,
-				relatedCrud.__internalI18nTable,
+				relatedCrud["~internalI18nTable"],
 			);
 			if (nestedClause) whereConditions.push(nestedClause);
 		}
@@ -3248,46 +3247,38 @@ export class CRUDGenerator<
 
 	/**
 	 * Get included fields based on columns option
+	 * Two modes:
+	 * 1. Inclusion mode: If any field is set to true, only include those fields
+	 * 2. Omission mode: If all fields are false (or undefined), include all fields except false ones
 	 */
 	private getIncludedFields(columns?: Columns): Set<string> {
+		const allFields = [
+			...Object.keys(this.state.fields),
+			...Object.keys(this.state.virtuals),
+			"_title",
+			"createdAt",
+			"updatedAt",
+			"deletedAt",
+		];
+
 		if (!columns) {
-			// Include all fields
-			return new Set([
-				...Object.keys(this.state.fields),
-				...Object.keys(this.state.virtuals),
-				"_title",
-				"createdAt",
-				"updatedAt",
-				"deletedAt",
-			]);
+			// No columns specified - include all fields
+			return new Set(allFields);
 		}
 
 		const included = new Set<string>();
 		const hasTrueValues = Object.values(columns).some((v) => v === true);
 
-		for (const [key, value] of Object.entries(columns)) {
-			if (hasTrueValues) {
-				// If we have 'true' values, only include those
+		if (hasTrueValues) {
+			// Inclusion mode: only include fields explicitly set to true
+			for (const [key, value] of Object.entries(columns)) {
 				if (value === true) {
 					included.add(key);
 				}
-				// Otherwise, include everything except 'false' values
-				if (value !== false) {
-					included.add(key);
-				}
 			}
-		}
-
-		// If no 'true' values, include all except 'false' ones
-		if (!hasTrueValues) {
-			for (const key of [
-				...Object.keys(this.state.fields),
-				...Object.keys(this.state.virtuals),
-				"_title",
-				"createdAt",
-				"updatedAt",
-				"deletedAt",
-			]) {
+		} else {
+			// Omission mode: include all fields except those set to false
+			for (const key of allFields) {
 				if (columns[key] !== false) {
 					included.add(key);
 				}

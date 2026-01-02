@@ -1,69 +1,61 @@
-import { describe, it, beforeEach, afterEach, expect } from "bun:test";
+import { defineCollection, defineQCMS } from "#questpie/cms/server/index.js";
+import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { sql } from "drizzle-orm";
 import { text, varchar } from "drizzle-orm/pg-core";
-import {
-	closeTestDb,
-	createTestDb,
-	runTestDbMigrations,
-} from "../utils/test-db";
-import { createTestCms } from "../utils/test-cms";
+import { buildMockCMS } from "../utils/mocks/mock-cms-builder";
 import { createTestContext } from "../utils/test-context";
-import { defineCollection } from "#questpie/cms/server/index.js";
+import { runTestDbMigrations } from "../utils/test-db";
 
-const products = defineCollection("products")
-	.fields({
-		sku: varchar("sku", { length: 50 }).notNull(),
-		name: text("name").notNull(),
-		description: text("description"),
-	})
-	.localized(["name", "description"] as const)
-	.title(({ table, i18n }) => sql`${i18n.name} || ' - ' || ${table.sku}`)
-	.options({
-		timestamps: true,
-		softDelete: true,
-		versioning: true,
-	})
-	.build();
-
-const lockedProducts = defineCollection("locked_products")
-	.fields({
-		sku: varchar("sku", { length: 50 }).notNull(),
-		name: text("name").notNull(),
-	})
-	.localized(["name"] as const)
-	.title(({ table, i18n }) => sql`${i18n.name} || ' - ' || ${table.sku}`)
-	.options({
-		timestamps: true,
-		softDelete: true,
-		versioning: true,
-	})
-	.access({
-		create: () => false,
-	})
-	.build();
+const testModule = defineQCMS({ name: "test-module" }).collections({
+	products: defineCollection("products")
+		.fields({
+			sku: varchar("sku", { length: 50 }).notNull(),
+			name: text("name").notNull(),
+			description: text("description"),
+		})
+		.localized(["name", "description"] as const)
+		.title(({ table, i18n }) => sql`${i18n.name} || ' - ' || ${table.sku}`)
+		.options({
+			timestamps: true,
+			softDelete: true,
+			versioning: true,
+		})
+		.build(),
+	locked_products: defineCollection("locked_products")
+		.fields({
+			sku: varchar("sku", { length: 50 }).notNull(),
+			name: text("name").notNull(),
+		})
+		.localized(["name"] as const)
+		.title(({ table, i18n }) => sql`${i18n.name} || ' - ' || ${table.sku}`)
+		.options({
+			timestamps: true,
+			softDelete: true,
+			versioning: true,
+		})
+		.access({
+			create: () => false,
+		})
+		.build(),
+});
 
 describe("collection CRUD", () => {
-	let db: any;
-	let client: any;
-	let cms: ReturnType<typeof createTestCms>;
+	let setup: Awaited<ReturnType<typeof buildMockCMS<typeof testModule>>>;
 
 	beforeEach(async () => {
-		const setup = await createTestDb();
-		db = setup.db;
-		client = setup.client;
-		cms = createTestCms([products, lockedProducts], db);
-		await runTestDbMigrations(cms);
+		setup = await buildMockCMS(testModule);
+		await runTestDbMigrations(setup.cms);
 	});
 
 	afterEach(async () => {
-		await closeTestDb(client);
+		await setup.cleanup();
 	});
 
 	it("creates, updates localized fields, and falls back to default locale", async () => {
 		const ctx = createTestContext();
 		// Use cms.api.collections.products directly
 
-		const created = await cms.api.collections.products.create(
+		const created = await setup.cms.api.collections.products.create(
 			{
 				id: crypto.randomUUID(),
 				sku: "sku-1",
@@ -73,7 +65,7 @@ describe("collection CRUD", () => {
 			ctx,
 		);
 
-		await cms.api.collections.products.updateById(
+		await setup.cms.api.collections.products.updateById(
 			{
 				id: created.id,
 				data: { name: "Nazov SK" },
@@ -81,13 +73,13 @@ describe("collection CRUD", () => {
 			createTestContext({ locale: "sk" }),
 		);
 
-		const skRow = await cms.api.collections.products.findOne(
+		const skRow = await setup.cms.api.collections.products.findOne(
 			{ where: { id: created.id } },
 			createTestContext({ locale: "sk" }),
 		);
 		expect(skRow?.name).toBe("Nazov SK");
 
-		const deRow = await cms.api.collections.products.findOne(
+		const deRow = await setup.cms.api.collections.products.findOne(
 			{ where: { id: created.id } },
 			createTestContext({ locale: "de" }),
 		);
@@ -98,7 +90,7 @@ describe("collection CRUD", () => {
 		const ctx = createTestContext();
 		// Use cms.api.collections.products directly
 
-		const created = await cms.api.collections.products.create(
+		const created = await setup.cms.api.collections.products.create(
 			{
 				id: crypto.randomUUID(),
 				sku: "sku-2",
@@ -107,9 +99,12 @@ describe("collection CRUD", () => {
 			ctx,
 		);
 
-		await cms.api.collections.products.deleteById({ id: created.id }, ctx);
+		await setup.cms.api.collections.products.deleteById(
+			{ id: created.id },
+			ctx,
+		);
 
-		const rows = await cms.api.collections.products.find({}, ctx);
+		const rows = await setup.cms.api.collections.products.find({}, ctx);
 		expect(rows.docs.length).toBe(0);
 		expect(rows.totalDocs).toBe(0);
 	});
@@ -119,7 +114,7 @@ describe("collection CRUD", () => {
 		// Use cms.api.collections.locked_products directly
 
 		await expect(
-			cms.api.collections.locked_products.create(
+			setup.cms.api.collections.locked_products.create(
 				{
 					id: crypto.randomUUID(),
 					sku: "sku-3",
@@ -129,7 +124,7 @@ describe("collection CRUD", () => {
 			),
 		).rejects.toThrow("Access denied: create");
 
-		const created = await cms.api.collections.locked_products.create(
+		const created = await setup.cms.api.collections.locked_products.create(
 			{
 				id: crypto.randomUUID(),
 				sku: "sku-4",
@@ -144,7 +139,7 @@ describe("collection CRUD", () => {
 		const ctx = createTestContext();
 		// Use cms.api.collections.products directly
 
-		const created = await cms.api.collections.products.create(
+		const created = await setup.cms.api.collections.products.create(
 			{
 				id: crypto.randomUUID(),
 				sku: "sku-5",
@@ -153,7 +148,7 @@ describe("collection CRUD", () => {
 			ctx,
 		);
 
-		await cms.api.collections.products.updateById(
+		await setup.cms.api.collections.products.updateById(
 			{
 				id: created.id,
 				data: { sku: "sku-5b" },
@@ -161,9 +156,12 @@ describe("collection CRUD", () => {
 			ctx,
 		);
 
-		await cms.api.collections.products.deleteById({ id: created.id }, ctx);
+		await setup.cms.api.collections.products.deleteById(
+			{ id: created.id },
+			ctx,
+		);
 
-		const versions = await cms.api.collections.products.findVersions(
+		const versions = await setup.cms.api.collections.products.findVersions(
 			{ id: created.id },
 			ctx,
 		);

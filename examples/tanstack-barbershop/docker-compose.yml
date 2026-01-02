@@ -1,0 +1,72 @@
+services:
+  # PostgreSQL - The ONLY external dependency!
+  postgres:
+    image: postgres:17-alpine
+    container_name: barbershop-postgres
+    environment:
+      POSTGRES_DB: barbershop
+      POSTGRES_USER: barbershop
+      POSTGRES_PASSWORD: barbershop_dev_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U barbershop"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Barbershop App - All batteries included!
+  # ✅ Auth (Better Auth)
+  # ✅ Storage (Flydrive - local filesystem)
+  # ✅ Queue (pg-boss - uses Postgres)
+  # ✅ Email (Console/SMTP adapter)
+  # ✅ Logging (Pino)
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: barbershop-app
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      # Database
+      DATABASE_URL: postgresql://barbershop:barbershop_dev_password@postgres:5432/barbershop
+
+      # App
+      APP_URL: http://localhost:3000
+      PORT: 3000
+
+      # Auth
+      BETTER_AUTH_SECRET: demo-secret-change-in-production-please
+
+      # Email (Console mode for dev - no SMTP needed!)
+      MAIL_ADAPTER: console
+
+      # Optional: Use SMTP for real emails
+      # MAIL_ADAPTER: smtp
+      # SMTP_HOST: mailhog
+      # SMTP_PORT: 1025
+
+      # Storage (local filesystem - no S3 needed for dev!)
+      # For production, set STORAGE_DRIVER=s3 and provide credentials
+
+    ports:
+      - "3000:3000"
+    volumes:
+      # Persist uploads locally
+      - ./uploads:/app/uploads
+
+  # Optional: MailHog for testing emails (lightweight, no config needed)
+  # Uncomment if you want to see emails in a web UI
+  # mailhog:
+  #   image: mailhog/mailhog:latest
+  #   container_name: barbershop-mailhog
+  #   ports:
+  #     - "1025:1025"  # SMTP
+  #     - "8025:8025"  # Web UI
+
+volumes:
+  postgres_data:

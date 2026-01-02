@@ -9,25 +9,28 @@
  */
 
 import {
-	defineQCMS,
-	defaultQCMSAuth,
-	defineCollection,
-	defineJob,
-	pgBossAdapter,
-	SmtpAdapter,
 	ConsoleAdapter,
 	createEtherealSmtpAdapter,
+	defaultQCMSAuth,
+	defineCollection,
+	defineEmailTemplate,
+	defineJob,
+	defineQCMS,
 	getCMSFromContext,
+	pgBossAdapter,
+	SmtpAdapter,
 } from "@questpie/cms/server";
 import {
-	varchar,
-	integer,
-	timestamp,
-	text,
 	boolean,
+	integer,
 	jsonb,
+	text,
+	timestamp,
+	varchar,
 } from "drizzle-orm/pg-core";
 import { z } from "zod";
+import { blogModule } from "./blog-module";
+import * as React from "react";
 
 // ============================================================================
 // Collections
@@ -153,6 +156,49 @@ export const reviews = defineCollection("reviews")
 	}));
 
 // ============================================================================
+// Email Templates
+// ============================================================================
+
+const appointmentConfirmationTemplate = defineEmailTemplate({
+	name: "appointment-confirmation",
+	schema: z.object({
+		customerName: z.string(),
+		barberName: z.string(),
+		serviceName: z.string(),
+		scheduledAt: z.string(),
+		appointmentId: z.string(),
+	}),
+	render: ({ customerName, barberName, serviceName, scheduledAt }) => (
+		React.createElement("div", null,
+			React.createElement("h1", null, `Hello ${customerName}!`),
+			React.createElement("p", null, `Your appointment with ${barberName} for ${serviceName} is confirmed.`),
+			React.createElement("p", null, `Scheduled at: ${scheduledAt}`),
+			React.createElement("p", null, "See you soon!")
+		)
+	),
+	subject: (ctx) => `Appointment Confirmed - ${ctx.serviceName}`,
+});
+
+const appointmentCancellationTemplate = defineEmailTemplate({
+	name: "appointment-cancellation",
+	schema: z.object({
+		customerName: z.string(),
+		serviceName: z.string(),
+		scheduledAt: z.string(),
+		reason: z.string().optional(),
+	}),
+	render: ({ customerName, serviceName, scheduledAt, reason }) => (
+		React.createElement("div", null,
+			React.createElement("h1", null, `Hello ${customerName}`),
+			React.createElement("p", null, `Your appointment for ${serviceName} scheduled at ${scheduledAt} has been cancelled.`),
+			reason && React.createElement("p", null, `Reason: ${reason}`),
+			React.createElement("p", null, "We hope to see you again soon!")
+		)
+	),
+	subject: () => "Appointment Cancelled",
+});
+
+// ============================================================================
 // Queue Jobs
 // ============================================================================
 
@@ -163,10 +209,33 @@ const sendAppointmentConfirmation = defineJob({
 		customerId: z.string(),
 	}),
 	handler: async (payload) => {
+		const cms = getCMSFromContext<AppCMS>();
+		// Fetch appointment details
+		const appointment = await cms.api.findOne("appointments", {
+			where: { id: payload.appointmentId },
+			with: { customer: true, barber: true, service: true },
+		});
+
+		if (!appointment) {
+			throw new Error(`Appointment ${payload.appointmentId} not found`);
+		}
+
+		// Send email using typed template
+		await cms.email.sendTemplate({
+			template: "appointment-confirmation",
+			to: appointment.customer.email,
+			context: {
+				customerName: appointment.customer.name || "Customer",
+				barberName: appointment.barber.name,
+				serviceName: appointment.service.name,
+				scheduledAt: appointment.scheduledAt.toLocaleString(),
+				appointmentId: appointment.id,
+			},
+		});
+
 		console.log(
-			`📧 Sending confirmation email for appointment ${payload.appointmentId} to customer ${payload.customerId}`,
+			`📧 Sent confirmation email for appointment ${payload.appointmentId} to ${appointment.customer.email}`,
 		);
-		// TODO: Implement email sending via getCMSFromContext().email
 	},
 });
 
@@ -175,12 +244,33 @@ const sendAppointmentCancellation = defineJob({
 	schema: z.object({
 		appointmentId: z.string(),
 		customerId: z.string(),
+		reason: z.string().optional(),
 	}),
 	handler: async (payload) => {
+		const cms = getCMSFromContext<AppCMS>();
+		const appointment = await cms.api.findOne("appointments", {
+			where: { id: payload.appointmentId },
+			with: { customer: true, service: true },
+		});
+
+		if (!appointment) {
+			throw new Error(`Appointment ${payload.appointmentId} not found`);
+		}
+
+		await cms.email.sendTemplate({
+			template: "appointment-cancellation",
+			to: appointment.customer.email,
+			context: {
+				customerName: appointment.customer.name || "Customer",
+				serviceName: appointment.service.name,
+				scheduledAt: appointment.scheduledAt.toLocaleString(),
+				reason: payload.reason,
+			},
+		});
+
 		console.log(
-			`📧 Sending cancellation email for appointment ${payload.appointmentId} to customer ${payload.customerId}`,
+			`📧 Sent cancellation email for appointment ${payload.appointmentId} to ${appointment.customer.email}`,
 		);
-		// TODO: Implement email sending
 	},
 });
 
@@ -208,11 +298,22 @@ const DATABASE_URL =
  * Barbershop CMS Instance
  *
  * Built using the builder pattern for cleaner, more maintainable configuration:
- * - Collections/jobs are defined as maps (not arrays) for type-safe access
- * - Definition-time config (collections, jobs, auth) separated from runtime config (db url, secrets)
+ * - Type-inferrable definitions (collections, jobs, templates, auth) in builder
+ * - Runtime adapters (storage, email, queue) in .build()
+ * - Clear separation of concerns
  * - Easy to compose and extend
  */
 export const cms = defineQCMS({ name: "barbershop" })
+	// Configure authentication (type-inferrable)
+	.auth((db: any) =>
+		defaultQCMSAuth(db, {
+			emailPassword: true,
+			emailVerification: false, // Simplified for demo
+			baseURL: process.env.APP_URL || "http://localhost:3001",
+			secret:
+				process.env.BETTER_AUTH_SECRET || "demo-secret-change-in-production",
+		}),
+	)
 	// Define collections (as a map for type-safe access)
 	.collections({
 		barbers,
@@ -226,69 +327,57 @@ export const cms = defineQCMS({ name: "barbershop" })
 		sendAppointmentCancellation,
 		sendAppointmentReminder,
 	})
-	// Configure authentication (Better Auth)
-	.auth((db: any) =>
-		defaultQCMSAuth(db, {
-			emailPassword: true,
-			emailVerification: false, // Simplified for demo
-			baseURL: process.env.APP_URL || "http://localhost:3001",
-			secret:
-				process.env.BETTER_AUTH_SECRET || "demo-secret-change-in-production",
-		}),
-	)
-	// Configure storage (local filesystem by default)
-	.storage({
-		// driver: fsDriver({ location: './uploads' })
+	// Define email templates (type-safe templates)
+	.emailTemplates({
+		appointmentConfirmation: appointmentConfirmationTemplate,
+		appointmentCancellation: appointmentCancellationTemplate,
 	})
-	// Configure email
-	.email({
-		adapter:
-			process.env.NODE_ENV === "production"
-				? // Production: Use real SMTP server
-					new SmtpAdapter({
-						transport: {
-							host: process.env.SMTP_HOST || "localhost",
-							port: Number.parseInt(process.env.SMTP_PORT || "587", 10),
-							secure: true,
-							auth: {
-								user: process.env.SMTP_USER || "",
-								pass: process.env.SMTP_PASS || "",
-							},
-						},
-					})
-				: process.env.MAIL_ADAPTER === "console"
-					? // Development: Console logging
-						new ConsoleAdapter({ logHtml: false })
-					: // Development: Ethereal email with preview URLs (default)
-						createEtherealSmtpAdapter(),
-		templates: {},
-		defaults: {
-			from: process.env.MAIL_FROM || "noreply@barbershop.test",
-		},
-	})
-	// Configure queue adapter
-	.queueAdapter(
-		pgBossAdapter({
-			connectionString: DATABASE_URL,
-		}),
-	)
-	// Build the final instance with runtime configuration
+	// Compose with other modules
+	.use(blogModule)
+	// Build with runtime configuration (adapters, connection strings, etc.)
 	.build({
 		app: {
 			url: process.env.APP_URL || "http://localhost:3001",
 		},
 		db: {
-			connection: {
-				url: DATABASE_URL,
-			},
+			url: DATABASE_URL,
 		},
 		secret: process.env.SECRET,
+		// Runtime: Storage driver
+		storage: {
+			// driver: fsDriver({ location: './uploads' })
+		},
+		// Runtime: Email adapter
+		email: {
+			adapter:
+				process.env.NODE_ENV === "production"
+					? // Production: Use real SMTP server
+						new SmtpAdapter({
+							transport: {
+								host: process.env.SMTP_HOST || "localhost",
+								port: Number.parseInt(process.env.SMTP_PORT || "587", 10),
+								secure: true,
+								auth: {
+									user: process.env.SMTP_USER || "",
+									pass: process.env.SMTP_PASS || "",
+								},
+							},
+						})
+					: process.env.MAIL_ADAPTER === "console"
+						? // Development: Console logging
+							new ConsoleAdapter({ logHtml: false })
+						: // Development: Ethereal email with preview URLs (default)
+							createEtherealSmtpAdapter(),
+			defaults: {
+				from: process.env.MAIL_FROM || "noreply@barbershop.test",
+			},
+		},
+		// Runtime: Queue adapter
+		queue: {
+			adapter: pgBossAdapter({
+				connectionString: DATABASE_URL,
+			}),
+		},
 	});
 
 export type AppCMS = typeof cms;
-const { docs: barbers } = await cms.api.collections.barbers.find({
-	where: {
-		isActive: true,
-	},
-});
-barbers;

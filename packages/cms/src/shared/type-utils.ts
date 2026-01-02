@@ -7,6 +7,7 @@ import type {
 	CollectionBuilder,
 	GlobalBuilder,
 	Global,
+	FunctionDefinition,
 } from "#questpie/cms/server";
 import type { AnyCollectionState } from "#questpie/cms/server/collection/builder/types";
 import type { RelationConfig } from "#questpie/cms/server/collection/builder/types";
@@ -75,6 +76,16 @@ export type CollectionState<T> = T extends { state: infer State }
 	: never;
 
 /**
+ * Extract functions from a Collection or CollectionBuilder
+ */
+export type CollectionFunctions<T> =
+	CollectionState<T> extends { functions: infer Functions }
+		? Functions extends Record<string, FunctionDefinition>
+			? Functions
+			: Record<string, FunctionDefinition>
+		: Record<string, FunctionDefinition>;
+
+/**
  * Extract relations from a Collection or CollectionBuilder
  */
 export type CollectionRelations<T> =
@@ -120,6 +131,15 @@ export type GlobalUpdate<T> =
  * Extract the state from a Global or GlobalBuilder
  */
 export type GlobalState<T> = T extends { state: infer State } ? State : never;
+
+/**
+ * Extract functions from a Global or GlobalBuilder
+ */
+export type GlobalFunctions<T> = GlobalState<T> extends { functions: infer F }
+	? F extends Record<string, FunctionDefinition>
+		? F
+		: Record<string, FunctionDefinition>
+	: Record<string, FunctionDefinition>;
 
 /**
  * Extract relations from a Global or GlobalBuilder

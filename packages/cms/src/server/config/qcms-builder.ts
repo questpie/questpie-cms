@@ -1,7 +1,9 @@
 import type {
 	BuilderCollectionsMap,
+	BuilderEmailTemplatesMap,
 	BuilderGlobalsMap,
 	BuilderJobsMap,
+	BuilderFunctionsMap,
 	BuilderMapValues,
 	EmptyNamedBuilderState,
 	QCMSBuilderState,
@@ -10,17 +12,18 @@ import type {
 import type {
 	AuthConfig,
 	CMSConfig,
+	CMSDbConfig,
 	LocaleConfig,
-	StorageConfig,
 } from "#questpie/cms/server/config/types";
-import type {
-	QueueAdapter,
-} from "#questpie/cms/server/integrated/queue/types";
-import type { MailerConfig } from "#questpie/cms/server/integrated/mailer";
-import type { SearchConfig } from "#questpie/cms/server/integrated/search";
-import type { RealtimeConfig } from "#questpie/cms/server/integrated/realtime";
 import type { Migration } from "#questpie/cms/server/migration/types";
 import { QCMS } from "#questpie/cms/server/config/cms";
+import { assetsCollection } from "#questpie/cms/server/collection/defaults/assets";
+import {
+	accountsCollection,
+	sessionsCollection,
+	usersCollection,
+	verificationsCollection,
+} from "#questpie/cms/server/collection/defaults/auth";
 
 type BuilderCollectionsArray<TState extends QCMSBuilderState> = Array<
 	BuilderMapValues<TState["collections"]>
@@ -31,10 +34,17 @@ type BuilderGlobalsArray<TState extends QCMSBuilderState> = Array<
 type BuilderJobsArray<TState extends QCMSBuilderState> = Array<
 	BuilderMapValues<TState["jobs"]>
 >;
+type BuilderEmailTemplatesArray<TState extends QCMSBuilderState> = Array<
+	BuilderMapValues<TState["emailTemplates"]>
+>;
 type QCMSFromState<TState extends QCMSBuilderState> = QCMS<
 	BuilderCollectionsArray<TState>,
 	BuilderGlobalsArray<TState>,
-	BuilderJobsArray<TState>
+	BuilderJobsArray<TState>,
+	BuilderEmailTemplatesArray<TState>,
+	TState["functions"],
+	CMSDbConfig,
+	TState["auth"]
 >;
 
 /**
@@ -50,6 +60,8 @@ type QCMSFromState<TState extends QCMSBuilderState> = QCMS<
  * @example
  * ```ts
  * const cms = defineQCMS({ name: 'my-app' })
+ *   .locale({ locales: ['en', 'sk'], defaultLocale: 'en' })
+ *   .auth(betterAuthOptions)
  *   .collections({
  *     posts: postsCollection,
  *     comments: commentsCollection,
@@ -57,10 +69,15 @@ type QCMSFromState<TState extends QCMSBuilderState> = QCMS<
  *   .jobs({
  *     sendEmail: sendEmailJob,
  *   })
- *   .auth((db) => defaultQCMSAuth(db, { ... }))
+ *   .emailTemplates({
+ *     welcome: welcomeTemplate,
+ *   })
  *   .build({
  *     app: { url: process.env.APP_URL },
- *     db: { connection: { url: process.env.DATABASE_URL } },
+ *     db: { url: process.env.DATABASE_URL },
+ *     storage: { driver: s3Driver(...) },
+ *     email: { adapter: smtpAdapter(...) },
+ *     queue: { adapter: pgBossAdapter(...) },
  *   })
  * ```
  */
@@ -127,6 +144,32 @@ export class QCMSBuilder<TState extends QCMSBuilderState = QCMSBuilderState> {
 	}
 
 	/**
+	 * Define root RPC functions (as a map for type-safe access)
+	 *
+	 * @example
+	 * ```ts
+	 * .functions({
+	 *   ping: pingFunction,
+	 * })
+	 * ```
+	 */
+	functions<TNewFunctions extends BuilderFunctionsMap>(
+		functions: TNewFunctions,
+	): QCMSBuilder<
+		Omit<TState, "functions"> & {
+			functions: Omit<TState["functions"], keyof TNewFunctions> & TNewFunctions;
+		}
+	> {
+		return new QCMSBuilder({
+			...this.state,
+			functions: {
+				...this.state.functions,
+				...functions,
+			},
+		} as any);
+	}
+
+	/**
 	 * Define jobs (as a map for type-safe access)
 	 *
 	 * @example
@@ -154,20 +197,79 @@ export class QCMSBuilder<TState extends QCMSBuilderState = QCMSBuilderState> {
 	}
 
 	/**
+	 * Define email templates (as a map for type-safe access)
+	 *
+	 * @example
+	 * ```ts
+	 * .emailTemplates({
+	 *   welcome: welcomeTemplate,
+	 *   resetPassword: resetPasswordTemplate,
+	 * })
+	 * ```
+	 */
+	emailTemplates<TNewEmailTemplates extends BuilderEmailTemplatesMap>(
+		emailTemplates: TNewEmailTemplates,
+	): QCMSBuilder<
+		Omit<TState, "emailTemplates"> & {
+			emailTemplates: Omit<TState["emailTemplates"], keyof TNewEmailTemplates> &
+				TNewEmailTemplates;
+		}
+	> {
+		return new QCMSBuilder({
+			...this.state,
+			emailTemplates: {
+				...this.state.emailTemplates,
+				...emailTemplates,
+			},
+		} as any);
+	}
+
+	/**
 	 * Configure authentication (Better Auth)
+	 * Type-inferrable - affects auth instance type
 	 * Override strategy: Last wins
 	 *
 	 * @example
 	 * ```ts
+	 * // With BetterAuthOptions
+	 * .auth(defaultQCMSAuth(db, {
+	 *   emailPassword: true,
+	 *   baseURL: 'http://localhost:3000',
+	 * }))
+	 * ```
+	 *
+	 * @example
+	 * ```ts
+	 * // With factory function (recommended - shares db connection)
 	 * .auth((db) => defaultQCMSAuth(db, {
 	 *   emailPassword: true,
-	 *   baseURL: 'http://localhost:3000'
+	 *   baseURL: 'http://localhost:3000',
+	 * }))
+	 * ```
+	 *
+	 * @example
+	 * ```ts
+	 * // With Better Auth instance
+	 * .auth(betterAuth({
+	 *   database: { client: db, type: 'postgres' },
+	 *   emailAndPassword: { enabled: true },
+	 *   baseURL: 'http://localhost:3000',
 	 * }))
 	 * ```
 	 */
-	auth<TAuth extends AuthConfig>(
-		auth: TAuth,
-	): QCMSBuilder<Omit<TState, "auth"> & { auth: TAuth }> {
+	auth<TNewAuth extends AuthConfig>(
+		auth: TNewAuth,
+	): QCMSBuilder<
+		QCMSBuilderState<
+			TState["name"],
+			TState["collections"],
+			TState["globals"],
+			TState["jobs"],
+			TState["emailTemplates"],
+			TState["functions"],
+			TNewAuth
+		>
+	> {
 		return new QCMSBuilder({
 			...this.state,
 			auth,
@@ -175,79 +277,8 @@ export class QCMSBuilder<TState extends QCMSBuilderState = QCMSBuilderState> {
 	}
 
 	/**
-	 * Configure storage (Flydrive)
-	 * Override strategy: Last wins
-	 *
-	 * @example
-	 * ```ts
-	 * .storage({ driver: s3Driver })
-	 * ```
-	 */
-	storage(
-		storage: StorageConfig,
-	): QCMSBuilder<Omit<TState, "storage"> & { storage: StorageConfig }> {
-		return new QCMSBuilder({
-			...this.state,
-			storage,
-		} as any);
-	}
-
-	/**
-	 * Configure email (Nodemailer + React Email)
-	 * Override strategy: Last wins
-	 *
-	 * @example
-	 * ```ts
-	 * .email({ from: 'noreply@example.com' })
-	 * ```
-	 */
-	email(
-		email: MailerConfig,
-	): QCMSBuilder<Omit<TState, "email"> & { email: MailerConfig }> {
-		return new QCMSBuilder({
-			...this.state,
-			email,
-		} as any);
-	}
-
-	/**
-	 * Configure search (Postgres 18+ BM25, FTS, Trigrams)
-	 * Override strategy: Last wins
-	 *
-	 * @example
-	 * ```ts
-	 * .search({ enableBM25: true })
-	 * ```
-	 */
-	search(
-		search: SearchConfig,
-	): QCMSBuilder<Omit<TState, "search"> & { search: SearchConfig }> {
-		return new QCMSBuilder({
-			...this.state,
-			search,
-		} as any);
-	}
-
-	/**
-	 * Configure realtime (outbox + transport adapters)
-	 * Override strategy: Last wins
-	 *
-	 * @example
-	 * ```ts
-	 * .realtime({ adapter: pgNotifyAdapter({ ... }) })
-	 * ```
-	 */
-	realtime(
-		realtime: RealtimeConfig,
-	): QCMSBuilder<Omit<TState, "realtime"> & { realtime: RealtimeConfig }> {
-		return new QCMSBuilder({
-			...this.state,
-			realtime,
-		} as any);
-	}
-
-	/**
 	 * Configure localization
+	 * Type-inferrable - affects i18n table generation
 	 * Override strategy: Last wins
 	 *
 	 * @example
@@ -268,24 +299,6 @@ export class QCMSBuilder<TState extends QCMSBuilderState = QCMSBuilderState> {
 	}
 
 	/**
-	 * Configure queue adapter
-	 * Override strategy: Last wins
-	 *
-	 * @example
-	 * ```ts
-	 * .queueAdapter(pgBossAdapter({ ... }))
-	 * ```
-	 */
-	queueAdapter(
-		adapter: QueueAdapter,
-	): QCMSBuilder<Omit<TState, "queueAdapter"> & { queueAdapter: QueueAdapter }> {
-		return new QCMSBuilder({
-			...this.state,
-			queueAdapter: adapter,
-		} as any);
-	}
-
-	/**
 	 * Add migrations
 	 * Merges with existing migrations
 	 *
@@ -296,9 +309,7 @@ export class QCMSBuilder<TState extends QCMSBuilderState = QCMSBuilderState> {
 	 */
 	migrations(
 		migrations: Migration[],
-	): QCMSBuilder<
-		Omit<TState, "migrations"> & { migrations: Migration[] }
-	> {
+	): QCMSBuilder<Omit<TState, "migrations"> & { migrations: Migration[] }> {
 		return new QCMSBuilder({
 			...this.state,
 			migrations: [...(this.state.migrations || []), ...migrations],
@@ -350,37 +361,26 @@ export class QCMSBuilder<TState extends QCMSBuilderState = QCMSBuilderState> {
 	 */
 	use<TOtherState extends QCMSBuilderState>(
 		other: QCMSBuilder<TOtherState>,
-	): QCMSBuilder<{
-		name: TState["name"];
-		collections: Omit<TState["collections"], keyof TOtherState["collections"]> &
-			TOtherState["collections"];
-		globals: Omit<TState["globals"], keyof TOtherState["globals"]> &
-			TOtherState["globals"];
-		jobs: Omit<TState["jobs"], keyof TOtherState["jobs"]> &
-			TOtherState["jobs"];
-		auth: TOtherState["auth"] extends undefined
-			? TState["auth"]
-			: TOtherState["auth"];
-		storage: TOtherState["storage"] extends undefined
-			? TState["storage"]
-			: TOtherState["storage"];
-		email: TOtherState["email"] extends undefined
-			? TState["email"]
-			: TOtherState["email"];
-		search: TOtherState["search"] extends undefined
-			? TState["search"]
-			: TOtherState["search"];
-		realtime: TOtherState["realtime"] extends undefined
-			? TState["realtime"]
-			: TOtherState["realtime"];
-		locale: TOtherState["locale"] extends undefined
-			? TState["locale"]
-			: TOtherState["locale"];
-		queueAdapter: TOtherState["queueAdapter"] extends undefined
-			? TState["queueAdapter"]
-			: TOtherState["queueAdapter"];
-		migrations: Migration[];
-	}> {
+	): QCMSBuilder<
+		QCMSBuilderState<
+			TState["name"],
+			Omit<TState["collections"], keyof TOtherState["collections"]> &
+				TOtherState["collections"],
+			Omit<TState["globals"], keyof TOtherState["globals"]> &
+				TOtherState["globals"],
+			Omit<TState["jobs"], keyof TOtherState["jobs"]> & TOtherState["jobs"],
+			Omit<TState["emailTemplates"], keyof TOtherState["emailTemplates"]> &
+				TOtherState["emailTemplates"],
+			Omit<TState["functions"], keyof TOtherState["functions"]> &
+				TOtherState["functions"],
+			TOtherState["auth"] extends undefined ? TState["auth"] : TOtherState["auth"]
+		> & {
+			locale: TOtherState["locale"] extends undefined
+				? TState["locale"]
+				: TOtherState["locale"];
+			migrations: Migration[];
+		}
+	> {
 		const otherState = (other as any).state as TOtherState;
 
 		return new QCMSBuilder({
@@ -397,14 +397,17 @@ export class QCMSBuilder<TState extends QCMSBuilderState = QCMSBuilderState> {
 				...this.state.jobs,
 				...otherState.jobs,
 			},
+			emailTemplates: {
+				...this.state.emailTemplates,
+				...otherState.emailTemplates,
+			},
+			functions: {
+				...this.state.functions,
+				...otherState.functions,
+			},
 			// Override strategy: Last wins (module overrides if defined)
 			auth: otherState.auth ?? this.state.auth,
-			storage: otherState.storage ?? this.state.storage,
-			email: otherState.email ?? this.state.email,
-			search: otherState.search ?? this.state.search,
-			realtime: otherState.realtime ?? this.state.realtime,
 			locale: otherState.locale ?? this.state.locale,
-			queueAdapter: otherState.queueAdapter ?? this.state.queueAdapter,
 			migrations: [
 				...(this.state.migrations || []),
 				...(otherState.migrations || []),
@@ -414,18 +417,23 @@ export class QCMSBuilder<TState extends QCMSBuilderState = QCMSBuilderState> {
 
 	/**
 	 * Build the final QCMS instance
-	 * Requires runtime configuration (app.url, db.connection, etc.)
+	 * Requires runtime configuration (app.url, db.url, etc.)
 	 *
 	 * @example
 	 * ```ts
 	 * .build({
 	 *   app: { url: process.env.APP_URL },
-	 *   db: { connection: { url: process.env.DATABASE_URL } },
+	 *   db: { url: process.env.DATABASE_URL },
 	 *   secret: process.env.SECRET,
+	 *   storage: { driver: s3Driver(...) },
+	 *   email: { adapter: smtpAdapter(...) },
+	 *   queue: { adapter: pgBossAdapter(...) },
 	 * })
 	 * ```
 	 */
-	build(runtimeConfig: QCMSRuntimeConfig): QCMSFromState<TState> {
+	build<TDbConfig extends CMSDbConfig = CMSDbConfig>(
+		runtimeConfig: QCMSRuntimeConfig<TDbConfig>,
+	): QCMSFromState<TState> {
 		// Convert maps to arrays for CMSConfig
 		const collections = Object.values(
 			this.state.collections,
@@ -433,48 +441,47 @@ export class QCMSBuilder<TState extends QCMSBuilderState = QCMSBuilderState> {
 		const globals = Object.values(
 			this.state.globals,
 		) as BuilderGlobalsArray<TState>;
-
-		// Convert jobs map to array
 		const jobs = Object.values(this.state.jobs) as BuilderJobsArray<TState>;
-
-		// Merge storage config
-		const storage = this.state.storage
-			? { ...this.state.storage, ...runtimeConfig.storage }
-			: runtimeConfig.storage;
-
-		// Merge email config
-		const email = this.state.email
-			? { ...this.state.email, ...runtimeConfig.email }
-			: runtimeConfig.email;
-
-		// Queue adapter: runtime overrides builder
-		const queueAdapter =
-			runtimeConfig.queueAdapter ?? this.state.queueAdapter;
+		const emailTemplates = Object.values(
+			this.state.emailTemplates,
+		) as BuilderEmailTemplatesArray<TState>;
 
 		// Build CMSConfig compatible with current QCMS constructor
 		const cmsConfig: CMSConfig<
 			BuilderCollectionsArray<TState>,
 			BuilderGlobalsArray<TState>,
-			BuilderJobsArray<TState>
+			BuilderJobsArray<TState>,
+			BuilderEmailTemplatesArray<TState>,
+			TState["functions"],
+			TDbConfig,
+			TState["auth"]
 		> = {
 			app: runtimeConfig.app,
 			db: runtimeConfig.db,
 			secret: runtimeConfig.secret,
 			collections,
 			globals,
+			functions: this.state.functions,
 			locale: this.state.locale,
 			auth: this.state.auth,
-			storage: storage as StorageConfig | undefined,
-			email: email as MailerConfig | undefined,
+			storage: runtimeConfig.storage,
+			email: runtimeConfig.email
+				? {
+						...runtimeConfig.email,
+						templates: emailTemplates,
+					}
+				: undefined,
 			queue:
-				jobs.length > 0 || queueAdapter
+				jobs.length > 0 && runtimeConfig.queue
 					? {
 							jobs,
-							adapter: queueAdapter!,
+							adapter: runtimeConfig.queue.adapter,
 						}
 					: undefined,
-			search: this.state.search,
-			realtime: this.state.realtime,
+			search: runtimeConfig.search,
+			realtime: runtimeConfig.realtime,
+			logger: runtimeConfig.logger,
+			kv: runtimeConfig.kv,
 			migrations: {
 				directory: runtimeConfig.migrations?.directory,
 				migrations: this.state.migrations,
@@ -488,10 +495,27 @@ export class QCMSBuilder<TState extends QCMSBuilderState = QCMSBuilderState> {
 /**
  * Helper function to start building a QCMS instance
  *
+ * Core collections (assets, auth tables) are automatically included
+ * and can be extended or overridden via .collections()
+ *
  * @example
  * ```ts
  * const cms = defineQCMS({ name: 'my-app' })
- *   .collections({ ... })
+ *   .collections({ posts: postsCollection })
+ *   .build({ ... })
+ * ```
+ *
+ * @example
+ * ```ts
+ * // Extend core assets collection
+ * const cms = defineQCMS({ name: 'my-app' })
+ *   .collections({
+ *     questpie_assets: assetsCollection.merge(
+ *       defineCollection("questpie_assets").fields({
+ *         folder: varchar("folder", { length: 255 }),
+ *       })
+ *     )
+ *   })
  *   .build({ ... })
  * ```
  */
@@ -500,16 +524,19 @@ export function defineQCMS<TName extends string>(config: {
 }): QCMSBuilder<EmptyNamedBuilderState<TName>> {
 	return new QCMSBuilder({
 		name: config.name,
-		collections: {},
+		collections: {
+			questpie_assets: assetsCollection,
+			user: usersCollection,
+			session: sessionsCollection,
+			account: accountsCollection,
+			verification: verificationsCollection,
+		},
 		globals: {},
 		jobs: {},
+		emailTemplates: {},
+		functions: {},
 		auth: undefined,
-		storage: undefined,
-		email: undefined,
-		search: undefined,
-		realtime: undefined,
 		locale: undefined,
-		queueAdapter: undefined,
 		migrations: undefined,
 	} as EmptyNamedBuilderState<TName>);
 }

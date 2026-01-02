@@ -10,31 +10,46 @@ The realtime layer is built on an outbox table (`questpie_realtime_log`) and re-
 
 ## Enable Realtime
 
-Add a realtime config to your CMS setup:
+Realtime is **automatically enabled** when you use a PostgreSQL connection string:
 
 ```ts
-import { defineQCMS, pgNotifyAdapter } from "@questpie/cms/server";
+import { defineQCMS } from "@questpie/cms/server";
 
 const cms = defineQCMS({ name: "app" })
   // ...collections, globals, auth, etc
-  .realtime({
-    adapter: pgNotifyAdapter({
-      connectionString: process.env.DATABASE_URL,
-      channel: "questpie_realtime",
-    }),
-    // pollIntervalMs: 2000, // fallback if no adapter
-    // batchSize: 500,
-  })
   .build({
     app: { url: process.env.APP_URL! },
-    db: { connection: { url: process.env.DATABASE_URL! } },
+    db: { url: process.env.DATABASE_URL! }, // Auto-enables pg-notify adapter
+  });
+```
+
+The CMS automatically creates a `pg-notify` adapter for real-time updates using PostgreSQL's LISTEN/NOTIFY.
+
+### Custom Configuration
+
+You can override the default behavior:
+
+```ts
+import { defineQCMS, redisStreamsAdapter } from "@questpie/cms/server";
+
+const cms = defineQCMS({ name: "app" })
+  .build({
+    app: { url: process.env.APP_URL! },
+    db: { url: process.env.DATABASE_URL! },
+    realtime: {
+      adapter: redisStreamsAdapter({ client: redisClient }), // Custom adapter
+      // Or disable adapter for polling mode:
+      // adapter: undefined,
+      // pollIntervalMs: 2000,
+      // batchSize: 500,
+    },
   });
 ```
 
 Notes:
-- `pgNotifyAdapter` uses `pg` under the hood. Install it if needed: `bun add pg`.
-- You can also use `redisStreamsAdapter({ client })` if you already have Redis.
-- If you skip the adapter, polling is used (default `pollIntervalMs: 2000`).
+- PostgreSQL setup automatically uses `pg-notify` (requires `pg` package: `bun add pg`)
+- PGlite setup uses polling mode (no LISTEN/NOTIFY support)
+- Custom adapters override the default behavior
 
 ## Subscribe to a Collection (SSE)
 

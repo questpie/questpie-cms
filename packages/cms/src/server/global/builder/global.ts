@@ -101,7 +101,7 @@ export class Global<TState extends GlobalBuilderState> {
 			i18n: any,
 			context: any,
 		) => TState["virtuals"],
-		readonly relationsFn?: GlobalBuilderRelationFn<TState, any>,
+		private readonly relationsFn?: GlobalBuilderRelationFn<TState, any>,
 	) {
 		this.state = state;
 		this.name = state.name;

@@ -1,15 +1,13 @@
 import type {
-	AnyGlobalState,
 	Collection,
 	CollectionBuilder,
 	GlobalBuilder,
 	Global,
 } from "#questpie/cms/server";
 import type {
-	AnyCollectionState,
-	InferTableWithColumns,
 	LocalizedFields,
 	NonLocalizedFields,
+	InferTableWithColumns,
 } from "#questpie/cms/server/collection/builder/types";
 import type {
 	AnyCollectionOrBuilder,
@@ -21,6 +19,7 @@ import type {
 	GlobalNames,
 	GetGlobal,
 } from "#questpie/cms/shared/type-utils.js";
+import type { FunctionsMap } from "#questpie/cms/server/functions/types";
 
 // Re-export for convenience (many files import from here)
 export type {
@@ -34,16 +33,10 @@ export type {
 	GetGlobal,
 };
 
-import type { assetsCollection } from "#questpie/cms/server/collection/defaults/assets";
-import type {
-	accountsCollection,
-	sessionsCollection,
-	usersCollection,
-	verificationsCollection,
-} from "#questpie/cms/server/collection/defaults/auth";
-import type { drizzle } from "drizzle-orm/bun-sql";
+import type { drizzle as drizzleBun } from "drizzle-orm/bun-sql";
+import type { drizzle as drizzlePgLite } from "drizzle-orm/pglite";
 import type { SQL } from "bun";
-import type { BetterAuthOptions } from "better-auth";
+import type { BetterAuthOptions, Auth } from "better-auth";
 import type { MailerConfig } from "../integrated/mailer";
 import type {
 	QueueConfig as BaseQueueConfig,
@@ -53,27 +46,12 @@ import type { SearchConfig } from "../integrated/search";
 import type { RealtimeConfig } from "../integrated/realtime";
 import type { DriverContract } from "flydrive/types";
 import type { Migration } from "../migration/types";
-
-export type CoreCollections = [
-	typeof assetsCollection,
-	typeof usersCollection,
-	typeof sessionsCollection,
-	typeof accountsCollection,
-	typeof verificationsCollection,
-];
-
-export type WithCoreCollections<TCollections extends AnyCollectionOrBuilder[]> =
-	[...CoreCollections, ...TCollections];
-
-type ResolvedCollections<TCollections extends AnyCollectionOrBuilder[]> =
-	WithCoreCollections<TCollections>;
+import type { PGlite } from "@electric-sql/pglite";
 
 export type DrizzleSchemaFromCollections<
 	TCollections extends AnyCollectionOrBuilder[],
 > = {
-	[K in ResolvedCollections<TCollections>[number] as K extends Collection<
-		infer TState
-	>
+	[K in TCollections[number] as K extends Collection<infer TState>
 		? TState["name"]
 		: K extends CollectionBuilder<infer TState>
 			? TState["name"]
@@ -84,7 +62,7 @@ export type DrizzleSchemaFromCollections<
 				TState["title"],
 				TState["options"]
 			>
-	: K extends CollectionBuilder<infer TState>
+		: K extends CollectionBuilder<infer TState>
 			? InferTableWithColumns<
 					TState["name"],
 					NonLocalizedFields<TState["fields"], TState["localized"]>,
@@ -93,9 +71,7 @@ export type DrizzleSchemaFromCollections<
 				>
 			: never;
 } & {
-	[K in ResolvedCollections<TCollections>[number] as K extends Collection<
-		infer TState
-	>
+	[K in TCollections[number] as K extends Collection<infer TState>
 		? TState["localized"][number] extends string
 			? `${TState["name"]}_i18n`
 			: never
@@ -197,14 +173,22 @@ export interface LocaleConfig {
 	fallbacks?: Record<string, string>;
 }
 
+export type DbClientType = "postgres" | "pglite";
+
 export type DrizzleClientFromCMSConfig<
 	TCollections extends AnyCollectionOrBuilder[],
 	TGlobals extends AnyGlobalOrBuilder[],
+	TDbClientType extends DbClientType = "postgres",
 > = ReturnType<
-	typeof drizzle<
-		DrizzleSchemaFromCollections<TCollections> &
-			DrizzleSchemaFromGlobals<TGlobals>
-	>
+	TDbClientType extends "postgres"
+		? typeof drizzleBun<
+				DrizzleSchemaFromCollections<TCollections> &
+					DrizzleSchemaFromGlobals<TGlobals>
+			>
+		: typeof drizzlePgLite<
+				DrizzleSchemaFromCollections<TCollections> &
+					DrizzleSchemaFromGlobals<TGlobals>
+			>
 >;
 
 export type CmsDbClient<
@@ -214,10 +198,34 @@ export type CmsDbClient<
 
 export type AccessMode = "user" | "system";
 
+/**
+ * Auth configuration for QCMS
+ * Can be:
+ * 1. BetterAuthOptions object (will be passed to betterAuth() internally)
+ * 2. A factory function returning BetterAuthOptions (db) => BetterAuthOptions
+ * 3. A Better Auth instance (already instantiated via betterAuth())
+ */
 export type AuthConfig =
 	| BetterAuthOptions
-	| any
-	| ((db: SQL) => BetterAuthOptions | any);
+	| Auth
+	| ((db: SQL) => BetterAuthOptions | Auth);
+
+/**
+ * Infer the Better Auth instance type from AuthConfig
+ * If AuthConfig is already an Auth instance, use it as-is
+ * Otherwise, create a generic Auth type from BetterAuthOptions
+ */
+export type InferAuthFromConfig<TAuthConfig> = TAuthConfig extends Auth
+	? TAuthConfig
+	: TAuthConfig extends BetterAuthOptions
+		? Auth
+		: TAuthConfig extends (db: SQL) => infer TReturn
+			? TReturn extends Auth
+				? TReturn
+				: TReturn extends BetterAuthOptions
+					? Auth
+					: Auth
+			: Auth;
 
 export interface StorageConfig {
 	/**
@@ -227,19 +235,37 @@ export interface StorageConfig {
 	driver?: DriverContract;
 }
 
+export type CMSDbConfig =
+	| {
+			url: string;
+	  }
+	| {
+			pglite: PGlite;
+	  };
+
+export type InferyDbClientType<TDbConfig extends CMSDbConfig> =
+	TDbConfig extends {
+		url: string;
+	}
+		? "postgres"
+		: TDbConfig extends { pglite: PGlite }
+			? "pglite"
+			: never;
+
 export interface CMSConfig<
 	TCollections extends AnyCollectionOrBuilder[] = AnyCollectionOrBuilder[],
 	TGlobals extends AnyGlobalOrBuilder[] = AnyGlobalOrBuilder[],
 	TJobs extends JobDefinition<any, any>[] = JobDefinition<any, any>[],
+	TEmailTemplates extends any[] = any[],
+	TFunctions extends FunctionsMap = FunctionsMap,
+	TDbConfig extends CMSDbConfig = CMSDbConfig,
+	TAuthConfig extends AuthConfig | undefined = AuthConfig | undefined,
 > {
 	app: {
 		url: string;
 	};
 
-	db: {
-		connection: SQL.Options;
-	};
-
+	db: TDbConfig;
 	/**
 	 * List of collections to register
 	 * Can be Collection instances or CollectionBuilder instances
@@ -251,6 +277,11 @@ export interface CMSConfig<
 	 * List of globals to register
 	 */
 	globals?: TGlobals;
+
+	/**
+	 * RPC functions (root-level)
+	 */
+	functions?: TFunctions;
 
 	/**
 	 * Global localization settings
@@ -292,7 +323,7 @@ export interface CMSConfig<
 	 * })
 	 * ```
 	 */
-	auth?: AuthConfig; // betterAuth instance or factory
+	auth?: TAuthConfig;
 
 	/**
 	 * Storage configuration
@@ -302,7 +333,7 @@ export interface CMSConfig<
 	/**
 	 * Email configuration (Nodemailer + React Email)
 	 */
-	email?: MailerConfig;
+	email?: MailerConfig<TEmailTemplates>;
 
 	/**
 	 * Queue configuration (pg-boss)
@@ -319,6 +350,16 @@ export interface CMSConfig<
 	 * Realtime configuration (outbox + SSE/WS adapters)
 	 */
 	realtime?: RealtimeConfig;
+
+	/**
+	 * Logger configuration
+	 */
+	logger?: import("../integrated/logger").LoggerConfig;
+
+	/**
+	 * KV store configuration
+	 */
+	kv?: import("../integrated/kv").KVConfig;
 
 	/**
 	 * Migration configuration

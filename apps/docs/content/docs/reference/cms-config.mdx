@@ -18,10 +18,13 @@ name: CMSConfig
 ## Example
 
 ```typescript
-export const cms = new QCMS({
-  app: { url: "http://localhost:3000" },
-  db: { connection: { url: process.env.DB_URL } },
-  collections: [posts, users],
-  // ...
-});
+import { defineQCMS } from "@questpie/cms/server";
+
+export const cms = defineQCMS({ name: "my-app" })
+  .collections({ posts, users })
+  .build({
+    app: { url: process.env.APP_URL },
+    db: { url: process.env.DATABASE_URL },
+    // ...
+  });
 ```

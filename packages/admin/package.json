@@ -1,0 +1,85 @@
+{
+	"name": "@questpie/admin",
+	"version": "0.0.1",
+	"private": true,
+	"type": "module",
+	"exports": {
+		"./package.json": "./package.json",
+		"./components": "./src/components/index.ts",
+		"./components/*": "./src/components/*.tsx",
+		"./components/ui/*": "./src/components/ui/*.tsx",
+		"./config": {
+			"types": "./dist/config/index.d.ts",
+			"default": "./dist/index.js"
+		},
+		"./hooks": {
+			"types": "./dist/hooks/index.d.ts",
+			"default": "./dist/index2.js"
+		},
+		"./utils": {
+			"types": "./dist/utils/index.d.ts",
+			"default": "./dist/index3.js"
+		},
+		"./styles": "./dist/styles/index.css"
+	},
+	"scripts": {
+		"dev": "tsdown --watch",
+		"build": "tsdown",
+		"check-types": "tsc --noEmit"
+	},
+	"dependencies": {
+		"@tailwindcss/vite": "^4.0.6",
+		"tailwindcss": "^4.0.6",
+		"tailwind-merge": "^3.4.0",
+		"clsx": "^2.1.1",
+		"class-variance-authority": "^0.7.1",
+		"@hugeicons/react": "^1.1.1",
+		"shadcn": "^3.6.1",
+		"tw-animate-css": "^1.4.0",
+		"@fontsource-variable/jetbrains-mono": "^5.2.8",
+		"cmdk": "^1.1.1",
+		"date-fns": "^4.1.0",
+		"embla-carousel-react": "^8.6.0",
+		"input-otp": "^1.4.2",
+		"next-themes": "^0.4.6",
+		"react-day-picker": "^9.12.0",
+		"react-resizable-panels": "^3.0.6",
+		"recharts": "2.15.4",
+		"sonner": "^2.0.7",
+		"vaul": "^1.1.2",
+		"react-hook-form": "^7.54.0",
+		"@questpie/cms": "workspace:*",
+		"@questpie/tanstack-query": "workspace:*",
+		"@tiptap/react": "^2.x",
+		"@tiptap/starter-kit": "^2.x",
+		"@tiptap/extension-link": "^2.x",
+		"@tiptap/extension-image": "^2.x",
+		"@tiptap/extension-table": "^2.x",
+		"@tiptap/extension-table-row": "^2.x",
+		"@tiptap/extension-table-cell": "^2.x",
+		"@tiptap/extension-table-header": "^2.x",
+		"@tiptap/extension-placeholder": "^2.x",
+		"@tiptap/extension-text-align": "^2.x",
+		"@tiptap/extension-underline": "^2.x",
+		"@tiptap/extension-code-block-lowlight": "^2.x",
+		"@tiptap/extension-character-count": "^2.x",
+		"@tiptap/suggestion": "^2.x",
+		"tippy.js": "^6.3.7",
+		"lowlight": "^3.x"
+	},
+	"peerDependencies": {
+		"react": "^19.2.0",
+		"react-dom": "^19.2.0",
+		"@tanstack/react-query": "^5.x",
+		"@tanstack/react-table": "^8.x",
+		"@tanstack/db": "^0.x"
+	},
+	"devDependencies": {
+		"@questpie/typescript-config": "workspace:*",
+		"@types/react": "^19.2.0",
+		"@types/react-dom": "^19.2.0",
+		"@tanstack/db": "^0.1.1",
+		"tsdown": "^0.2.15",
+		"typescript": "^5.7.2"
+	}
+}

@@ -1,7 +1,10 @@
 import type { CMSConfig } from "#questpie/cms/exports/server";
 import { FSDriver } from "flydrive/drivers/fs";
+import type { DriverContract } from "flydrive/types";
 
-export const createDiskDriver = (config: CMSConfig<any, any, any>) =>
+export const createDiskDriver = (
+	config: CMSConfig<any, any, any, any, any>,
+): DriverContract =>
 	config.storage?.driver ??
 	new FSDriver({
 		location: new URL("./uploads", import.meta.url),

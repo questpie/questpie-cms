@@ -5,6 +5,7 @@ import type {
 	CollectionBuilderState,
 	CollectionBuilderTitleFn,
 	CollectionBuilderVirtualsFn,
+	CollectionFunctionsMap,
 	CollectionHooks,
 	CollectionOptions,
 	RelationConfig,
@@ -52,6 +53,7 @@ export class CollectionBuilder<TState extends CollectionBuilderState> {
 			TState["options"],
 			TState["hooks"],
 			TState["access"],
+			TState["functions"],
 			TState["searchable"]
 		>
 	> {
@@ -90,6 +92,7 @@ export class CollectionBuilder<TState extends CollectionBuilderState> {
 			TState["options"],
 			TState["hooks"],
 			TState["access"],
+			TState["functions"],
 			TState["searchable"]
 		>
 	> {
@@ -127,6 +130,7 @@ export class CollectionBuilder<TState extends CollectionBuilderState> {
 			TState["options"],
 			TState["hooks"],
 			TState["access"],
+			TState["functions"],
 			TState["searchable"]
 		>
 	> {
@@ -163,6 +167,7 @@ export class CollectionBuilder<TState extends CollectionBuilderState> {
 			TState["options"],
 			TState["hooks"],
 			TState["access"],
+			TState["functions"],
 			TState["searchable"]
 		>
 	> {
@@ -200,6 +205,7 @@ export class CollectionBuilder<TState extends CollectionBuilderState> {
 			TState["options"],
 			TState["hooks"],
 			TState["access"],
+			TState["functions"],
 			TState["searchable"]
 		>
 	> {
@@ -237,6 +243,7 @@ export class CollectionBuilder<TState extends CollectionBuilderState> {
 			TState["options"],
 			TState["hooks"],
 			TState["access"],
+			TState["functions"],
 			TState["searchable"]
 		>
 	> {
@@ -273,6 +280,7 @@ export class CollectionBuilder<TState extends CollectionBuilderState> {
 			TNewOptions,
 			TState["hooks"],
 			TState["access"],
+			TState["functions"],
 			TState["searchable"]
 		>
 	> {
@@ -309,6 +317,7 @@ export class CollectionBuilder<TState extends CollectionBuilderState> {
 			TState["options"],
 			TNewHooks,
 			TState["access"],
+			TState["functions"],
 			TState["searchable"]
 		>
 	> {
@@ -345,12 +354,53 @@ export class CollectionBuilder<TState extends CollectionBuilderState> {
 			TState["options"],
 			TState["hooks"],
 			TNewAccess,
+			TState["functions"],
 			TState["searchable"]
 		>
 	> {
 		const newState = {
 			...this.state,
 			access,
+		} as any;
+
+		const newBuilder = new CollectionBuilder(newState);
+
+		// Copy callback functions
+		newBuilder._virtualsFn = this._virtualsFn;
+		newBuilder._relationsFn = this._relationsFn;
+		newBuilder._indexesFn = this._indexesFn;
+		newBuilder._titleFn = this._titleFn;
+
+		return newBuilder;
+	}
+
+	/**
+	 * Define RPC functions for this collection
+	 */
+	functions<TNewFunctions extends CollectionFunctionsMap>(
+		functions: TNewFunctions,
+	): CollectionBuilder<
+		CollectionBuilderState<
+			TState["name"],
+			TState["fields"],
+			TState["localized"],
+			TState["virtuals"],
+			TState["relations"],
+			TState["indexes"],
+			TState["title"],
+			TState["options"],
+			TState["hooks"],
+			TState["access"],
+			Omit<TState["functions"], keyof TNewFunctions> & TNewFunctions,
+			TState["searchable"]
+		>
+	> {
+		const newState = {
+			...this.state,
+			functions: {
+				...this.state.functions,
+				...functions,
+			},
 		} as any;
 
 		const newBuilder = new CollectionBuilder(newState);
@@ -389,6 +439,7 @@ export class CollectionBuilder<TState extends CollectionBuilderState> {
 			TState["options"],
 			TState["hooks"],
 			TState["access"],
+			TState["functions"],
 			TNewSearchable
 		>
 	> {
@@ -491,6 +542,8 @@ export class CollectionBuilder<TState extends CollectionBuilderState> {
 			any,
 			any,
 			any,
+			any,
+			any,
 			any
 		>,
 	>(
@@ -508,7 +561,10 @@ export class CollectionBuilder<TState extends CollectionBuilderState> {
 				: TOtherState["title"], // Other's title overrides
 			TState["options"] & TOtherState["options"],
 			CollectionHooks, // Merged hooks
-			CollectionAccess // Merged access
+			CollectionAccess, // Merged access
+			Omit<TState["functions"], keyof TOtherState["functions"]> &
+				TOtherState["functions"],
+			TState["searchable"] | TOtherState["searchable"]
 		>
 	> {
 		// Merge hooks - combine arrays
@@ -536,6 +592,11 @@ export class CollectionBuilder<TState extends CollectionBuilderState> {
 			options: { ...this.state.options, ...other.state.options },
 			hooks: mergedHooks,
 			access: mergedAccess,
+			functions: {
+				...this.state.functions,
+				...other.state.functions,
+			},
+			searchable: other.state.searchable ?? this.state.searchable,
 		} as any;
 
 		const newBuilder = new CollectionBuilder(mergedState);
@@ -605,6 +666,7 @@ export function defineCollection<TName extends string>(
 		options: {},
 		hooks: {},
 		access: {},
+		functions: {},
 		searchable: undefined,
 	});
 }

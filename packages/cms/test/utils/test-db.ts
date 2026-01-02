@@ -1,10 +1,11 @@
 import { PGlite } from "@electric-sql/pglite";
 import { pg_uuidv7 } from "@electric-sql/pglite/pg_uuidv7";
 import { sql } from "drizzle-orm";
-import { drizzle } from "drizzle-orm/pglite";
-import type { createTestCms } from "./test-cms";
+import type { drizzle } from "drizzle-orm/pglite";
 import path, { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import type { QCMS } from "../../dist/exports/server.mjs";
+import type { MockCMS } from "./mocks/mock-cms-builder";
 
 export type TestDb = ReturnType<typeof drizzle>;
 
@@ -18,24 +19,21 @@ export const createTestDb = async () => {
 		extensions: { pg_uuidv7 },
 	});
 
-	const db = drizzle({ client });
 	await client.exec("CREATE EXTENSION IF NOT EXISTS pg_uuidv7;");
-	await db.execute(
-		sql.raw(`
-				CREATE OR REPLACE FUNCTION uuidv7()
-				RETURNS uuid
-				LANGUAGE SQL
-				AS $$
-					SELECT uuid_generate_v7();
-				$$;
-			`),
-	);
+	await client.exec(`
+			CREATE OR REPLACE FUNCTION uuidv7()
+			RETURNS uuid
+			LANGUAGE SQL
+			AS $$
+				SELECT uuid_generate_v7();
+			$$;
+				`);
 
-	return { db, client };
+	return client;
 };
 
 export const runTestDbMigrations = async (
-	qcms: ReturnType<typeof createTestCms>,
+	qcms: QCMS<any, any, any> | MockCMS<any>,
 ) => {
 	// Generate migrations in-memory using drizzle-kit API
 	const { generateDrizzleJson, generateMigration } = await import(
@@ -85,10 +83,4 @@ export const runTestDbMigrations = async (
 
 	// Run migrations
 	await qcms.migrations.up();
-};
-
-export const closeTestDb = async (client: PGlite) => {
-	if (typeof (client as any)?.close === "function") {
-		await (client as any).close();
-	}
 };

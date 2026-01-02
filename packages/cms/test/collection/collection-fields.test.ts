@@ -1,50 +1,43 @@
-import { describe, it, beforeEach, afterEach, expect } from "bun:test";
+import { defineCollection, defineQCMS } from "#questpie/cms/server/index.js";
+import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import {
-	varchar,
-	text,
-	jsonb,
 	boolean,
 	integer,
+	jsonb,
+	text,
 	timestamp,
+	varchar,
 } from "drizzle-orm/pg-core";
-import {
-	closeTestDb,
-	createTestDb,
-	runTestDbMigrations,
-} from "../utils/test-db";
-import { createTestCms } from "../utils/test-cms";
+import { buildMockCMS } from "../utils/mocks/mock-cms-builder";
 import { createTestContext } from "../utils/test-context";
-import { defineCollection } from "#questpie/cms/server/index.js";
+import { runTestDbMigrations } from "../utils/test-db";
+
+const testModule = defineQCMS({ name: "test-module" }).collections({
+	content: defineCollection("content")
+		.fields({
+			title: varchar("title", { length: 255 }).notNull(),
+			description: text("description"),
+			richContent: jsonb("rich_content"),
+			isPublished: boolean("is_published").default(false),
+			viewCount: integer("view_count").default(0),
+			publishedAt: timestamp("published_at", { mode: "date" }),
+		})
+		.options({
+			timestamps: true,
+		})
+		.build(),
+});
 
 describe("collection field types", () => {
-	let db: any;
-	let client: any;
-	let cms: any;
+	let setup: Awaited<ReturnType<typeof buildMockCMS<typeof testModule>>>;
 
 	beforeEach(async () => {
-		const content = defineCollection("content")
-			.fields({
-				title: varchar("title", { length: 255 }).notNull(),
-				description: text("description"),
-				richContent: jsonb("rich_content"),
-				isPublished: boolean("is_published").default(false),
-				viewCount: integer("view_count").default(0),
-				publishedAt: timestamp("published_at", { mode: "date" }),
-			})
-			.options({
-				timestamps: true,
-			})
-			.build();
-
-		const setup = await createTestDb();
-		db = setup.db;
-		client = setup.client;
-		cms = createTestCms([content], db);
-		await runTestDbMigrations(cms);
+		setup = await buildMockCMS(testModule);
+		await runTestDbMigrations(setup.cms);
 	});
 
 	afterEach(async () => {
-		await closeTestDb(client);
+		await setup.cleanup();
 	});
 
 	describe("text field (varchar 255)", () => {
@@ -52,7 +45,7 @@ describe("collection field types", () => {
 			const ctx = createTestContext();
 			// Use cms.api.collections.content directly
 
-			const created = await cms.api.collections.content.create(
+			const created = await setup.cms.api.collections.content.create(
 				{
 					id: crypto.randomUUID(),
 					title: "Short Title",
@@ -62,7 +55,7 @@ describe("collection field types", () => {
 
 			expect(created.title).toBe("Short Title");
 
-			const found = await cms.api.collections.content.findOne(
+			const found = await setup.cms.api.collections.content.findOne(
 				{ where: { id: created.id } },
 				ctx,
 			);
@@ -74,11 +67,11 @@ describe("collection field types", () => {
 			// Use cms.api.collections.content directly
 
 			await expect(
-				cms.api.collections.content.create(
+				setup.cms.api.collections.content.create(
 					{
 						id: crypto.randomUUID(),
 						// title missing
-					},
+					} as any,
 					ctx,
 				),
 			).rejects.toThrow();
@@ -88,7 +81,7 @@ describe("collection field types", () => {
 			const ctx = createTestContext();
 			// Use cms.api.collections.content directly
 
-			const created = await cms.api.collections.content.create(
+			const created = await setup.cms.api.collections.content.create(
 				{
 					id: crypto.randomUUID(),
 					title: "",
@@ -107,7 +100,7 @@ describe("collection field types", () => {
 
 			const longText = "A".repeat(1000);
 
-			const created = await cms.api.collections.content.create(
+			const created = await setup.cms.api.collections.content.create(
 				{
 					id: crypto.randomUUID(),
 					title: "Test",
@@ -123,7 +116,7 @@ describe("collection field types", () => {
 			const ctx = createTestContext();
 			// Use cms.api.collections.content directly
 
-			const created = await cms.api.collections.content.create(
+			const created = await setup.cms.api.collections.content.create(
 				{
 					id: crypto.randomUUID(),
 					title: "Test",
@@ -141,7 +134,7 @@ describe("collection field types", () => {
 
 			const multiline = "Line 1\nLine 2\nLine 3";
 
-			const created = await cms.api.collections.content.create(
+			const created = await setup.cms.api.collections.content.create(
 				{
 					id: crypto.randomUUID(),
 					title: "Test",
@@ -169,7 +162,7 @@ describe("collection field types", () => {
 				],
 			};
 
-			const created = await cms.api.collections.content.create(
+			const created = await setup.cms.api.collections.content.create(
 				{
 					id: crypto.randomUUID(),
 					title: "Test",
@@ -185,7 +178,7 @@ describe("collection field types", () => {
 			const ctx = createTestContext();
 			// Use cms.api.collections.content directly
 
-			const created = await cms.api.collections.content.create(
+			const created = await setup.cms.api.collections.content.create(
 				{
 					id: crypto.randomUUID(),
 					title: "Test",
@@ -213,7 +206,7 @@ describe("collection field types", () => {
 				metadata: { version: 1 },
 			};
 
-			const created = await cms.api.collections.content.create(
+			const created = await setup.cms.api.collections.content.create(
 				{
 					id: crypto.randomUUID(),
 					title: "Test",
@@ -231,7 +224,7 @@ describe("collection field types", () => {
 			const ctx = createTestContext();
 			// Use cms.api.collections.content directly
 
-			const created = await cms.api.collections.content.create(
+			const created = await setup.cms.api.collections.content.create(
 				{
 					id: crypto.randomUUID(),
 					title: "Test",
@@ -247,7 +240,7 @@ describe("collection field types", () => {
 			const ctx = createTestContext();
 			// Use cms.api.collections.content directly
 
-			const created = await cms.api.collections.content.create(
+			const created = await setup.cms.api.collections.content.create(
 				{
 					id: crypto.randomUUID(),
 					title: "Test",
@@ -263,7 +256,7 @@ describe("collection field types", () => {
 			const ctx = createTestContext();
 			// Use cms.api.collections.content directly
 
-			const created = await cms.api.collections.content.create(
+			const created = await setup.cms.api.collections.content.create(
 				{
 					id: crypto.randomUUID(),
 					title: "Test",
@@ -280,7 +273,7 @@ describe("collection field types", () => {
 			const ctx = createTestContext();
 			// Use cms.api.collections.content directly
 
-			const created = await cms.api.collections.content.create(
+			const created = await setup.cms.api.collections.content.create(
 				{
 					id: crypto.randomUUID(),
 					title: "Test",
@@ -296,7 +289,7 @@ describe("collection field types", () => {
 			const ctx = createTestContext();
 			// Use cms.api.collections.content directly
 
-			const created = await cms.api.collections.content.create(
+			const created = await setup.cms.api.collections.content.create(
 				{
 					id: crypto.randomUUID(),
 					title: "Test",
@@ -312,7 +305,7 @@ describe("collection field types", () => {
 			const ctx = createTestContext();
 			// Use cms.api.collections.content directly
 
-			const created = await cms.api.collections.content.create(
+			const created = await setup.cms.api.collections.content.create(
 				{
 					id: crypto.randomUUID(),
 					title: "Test",
@@ -328,7 +321,7 @@ describe("collection field types", () => {
 			const ctx = createTestContext();
 			// Use cms.api.collections.content directly
 
-			const created = await cms.api.collections.content.create(
+			const created = await setup.cms.api.collections.content.create(
 				{
 					id: crypto.randomUUID(),
 					title: "Test",
@@ -347,7 +340,7 @@ describe("collection field types", () => {
 
 			const now = new Date();
 
-			const created = await cms.api.collections.content.create(
+			const created = await setup.cms.api.collections.content.create(
 				{
 					id: crypto.randomUUID(),
 					title: "Test",
@@ -357,14 +350,14 @@ describe("collection field types", () => {
 			);
 
 			expect(created.publishedAt).toBeInstanceOf(Date);
-			expect(created.publishedAt.getTime()).toBeCloseTo(now.getTime(), -3);
+			expect(created.publishedAt?.getTime()).toBeCloseTo(now.getTime(), -3);
 		});
 
 		it("handles null timestamps", async () => {
 			const ctx = createTestContext();
 			// Use cms.api.collections.content directly
 
-			const created = await cms.api.collections.content.create(
+			const created = await setup.cms.api.collections.content.create(
 				{
 					id: crypto.randomUUID(),
 					title: "Test",
@@ -382,7 +375,7 @@ describe("collection field types", () => {
 
 			const isoDate = "2024-01-01T12:00:00Z";
 
-			const created = await cms.api.collections.content.create(
+			const created = await setup.cms.api.collections.content.create(
 				{
 					id: crypto.randomUUID(),
 					title: "Test",
@@ -400,7 +393,7 @@ describe("collection field types", () => {
 			const ctx = createTestContext();
 			// Use cms.api.collections.content directly
 
-			const created = await cms.api.collections.content.create(
+			const created = await setup.cms.api.collections.content.create(
 				{
 					id: crypto.randomUUID(),
 					title: "Original Title",
@@ -409,15 +402,15 @@ describe("collection field types", () => {
 				ctx,
 			);
 
-			await cms.api.collections.content.update(
+			await setup.cms.api.collections.content.update(
 				{
-					id: created.id,
+					where: { id: created.id },
 					data: { viewCount: 100 },
 				},
 				ctx,
 			);
 
-			const updated = await cms.api.collections.content.findOne(
+			const updated = await setup.cms.api.collections.content.findOne(
 				{ where: { id: created.id } },
 				ctx,
 			);
@@ -429,7 +422,7 @@ describe("collection field types", () => {
 			const ctx = createTestContext();
 			// Use cms.api.collections.content directly
 
-			const created = await cms.api.collections.content.create(
+			const created = await setup.cms.api.collections.content.create(
 				{
 					id: crypto.randomUUID(),
 					title: "Original",
@@ -439,9 +432,9 @@ describe("collection field types", () => {
 				ctx,
 			);
 
-			await cms.api.collections.content.update(
+			await setup.cms.api.collections.content.update(
 				{
-					id: created.id,
+					where: { id: created.id },
 					data: {
 						title: "Updated",
 						isPublished: true,
@@ -451,7 +444,7 @@ describe("collection field types", () => {
 				ctx,
 			);
 
-			const updated = await cms.api.collections.content.findOne(
+			const updated = await setup.cms.api.collections.content.findOne(
 				{ where: { id: created.id } },
 				ctx,
 			);
@@ -464,7 +457,7 @@ describe("collection field types", () => {
 			const ctx = createTestContext();
 			// Use cms.api.collections.content directly
 
-			const created = await cms.api.collections.content.create(
+			const created = await setup.cms.api.collections.content.create(
 				{
 					id: crypto.randomUUID(),
 					title: "Test",
@@ -473,15 +466,15 @@ describe("collection field types", () => {
 				ctx,
 			);
 
-			await cms.api.collections.content.update(
+			await setup.cms.api.collections.content.update(
 				{
-					id: created.id,
+					where: { id: created.id },
 					data: { description: null },
 				},
 				ctx,
 			);
 
-			const updated = await cms.api.collections.content.findOne(
+			const updated = await setup.cms.api.collections.content.findOne(
 				{ where: { id: created.id } },
 				ctx,
 			);

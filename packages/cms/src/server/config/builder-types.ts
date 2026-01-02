@@ -2,50 +2,89 @@ import type {
 	AnyCollectionOrBuilder,
 	AnyGlobalOrBuilder,
 	AuthConfig,
+	CMSDbConfig,
 } from "#questpie/cms/server/config/types";
+import type { FunctionDefinition } from "#questpie/cms/server/functions/types";
 import type {
 	JobDefinition,
 	QueueAdapter,
 } from "#questpie/cms/server/integrated/queue/types";
-import type { MailerConfig } from "#questpie/cms/server/integrated/mailer";
+import type {
+	EmailTemplateDefinition,
+	MailerConfig,
+} from "#questpie/cms/server/integrated/mailer";
 import type { StorageConfig } from "#questpie/cms/server/config/types";
 import type { SearchConfig } from "#questpie/cms/server/integrated/search";
 import type { RealtimeConfig } from "#questpie/cms/server/integrated/realtime";
 import type { Migration } from "#questpie/cms/server/migration/types";
 import type { LocaleConfig } from "#questpie/cms/server/config/types";
+import type { LoggerConfig } from "#questpie/cms/server/integrated/logger";
+import type { KVConfig } from "#questpie/cms/server/integrated/kv";
+import type { assetsCollection } from "#questpie/cms/server/collection/defaults/assets";
+import type {
+	accountsCollection,
+	sessionsCollection,
+	usersCollection,
+	verificationsCollection,
+} from "#questpie/cms/server/collection/defaults/auth";
 
 export type BuilderCollectionsMap = Record<string, AnyCollectionOrBuilder>;
 export type BuilderGlobalsMap = Record<string, AnyGlobalOrBuilder>;
 export type BuilderJobsMap = Record<string, JobDefinition<any, any>>;
+export type BuilderEmailTemplatesMap = Record<
+	string,
+	EmailTemplateDefinition<any, any>
+>;
+export type BuilderFunctionsMap = Record<string, FunctionDefinition>;
 export type BuilderMapValues<TMap extends Record<PropertyKey, any>> =
 	TMap[keyof TMap];
 export type EmptyBuilderMap = Record<never, never>;
 
 /**
- * Builder state - definition-time configuration
- * This is what modules and main CMS define (no runtime config)
+ * Core collections that are always available in every QCMS instance
+ */
+export type CoreCollectionsMap = {
+	questpie_assets: typeof assetsCollection;
+	user: typeof usersCollection;
+	session: typeof sessionsCollection;
+	account: typeof accountsCollection;
+	verification: typeof verificationsCollection;
+};
+
+/**
+ * Core collections as an array (for type constraints)
+ */
+export type CoreCollectionsArray = [
+	typeof assetsCollection,
+	typeof usersCollection,
+	typeof sessionsCollection,
+	typeof accountsCollection,
+	typeof verificationsCollection,
+];
+
+/**
+ * Builder state - definition-time configuration (type-inferrable)
+ * Only includes things that affect type inference
  */
 export interface QCMSBuilderState<
 	TName extends string = string,
 	TCollections extends BuilderCollectionsMap = BuilderCollectionsMap,
 	TGlobals extends BuilderGlobalsMap = BuilderGlobalsMap,
 	TJobs extends BuilderJobsMap = BuilderJobsMap,
+	TEmailTemplates extends BuilderEmailTemplatesMap = BuilderEmailTemplatesMap,
+	TFunctions extends BuilderFunctionsMap = BuilderFunctionsMap,
+	TAuth extends AuthConfig | undefined = AuthConfig | undefined,
 > {
 	name: TName;
 	collections: TCollections;
 	globals: TGlobals;
 	jobs: TJobs;
+	emailTemplates: TEmailTemplates;
+	functions: TFunctions;
 
-	// Optional service configurations (can be overridden)
-	auth?: AuthConfig;
-	storage?: StorageConfig;
-	email?: MailerConfig;
-	search?: SearchConfig;
-	realtime?: RealtimeConfig;
+	// Type-inferrable configurations (affect types)
+	auth?: TAuth;
 	locale?: LocaleConfig;
-
-	// Queue adapter (required if jobs are defined)
-	queueAdapter?: QueueAdapter;
 
 	// Migrations from modules
 	migrations?: Migration[];
@@ -55,7 +94,9 @@ export interface QCMSBuilderState<
  * Runtime configuration - provided at .build() time
  * This is what requires environment variables and runtime values
  */
-export interface QCMSRuntimeConfig {
+export interface QCMSRuntimeConfig<
+	TDbConfig extends CMSDbConfig = CMSDbConfig,
+> {
 	/**
 	 * Application settings
 	 */
@@ -66,9 +107,7 @@ export interface QCMSRuntimeConfig {
 	/**
 	 * Database connection
 	 */
-	db: {
-		connection: Bun.SQL.Options;
-	};
+	db: TDbConfig;
 
 	/**
 	 * Secret key for signing tokens, etc.
@@ -76,47 +115,65 @@ export interface QCMSRuntimeConfig {
 	secret?: string;
 
 	/**
-	 * Optional: Override storage runtime config
-	 * (if storage is already defined in builder, this merges runtime params)
+	 * Storage configuration (driver, etc.)
 	 */
-	storage?: Partial<StorageConfig>;
+	storage?: StorageConfig;
 
 	/**
-	 * Optional: Override email runtime config
-	 * (if email is already defined in builder, this merges runtime params)
+	 * Email adapter configuration (SMTP, console, etc.)
 	 */
-	email?: Partial<MailerConfig>;
+	email?: Pick<MailerConfig, "adapter" | "defaults">;
 
 	/**
-	 * Optional: Migration directory override
+	 * Queue adapter configuration
+	 */
+	queue?: {
+		adapter: QueueAdapter;
+	};
+
+	/**
+	 * Search configuration (BM25, embeddings, etc.)
+	 */
+	search?: SearchConfig;
+
+	/**
+	 * Realtime adapter configuration
+	 */
+	realtime?: RealtimeConfig;
+
+	/**
+	 * Logger configuration
+	 */
+	logger?: LoggerConfig;
+
+	/**
+	 * KV adapter configuration
+	 */
+	kv?: KVConfig;
+
+	/**
+	 * Migration directory
 	 */
 	migrations?: {
 		directory?: string;
 	};
-
-	/**
-	 * Optional: Override queue adapter at runtime
-	 * (if not provided in builder)
-	 */
-	queueAdapter?: QueueAdapter;
 }
 
 /**
- * Empty builder state
+ * Initial builder state with core collections
+ * Core collections (assets, auth tables) are always included
  */
 export type EmptyNamedBuilderState<TName extends string> = QCMSBuilderState<
 	TName,
+	CoreCollectionsMap,
 	EmptyBuilderMap,
 	EmptyBuilderMap,
-	EmptyBuilderMap
+	EmptyBuilderMap,
+	EmptyBuilderMap,
+	undefined
 > & {
 	auth: undefined;
-	storage: undefined;
-	email: undefined;
-	search: undefined;
-	realtime: undefined;
 	locale: undefined;
-	queueAdapter: undefined;
 	migrations: undefined;
 };
 

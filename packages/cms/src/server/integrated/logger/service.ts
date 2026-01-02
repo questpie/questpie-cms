@@ -1,45 +1,35 @@
-import pino from "pino";
-import type { LoggerConfig } from "./types";
+import type { LoggerAdapter, LoggerConfig } from "./types";
+import { PinoLoggerAdapter } from "./pino-adapter";
 
-export class LoggerService {
-	private logger: pino.Logger;
+export class LoggerService implements LoggerAdapter {
+	private adapter: LoggerAdapter;
 
-	constructor(config: LoggerConfig = {}) {
-		const isDev = process.env.NODE_ENV === "development";
-
-		this.logger = pino({
-			level: config.level || "info",
-			redact: config.redact,
-			transport: (config.pretty ?? isDev) ? {
-				target: "pino-pretty",
-				options: {
-					colorize: true,
-					ignore: "pid,hostname",
-					translateTime: "HH:MM:ss Z",
-				}
-			} : undefined
-		});
+	constructor(config: LoggerConfig | { adapter: LoggerAdapter } = {}) {
+		if ("adapter" in config && config.adapter) {
+			this.adapter = config.adapter;
+		} else {
+			this.adapter = new PinoLoggerAdapter(config as LoggerConfig);
+		}
 	}
 
 	debug(msg: string, ...args: any[]) {
-		this.logger.debug(msg, ...args);
+		this.adapter.debug(msg, ...args);
 	}
 
 	info(msg: string, ...args: any[]) {
-		this.logger.info(msg, ...args);
+		this.adapter.info(msg, ...args);
 	}
 
 	warn(msg: string, ...args: any[]) {
-		this.logger.warn(msg, ...args);
+		this.adapter.warn(msg, ...args);
 	}
 
 	error(msg: string, ...args: any[]) {
-		this.logger.error(msg, ...args);
+		this.adapter.error(msg, ...args);
 	}
 
-	child(bindings: Record<string, any>) {
-		const childLogger = new LoggerService();
-		childLogger.logger = this.logger.child(bindings);
-		return childLogger;
+	child(bindings: Record<string, any>): LoggerService {
+		const childAdapter = this.adapter.child(bindings);
+		return new LoggerService({ adapter: childAdapter });
 	}
 }

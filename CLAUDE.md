@@ -6,6 +6,27 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 QUESTPIE CMS is a "Batteries Included" headless CMS built as a Turborepo monorepo using Bun as the package manager. It provides an opinionated, type-safe foundation for building content-heavy applications with integrated services for authentication, storage, queuing, and email.
 
+## ⚠️ CRITICAL - Dependency Versions
+
+**BEFORE adding ANY dependencies, check [DEPENDENCIES.md](./DEPENDENCIES.md) for required versions!**
+
+Key versions (MUST match exactly):
+- **zod**: `^4.2.1` (NOT v3.x!)
+- **drizzle-orm**: `^1.0.0-beta.6-4414a19` (specific beta)
+- **drizzle-kit**: `^1.0.0-beta.6-4414a19` (must match drizzle-orm)
+
+**How to check versions:**
+```bash
+# Always check existing packages first!
+grep -r "\"zod\":" packages/*/package.json examples/*/package.json
+grep -r "\"drizzle-orm\":" packages/*/package.json examples/*/package.json
+
+# Copy from existing example (e.g., hono-barbershop)
+cat examples/hono-barbershop/package.json
+```
+
+See [DEPENDENCIES.md](./DEPENDENCIES.md) for complete list and rationale.
+
 ## Common Commands
 
 ### Development

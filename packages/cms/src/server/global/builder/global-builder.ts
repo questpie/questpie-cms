@@ -14,6 +14,7 @@ import type {
 	RelationConfig,
 } from "#questpie/cms/server/collection/builder/types";
 import type { SQL } from "drizzle-orm";
+import type { FunctionDefinition } from "#questpie/cms/server/functions/types";
 
 /**
  * Main global builder class
@@ -47,7 +48,8 @@ export class GlobalBuilder<TState extends GlobalBuilderState> {
 			TState["relations"],
 			TState["options"],
 			TState["hooks"],
-			TState["access"]
+			TState["access"],
+			TState["functions"]
 		>
 	> {
 		const newState = {
@@ -76,7 +78,8 @@ export class GlobalBuilder<TState extends GlobalBuilderState> {
 			TState["relations"],
 			TState["options"],
 			TState["hooks"],
-			TState["access"]
+			TState["access"],
+			TState["functions"]
 		>
 	> {
 		const newState = {
@@ -113,7 +116,8 @@ export class GlobalBuilder<TState extends GlobalBuilderState> {
 			TState["relations"],
 			TState["options"],
 			TState["hooks"],
-			TState["access"]
+			TState["access"],
+			TState["functions"]
 		>
 	> {
 		const newState = {
@@ -141,7 +145,8 @@ export class GlobalBuilder<TState extends GlobalBuilderState> {
 			TNewRelations,
 			TState["options"],
 			TState["hooks"],
-			TState["access"]
+			TState["access"],
+			TState["functions"]
 		>
 	> {
 		const newState = {
@@ -169,7 +174,8 @@ export class GlobalBuilder<TState extends GlobalBuilderState> {
 			TState["relations"],
 			TNewOptions,
 			TState["hooks"],
-			TState["access"]
+			TState["access"],
+			TState["functions"]
 		>
 	> {
 		const newState = {
@@ -197,7 +203,8 @@ export class GlobalBuilder<TState extends GlobalBuilderState> {
 			TState["relations"],
 			TState["options"],
 			TNewHooks,
-			TState["access"]
+			TState["access"],
+			TState["functions"]
 		>
 	> {
 		const newState = {
@@ -225,12 +232,45 @@ export class GlobalBuilder<TState extends GlobalBuilderState> {
 			TState["relations"],
 			TState["options"],
 			TState["hooks"],
-			TNewAccess
+			TNewAccess,
+			TState["functions"]
 		>
 	> {
 		const newState = {
 			...this.state,
 			access,
+		} as any;
+
+		const newBuilder = new GlobalBuilder(newState);
+		newBuilder._virtualsFn = this._virtualsFn;
+		newBuilder._relationsFn = this._relationsFn;
+		return newBuilder;
+	}
+
+	/**
+	 * Define RPC functions for this global
+	 */
+	functions<TNewFunctions extends Record<string, FunctionDefinition>>(
+		functions: TNewFunctions,
+	): GlobalBuilder<
+		GlobalBuilderState<
+			TState["name"],
+			TState["fields"],
+			TState["localized"],
+			TState["virtuals"],
+			TState["relations"],
+			TState["options"],
+			TState["hooks"],
+			TState["access"],
+			Omit<TState["functions"], keyof TNewFunctions> & TNewFunctions
+		>
+	> {
+		const newState = {
+			...this.state,
+			functions: {
+				...this.state.functions,
+				...functions,
+			},
 		} as any;
 
 		const newBuilder = new GlobalBuilder(newState);
@@ -296,5 +336,6 @@ export function defineGlobal<TName extends string>(
 		options: {},
 		hooks: {},
 		access: {},
+		functions: {},
 	});
 }

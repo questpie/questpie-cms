@@ -15,6 +15,7 @@ import type { PgTable } from "drizzle-orm/pg-core";
 import type { RelationConfig } from "#questpie/cms/server/collection/builder/types";
 import { runWithCMSContext } from "#questpie/cms/server/config/context";
 import type {
+	Columns,
 	CRUDContext,
 	Where,
 	With,
@@ -220,7 +221,7 @@ export class GlobalCRUDGenerator<TState extends GlobalBuilderState> {
 	private buildSelectQuery(
 		db: any,
 		context: CRUDContext,
-		columns?: Record<string, boolean>,
+		columns?: Columns<TState["fields"]>,
 	) {
 		const selectObj = this.buildSelectObject(context, columns);
 		let query = db.select(selectObj).from(this.table);
@@ -503,10 +504,7 @@ export class GlobalCRUDGenerator<TState extends GlobalBuilderState> {
 							(this.i18nVersionsTable as any).versionNumber,
 							(this.versionsTable as any).versionNumber,
 						),
-						eq(
-							(this.i18nVersionsTable as any).locale,
-							normalized.locale,
-						),
+						eq((this.i18nVersionsTable as any).locale, normalized.locale),
 					),
 				);
 			}
@@ -545,19 +543,13 @@ export class GlobalCRUDGenerator<TState extends GlobalBuilderState> {
 				.where(
 					hasVersionId
 						? and(
-							eq((this.versionsTable as any).id, parentId),
-							eq(
-								(this.versionsTable as any).versionId,
-								options.versionId,
-							),
-						)
+								eq((this.versionsTable as any).id, parentId),
+								eq((this.versionsTable as any).versionId, options.versionId),
+							)
 						: and(
-							eq((this.versionsTable as any).id, parentId),
-							eq(
-								(this.versionsTable as any).versionNumber,
-								options.version,
+								eq((this.versionsTable as any).id, parentId),
+								eq((this.versionsTable as any).versionNumber, options.version),
 							),
-						),
 				)
 				.limit(1);
 			const version = versionRows[0];
@@ -573,7 +565,7 @@ export class GlobalCRUDGenerator<TState extends GlobalBuilderState> {
 				nonLocalized[name] = version[name];
 			}
 
-			let localizedForContext: Record<string, any> = {};
+			const localizedForContext: Record<string, any> = {};
 			if (this.i18nVersionsTable && normalized.locale) {
 				const localeRows = await db
 					.select()
@@ -776,26 +768,30 @@ export class GlobalCRUDGenerator<TState extends GlobalBuilderState> {
 				const versionNumbers = versionsToDelete.map(
 					(v: any) => v.versionNumber,
 				);
-				await tx.delete(this.versionsTable).where(
-					and(
-						eq((this.versionsTable as any).id, row.id),
-						inArray(
-							(this.versionsTable as any).versionNumber,
-							versionNumbers,
-						),
-					),
-				);
-
-				if (this.i18nVersionsTable) {
-					await tx.delete(this.i18nVersionsTable).where(
+				await tx
+					.delete(this.versionsTable)
+					.where(
 						and(
-							eq((this.i18nVersionsTable as any).parentId, row.id),
+							eq((this.versionsTable as any).id, row.id),
 							inArray(
-								(this.i18nVersionsTable as any).versionNumber,
+								(this.versionsTable as any).versionNumber,
 								versionNumbers,
 							),
 						),
 					);
+
+				if (this.i18nVersionsTable) {
+					await tx
+						.delete(this.i18nVersionsTable)
+						.where(
+							and(
+								eq((this.i18nVersionsTable as any).parentId, row.id),
+								inArray(
+									(this.i18nVersionsTable as any).versionNumber,
+									versionNumbers,
+								),
+							),
+						);
 				}
 			}
 		}
@@ -803,7 +799,7 @@ export class GlobalCRUDGenerator<TState extends GlobalBuilderState> {
 
 	private buildSelectObject(
 		context: CRUDContext,
-		columns?: Record<string, boolean>,
+		columns?: Columns<TState["fields"]>,
 	) {
 		const select: any = {
 			id: (this.table as any).id,
@@ -834,7 +830,9 @@ export class GlobalCRUDGenerator<TState extends GlobalBuilderState> {
 			}
 		}
 
-		const virtuals = this.getVirtuals ? this.getVirtuals(context) : this.state.virtuals;
+		const virtuals = this.getVirtuals
+			? this.getVirtuals(context)
+			: this.state.virtuals;
 		for (const [name, sqlExpr] of Object.entries(virtuals)) {
 			if (columns && !columns[name]) continue;
 			select[name] = sqlExpr;
@@ -938,7 +936,8 @@ export class GlobalCRUDGenerator<TState extends GlobalBuilderState> {
 		const accessRule = this.state.access?.[operation];
 		if (accessRule === undefined) return true;
 		if (typeof accessRule === "boolean") return accessRule;
-		if (typeof accessRule === "string") return normalized.user?.role === accessRule;
+		if (typeof accessRule === "string")
+			return normalized.user?.role === accessRule;
 		if (typeof accessRule === "function") {
 			return await accessRule({
 				user: normalized.user,
@@ -1014,15 +1013,15 @@ export class GlobalCRUDGenerator<TState extends GlobalBuilderState> {
 				if (!reverseRelationName) continue;
 
 				const reverseRelation =
-					relatedCrud.__internalState.relations?.[reverseRelationName];
+					relatedCrud["~internalState"].relations?.[reverseRelationName];
 				if (!reverseRelation?.fields || reverseRelation.fields.length === 0)
 					continue;
 
 				const foreignKeyField =
 					this.resolveFieldKey(
-						relatedCrud.__internalState,
+						relatedCrud["~internalState"],
 						reverseRelation.fields[0],
-						relatedCrud.__internalRelatedTable,
+						relatedCrud["~internalRelatedTable"],
 					) ?? reverseRelation.fields[0].name;
 				const primaryKeyField = reverseRelation.references?.[0] || "id";
 
@@ -1037,7 +1036,7 @@ export class GlobalCRUDGenerator<TState extends GlobalBuilderState> {
 					typeof relationOptions === "object" ? relationOptions : {};
 
 				if (nestedOptions._count || nestedOptions._aggregate) {
-					const relatedTable = relatedCrud.__internalRelatedTable;
+					const relatedTable = relatedCrud["~internalRelatedTable"];
 					const foreignKeyCol = relatedTable[foreignKeyField];
 
 					const selectClause: Record<string, any> = {
@@ -1056,36 +1055,36 @@ export class GlobalCRUDGenerator<TState extends GlobalBuilderState> {
 						if (agg._sum) {
 							for (const [field, enabled] of Object.entries(agg._sum)) {
 								if (enabled && relatedTable[field]) {
-									selectClause[`_sum_${field}`] = sum(
-										relatedTable[field],
-									).as(`_sum_${field}`);
+									selectClause[`_sum_${field}`] = sum(relatedTable[field]).as(
+										`_sum_${field}`,
+									);
 								}
 							}
 						}
 						if (agg._avg) {
 							for (const [field, enabled] of Object.entries(agg._avg)) {
 								if (enabled && relatedTable[field]) {
-									selectClause[`_avg_${field}`] = avg(
-										relatedTable[field],
-									).as(`_avg_${field}`);
+									selectClause[`_avg_${field}`] = avg(relatedTable[field]).as(
+										`_avg_${field}`,
+									);
 								}
 							}
 						}
 						if (agg._min) {
 							for (const [field, enabled] of Object.entries(agg._min)) {
 								if (enabled && relatedTable[field]) {
-									selectClause[`_min_${field}`] = min(
-										relatedTable[field],
-									).as(`_min_${field}`);
+									selectClause[`_min_${field}`] = min(relatedTable[field]).as(
+										`_min_${field}`,
+									);
 								}
 							}
 						}
 						if (agg._max) {
 							for (const [field, enabled] of Object.entries(agg._max)) {
 								if (enabled && relatedTable[field]) {
-									selectClause[`_max_${field}`] = max(
-										relatedTable[field],
-									).as(`_max_${field}`);
+									selectClause[`_max_${field}`] = max(relatedTable[field]).as(
+										`_max_${field}`,
+									);
 								}
 							}
 						}
@@ -1101,8 +1100,8 @@ export class GlobalCRUDGenerator<TState extends GlobalBuilderState> {
 							false,
 							relatedTable,
 							context,
-							relatedCrud.__internalState,
-							relatedCrud.__internalI18nTable,
+							relatedCrud["~internalState"],
+							relatedCrud["~internalI18nTable"],
 						);
 						if (additionalWhere) {
 							whereConditions.push(additionalWhere);
@@ -1410,8 +1409,8 @@ export class GlobalCRUDGenerator<TState extends GlobalBuilderState> {
 		}
 
 		const relatedCrud = this.cms.api.collections[relation.collection];
-		const relatedTable = relatedCrud.__internalRelatedTable;
-		const relatedState = relatedCrud.__internalState;
+		const relatedTable = relatedCrud["~internalRelatedTable"];
+		const relatedState = relatedCrud["~internalState"];
 
 		const joinConditions = relation.fields
 			.map((sourceField, index) => {
@@ -1434,7 +1433,7 @@ export class GlobalCRUDGenerator<TState extends GlobalBuilderState> {
 				relatedTable,
 				context,
 				relatedState,
-				relatedCrud.__internalI18nTable,
+				relatedCrud["~internalI18nTable"],
 			);
 			if (nestedClause) whereConditions.push(nestedClause);
 		}
@@ -1461,8 +1460,8 @@ export class GlobalCRUDGenerator<TState extends GlobalBuilderState> {
 		if (!this.cms || relation.fields) return undefined;
 
 		const relatedCrud = this.cms.api.collections[relation.collection];
-		const relatedTable = relatedCrud.__internalRelatedTable;
-		const relatedState = relatedCrud.__internalState;
+		const relatedTable = relatedCrud["~internalRelatedTable"];
+		const relatedState = relatedCrud["~internalState"];
 		const reverseRelationName = relation.relationName;
 		const reverseRelation = reverseRelationName
 			? relatedState.relations?.[reverseRelationName]
@@ -1493,7 +1492,7 @@ export class GlobalCRUDGenerator<TState extends GlobalBuilderState> {
 				relatedTable,
 				context,
 				relatedState,
-				relatedCrud.__internalI18nTable,
+				relatedCrud["~internalI18nTable"],
 			);
 			if (nestedClause) whereConditions.push(nestedClause);
 		}
@@ -1521,10 +1520,10 @@ export class GlobalCRUDGenerator<TState extends GlobalBuilderState> {
 
 		const relatedCrud = this.cms.api.collections[relation.collection];
 		const junctionCrud = this.cms.api.collections[relation.through];
-		const relatedTable = relatedCrud.__internalRelatedTable;
-		const junctionTable = junctionCrud.__internalRelatedTable;
-		const relatedState = relatedCrud.__internalState;
-		const junctionState = junctionCrud.__internalState;
+		const relatedTable = relatedCrud["~internalRelatedTable"];
+		const junctionTable = junctionCrud["~internalRelatedTable"];
+		const relatedState = relatedCrud["~internalState"];
+		const junctionState = junctionCrud["~internalState"];
 
 		const sourceKey = relation.sourceKey || "id";
 		const targetKey = relation.targetKey || "id";
@@ -1558,7 +1557,7 @@ export class GlobalCRUDGenerator<TState extends GlobalBuilderState> {
 				relatedTable,
 				context,
 				relatedState,
-				relatedCrud.__internalI18nTable,
+				relatedCrud["~internalI18nTable"],
 			);
 			if (nestedClause) whereConditions.push(nestedClause);
 		}

@@ -1,0 +1,45 @@
+{
+	"name": "@questpie/tanstack-query",
+	"version": "1.0.0",
+	"type": "module",
+	"scripts": {
+		"build": "tsdown",
+		"check-types": "tsc --noEmit"
+	},
+	"dependencies": {
+		"@questpie/cms": "workspace:*",
+		"qs": "^6.13.1"
+	},
+	"devDependencies": {
+		"@questpie/typescript-config": "workspace:*",
+		"bun-types": "latest",
+		"tsdown": "^0.18.3"
+	},
+	"peerDependencies": {
+		"@questpie/cms": "workspace:*",
+		"@tanstack/db": "^0.1.0",
+		"@tanstack/query-core": "^5.0.0",
+		"@tanstack/query-db-collection": "^0.1.0"
+	},
+	"peerDependenciesMeta": {
+		"@tanstack/db": {
+			"optional": true
+		},
+		"@tanstack/query-core": {
+			"optional": true
+		},
+		"@tanstack/query-db-collection": {
+			"optional": true
+		}
+	},
+	"exports": {
+		".": {
+			"import": "./dist/index.mjs",
+			"types": "./dist/index.d.mts"
+		},
+		"./db": {
+			"import": "./dist/db.mjs",
+			"types": "./dist/db.d.mts"
+		}
+	}
+}

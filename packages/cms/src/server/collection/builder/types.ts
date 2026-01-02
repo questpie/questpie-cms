@@ -1,6 +1,7 @@
 // builder/types.ts
 import type { Collection } from "#questpie/cms/server/collection/builder/collection";
 import type { SearchableConfig } from "#questpie/cms/server/integrated/search";
+import type { FunctionDefinition } from "#questpie/cms/server/functions/types";
 import type { AccessMode } from "#questpie/cms/server/config/types";
 import type {
 	BuildColumns,
@@ -52,7 +53,7 @@ export interface RelationConfig {
 	type: RelationType;
 	collection: string;
 	fields?: PgColumn[];
-	references?: string[];
+	references: string[];
 	relationName?: string; // For linking corresponding relations
 	onDelete?: "cascade" | "set null" | "restrict" | "no action";
 	onUpdate?: "cascade" | "set null" | "restrict" | "no action";
@@ -126,7 +127,11 @@ export type CollectionBuilderIndexesFn<
 > = (ctx: {
 	table: BuildExtraConfigColumns<
 		TState["name"],
-		InferColumnsFromFields<TState["fields"], TState["options"], TState["title"]>,
+		InferColumnsFromFields<
+			TState["fields"],
+			TState["options"],
+			TState["title"]
+		>,
 		"pg"
 	>;
 }) => TNewIndexes;
@@ -321,6 +326,8 @@ export interface CollectionAccess<TRow = any> {
 	fields?: Record<string, FieldAccess<TRow>>;
 }
 
+export type CollectionFunctionsMap = Record<string, FunctionDefinition>;
+
 /**
  * Main builder state that accumulates configuration through the chain
  * Using Drizzle-style single generic pattern for better type performance
@@ -339,6 +346,7 @@ export type CollectionBuilderState<
 	TOptions extends CollectionOptions = CollectionOptions,
 	THooks extends CollectionHooks = CollectionHooks,
 	TAccess extends CollectionAccess = CollectionAccess,
+	TFunctions extends CollectionFunctionsMap = CollectionFunctionsMap,
 	TSearchable extends SearchableConfig | undefined =
 		| SearchableConfig
 		| undefined,
@@ -353,6 +361,7 @@ export type CollectionBuilderState<
 	options: TOptions;
 	hooks: THooks;
 	access: TAccess;
+	functions: TFunctions;
 	searchable: TSearchable;
 };
 
@@ -378,6 +387,8 @@ export type ExtractHooks<TState extends CollectionBuilderState> =
 	TState["hooks"];
 export type ExtractAccess<TState extends CollectionBuilderState> =
 	TState["access"];
+export type ExtractFunctions<TState extends CollectionBuilderState> =
+	TState["functions"];
 
 /**
  * Default empty state for a new collection
@@ -393,6 +404,7 @@ export type EmptyCollectionState<TName extends string> = CollectionBuilderState<
 	{},
 	{},
 	{},
+	{},
 	undefined
 >;
 
@@ -400,6 +412,7 @@ export type EmptyCollectionState<TName extends string> = CollectionBuilderState<
  * Any collection builder state (for type constraints)
  */
 export type AnyCollectionState = CollectionBuilderState<
+	any,
 	any,
 	any,
 	any,

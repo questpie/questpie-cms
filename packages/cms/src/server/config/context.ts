@@ -1,6 +1,7 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import type { User, Session } from "better-auth/types";
 import type { AccessMode } from "./types";
+import type { QCMS, QCMSBuilder } from "#questpie/cms/exports/server.js";
 
 type CMSContextStore<TCMS = unknown> = {
 	cms: TCMS;
@@ -18,7 +19,7 @@ export interface RequestContext {
 	/**
 	 * Current authenticated user (from Better Auth)
 	 */
-	user?: User;
+	user?: User & { role?: string };
 
 	/**
 	 * Current request session
@@ -60,14 +61,16 @@ export function runWithCMSContext<TCMS, TResult>(
 	return cmsContextStorage.run({ cms, context }, fn);
 }
 
-export function getCMSFromContext<TCMS = unknown>(): TCMS {
+export function getCMSFromContext<
+	TCMS extends QCMS<any, any, any, any, any, any> | QCMSBuilder<any>,
+>(): TCMS extends { $inferCms: infer U } ? U : TCMS {
 	const store = cmsContextStorage.getStore();
 	if (!store?.cms) {
 		throw new Error(
 			"QUESTPIE: CMS context is not available. Wrap your execution with runWithCMSContext().",
 		);
 	}
-	return store.cms as TCMS;
+	return store.cms as TCMS extends { $inferCms: infer U } ? U : TCMS;
 }
 
 export function getRequestContext(): RequestContext | undefined {

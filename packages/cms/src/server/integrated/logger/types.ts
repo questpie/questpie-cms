@@ -1,4 +1,16 @@
+export interface LoggerAdapter {
+	debug(msg: string, ...args: any[]): void;
+	info(msg: string, ...args: any[]): void;
+	warn(msg: string, ...args: any[]): void;
+	error(msg: string, ...args: any[]): void;
+	child(bindings: Record<string, any>): LoggerAdapter;
+}
+
 export interface LoggerConfig {
+	/**
+	 * Custom logger adapter
+	 */
+	adapter?: LoggerAdapter;
 	/**
 	 * Log level (debug, info, warn, error)
 	 * Defaults to 'info'

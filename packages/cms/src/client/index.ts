@@ -24,10 +24,39 @@ import type {
 	GlobalUpdate,
 	GetCollection,
 	ResolveRelations,
+	CollectionFunctions,
+	GlobalFunctions,
 } from "#questpie/cms/shared/type-utils.js";
+import type {
+	ExtractJsonFunctions,
+	InferFunctionInput,
+	InferFunctionOutput,
+	JsonFunctionDefinition,
+} from "../server/functions/types.js";
 import qs from "qs";
-import type { AnyGlobal,
-QCMS } from "../exports/server.js";
+import type { AnyGlobal, QCMS } from "../exports/server.js";
+
+export class QCMSClientError extends Error {
+	status: number;
+	statusText: string;
+	data?: unknown;
+	url: string;
+
+	constructor(options: {
+		message: string;
+		status: number;
+		statusText: string;
+		data?: unknown;
+		url: string;
+	}) {
+		super(options.message);
+		this.name = "QCMSClientError";
+		this.status = options.status;
+		this.statusText = options.statusText;
+		this.data = options.data;
+		this.url = options.url;
+	}
+}
 
 /**
  * Client configuration
@@ -72,6 +101,11 @@ type ResolvedCollections<T extends QCMS<any, any, any>> =
 type ResolvedGlobals<T extends QCMS<any, any, any>> = T["config"]["globals"];
 
 /**
+ * Resolve root functions from QCMS instance
+ */
+type ResolvedFunctions<T extends QCMS<any, any, any>> = T["config"]["functions"];
+
+/**
  * Extract collection names from QCMS instance
  */
 type CollectionNames<T extends QCMS<any, any, any>> = SharedCollectionNames<
@@ -100,6 +134,33 @@ type GetGlobalState<
 			>
 		? TState
 		: never;
+
+type JsonFunctionCaller<TDefinition extends JsonFunctionDefinition<any, any>> = (
+	input: InferFunctionInput<TDefinition>,
+) => Promise<InferFunctionOutput<TDefinition>>;
+
+type RootFunctionsAPI<T extends QCMS<any, any, any>> =
+	ResolvedFunctions<T> extends Record<string, any>
+		? {
+				[K in keyof ExtractJsonFunctions<
+					ResolvedFunctions<T>
+				>]: JsonFunctionCaller<ExtractJsonFunctions<ResolvedFunctions<T>>[K]>;
+			}
+		: {};
+
+type CollectionFunctionsAPI<TCollection> = {
+	[K in keyof ExtractJsonFunctions<
+		CollectionFunctions<TCollection>
+	>]: JsonFunctionCaller<
+		ExtractJsonFunctions<CollectionFunctions<TCollection>>[K]
+	>;
+};
+
+type GlobalFunctionsAPI<TGlobal> = {
+	[K in keyof ExtractJsonFunctions<GlobalFunctions<TGlobal>>]: JsonFunctionCaller<
+		ExtractJsonFunctions<GlobalFunctions<TGlobal>>[K]
+	>;
+};
 
 /**
  * Type-safe collection API for a single collection
@@ -177,7 +238,7 @@ type CollectionAPI<
 	 * Restore a soft-deleted record by ID
 	 */
 	restore: (id: string) => Promise<CollectionSelect<TCollection>>;
-};
+} & CollectionFunctionsAPI<TCollection>;
 
 /**
  * Collections API proxy with type-safe collection methods
@@ -238,7 +299,7 @@ type GlobalAPI<
 			TQuery
 		>
 	>;
-};
+} & GlobalFunctionsAPI<TGlobal>;
 
 /**
  * Globals API proxy with type-safe global methods
@@ -262,6 +323,9 @@ type GlobalsAPI<T extends QCMS<any, any, any>> = ResolvedGlobals<T> extends neve
 export type QCMSClient<T extends QCMS<any, any, any>> = {
 	collections: CollectionsAPI<T>;
 	globals: GlobalsAPI<T>;
+	functions: RootFunctionsAPI<T>;
+	setLocale?: (locale?: string) => void;
+	getLocale?: () => string | undefined;
 };
 
 /**
@@ -297,6 +361,8 @@ export function createQCMSClient<T extends QCMS<any, any, any> = any>(
 			? trimmedBasePath
 			: `${trimmedBasePath}/cms`;
 	const defaultHeaders = config.headers || {};
+	let currentLocale: string | undefined =
+		defaultHeaders["accept-language"] ?? defaultHeaders["Accept-Language"];
 
 	/**
 	 * Make a request to the CMS API
@@ -318,10 +384,22 @@ export function createQCMSClient<T extends QCMS<any, any, any> = any>(
 		});
 
 		if (!response.ok) {
-			const error = await response
-				.json()
-				.catch(() => ({ error: response.statusText }));
-			throw new Error(error.error || `Request failed: ${response.statusText}`);
+			const errorData = await response.json().catch(() => undefined);
+			const message =
+				errorData &&
+				typeof errorData === "object" &&
+				"error" in errorData &&
+				typeof (errorData as { error?: unknown }).error === "string"
+					? (errorData as { error: string }).error
+					: `Request failed: ${response.statusText}`;
+
+			throw new QCMSClientError({
+				message,
+				status: response.status,
+				statusText: response.statusText,
+				data: errorData,
+				url,
+			});
 		}
 
 		return response.json();
@@ -332,7 +410,7 @@ export function createQCMSClient<T extends QCMS<any, any, any> = any>(
 	 */
 	const collections = new Proxy({} as CollectionsAPI<T>, {
 		get(_, collectionName: string) {
-			return {
+			const base = {
 				find: async (options: any = {}) => {
 					// Use qs for cleaner query strings with nested objects
 					const queryString = qs.stringify(options, {
@@ -394,6 +472,22 @@ export function createQCMSClient<T extends QCMS<any, any, any> = any>(
 					});
 				},
 			};
+
+			return new Proxy(base as any, {
+				get(target, prop) {
+					if (prop in target) return target[prop];
+					if (typeof prop !== "string") return undefined;
+					return async (input: any) => {
+						return request(
+							`${cmsBasePath}/collections/${collectionName}/rpc/${prop}`,
+							{
+								method: "POST",
+								body: JSON.stringify(input),
+							},
+						);
+					};
+				},
+			});
 		},
 	});
 
@@ -402,7 +496,7 @@ export function createQCMSClient<T extends QCMS<any, any, any> = any>(
 	 */
 	const globals = new Proxy({} as GlobalsAPI<T>, {
 		get(_, globalName: string) {
-			return {
+			const base = {
 				get: async (options: { with?: any; columns?: any } = {}) => {
 					const queryString = qs.stringify(
 						{
@@ -429,11 +523,50 @@ export function createQCMSClient<T extends QCMS<any, any, any> = any>(
 					);
 				},
 			};
+
+			return new Proxy(base as any, {
+				get(target, prop) {
+					if (prop in target) return target[prop];
+					if (typeof prop !== "string") return undefined;
+					return async (input: any) => {
+						return request(`${cmsBasePath}/globals/${globalName}/rpc/${prop}`, {
+							method: "POST",
+							body: JSON.stringify(input),
+						});
+					};
+				},
+			});
+		},
+	});
+
+	/**
+	 * Root functions API
+	 */
+	const functions = new Proxy({} as RootFunctionsAPI<T>, {
+		get(_, functionName: string) {
+			return async (input: any) => {
+				return request(`${cmsBasePath}/rpc/${functionName}`, {
+					method: "POST",
+					body: JSON.stringify(input),
+				});
+			};
 		},
 	});
 
 	return {
 		collections,
 		globals,
+		functions,
+		setLocale: (locale?: string) => {
+			currentLocale = locale;
+			if (locale) {
+				defaultHeaders["accept-language"] = locale;
+				delete defaultHeaders["Accept-Language"];
+			} else {
+				delete defaultHeaders["accept-language"];
+				delete defaultHeaders["Accept-Language"];
+			}
+		},
+		getLocale: () => currentLocale,
 	};
 }

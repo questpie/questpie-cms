@@ -5,6 +5,7 @@
   "type": "module",
   "files": [
     "base.json",
-    "bun.json"
+    "bun.json",
+    "react-library.json"
   ]
 }

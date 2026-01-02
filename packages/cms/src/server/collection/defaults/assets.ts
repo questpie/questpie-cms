@@ -35,7 +35,7 @@ export const assetsCollection = defineCollection("questpie_assets")
 			if (!cms?.storage || !data?.key) return;
 
 			try {
-				await cms.storage.delete(data.key);
+				await cms.storage.use().delete(data.key);
 			} catch (error) {
 				cms.logger?.warn?.("Failed to delete asset file from storage", {
 					key: data.key,

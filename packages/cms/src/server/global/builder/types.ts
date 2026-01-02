@@ -9,6 +9,7 @@ import type {
 	InferTableWithColumns,
 	RelationVariant,
 } from "#questpie/cms/server/collection/builder/types";
+import type { FunctionDefinition } from "#questpie/cms/server/functions/types";
 
 /**
  * Options for global configuration
@@ -132,6 +133,10 @@ export type GlobalBuilderState<
 	TOptions extends GlobalOptions = GlobalOptions,
 	THooks extends GlobalHooks = GlobalHooks,
 	TAccess extends GlobalAccess = GlobalAccess,
+	TFunctions extends Record<string, FunctionDefinition> = Record<
+		string,
+		FunctionDefinition
+	>,
 > = {
 	name: TName;
 	fields: TFields;
@@ -141,6 +146,7 @@ export type GlobalBuilderState<
 	options: TOptions;
 	hooks: THooks;
 	access: TAccess;
+	functions: TFunctions;
 };
 
 /**
@@ -154,6 +160,7 @@ export type EmptyGlobalState<TName extends string> = GlobalBuilderState<
 	{},
 	{},
 	{},
+	{},
 	{}
 >;
 
@@ -161,7 +168,8 @@ export type EmptyGlobalState<TName extends string> = GlobalBuilderState<
  * Any global builder state
  */
 export type AnyGlobalState = GlobalBuilderState<
-	string,
+	any,
+	any,
 	any,
 	any,
 	any,

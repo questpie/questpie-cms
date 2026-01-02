@@ -1,94 +1,79 @@
-import { QCMS } from "../../src/server/config/cms";
-import { createMockServices } from "./test-services";
-import type {
-	AnyCollectionOrBuilder,
-	CMSConfig,
-} from "../../src/server/config/types";
-import { RealtimeService } from "../../src/server/integrated/realtime/service";
+import {
+	type QCMSBuilderState,
+	type QCMSBuilder,
+	type CMSConfig,
+	defineQCMS,
+	type AnyCollectionOrBuilder,
+	QCMS,
+} from "#questpie/cms/exports/server.js";
+import { MockKVAdapter } from "./mocks/kv.adapter";
+import { MockLogger } from "./mocks/logger.adapter";
+import { MockMailAdapter } from "./mocks/mailer.adapter";
+import { MockQueueAdapter } from "./mocks/queue.adapter";
 
-export const createTestCms = (
-	collections: AnyCollectionOrBuilder[],
+export function createMockCms<TOtherState extends QCMSBuilderState>(
+	builder: QCMSBuilder<TOtherState>,
+) {
+	return defineQCMS({
+		name: "Test CMS",
+	}).use(builder);
+}
+
+export function createTestCms<
+	const TCollections extends
+		AnyCollectionOrBuilder[] = AnyCollectionOrBuilder[],
+>(
+	collections: TCollections[],
 	db: any,
-	services?: ReturnType<typeof createMockServices>,
+	services?: Partial<{
+		kv: MockKVAdapter;
+		queue: MockQueueAdapter;
+		mailer: MockMailAdapter;
+		logger: MockLogger;
+	}>,
 	configOverrides?: Partial<CMSConfig<any, any, any>>,
-) => {
-	const mockServices = services ?? createMockServices();
+) {
+	const mockServices = {
+		kv: services?.kv ?? new MockKVAdapter(),
+		queue: services?.queue ?? new MockQueueAdapter(),
+		mailer: services?.mailer ?? new MockMailAdapter(),
+		logger: services?.logger ?? new MockLogger(),
+	};
 
-	// Create minimal CMS config for testing
-	// We need to provide minimal config to avoid initialization errors
-	// but we'll override services with mocks after construction
-	const cms = new QCMS({
+	const collectionsList = [
+		...collections,
+		...(configOverrides?.collections || []),
+	] as any;
+
+	const queueConfig = configOverrides?.queue
+		? {
+				jobs: configOverrides.queue.jobs ?? [],
+				adapter: configOverrides.queue.adapter ?? mockServices.queue,
+			}
+		: undefined;
+
+	return new QCMS({
 		app: {
 			url: "http://localhost:3000",
 		},
-		collections: [
-			...collections,
-			...(configOverrides?.collections || []),
-		] as any,
+		collections: collectionsList,
+		globals: configOverrides?.globals as any,
+		locale: configOverrides?.locale,
 		db: {
-			connection: db.connectionString || "mock",
+			pglite: db,
 		},
-		queue: {
-			jobs: [],
-			adapter: {
-				_start: async () => {},
-				_stop: async () => {},
-				publish: async () => null,
-				schedule: async () => {},
-				unschedule: async () => {},
-				work: async () => {},
-				on: () => {},
-				off: () => {},
-			} as any,
-		},
-		// Skip auth initialization - will be mocked after construction
-		storage: {
-			default: "local",
-			disks: {
-				local: {
-					driver: "local",
-					config: {
-						root: "/tmp/test-storage",
-					},
-				},
-			},
-		} as any,
+		storage: configOverrides?.storage,
 		email: {
-			from: "test@example.com",
-			transport: {
-				sendMail: async () => ({ messageId: "test" }),
-			} as any,
+			...(configOverrides?.email ?? {}),
+			adapter: configOverrides?.email?.adapter ?? mockServices.mailer,
 		} as any,
-		...configOverrides, // Apply overrides
+		queue: queueConfig,
+		logger: configOverrides?.logger ?? { adapter: mockServices.logger },
+		kv: configOverrides?.kv ?? { adapter: mockServices.kv },
+		auth: configOverrides?.auth,
+		secret: configOverrides?.secret,
+		search: configOverrides?.search,
+		realtime: configOverrides?.realtime,
+		migrations: configOverrides?.migrations,
 	} as any);
-
-	// Override services with mocks
-	cms.queue = mockServices.queue as any;
-	cms.storage = mockServices.storage as any;
-	cms.email = mockServices.email as any;
-	cms.logger = mockServices.logger as any;
-	cms.auth = mockServices.auth as any;
-
-	// Override db with test db
-	cms.db = {
-		client: db,
-		drizzle: db,
-	};
-
-	if (cms.config.realtime) {
-		cms.realtime = new RealtimeService(cms.db.drizzle, cms.config.realtime);
-	}
-
-	// Reinitialize migrations API and CRUD API with the correct db reference
-	const { QCMSMigrationsAPI } = require("../../src/server/config/integrated/migrations-api");
-	const { QCMSCrudAPI } = require("../../src/server/config/integrated/crud-api");
-	cms.migrations = new QCMSMigrationsAPI(cms);
-	cms.api = new QCMSCrudAPI(cms);
-
-	// Add .crud() compatibility method for tests
-	(cms as any).crud = (name: string) => {
-		return (cms.api.collections as any)[name];
-	};
-
-	return cms;
-};
+}

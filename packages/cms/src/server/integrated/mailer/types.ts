@@ -37,16 +37,11 @@ export type SerializableMailOptions = Omit<
 /**
  * Mailer configuration
  */
-export interface MailerConfig<
-	TTemplates extends Record<string, ComponentType<any>> = Record<
-		string,
-		ComponentType<any>
-	>,
-> {
+export interface MailerConfig<TTemplates extends any[] = any[]> {
 	/**
 	 * Mail adapter (SMTP, Console, Resend, etc.)
 	 */
-	adapter: import("./adapter").MailAdapter | Promise<import("./adapter").MailAdapter>;
+	adapter?: import("./adapter").MailAdapter | Promise<import("./adapter").MailAdapter>;
 	/**
 	 * Default 'from' address
 	 */
@@ -54,7 +49,7 @@ export interface MailerConfig<
 		from?: string;
 	};
 	/**
-	 * Registry of React Email templates
+	 * Registry of email templates (defined via defineEmailTemplate)
 	 */
-	templates: TTemplates;
+	templates?: TTemplates;
 }

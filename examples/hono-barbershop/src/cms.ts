@@ -264,9 +264,7 @@ export const cms = defineQCMS({ name: "barbershop" })
 			url: process.env.APP_URL || "http://localhost:3000",
 		},
 		db: {
-			connection: {
-				url: DATABASE_URL,
-			},
+			url: DATABASE_URL,
 		},
 		secret: process.env.SECRET,
 	});

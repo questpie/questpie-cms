@@ -2,6 +2,8 @@ import { sql } from "drizzle-orm";
 import type { Migration } from "#questpie/cms/server/migration/types";
 import type { AnyCollectionState } from "#questpie/cms/server/collection/builder/types";
 import type { Collection } from "#questpie/cms/server/collection/builder/collection";
+import { defineQCMS } from "#questpie/cms/server/index.js";
+import { buildMockCMS } from "./mocks/mock-cms-builder";
 
 /**
  * Create migration from collection definition
@@ -99,10 +101,15 @@ export async function setupTestMigrations(
 	collections: Collection<AnyCollectionState>[],
 	customMigrations: Migration[] = [],
 ) {
-	const { createTestCms } = await import("./test-cms");
-
-	// Create CMS with collections
-	const qcms = createTestCms(collections, db);
+	const collectionsMap = Object.fromEntries(
+		collections.map((collection) => [collection.name, collection]),
+	);
+	const testModule = defineQCMS({ name: "test-migrations" }).collections(
+		collectionsMap,
+	);
+	const dbConfig =
+		db && (("bun" in db) || ("pglite" in db)) ? db : { pglite: db };
+	const { cms: qcms } = await buildMockCMS(testModule, { db: dbConfig });
 
 	// Generate migrations for each collection
 	const collectionMigrations: Migration[] = [];

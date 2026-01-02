@@ -1,15 +1,38 @@
 import qs from "qs";
+import { ZodError } from "zod";
 import type { QCMS } from "../config/cms";
 import type { RequestContext } from "../config/context";
-import type { AccessMode } from "../config/types";
+import type {
+	AccessMode,
+	AnyCollectionOrBuilder,
+	AnyGlobalOrBuilder,
+} from "../config/types";
+import type { JobDefinition } from "../integrated/queue/types";
+import type { FunctionDefinition, FunctionsMap } from "../functions/types";
+import { executeJsonFunction } from "../functions/execute";
 
-export type CMSAdapterConfig = {
+export type CMSAdapterConfig<
+	TCollections extends AnyCollectionOrBuilder[] = AnyCollectionOrBuilder[],
+	TGlobals extends AnyGlobalOrBuilder[] = AnyGlobalOrBuilder[],
+	TJobs extends JobDefinition<any, any>[] = JobDefinition<any, any>[],
+> = {
 	basePath?: string;
 	accessMode?: AccessMode;
-	getLocale?: (request: Request, cms: QCMS<any, any, any>) => string | undefined;
+	extendContext?: (params: {
+		request: Request;
+		cms: QCMS<TCollections, TGlobals, TJobs>;
+		context: CMSAdapterBaseContext;
+	}) =>
+		| Promise<Record<string, any> | undefined>
+		| Record<string, any>
+		| undefined;
+	getLocale?: (
+		request: Request,
+		cms: QCMS<TCollections, TGlobals, TJobs>,
+	) => string | undefined;
 	getSession?: (
 		request: Request,
-		cms: QCMS<any, any, any>,
+		cms: QCMS<TCollections, TGlobals, TJobs>,
 	) => Promise<{ user?: any; session?: any } | null>;
 };
 
@@ -18,6 +41,13 @@ export type CMSAdapterContext = {
 	session?: any;
 	locale?: string;
 	cmsContext: RequestContext;
+};
+
+export type CMSAdapterBaseContext = {
+	user: any;
+	session?: any;
+	locale?: string;
+	accessMode: AccessMode;
 };
 
 export type CMSUploadFile = {
@@ -34,6 +64,23 @@ export type CMSAdapterRoutes = {
 		context?: CMSAdapterContext,
 		file?: CMSUploadFile | null,
 	) => Promise<Response>;
+	rpc: {
+		root: (
+			request: Request,
+			params: { name: string },
+			context?: CMSAdapterContext,
+		) => Promise<Response>;
+		collection: (
+			request: Request,
+			params: { collection: string; name: string },
+			context?: CMSAdapterContext,
+		) => Promise<Response>;
+		global: (
+			request: Request,
+			params: { global: string; name: string },
+			context?: CMSAdapterContext,
+		) => Promise<Response>;
+	};
 	realtime: {
 		subscribe: (
 			request: Request,
@@ -152,12 +199,17 @@ const resolveUploadFile = async (
 	return isFileLike(formFile) ? formFile : null;
 };
 
-const normalizeMimeType = (value: string) => value.split(";")[0]?.trim() || value;
+const normalizeMimeType = (value: string) =>
+	value.split(";")[0]?.trim() || value;
 
-const resolveSession = async (
-	cms: QCMS<any, any, any>,
+const resolveSession = async <
+	TCollections extends AnyCollectionOrBuilder[] = AnyCollectionOrBuilder[],
+	TGlobals extends AnyGlobalOrBuilder[] = AnyGlobalOrBuilder[],
+	TJobs extends JobDefinition<any, any>[] = JobDefinition<any, any>[],
+>(
+	cms: QCMS<TCollections, TGlobals, TJobs>,
 	request: Request,
-	config: CMSAdapterConfig,
+	config: CMSAdapterConfig<TCollections, TGlobals, TJobs>,
 ) => {
 	if (config.getSession) {
 		return config.getSession(request, cms);
@@ -177,10 +229,14 @@ const resolveSession = async (
 	}
 };
 
-const resolveLocale = async (
-	cms: QCMS<any, any, any>,
+const resolveLocale = async <
+	TCollections extends AnyCollectionOrBuilder[] = AnyCollectionOrBuilder[],
+	TGlobals extends AnyGlobalOrBuilder[] = AnyGlobalOrBuilder[],
+	TJobs extends JobDefinition<any, any>[] = JobDefinition<any, any>[],
+>(
+	cms: QCMS<TCollections, TGlobals, TJobs>,
 	request: Request,
-	config: CMSAdapterConfig,
+	config: CMSAdapterConfig<TCollections, TGlobals, TJobs>,
 ) => {
 	if (config.getLocale) {
 		return config.getLocale(request, cms);
@@ -190,26 +246,39 @@ const resolveLocale = async (
 	return header?.split(",")[0]?.trim() || undefined;
 };
 
-export const createCMSAdapterContext = async (
-	cms: QCMS<any, any, any>,
+export const createCMSAdapterContext = async <
+	TCollections extends AnyCollectionOrBuilder[] = AnyCollectionOrBuilder[],
+	TGlobals extends AnyGlobalOrBuilder[] = AnyGlobalOrBuilder[],
+	TJobs extends JobDefinition<any, any>[] = JobDefinition<any, any>[],
+>(
+	cms: QCMS<TCollections, TGlobals, TJobs>,
 	request: Request,
-	config: CMSAdapterConfig = {},
+	config: CMSAdapterConfig<TCollections, TGlobals, TJobs> = {},
 ): Promise<CMSAdapterContext> => {
 	const [sessionInfo, locale] = await Promise.all([
 		resolveSession(cms, request, config),
 		resolveLocale(cms, request, config),
 	]);
 
-	const cmsContext = await cms.createContext({
+	const baseContext: CMSAdapterBaseContext = {
 		user: sessionInfo?.user ?? null,
 		session: sessionInfo?.session,
 		locale,
 		accessMode: config.accessMode ?? "user",
+	};
+
+	const extension = config.extendContext
+		? await config.extendContext({ request, cms, context: baseContext })
+		: undefined;
+
+	const cmsContext = await cms.createContext({
+		...baseContext,
+		...(extension ?? {}),
 	});
 
 	return {
-		user: sessionInfo?.user ?? null,
-		session: sessionInfo?.session,
+		user: baseContext.user,
+		session: baseContext.session,
 		locale: cmsContext.locale,
 		cmsContext,
 	};
@@ -219,8 +288,10 @@ const parseFindOptions = (url: URL) => {
 	const parsedQuery = getQueryParams(url);
 	const options: any = {};
 
-	if (parsedQuery.limit !== undefined) options.limit = Number(parsedQuery.limit);
-	if (parsedQuery.offset !== undefined) options.offset = Number(parsedQuery.offset);
+	if (parsedQuery.limit !== undefined)
+		options.limit = Number(parsedQuery.limit);
+	if (parsedQuery.offset !== undefined)
+		options.offset = Number(parsedQuery.offset);
 	if (parsedQuery.page !== undefined) options.page = Number(parsedQuery.page);
 	if (parsedQuery.where) options.where = parsedQuery.where;
 	if (parsedQuery.orderBy) options.orderBy = parsedQuery.orderBy;
@@ -263,160 +334,14 @@ const parseGlobalUpdateOptions = (url: URL) => {
 	return options;
 };
 
-type RealtimeDependencies = {
-	collections: Set<string>;
-	globals: Set<string>;
-};
-
-const visitCollectionRelations = (
-	collectionMap: Map<string, any>,
-	dependencies: RealtimeDependencies,
-	collectionName: string,
-	withConfig?: Record<string, any>,
-) => {
-	if (!withConfig || typeof withConfig !== "object" || Array.isArray(withConfig)) {
-		return;
-	}
-
-	const collection = collectionMap.get(collectionName);
-	if (!collection) return;
-
-	for (const [relationName, relationOptions] of Object.entries(withConfig)) {
-		if (!relationOptions) continue;
-		const relation = collection.state.relations?.[relationName];
-		if (!relation) continue;
-
-		if (relation.type === "polymorphic" && relation.collections) {
-			for (const target of Object.values(relation.collections)) {
-				dependencies.collections.add(target);
-			}
-		} else {
-			dependencies.collections.add(relation.collection);
-		}
-
-		if (relation.type === "manyToMany" && relation.through) {
-			dependencies.collections.add(relation.through);
-		}
-
-		const nestedWith =
-			typeof relationOptions === "object" && !Array.isArray(relationOptions)
-				? (relationOptions as any).with
-				: undefined;
-
-		if (nestedWith) {
-			if (relation.type === "polymorphic" && relation.collections) {
-				for (const target of Object.values(relation.collections)) {
-					visitCollectionRelations(
-						collectionMap,
-						dependencies,
-						target,
-						nestedWith as Record<string, any>,
-					);
-				}
-			} else {
-				visitCollectionRelations(
-					collectionMap,
-					dependencies,
-					relation.collection,
-					nestedWith as Record<string, any>,
-				);
-			}
-		}
-	}
-};
-
-const resolveCollectionDependencies = (
-	cms: QCMS<any, any, any>,
-	baseCollection: string,
-	withConfig?: Record<string, any>,
-): RealtimeDependencies => {
-	const dependencies: RealtimeDependencies = {
-		collections: new Set<string>([baseCollection]),
-		globals: new Set<string>(),
-	};
-
-	const collectionMap = new Map(
-		cms.getCollections().map((collection) => [collection.name, collection]),
-	);
-
-	visitCollectionRelations(collectionMap, dependencies, baseCollection, withConfig);
-	return dependencies;
-};
-
-const resolveGlobalDependencies = (
-	cms: QCMS<any, any, any>,
-	globalName: string,
-	withConfig?: Record<string, any>,
-): RealtimeDependencies => {
-	const dependencies: RealtimeDependencies = {
-		collections: new Set<string>(),
-		globals: new Set<string>([globalName]),
-	};
-
-	if (!withConfig || typeof withConfig !== "object" || Array.isArray(withConfig)) {
-		return dependencies;
-	}
-
-	const globalMap = new Map(
-		cms.getGlobals().map((global) => [global.name, global]),
-	);
-	const global = globalMap.get(globalName);
-	if (!global) return dependencies;
-
-	const collectionMap = new Map(
-		cms.getCollections().map((collection) => [collection.name, collection]),
-	);
-
-	for (const [relationName, relationOptions] of Object.entries(withConfig)) {
-		if (!relationOptions) continue;
-		const relation = global.state.relations?.[relationName];
-		if (!relation) continue;
-
-		if (relation.type === "polymorphic" && relation.collections) {
-			for (const target of Object.values(relation.collections)) {
-				dependencies.collections.add(target);
-			}
-		} else {
-			dependencies.collections.add(relation.collection);
-		}
-
-		if (relation.type === "manyToMany" && relation.through) {
-			dependencies.collections.add(relation.through);
-		}
-
-		const nestedWith =
-			typeof relationOptions === "object" && !Array.isArray(relationOptions)
-				? (relationOptions as any).with
-				: undefined;
-
-		if (nestedWith) {
-			if (relation.type === "polymorphic" && relation.collections) {
-				for (const target of Object.values(relation.collections)) {
-					visitCollectionRelations(
-						collectionMap,
-						dependencies,
-						target,
-						nestedWith as Record<string, any>,
-					);
-				}
-			} else {
-				visitCollectionRelations(
-					collectionMap,
-					dependencies,
-					relation.collection,
-					nestedWith as Record<string, any>,
-				);
-			}
-		}
-	}
-
-	return dependencies;
-};
-
-const resolveContext = async (
-	cms: QCMS<any, any, any>,
+const resolveContext = async <
+	TCollections extends AnyCollectionOrBuilder[] = AnyCollectionOrBuilder[],
+	TGlobals extends AnyGlobalOrBuilder[] = AnyGlobalOrBuilder[],
+	TJobs extends JobDefinition<any, any>[] = JobDefinition<any, any>[],
+>(
+	cms: QCMS<TCollections, TGlobals, TJobs>,
 	request: Request,
-	config: CMSAdapterConfig,
+	config: CMSAdapterConfig<TCollections, TGlobals, TJobs>,
 	context?: CMSAdapterContext,
 ) => {
 	if (context?.cmsContext) {
@@ -434,10 +359,74 @@ const parseJsonBody = async (request: Request) => {
 	}
 };
 
-export const createCMSAdapterRoutes = (
-	cms: QCMS<any, any, any>,
-	config: CMSAdapterConfig = {},
+const parseRpcBody = async (request: Request) => {
+	const text = await request.text();
+	if (!text) return undefined;
+
+	try {
+		return JSON.parse(text);
+	} catch {
+		return null;
+	}
+};
+
+export const createCMSAdapterRoutes = <
+	TCollections extends AnyCollectionOrBuilder[] = AnyCollectionOrBuilder[],
+	TGlobals extends AnyGlobalOrBuilder[] = AnyGlobalOrBuilder[],
+	TJobs extends JobDefinition<any, any>[] = JobDefinition<any, any>[],
+>(
+	cms: QCMS<TCollections, TGlobals, TJobs>,
+	config: CMSAdapterConfig<TCollections, TGlobals, TJobs> = {},
 ): CMSAdapterRoutes => {
+	const executeFunction = async (
+		definition: FunctionDefinition,
+		request: Request,
+		context?: CMSAdapterContext,
+	) => {
+		if (definition.mode === "raw") {
+			if (request.method !== "POST") {
+				return jsonError("Method not allowed", 405);
+			}
+
+			const resolved = await resolveContext(cms, request, config, context);
+			try {
+				return await definition.handler({
+					request,
+					context: resolved.cmsContext,
+				});
+			} catch (error) {
+				const message =
+					error instanceof Error ? error.message : "Unknown error";
+				return jsonError(message, 500);
+			}
+		}
+
+		if (request.method !== "POST") {
+			return jsonError("Method not allowed", 405);
+		}
+
+		const resolved = await resolveContext(cms, request, config, context);
+		const body = await parseRpcBody(request);
+
+		if (body === null) {
+			return jsonError("Invalid JSON body", 400);
+		}
+
+		try {
+			const result = await executeJsonFunction(
+				cms,
+				definition,
+				body,
+				resolved.cmsContext,
+			);
+			return jsonResponse(result);
+		} catch (error) {
+			const message = error instanceof Error ? error.message : "Unknown error";
+			const status = error instanceof ZodError ? 400 : 500;
+			return jsonError(message, status);
+		}
+	};
+
 	return {
 		auth: async (request) => {
 			if (!cms.auth) {
@@ -460,13 +449,12 @@ export const createCMSAdapterRoutes = (
 			try {
 				const key = `${crypto.randomUUID()}-${uploadFile.name}`;
 				const buffer = await uploadFile.arrayBuffer();
-				await cms.storage.put(key, new Uint8Array(buffer));
+				await cms.storage.use().put(key, new Uint8Array(buffer));
 
-				const url = await cms.storage.getUrl(key);
+				const url = await cms.storage.use().getUrl(key);
 				const mimeType = normalizeMimeType(uploadFile.type);
-				const asset = await cms.api.collections[
-					"questpie_assets" as any
-				].create(
+				// Core collections (including questpie_assets) are always available
+				const asset = await (cms.api.collections as any).questpie_assets.create(
 					{
 						key,
 						url,
@@ -483,6 +471,59 @@ export const createCMSAdapterRoutes = (
 					error instanceof Error ? error.message : "Unknown error";
 				return jsonError(message, 500);
 			}
+		},
+		rpc: {
+			root: async (request, params, context) => {
+				const functions = cms.getFunctions() as FunctionsMap;
+				const definition = functions[params.name];
+				if (!definition) {
+					return jsonError(`Function "${params.name}" not found`, 404);
+				}
+
+				return executeFunction(definition, request, context);
+			},
+			collection: async (request, params, context) => {
+				let collectionInstance: any;
+				try {
+					collectionInstance = cms.getCollectionConfig(
+						params.collection as any,
+					);
+				} catch {
+					return jsonError(`Collection "${params.collection}" not found`, 404);
+				}
+
+				const functions = (collectionInstance.state?.functions ||
+					{}) as FunctionsMap;
+				const definition = functions[params.name];
+				if (!definition) {
+					return jsonError(
+						`Function "${params.name}" not found on collection "${params.collection}"`,
+						404,
+					);
+				}
+
+				return executeFunction(definition, request, context);
+			},
+			global: async (request, params, context) => {
+				let globalInstance: any;
+				try {
+					globalInstance = cms.getGlobalConfig(params.global as any);
+				} catch {
+					return jsonError(`Global "${params.global}" not found`, 404);
+				}
+
+				const functions = (globalInstance.state?.functions ||
+					{}) as FunctionsMap;
+				const definition = functions[params.name];
+				if (!definition) {
+					return jsonError(
+						`Function "${params.name}" not found on global "${params.global}"`,
+						404,
+					);
+				}
+
+				return executeFunction(definition, request, context);
+			},
 		},
 		realtime: {
 			subscribe: async (request, params, context) => {
@@ -502,11 +543,6 @@ export const createCMSAdapterRoutes = (
 				}
 
 				const options = parseFindOptions(new URL(request.url));
-				const dependencies = resolveCollectionDependencies(
-					cms,
-					params.collection,
-					options.with,
-				);
 
 				const encoder = new TextEncoder();
 				let closeStream: (() => void) | null = null;
@@ -521,8 +557,7 @@ export const createCMSAdapterRoutes = (
 							if (closed) return;
 							controller.enqueue(
 								encoder.encode(
-									`event: ${event}\n` +
-										`data: ${JSON.stringify(data)}\n\n`,
+									`event: ${event}\n` + `data: ${JSON.stringify(data)}\n\n`,
 								),
 							);
 						};
@@ -547,10 +582,7 @@ export const createCMSAdapterRoutes = (
 							try {
 								do {
 									refreshQueued = false;
-									const data = await crud.find(
-										options,
-										resolved.cmsContext,
-									);
+									const data = await crud.find(options, resolved.cmsContext);
 									send("snapshot", { seq: lastSeq, data });
 								} while (refreshQueued && !closed);
 							} catch (error) {
@@ -560,16 +592,18 @@ export const createCMSAdapterRoutes = (
 							}
 						};
 
-						const unsubscribe = cms.realtime.subscribe((event) => {
-							const isCollectionMatch =
-								event.resourceType === "collection" &&
-								dependencies.collections.has(event.resource);
-							const isGlobalMatch =
-								event.resourceType === "global" &&
-								dependencies.globals.has(event.resource);
-							if (!isCollectionMatch && !isGlobalMatch) return;
-							void refresh(event.seq);
-						});
+						// Service handles topic routing + dependency tracking
+						const unsubscribe = cms.realtime.subscribe(
+							(event) => {
+								void refresh(event.seq);
+							},
+							{
+								resourceType: "collection",
+								resource: params.collection,
+								where: options.where,
+								with: options.with,
+							},
+						);
 
 						const pingTimer = setInterval(() => {
 							send("ping", { ts: Date.now() });
@@ -590,7 +624,7 @@ export const createCMSAdapterRoutes = (
 
 						void (async () => {
 							try {
-								lastSeq = await cms.realtime!.getLatestSeq();
+								lastSeq = await cms.realtime?.getLatestSeq();
 								await refresh(lastSeq);
 							} catch (error) {
 								sendError(error);
@@ -624,17 +658,8 @@ export const createCMSAdapterRoutes = (
 					return jsonError(`Global "${params.global}" not found`, 404);
 				}
 
-				const crud = globalInstance.generateCRUD(
-					resolved.cmsContext.db,
-					cms,
-				);
-
+				const crud = globalInstance.generateCRUD(resolved.cmsContext.db, cms);
 				const options = parseFindOptions(new URL(request.url));
-				const dependencies = resolveGlobalDependencies(
-					cms,
-					params.global,
-					options.with,
-				);
 
 				const encoder = new TextEncoder();
 				let closeStream: (() => void) | null = null;
@@ -649,8 +674,7 @@ export const createCMSAdapterRoutes = (
 							if (closed) return;
 							controller.enqueue(
 								encoder.encode(
-									`event: ${event}\n` +
-										`data: ${JSON.stringify(data)}\n\n`,
+									`event: ${event}\n` + `data: ${JSON.stringify(data)}\n\n`,
 								),
 							);
 						};
@@ -685,16 +709,18 @@ export const createCMSAdapterRoutes = (
 							}
 						};
 
-						const unsubscribe = cms.realtime.subscribe((event) => {
-							const isCollectionMatch =
-								event.resourceType === "collection" &&
-								dependencies.collections.has(event.resource);
-							const isGlobalMatch =
-								event.resourceType === "global" &&
-								dependencies.globals.has(event.resource);
-							if (!isCollectionMatch && !isGlobalMatch) return;
-							void refresh(event.seq);
-						});
+						// Service handles topic routing + dependency tracking
+						const unsubscribe = cms.realtime.subscribe(
+							(event) => {
+								void refresh(event.seq);
+							},
+							{
+								resourceType: "global",
+								resource: params.global,
+								where: options.where,
+								with: options.with,
+							},
+						);
 
 						const pingTimer = setInterval(() => {
 							send("ping", { ts: Date.now() });
@@ -715,7 +741,7 @@ export const createCMSAdapterRoutes = (
 
 						void (async () => {
 							try {
-								lastSeq = await cms.realtime!.getLatestSeq();
+								lastSeq = await cms.realtime?.getLatestSeq();
 								await refresh(lastSeq);
 							} catch (error) {
 								sendError(error);
@@ -782,10 +808,7 @@ export const createCMSAdapterRoutes = (
 				}
 
 				try {
-					const options = parseFindOneOptions(
-						new URL(request.url),
-						params.id,
-					);
+					const options = parseFindOneOptions(new URL(request.url), params.id);
 					const result = await crud.findOne(options, resolved.cmsContext);
 					if (!result) {
 						return jsonError("Not found", 404);
@@ -867,10 +890,7 @@ export const createCMSAdapterRoutes = (
 				try {
 					const options = parseGlobalGetOptions(new URL(request.url));
 					const globalInstance = cms.getGlobalConfig(params.global as any);
-					const crud = globalInstance.generateCRUD(
-						resolved.cmsContext.db,
-						cms,
-					);
+					const crud = globalInstance.generateCRUD(resolved.cmsContext.db, cms);
 					const result = await crud.get(options, resolved.cmsContext);
 					return jsonResponse(result);
 				} catch (error) {
@@ -889,10 +909,7 @@ export const createCMSAdapterRoutes = (
 				try {
 					const options = parseGlobalUpdateOptions(new URL(request.url));
 					const globalInstance = cms.getGlobalConfig(params.global as any);
-					const crud = globalInstance.generateCRUD(
-						resolved.cmsContext.db,
-						cms,
-					);
+					const crud = globalInstance.generateCRUD(resolved.cmsContext.db, cms);
 					const result = await crud.update(body, options, resolved.cmsContext);
 					return jsonResponse(result);
 				} catch (error) {
@@ -906,7 +923,7 @@ export const createCMSAdapterRoutes = (
 };
 
 export const createCMSFetchHandler = (
-	cms: QCMS<any, any, any>,
+	cms: QCMS<any, any, any, any>,
 	config: CMSAdapterConfig = {},
 ): CMSFetchHandler => {
 	const routes = createCMSAdapterRoutes(cms, config);
@@ -946,6 +963,49 @@ export const createCMSFetchHandler = (
 
 		if (segments[0] === "storage" && segments[1] === "upload") {
 			return routes.storageUpload(request, context);
+		}
+
+		if (segments[0] === "rpc") {
+			const functionName = segments[1];
+			if (!functionName) {
+				return jsonError("Function not specified", 404);
+			}
+
+			return routes.rpc.root(request, { name: functionName }, context);
+		}
+
+		if (segments[0] === "collections" && segments[2] === "rpc") {
+			const collectionName = segments[1];
+			const functionName = segments[3];
+			if (!collectionName) {
+				return jsonError("Collection not specified", 404);
+			}
+			if (!functionName) {
+				return jsonError("Function not specified", 404);
+			}
+
+			return routes.rpc.collection(
+				request,
+				{ collection: collectionName, name: functionName },
+				context,
+			);
+		}
+
+		if (segments[0] === "globals" && segments[2] === "rpc") {
+			const globalName = segments[1];
+			const functionName = segments[3];
+			if (!globalName) {
+				return jsonError("Global not specified", 404);
+			}
+			if (!functionName) {
+				return jsonError("Function not specified", 404);
+			}
+
+			return routes.rpc.global(
+				request,
+				{ global: globalName, name: functionName },
+				context,
+			);
 		}
 
 		if (segments[0] === "realtime") {
@@ -1017,11 +1077,7 @@ export const createCMSFetchHandler = (
 
 		if (action === "restore") {
 			if (request.method === "POST") {
-				return routes.collections.restore(
-					request,
-					{ collection, id },
-					context,
-				);
+				return routes.collections.restore(request, { collection, id }, context);
 			}
 
 			return jsonError("Method not allowed", 405);

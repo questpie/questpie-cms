@@ -4,6 +4,40 @@ Complete, production-ready examples demonstrating different use cases and integr
 
 ## Available Examples
 
+### 💈 [TanStack Barbershop](./tanstack-barbershop/)
+
+**Full-featured barbershop with @questpie/admin UI**
+
+Demonstrates:
+- ✅ @questpie/admin package (CollectionList, CollectionForm, FormField)
+- ✅ TanStack DB with offline-first + optimistic updates
+- ✅ TanStack Start integration (file-based routing, API routes)
+- ✅ Realtime sync via SSE
+- ✅ Complete shadcn UI (53+ components, base-lyra style)
+- ✅ Better Auth integration
+- ✅ Collections with relations (Barbers, Services, Appointments, Reviews)
+- ✅ Queue jobs with pg-boss
+- ✅ Docker setup (Postgres only!)
+
+**Tech Stack:**
+- TanStack Start framework
+- @questpie/admin package
+- PostgreSQL database
+- pg-boss queue (no Redis needed!)
+- Better Auth
+- Drizzle ORM
+
+**Perfect for:**
+- Learning @questpie/admin package
+- Building admin dashboards
+- Understanding offline-first architecture
+- TanStack Start + CMS integration
+- Production-ready reference
+
+[View Example →](./tanstack-barbershop/)
+
+---
+
 ### 🪒 [Hono Barbershop](./hono-barbershop/)
 
 **Full-featured barbershop booking system**

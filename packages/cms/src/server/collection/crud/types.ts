@@ -71,8 +71,16 @@ export type Where<TFields = any, TRelations = any> = {
 
 /**
  * Columns selection for partial field selection
- * - true: include field
- * - false: exclude field (ignored if any true is present)
+ *
+ * Two modes:
+ * 1. Inclusion mode: { field1: true, field2: true } - only include specified fields
+ * 2. Omission mode: { field1: false, field2: false } - include all fields EXCEPT specified ones
+ *
+ * Notes:
+ * - If any field is set to true, only fields with true are included (inclusion mode)
+ * - If all fields are false, all fields except false ones are included (omission mode)
+ * - To select all fields, simply omit the columns option entirely
+ * - The 'id' field is always included regardless of selection
  */
 export type Columns<TFields = any> = {
 	[K in keyof TFields]?: boolean;
@@ -226,6 +234,16 @@ type RelationForeignKeys<TInsert, TRelations> =
 			: never
 		: never;
 
+type OptionalKeys<T> = {
+	[K in keyof T]-?: {} extends Pick<T, K> ? K : never;
+}[keyof T];
+
+type RequiredKeys<T> = Exclude<keyof T, OptionalKeys<T>>;
+
+type IsRequiredKey<T, K extends keyof T> = K extends RequiredKeys<T>
+	? true
+	: false;
+
 type OptionalizeKeys<T, K extends keyof T> = Omit<T, K> & Partial<Pick<T, K>>;
 
 type OptionalizeRelationForeignKeys<TInsert, TRelations> =
@@ -246,9 +264,13 @@ type RequireRelationForMissingFk<TInsert, TRelations, TInput> =
 		? K extends string
 			? RelationIdKey<TInsert, K> extends never
 				? {}
-				: RelationIdKey<TInsert, K> extends keyof TInput
-					? {}
-					: Required<Pick<RelationMutations<TRelations>, K>>
+				: RelationIdKey<TInsert, K> extends keyof TInsert
+					? IsRequiredKey<TInsert, RelationIdKey<TInsert, K>> extends true
+						? RelationIdKey<TInsert, K> extends keyof TInput
+							? {}
+							: Required<Pick<RelationMutations<TRelations>, K>>
+						: {}
+					: {}
 			: {}
 		: {};
 
@@ -362,16 +384,13 @@ export interface PaginatedResult<T> {
  * Type Helper for Partial Selection
  * Picks fields based on 'columns' option. Always includes 'id'.
  */
-export type SelectResult<
-	TSelect,
-	TQuery,
-> = [TQuery] extends [never]
+export type SelectResult<TSelect, TQuery> = [TQuery] extends [never]
 	? TSelect
 	: TQuery extends { columns?: Record<string, boolean> }
 		? Pick<
 				TSelect,
-				Extract<keyof TQuery["columns"], keyof TSelect> |
-					("id" extends keyof TSelect ? "id" : never)
+				| Extract<keyof TQuery["columns"], keyof TSelect>
+				| ("id" extends keyof TSelect ? "id" : never)
 			>
 		: TSelect;
 
@@ -399,19 +418,18 @@ export type AggregationResult<TAgg extends RelationAggregation> =
  * Uses the inferred relation types from TRelations.
  * Handles Array vs Single relations and Aggregations.
  */
-export type RelationResult<
-	TRelations,
-	TQuery,
-> = [TQuery] extends [never]
+export type RelationResult<TRelations, TQuery> = [TQuery] extends [never]
 	? {}
 	: TQuery extends { with?: any }
 		? TQuery["with"] extends Record<string, any>
 			? {
 					[K in keyof TQuery["with"]]: K extends keyof TRelations
 						? TRelations[K] extends (infer S)[]
-							? TQuery["with"][K] extends { _count: true } | {
-										_aggregate: any;
-									}
+							? TQuery["with"][K] extends
+									| { _count: true }
+									| {
+											_aggregate: any;
+									  }
 								? (TQuery["with"][K] extends { _count: true }
 										? { _count: number }
 										: {}) &
@@ -427,11 +445,10 @@ export type RelationResult<
 			: {}
 		: {};
 
-type QueryOptions<
-	TSelect,
-	TRelations,
+type QueryOptions<TSelect, TRelations, TQuery> = Extract<
 	TQuery,
-> = Extract<TQuery, FindManyOptions<TSelect, TRelations>>;
+	FindManyOptions<TSelect, TRelations>
+>;
 
 /**
  * Combined Result Type
@@ -480,7 +497,10 @@ export interface CRUD<
 	 * Count records matching query
 	 */
 	count(
-		options?: Pick<FindManyOptions<TSelect, TRelations>, "where" | "includeDeleted">,
+		options?: Pick<
+			FindManyOptions<TSelect, TRelations>,
+			"where" | "includeDeleted"
+		>,
 		context?: CRUDContext,
 	): Promise<number>;
 
@@ -520,10 +540,7 @@ export interface CRUD<
 	/**
 	 * Restore a single soft-deleted record by ID
 	 */
-	restoreById(
-		params: RestoreParams,
-		context?: CRUDContext,
-	): Promise<TSelect>;
+	restoreById(params: RestoreParams, context?: CRUDContext): Promise<TSelect>;
 
 	/**
 	 * Delete multiple records matching where clause
@@ -551,7 +568,7 @@ export interface CRUD<
 	): Promise<TSelect>;
 
 	// Internal properties (not part of public API)
-	__internalState?: any;
-	__internalRelatedTable?: any;
-	__internalI18nTable?: any;
+	"~internalState"?: any;
+	"~internalRelatedTable"?: any;
+	"~internalI18nTable"?: any;
 }

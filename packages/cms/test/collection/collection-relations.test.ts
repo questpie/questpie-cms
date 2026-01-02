@@ -1,25 +1,26 @@
 import { describe, it, beforeEach, afterEach, expect } from "bun:test";
-import { text, uuid, integer, timestamp, varchar } from "drizzle-orm/pg-core";
 import {
-	closeTestDb,
-	createTestDb,
-	runTestDbMigrations,
-} from "../utils/test-db";
-import { createTestCms } from "../utils/test-cms";
+	text,
+	uuid,
+	integer,
+	timestamp,
+	varchar,
+	type AnyPgColumn,
+} from "drizzle-orm/pg-core";
+import { runTestDbMigrations } from "../utils/test-db";
+import { buildMockCMS } from "../utils/mocks/mock-cms-builder";
 import { createTestContext } from "../utils/test-context";
-import { defineCollection } from "#questpie/cms/server/index.js";
+import { defineQCMS, defineCollection } from "#questpie/cms/server/index.js";
 
 // ==============================================================================
 // TEST COLLECTIONS SETUP
 // ==============================================================================
 
 // Users collection (referenced by profiles)
-const users = defineCollection("users")
-	.fields({
-		email: varchar("email", { length: 255 }).notNull(),
-		name: text("name").notNull(),
-	})
-	.build();
+const users = defineCollection("users").fields({
+	email: varchar("email", { length: 255 }).notNull(),
+	name: text("name").notNull(),
+});
 
 // Profiles collection (one-to-one with users via belongsTo)
 const profiles = defineCollection("profiles")
@@ -36,8 +37,7 @@ const profiles = defineCollection("profiles")
 			fields: [table.userId],
 			references: ["id"],
 		}),
-	}))
-	.build();
+	}));
 
 // Authors with posts (one-to-many with cascade delete)
 const authors = defineCollection("authors")
@@ -50,8 +50,7 @@ const authors = defineCollection("authors")
 		// This additional setting ensures beforeDelete/afterDelete hooks run on related records
 		posts: many("posts", { relationName: "author", onDelete: "cascade" }),
 		editedPosts: many("posts", { relationName: "editor" }),
-	}))
-	.build();
+	}));
 
 // Posts with cascade/set null scenarios
 const posts = defineCollection("posts")
@@ -78,19 +77,21 @@ const posts = defineCollection("posts")
 		}),
 		// Explicitly cascade to trigger hooks on comments when post is deleted
 		comments: many("comments", { relationName: "post", onDelete: "cascade" }),
-	}))
-	.build();
+	}));
 
 // Comments for deep nesting tests (posts -> comments -> replies)
-const comments: any = defineCollection("comments")
+const comments = defineCollection("comments")
 	.fields({
 		content: text("content").notNull(),
 		postId: uuid("post_id")
 			.notNull()
 			.references(() => posts.table.id, { onDelete: "cascade" }),
-		parentId: uuid("parent_id").references((): any => comments.table.id, {
-			onDelete: "cascade",
-		}),
+		parentId: uuid("parent_id").references(
+			(): AnyPgColumn => comments.table.id,
+			{
+				onDelete: "cascade",
+			},
+		),
 	})
 	.relations(({ table, one, many }) => ({
 		post: one("posts", {
@@ -104,8 +105,7 @@ const comments: any = defineCollection("comments")
 			relationName: "parent",
 		}),
 		replies: many("comments", { relationName: "parent" }),
-	}))
-	.build();
+	}));
 
 // Products with restricted delete
 const restrictedCategories = defineCollection("restricted_categories")
@@ -114,8 +114,7 @@ const restrictedCategories = defineCollection("restricted_categories")
 	})
 	.relations(({ many }) => ({
 		products: many("restricted_products", { relationName: "category" }),
-	}))
-	.build();
+	}));
 
 const restrictedProducts = defineCollection("restricted_products")
 	.fields({
@@ -132,8 +131,7 @@ const restrictedProducts = defineCollection("restricted_products")
 			references: ["id"],
 			relationName: "category",
 		}),
-	}))
-	.build();
+	}));
 
 // Polymorphic relations setup
 const polymorphicComments = defineCollection("polymorphic_comments")
@@ -151,8 +149,7 @@ const polymorphicComments = defineCollection("polymorphic_comments")
 				profiles: "profiles",
 			},
 		}),
-	}))
-	.build();
+	}));
 
 // Many-to-many with extra fields in junction table
 const articles = defineCollection("articles")
@@ -165,8 +162,7 @@ const articles = defineCollection("articles")
 			sourceField: "articleId",
 			targetField: "tagId",
 		}),
-	}))
-	.build();
+	}));
 
 const articleTags = defineCollection("article_tags")
 	.fields({
@@ -178,21 +174,18 @@ const articleTags = defineCollection("article_tags")
 			sourceField: "tagId",
 			targetField: "articleId",
 		}),
-	}))
-	.build();
+	}));
 
-const articleTagJunction = defineCollection("article_tag_junction")
-	.fields({
-		articleId: uuid("article_id")
-			.notNull()
-			.references(() => articles.table.id, { onDelete: "cascade" }),
-		tagId: uuid("tag_id")
-			.notNull()
-			.references(() => articleTags.table.id, { onDelete: "cascade" }),
-		order: integer("order").default(0),
-		addedAt: timestamp("added_at", { mode: "date" }).defaultNow(),
-	})
-	.build();
+const articleTagJunction = defineCollection("article_tag_junction").fields({
+	articleId: uuid("article_id")
+		.notNull()
+		.references(() => articles.table.id, { onDelete: "cascade" }),
+	tagId: uuid("tag_id")
+		.notNull()
+		.references(() => articleTags.table.id, { onDelete: "cascade" }),
+	order: integer("order").default(0),
+	addedAt: timestamp("added_at", { mode: "date" }).defaultNow(),
+});
 
 // Additional collections for filtering and quantifiers tests
 const categories = defineCollection("categories")
@@ -206,8 +199,7 @@ const categories = defineCollection("categories")
 			sourceField: "categoryId",
 			targetField: "tagId",
 		}),
-	}))
-	.build();
+	}));
 
 const products = defineCollection("products")
 	.fields({
@@ -227,8 +219,7 @@ const products = defineCollection("products")
 			sourceField: "productId",
 			targetField: "tagId",
 		}),
-	}))
-	.build();
+	}));
 
 const tags = defineCollection("tags")
 	.fields({
@@ -245,70 +236,61 @@ const tags = defineCollection("tags")
 			sourceField: "tagId",
 			targetField: "categoryId",
 		}),
-	}))
-	.build();
+	}));
 
-const categoryTags = defineCollection("category_tags")
-	.fields({
-		categoryId: uuid("category_id")
-			.notNull()
-			.references(() => categories.table.id),
-		tagId: uuid("tag_id")
-			.notNull()
-			.references(() => tags.table.id),
-	})
-	.build();
+const categoryTags = defineCollection("category_tags").fields({
+	categoryId: uuid("category_id")
+		.notNull()
+		.references(() => categories.table.id),
+	tagId: uuid("tag_id")
+		.notNull()
+		.references(() => tags.table.id),
+});
 
-const productTags = defineCollection("product_tags")
-	.fields({
-		productId: uuid("product_id")
-			.notNull()
-			.references(() => products.table.id),
-		tagId: uuid("tag_id")
-			.notNull()
-			.references(() => tags.table.id),
-	})
-	.build();
+const productTags = defineCollection("product_tags").fields({
+	productId: uuid("product_id")
+		.notNull()
+		.references(() => products.table.id),
+	tagId: uuid("tag_id")
+		.notNull()
+		.references(() => tags.table.id),
+});
+
+const testModule = defineQCMS({ name: "test" }).collections({
+	users,
+	profiles,
+	authors,
+	posts,
+	comments,
+	restrictedCategories,
+	restrictedProducts,
+	polymorphicComments,
+	articles,
+	articleTags,
+	articleTagJunction,
+	categories,
+	products,
+	tags,
+	categoryTags,
+	productTags,
+});
 
 // ==============================================================================
 // TESTS
 // ==============================================================================
 
 describe("collection relations", () => {
-	let db: any;
-	let client: any;
-	let cms: ReturnType<typeof createTestCms>;
+	let setup: Awaited<ReturnType<typeof buildMockCMS<typeof testModule>>>;
+	let cms: typeof testModule.$inferCms;
 
 	beforeEach(async () => {
-		const setup = await createTestDb();
-		db = setup.db;
-		client = setup.client;
-		cms = createTestCms(
-			[
-				users,
-				profiles,
-				authors,
-				posts,
-				comments,
-				restrictedCategories,
-				restrictedProducts,
-				polymorphicComments,
-				articles,
-				articleTags,
-				articleTagJunction,
-				categories,
-				products,
-				tags,
-				categoryTags,
-				productTags,
-			],
-			db,
-		);
+		setup = await buildMockCMS(testModule);
+		cms = setup.cms;
 		await runTestDbMigrations(cms);
 	});
 
 	afterEach(async () => {
-		await closeTestDb(client);
+		await setup.cleanup();
 	});
 
 	// ==========================================================================
@@ -430,6 +412,7 @@ describe("collection relations", () => {
 					title: "Post 1",
 					views: 100,
 					authorId: author.id,
+					editorId: author.id,
 				},
 				ctx,
 			);
@@ -488,7 +471,7 @@ describe("collection relations", () => {
 					id: crypto.randomUUID(),
 					title: "Post 2",
 					views: 50,
-					authorId: author.id,
+					author: { connect: [{ id: author.id }] },
 				},
 				ctx,
 			);
@@ -596,6 +579,7 @@ describe("collection relations", () => {
 			expect(authorWithPosts?.posts).toHaveLength(2);
 			expect(authorWithPosts?.posts[0].title).toBeDefined();
 			// Note: views should not be loaded (partial selection not yet implemented)
+			// @ts-expect-error views is not selected
 			expect(authorWithPosts?.posts[0].views).toBeUndefined();
 		});
 	});

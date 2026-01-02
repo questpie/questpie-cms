@@ -3,12 +3,7 @@ import { join } from "node:path";
 import { MigrationRunner } from "../../server/migration/runner";
 import type { Migration } from "../../server/migration/types";
 
-export type RunMigrationAction =
-	| "up"
-	| "down"
-	| "status"
-	| "reset"
-	| "fresh";
+export type RunMigrationAction = "up" | "down" | "status" | "reset" | "fresh";
 
 export type RunMigrationOptions = {
 	action: RunMigrationAction;
@@ -87,7 +82,9 @@ export async function runMigrationCommand(
 	console.log(`📦 Found ${allMigrations.length} migrations\n`);
 
 	if (options.dryRun) {
-		console.log("🔍 DRY RUN - Would execute the following migration operation:");
+		console.log(
+			"🔍 DRY RUN - Would execute the following migration operation:",
+		);
 		console.log(`Action: ${options.action}`);
 		if (options.targetMigration)
 			console.log(`Target migration: ${options.targetMigration}`);
@@ -97,7 +94,7 @@ export async function runMigrationCommand(
 	}
 
 	// Create migration runner
-	const runner = new MigrationRunner(qcms.db.drizzle as any);
+	const runner = new MigrationRunner(qcms.db);
 
 	// Execute the requested action
 	switch (options.action) {

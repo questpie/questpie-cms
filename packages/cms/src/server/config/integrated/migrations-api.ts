@@ -9,6 +9,7 @@ import {
 	type AnyGlobalOrBuilder,
 	type JobDefinition,
 	type QCMS,
+	type CMSDbConfig,
 } from "#questpie/cms/exports/server.js";
 import { toCamelCase } from "drizzle-orm/casing";
 
@@ -36,11 +37,21 @@ export class QCMSMigrationsAPI<
 	TCollections extends AnyCollectionOrBuilder[] = AnyCollectionOrBuilder[],
 	TGlobals extends AnyGlobalOrBuilder[] = AnyGlobalOrBuilder[],
 	TJobs extends JobDefinition<any, any>[] = JobDefinition<any, any>[],
+	TEmailTemplates extends any[] = any[],
 > {
 	private readonly runner: MigrationRunner;
 
-	constructor(private readonly cms: QCMS<TCollections, TGlobals, TJobs>) {
-		this.runner = new MigrationRunner(this.cms.db.drizzle);
+	constructor(
+		private readonly cms: QCMS<
+			TCollections,
+			TGlobals,
+			TJobs,
+			TEmailTemplates,
+			any,
+			CMSDbConfig
+		>,
+	) {
+		this.runner = new MigrationRunner(this.cms.db);
 	}
 
 	/**
