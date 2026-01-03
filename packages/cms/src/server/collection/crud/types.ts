@@ -5,6 +5,7 @@ import type { RequestContext } from "#questpie/cms/server/config/context";
 import type {
 	ExtractRelationRelations,
 	ExtractRelationSelect,
+	Prettify,
 } from "#questpie/cms/shared/type-utils.js";
 
 /**
@@ -230,12 +231,11 @@ export type NestedRelationMutation<TInsert = any> = {
 		| NestedRelationConnectOrCreate<TInsert>[]; // Create if doesn't exist
 };
 
-type RelationKeys<TRelations> =
-	[TRelations] extends [never]
-		? never
-		: [TRelations] extends [Record<string, any>]
-			? keyof TRelations & string
-			: never;
+type RelationKeys<TRelations> = [TRelations] extends [never]
+	? never
+	: [TRelations] extends [Record<string, any>]
+		? keyof TRelations & string
+		: never;
 
 type RelationMutations<TRelations> = [TRelations] extends [never]
 	? {}
@@ -284,45 +284,47 @@ type UnionToIntersection<U> = (
 	? I
 	: never;
 
-type RequireRelationForMissingFk<TInsert, TRelations, TInput> =
-	[TRelations] extends [never]
-		? {} // Never type, nothing to require
-		: [TRelations] extends [any]
-			? {} // Any type, don't enforce anything
-			: [TRelations] extends [Record<string, any>]
-				? keyof TRelations extends never
-					? {} // No relations, nothing to require
-					: RelationKeys<TRelations> extends infer K
-						? K extends string
-							? RelationIdKey<TInsert, K> extends never
-								? {}
-								: RelationIdKey<TInsert, K> extends keyof TInsert
-									? IsRequiredKey<TInsert, RelationIdKey<TInsert, K>> extends true
-										? RelationIdKey<TInsert, K> extends keyof TInput
-											? {}
-											: K extends keyof TRelations
-												? K extends keyof RelationMutations<TRelations>
-													? Required<Pick<RelationMutations<TRelations>, K>>
-													: {}
+type RequireRelationForMissingFk<TInsert, TRelations, TInput> = [
+	TRelations,
+] extends [never]
+	? {} // Never type, nothing to require
+	: [TRelations] extends [any]
+		? {} // Any type, don't enforce anything
+		: [TRelations] extends [Record<string, any>]
+			? keyof TRelations extends never
+				? {} // No relations, nothing to require
+				: RelationKeys<TRelations> extends infer K
+					? K extends string
+						? RelationIdKey<TInsert, K> extends never
+							? {}
+							: RelationIdKey<TInsert, K> extends keyof TInsert
+								? IsRequiredKey<TInsert, RelationIdKey<TInsert, K>> extends true
+									? RelationIdKey<TInsert, K> extends keyof TInput
+										? {}
+										: K extends keyof TRelations
+											? K extends keyof RelationMutations<TRelations>
+												? Required<Pick<RelationMutations<TRelations>, K>>
 												: {}
-										: {}
+											: {}
 									: {}
-							: {}
+								: {}
 						: {}
-				: {};
+					: {}
+			: {};
 
-type EnforceRelationForMissingFk<TInsert, TRelations, TInput> =
-	[TRelations] extends [never]
-		? {}
-		: [TRelations] extends [any]
-			? {} // Any type, don't enforce anything
-			: [TRelations] extends [Record<string, any>]
-				? keyof TRelations extends never
-					? {}
-					: UnionToIntersection<
-							RequireRelationForMissingFk<TInsert, TRelations, TInput>
-						>
-				: {};
+type EnforceRelationForMissingFk<TInsert, TRelations, TInput> = [
+	TRelations,
+] extends [never]
+	? {}
+	: [TRelations] extends [any]
+		? {} // Any type, don't enforce anything
+		: [TRelations] extends [Record<string, any>]
+			? keyof TRelations extends never
+				? {}
+				: UnionToIntersection<
+						RequireRelationForMissingFk<TInsert, TRelations, TInput>
+					>
+			: {};
 
 /**
  * Create input with optional nested relations
@@ -475,12 +477,12 @@ export type RelationResult<TRelations, TQuery> = [TQuery] extends [never]
 									  }
 								? (TQuery["with"][K] extends { _count: true }
 										? { _count: number }
-										: {}) &
+										: Record<never, never>) &
 										(TQuery["with"][K] extends { _aggregate: infer Agg }
 											? Agg extends RelationAggregation
 												? AggregationResult<Agg>
-												: {}
-											: {})
+												: Record<never, never>
+											: Record<never, never>)
 								: ApplyQuery<
 										RelationSelect<S>,
 										RelationRelations<S>,
@@ -493,8 +495,8 @@ export type RelationResult<TRelations, TQuery> = [TQuery] extends [never]
 								>
 						: never;
 				}
-			: {}
-		: {};
+			: Record<never, never>
+		: Record<never, never>;
 
 type QueryOptions<TSelect, TRelations, TQuery> = Extract<
 	TQuery,
@@ -509,12 +511,14 @@ export type ApplyQuery<
 	TSelect,
 	TRelations,
 	TQuery extends FindManyOptions<TSelect, TRelations> | undefined | boolean,
-> = TQuery extends undefined | true
-	? TSelect
-	: TQuery extends false
-		? never
-		: SelectResult<TSelect, QueryOptions<TSelect, TRelations, TQuery>> &
-				RelationResult<TRelations, QueryOptions<TSelect, TRelations, TQuery>>;
+> = Prettify<
+	TQuery extends undefined | true
+		? TSelect
+		: TQuery extends false
+			? never
+			: SelectResult<TSelect, QueryOptions<TSelect, TRelations, TQuery>> &
+					RelationResult<TRelations, QueryOptions<TSelect, TRelations, TQuery>>
+>;
 
 /**
  * CRUD operations interface

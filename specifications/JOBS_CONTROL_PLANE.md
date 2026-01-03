@@ -60,6 +60,7 @@ export type JobMeta = {
 	defaultSchedule?: JobScheduleDefaults;
 	defaultPayload?: Record<string, unknown>;
 	system?: boolean; // Hide internal jobs from UI by default
+	runOnce?: boolean; // For init strategy: run only once ever
 };
 ```
 
@@ -115,7 +116,9 @@ Suggested fields:
 - `nextRunAt` (timestamp, optional, computed by scheduler)
 - `system` (boolean, default false)
 - `definitionHash` (string, optional)
+- `deletedFromCode` (boolean, default false, set when job no longer exists in code)
 - `retentionDays` (number, optional, for runs/logs cleanup)
+- `retentionCount` (number, optional, keep last N runs)
 - `createdAt`, `updatedAt`
 
 ### `job_run` collection (audit)
@@ -130,6 +133,7 @@ Suggested fields:
 - `durationMs` (number)
 - `queueJobId` (string, optional)
 - `workerId` (string, optional)
+- `triggeredBy` (json: `{ type: "scheduler" | "manual" | "hook", userId?: string, hookName?: string }`)
 - `createdAt`
 
 ### `job_log` collection (log stream + search)
@@ -141,6 +145,17 @@ Suggested fields:
 - `meta` (json)
 - `sequence` (number, optional)
 - `createdAt`
+
+**Index strategy:**
+- Compound index on `(jobName, createdAt)` for efficient filtering + time-range queries
+- Compound index on `(jobRunId, sequence)` for ordered log retrieval
+- Full-text index on `message` for search
+
+**Performance considerations:**
+- Logs are written via **batch insert** using native Drizzle table (`job_log_collection.table`)
+- Buffer up to 100 log lines or flush every 5 seconds
+- Bypass collection API for write performance
+- Read via collection API for access control + search
 
 ### Optional `job_lock` collection (distributed scheduler lock)
 
@@ -279,22 +294,30 @@ Responsibilities:
 - Upsert job records from code definitions.
 - Populate default fields from `job.meta`.
 - Track `definitionHash` for update detection.
+- Mark jobs as `deletedFromCode` when definition no longer exists.
 
 Sync rules:
 - If job not present, insert with defaults.
 - If job exists, update only safe fields (`description`, `tags`, `definitionHash`) unless `force=true`.
 - Respect user overrides for schedule and enablement.
+- If code definition is removed, set `deletedFromCode=true` (keep strategy for audit/UI info).
 
 Pseudocode:
 
 ```
+codeJobNames = set of job names from definitions
+dbJobs = all jobs from DB
+
 for each jobDef:
   hash = hash(jobDef.name + jobDef.meta + jobDef.schema)
   record = find job by name
   if !record:
-    insert with defaults from meta
+    insert with defaults from meta, deletedFromCode=false
   else if record.definitionHash != hash:
-    update definitionHash and optional display fields
+    update definitionHash, description, tags, deletedFromCode=false
+
+for each dbJob not in codeJobNames:
+  update dbJob.deletedFromCode = true
 ```
 
 ### JobService (runtime API)
@@ -354,21 +377,58 @@ The scheduler is itself a job, triggered by queue cron. This gives distributed s
 ```
 tick(now):
   lock "scheduler" (job_lock or advisory)
-  jobs = select job where enabled and due(now)
+  jobs = select job where enabled and due(now) and !deletedFromCode
   for each job:
     if maxConcurrency reached => skip
-    create job_run(status="queued", scheduledFor=job.nextRunAt)
+    create job_run(status="queued", scheduledFor=job.nextRunAt, triggeredBy={type:"scheduler"})
     queue.publish(job.name, payload, { singletonKey, retry overrides })
     update job.lastRunAt = now
     update job.nextRunAt = computeNextRun(job, now)
   release lock
 ```
 
+### MaxConcurrency Enforcement
+
+To prevent race conditions in distributed scheduler:
+
+**Option 1: Count active runs (simple)**
+```ts
+const activeRuns = await db.select().from(jobRuns)
+  .where(and(
+    eq(jobRuns.jobName, job.name),
+    eq(jobRuns.status, "running")
+  ))
+  .count();
+
+if (activeRuns >= job.maxConcurrency) {
+  skip;
+}
+```
+
+**Option 2: Atomic counter (recommended for high concurrency)**
+```ts
+// Add to job collection:
+activeRunCount: integer("active_run_count").default(0)
+
+// On job start (in worker):
+await db.update(job).set({ activeRunCount: sql`active_run_count + 1` });
+
+// On job finish:
+await db.update(job).set({ activeRunCount: sql`active_run_count - 1` });
+
+// Scheduler check:
+if (job.activeRunCount >= job.maxConcurrency) skip;
+```
+
+**Option 3: Queue adapter singleton key**
+- Use `singletonKey` based on job name (pg-boss native support)
+- Limits to 1 instance per key, but less flexible than per-job config
+
 ### Due Selection (examples)
 
 - `strategy=cron`: compute next run time; if `nextRunAt <= now` and enabled.
 - `strategy=interval`: `lastRunAt + intervalSeconds <= now`.
-- `strategy=init`: run once on boot unless `runOnce` already completed.
+- `strategy=init`: run once on boot/sync if `meta.runOnce=true` and never completed before.
 - `strategy=event`: run is created by event hook, not scheduler.
 
 ### Locking
@@ -382,7 +442,7 @@ We need a reliable `computeNextRun`:
 
 - For `cron`: use a small cron parser (or queue adapter helper if exposed).
 - For `interval`: `now + intervalSeconds`.
-- For `init`: set `nextRunAt` to `now` once, then disable after success.
+- For `init`: if `meta.runOnce=true`, set `nextRunAt` to `now` on first sync, then set to `null` after success.
 
 If cron parsing is added, keep dependency pinned in `DEPENDENCIES.md`.
 
@@ -390,15 +450,45 @@ If cron parsing is added, keep dependency pinned in `DEPENDENCIES.md`.
 
 `strategy=event` is triggered by CMS hooks, not scheduler:
 
-- Collection hooks call `cms.jobs.trigger("job-name", payload)`.
+- Collection hooks call `cms.jobs.trigger("job-name", payload, { triggeredBy: { type: "hook", hookName: "afterChange", operation: 'create', collection: 'collectionName' } })` // this should maybe run from context ?po.
 - Event jobs are still audited in `job_run` and `job_log`.
+- `triggeredBy` metadata captures hook context for debugging.
 
 ## Retention and Cleanup
 
-Provide system jobs:
+Provide system jobs with configurable strategies (similar to Bull):
 
-- `questpie-prune-job-runs`: delete runs older than N days.
-- `questpie-prune-job-logs`: delete logs older than N days.
+### Time-based retention
+- `questpie-prune-job-runs`: delete runs older than `job.retentionDays` (default 30 days).
+- `questpie-prune-job-logs`: delete logs older than `job.retentionDays` (default 7 days).
+
+### Count-based retention
+- Keep last N runs: delete runs where `job_run.createdAt` is older than Nth newest for that job.
+- Use `job.retentionCount` (e.g., keep last 100 runs).
+
+### Implementation
+```ts
+// Cleanup job runs (time-based)
+DELETE FROM job_run 
+WHERE job_name = ? 
+  AND finished_at < NOW() - INTERVAL '? days'
+  AND status IN ('success', 'failed');
+
+// Cleanup job runs (count-based)
+DELETE FROM job_run
+WHERE id NOT IN (
+  SELECT id FROM job_run
+  WHERE job_name = ?
+  ORDER BY created_at DESC
+  LIMIT ?
+);
+
+// Cleanup orphaned logs
+DELETE FROM job_log
+WHERE job_run_id NOT IN (SELECT id FROM job_run);
+```
+
+Both cleanup jobs run as scheduled system jobs (e.g., daily at 2 AM).
 
 Use `job.retentionDays` or global defaults to configure retention.
 
@@ -407,16 +497,21 @@ Use `job.retentionDays` or global defaults to configure retention.
 `RequestContext` already allows extensions. Jobs should set:
 
 ```ts
-context.job = {
-	name,
-	runId,
-	attempt,
-	scheduledFor,
-};
-context.logger = jobLogger;
+export interface JobExecutionContext {
+	name: string;
+	runId: string;
+	attempt: number;
+	scheduledFor?: Date;
+	triggeredBy: { type: "scheduler" | "manual" | "hook"; hookName?: string; userId?: string };
+}
+
+export interface JobRequestContext extends RequestContext {
+	job: JobExecutionContext;
+	logger: JobLogger;
+}
 ```
 
-Handlers can then use `context.logger` for structured job logs.
+Handlers can then use `context.logger` for structured job logs and `context.job` for execution metadata.
 
 ## Log Ingestion Strategy
 
@@ -426,9 +521,32 @@ Two-layer logging:
 2) **Persisted logs** via `job_log` collection for UI + search.
 
 Implementation idea:
-- Create `JobLogger` that writes to both `cms.logger` and `job_log`.
-- Inject into job handler via context (e.g. `context.logger`).
+- Create `JobLogger` that writes to both `cms.logger` and in-memory buffer.
+- Batch flush to `job_log` using native Drizzle table (`jobLogsCollection.table`):
+  - Buffer up to 100 log entries or flush every 5 seconds.
+  - Bypass collection API for write performance (direct INSERT).
+- Reading logs uses collection API for access control + search.
 - Keep log payload small; store large blobs in `meta` or external storage.
+
+Example:
+```ts
+class JobLogger {
+	private buffer: LogEntry[] = [];
+	private flushTimer: Timer;
+
+	log(level, message, meta) {
+		cms.logger[level](message, meta); // Real-time stdout
+		this.buffer.push({ level, message, meta, sequence: this.buffer.length });
+		if (this.buffer.length >= 100) this.flush();
+	}
+
+	async flush() {
+		if (this.buffer.length === 0) return;
+		await db.insert(jobLogsCollection.table).values(this.buffer);
+		this.buffer = [];
+	}
+}
+```
 
 ## Worker Instrumentation (Runs + Logs)
 
@@ -517,18 +635,42 @@ Because these are collections, users can:
 
 ## Testing Strategy
 
-- Unit test: `computeNextRun` for cron/interval/init.
-- Integration test: scheduler tick enqueues job run and writes `job_run`.
-- Integration test: worker writes `job_run` and `job_log` and closes run on success/failure.
+### Unit Tests
+- `computeNextRun` for cron/interval/init strategies (edge cases: DST, leap seconds, timezone changes).
+- `JobRegistry.sync` deletion detection and hash updates.
+- `JobLogger` buffer flushing (100 entries, 5 second timeout).
+
+### Integration Tests
+- **Scheduler tick**: enqueues job run, writes `job_run` with `status=queued`, updates `lastRunAt`/`nextRunAt`.
+- **Worker execution**: creates run, writes logs via batch, updates run status on success/failure.
+- **MaxConcurrency**: multiple workers respect concurrency limit (use atomic counter test).
+- **Event triggers**: hook creates job run with correct `triggeredBy` metadata.
+- **Retention cleanup**: time-based and count-based pruning work correctly.
+
+### Failure Scenarios
+- **Transaction rollback**: if worker fails after creating run but before queue publish, run status is `queued` (eventually timeout).
+- **Concurrent scheduler ticks**: distributed lock prevents duplicate enqueues.
+- **Queue adapter failure**: if `queue.publish` fails after `job_run` create, run stays `queued` (manual retry or timeout).
+- **Log buffer loss**: on worker crash, buffered logs are lost (acceptable trade-off for performance).
+
+### Adapter Compatibility
+- Test with pg-boss adapter (current).
+- Verify scheduler tick works with queue adapter cron.
+- Test singleton key behavior for maxConcurrency.
 
 ## Refactor Steps (Detailed)
 
 1) **Define collections** for `job`, `job_run`, `job_log`, `job_lock`.
+   - Add compound indexes for `job_log` (`jobName + createdAt`, `jobRunId + sequence`).
+   - Add `deletedFromCode`, `retentionCount` to `job` schema.
 2) **Create jobs module** with migrations and `.use` integration.
-3) **Add JobRegistry + JobService** (sync, trigger, schedule config).
+3) **Add JobRegistry + JobService** (sync with deletion detection, trigger with `triggeredBy`, schedule config).
 4) **Add scheduler tick job** (cron via queue adapter).
-5) **Add worker instrumentation** (create run, logs, error capture).
-6) **Expose admin UI views** (optional initial defaults).
+   - Implement maxConcurrency enforcement (atomic counter or count query).
+5) **Add worker instrumentation** (create run, batch log buffer, error capture, `triggeredBy` tracking).
+6) **Implement cleanup jobs** (time-based and count-based retention).
+7) **Add `JobLogger` with batch insert** via native Drizzle table.
+8) **Expose admin UI views** (optional initial defaults).
 
 ## Integration Touchpoints (Files)
 
@@ -541,8 +683,31 @@ Because these are collections, users can:
 ## Open Questions / Decisions
 
 - Should scheduler tick job run every minute by default, or configurable?
-- How to handle `init` strategy: boot hook or scheduler mode?
-- Required log retention policy for `job_log` collection?
+- How to handle `init` strategy: boot hook or scheduler mode? → **Decided: `meta.runOnce=true` + scheduler check**
+- Required log retention policy for `job_log` collection? → **Decided: configurable via `retentionDays` and `retentionCount`**
+- MaxConcurrency: count query or atomic counter? → **Decided: atomic counter for performance**
+- Cron parsing library? → **Pin in DEPENDENCIES.md** (e.g., `cron-parser` or queue adapter native)
+
+## Additional Improvements
+
+### Job Dependencies (Future)
+- Allow jobs to depend on other jobs (DAG execution).
+- Store as `dependencies: string[]` in `job` collection.
+- Scheduler checks if all dependencies completed successfully before enqueue.
+
+### Job Timeouts (Future)
+- Add `timeoutSeconds` to job config.
+- Worker wraps handler in timeout promise.
+- On timeout, mark run as `failed` with error `Job exceeded timeout of Xs`.
+
+### Job Priority (Future)
+- Add `priority` field to `job` collection.
+- Pass priority to queue adapter on publish.
+- Scheduler sorts by priority when enqueuing.
+
+### Dead Letter Queue
+- Add `dlq` collection for failed jobs that exceeded retry limit.
+- Allows manual inspection and re-trigger from UI.
 
 ## Summary
 
@@ -551,3 +716,7 @@ This plan keeps the current queue system intact, but adds a robust control plane
 - Jobs are defined in code, configured in DB, scheduled via queue cron.
 - Runs + logs are first-class collections, enabling admin UI + access control.
 - Scheduler tick is distributed and provider-friendly.
+- Cleanup strategies (time + count-based) keep DB size manageable.
+- Batch logging via native Drizzle table bypasses collection overhead.
+- `deletedFromCode` flag provides audit trail for removed jobs.
+- **Breaking change is acceptable** - this is a major feature addition.

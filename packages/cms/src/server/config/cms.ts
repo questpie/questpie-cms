@@ -41,6 +41,10 @@ import {
 	createSearchService,
 	type SearchService,
 } from "#questpie/cms/server/integrated/search";
+import {
+	createJobsService,
+	type JobsService,
+} from "#questpie/cms/server/modules/jobs/services/jobs.service";
 import { createDiskDriver } from "#questpie/cms/server/integrated/storage/create-driver";
 import type { CMSConfig, GetFunctions, InferAuthFromConfig } from "./types";
 
@@ -68,6 +72,7 @@ export class QCMS<TConfig extends CMSConfig = CMSConfig> {
 			.storageDriverServiceName]: () => import("flydrive/types").DriverContract;
 	}>;
 	public queue: QueueClient<NonNullable<TConfig["queue"]>["jobs"]>;
+	public jobs: JobsService;
 	public email: MailerService;
 	public kv: KVService;
 	public logger: LoggerService;
@@ -151,6 +156,8 @@ export class QCMS<TConfig extends CMSConfig = CMSConfig> {
 		} else {
 			this.queue = {} as any; // Empty queue client if no jobs defined
 		}
+
+		this.jobs = createJobsService(this);
 
 		// For critical infrastructure, we currently require config or throw
 		// In the future, we could provide safe "dev" defaults (e.g. local storage, console mail)

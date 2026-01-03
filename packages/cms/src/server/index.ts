@@ -15,6 +15,7 @@ export * from "./integrated/realtime";
 export * from "./migration";
 export * from "./functions";
 export * from "./utils/drizzle-to-zod";
+export * from "./modules/jobs";
 
 // Re-export shared type utilities for convenience
 export type {

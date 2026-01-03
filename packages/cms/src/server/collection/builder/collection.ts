@@ -46,15 +46,15 @@ type InferCollectionSelect<
 	TTable extends PgTable,
 	TFields extends Record<string, any>,
 	TLocalized extends ReadonlyArray<keyof TFields>,
-	TVirtuals extends Record<string, SQL>,
+	TVirtuals extends Record<string, SQL> | undefined,
 	TTitle extends SQL | undefined,
 > = Prettify<
 	InferSelectModel<TTable> &
-		(keyof TVirtuals extends never
-			? Record<never, never>
-			: {
+		(TVirtuals extends Record<string, SQL>
+			? {
 					[K in keyof TVirtuals]: InferSQLType<TVirtuals[K]>;
-				}) &
+				}
+			: Record<never, never>) &
 		(TLocalized[number] extends never
 			? Record<never, never>
 			: {
@@ -150,16 +150,12 @@ export class Collection<TState extends CollectionBuilderState> {
 	});
 
 	static readonly timestampsCols = () => ({
-		createdAt: timestamp("created_at", { mode: "string" })
-			.defaultNow()
-			.notNull(),
-		updatedAt: timestamp("updated_at", { mode: "string" })
-			.defaultNow()
-			.notNull(),
+		createdAt: timestamp("created_at", { mode: "date" }).defaultNow().notNull(),
+		updatedAt: timestamp("updated_at", { mode: "date" }).defaultNow().notNull(),
 	});
 
 	static readonly softDeleteCols = () => ({
-		deletedAt: timestamp("deleted_at", { mode: "string" }),
+		deletedAt: timestamp("deleted_at", { mode: "date" }),
 	});
 
 	static readonly versionCols = () => ({
@@ -170,7 +166,7 @@ export class Collection<TState extends CollectionBuilderState> {
 		versionNumber: integer("version_number").notNull(),
 		versionOperation: text("version_operation").notNull(), // 'create' | 'update' | 'delete'
 		versionUserId: text("version_user_id"), // Nullable if unknown
-		versionCreatedAt: timestamp("version_created_at", { mode: "string" })
+		versionCreatedAt: timestamp("version_created_at", { mode: "date" })
 			.defaultNow()
 			.notNull(),
 	});
@@ -657,12 +653,14 @@ export class Collection<TState extends CollectionBuilderState> {
 				name,
 				column,
 				localized: this.state.localized.includes(name as any),
-				virtual: name in this.state.virtuals,
+				virtual: this.state.virtuals && name in this.state.virtuals,
 			})),
 			hasTitle: !!this.state.title,
 			timestamps: this.state.options.timestamps !== false,
 			softDelete: this.state.options.softDelete || false,
-			virtualFields: Object.keys(this.state.virtuals),
+			virtualFields: this.state.virtuals
+				? Object.keys(this.state.virtuals)
+				: [],
 			localizedFields: Array.from(this.state.localized),
 			relations: Object.keys(this.state.relations),
 		};

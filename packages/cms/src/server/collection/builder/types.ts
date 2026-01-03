@@ -81,7 +81,7 @@ export type CollectionBuilderRelationFn<
  */
 export type CollectionBuilderVirtualsFn<
 	TState extends CollectionBuilderState,
-	TNewVirtuals extends Record<string, SQL>,
+	TNewVirtuals extends Record<string, SQL> | undefined,
 > = (ctx: {
 	table: InferTableWithColumns<
 		TState["name"],
@@ -632,7 +632,7 @@ export interface CollectionBuilderState {
 	name: string;
 	fields: Record<string, any>; // Allow any Drizzle column type
 	localized: readonly any[];
-	virtuals: Record<string, SQL>;
+	virtuals: Record<string, SQL> | undefined;
 	relations: Record<string, RelationConfig>;
 	indexes: Record<string, any>;
 	title: SQL | undefined;
@@ -677,7 +677,7 @@ export type EmptyCollectionState<TName extends string> =
 		name: TName;
 		fields: {};
 		localized: [];
-		virtuals: {};
+		virtuals: undefined;
 		relations: {};
 		indexes: {};
 		title: undefined;

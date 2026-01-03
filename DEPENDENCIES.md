@@ -6,44 +6,45 @@
 
 ### ⚠️ CRITICAL - Must Match Exactly
 
-| Package | Version | Notes |
-|---------|---------|-------|
-| `zod` | `^4.2.1` | **v4 ONLY!** Not v3.x |
-| `drizzle-orm` | `^1.0.0-beta.6-4414a19` | **Specific beta version** |
-| `drizzle-kit` | `^1.0.0-beta.6-4414a19` | **Must match drizzle-orm** |
-| `better-auth` | `^1.4.9` | Authentication provider |
-| `pg` | `^8.13.1` | PostgreSQL driver |
-| `pg-boss` | `^12.5.4` | Queue system (uses Postgres) |
+| Package       | Version                 | Notes                                           |
+| ------------- | ----------------------- | ----------------------------------------------- |
+| `zod`         | `^4.2.1`                | **v4 ONLY!** Not v3.x                           |
+| `drizzle-orm` | `^1.0.0-beta.6-4414a19` | **Specific beta version**                       |
+| `drizzle-kit` | `^1.0.0-beta.6-4414a19` | **Must match drizzle-orm**                      |
+| `better-auth` | `^1.4.9`                | Authentication provider                         |
+| `pg`          | `^8.13.1`               | PostgreSQL driver                               |
+| `pg-boss`     | `^12.5.4`               | Queue system (uses Postgres)                    |
+| `superjson`   | `^2.2.1`                | Enhanced serialization (Date, Map, Set, BigInt) |
 
 ### Frontend Frameworks
 
-| Package | Version | Notes |
-|---------|---------|-------|
-| `react` | `^19.2.0` | React 19 |
-| `react-dom` | `^19.2.0` | React 19 DOM |
-| `@tanstack/react-query` | `^5.62.11` | Data fetching |
-| `@tanstack/react-table` | `^8.20.5` | Table component |
-| `@tanstack/db` | `^0.1.1` | Offline-first DB |
-| `react-hook-form` | `^7.54.0` | Form library |
+| Package                 | Version    | Notes            |
+| ----------------------- | ---------- | ---------------- |
+| `react`                 | `^19.2.0`  | React 19         |
+| `react-dom`             | `^19.2.0`  | React 19 DOM     |
+| `@tanstack/react-query` | `^5.62.11` | Data fetching    |
+| `@tanstack/react-table` | `^8.20.5`  | Table component  |
+| `@tanstack/db`          | `^0.1.1`   | Offline-first DB |
+| `react-hook-form`       | `^7.54.0`  | Form library     |
 
 ### UI & Styling
 
-| Package | Version | Notes |
-|---------|---------|-------|
-| `tailwindcss` | `^4.0.6` | Tailwind CSS v4 |
-| `@tailwindcss/vite` | `^4.0.6` | Vite plugin |
-| `@base-ui/react` | `^1.0.0` | Base UI components |
-| `@hugeicons/react` | `^1.1.1` | Icon library |
-| `shadcn` | `^3.6.1` | Component CLI |
+| Package             | Version  | Notes              |
+| ------------------- | -------- | ------------------ |
+| `tailwindcss`       | `^4.0.6` | Tailwind CSS v4    |
+| `@tailwindcss/vite` | `^4.0.6` | Vite plugin        |
+| `@base-ui/react`    | `^1.0.0` | Base UI components |
+| `@hugeicons/react`  | `^1.1.1` | Icon library       |
+| `shadcn`            | `^3.6.1` | Component CLI      |
 
 ### Build Tools
 
-| Package | Version | Notes |
-|---------|---------|-------|
-| `typescript` | `^5.7.2` | TypeScript compiler |
-| `bun` | `1.3.0` | Runtime & package manager |
-| `tsdown` | `^0.18.3` | Build tool |
-| `vite` | `^7.1.7` | Dev server & bundler |
+| Package      | Version   | Notes                     |
+| ------------ | --------- | ------------------------- |
+| `typescript` | `^5.7.2`  | TypeScript compiler       |
+| `bun`        | `1.3.0`   | Runtime & package manager |
+| `tsdown`     | `^0.18.3` | Build tool                |
+| `vite`       | `^7.1.7`  | Dev server & bundler      |
 
 ## How to Check Versions
 

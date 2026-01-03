@@ -36,15 +36,16 @@ export type CollectionInfer<T> = T extends { $infer: infer Infer }
  */
 type CollectionFieldAccess<T> =
 	CollectionState<T> extends {
-		access: { fields?: infer Fields };
+		access: { fields: infer Fields };
 	}
 		? Fields extends Record<string, any>
 			? Fields
-			: {}
-		: {};
+			: Record<never, never>
+		: Record<never, never>;
 
 /**
  * Make fields optional if they have access rules defined
+ * TODO: this should be used only in client select context
  */
 type MakeFieldsWithAccessOptional<TSelect, TFieldAccess> =
 	TFieldAccess extends Record<string, any>
