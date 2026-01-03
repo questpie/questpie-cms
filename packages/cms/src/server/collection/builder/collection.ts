@@ -35,6 +35,7 @@ import type {
 } from "#questpie/cms/server/collection/builder/types";
 import { CRUDGenerator } from "#questpie/cms/server/collection/crud";
 import type { CRUD } from "#questpie/cms/server/collection/crud/types";
+import type { Prettify } from "#questpie/cms/shared/type-utils.js";
 
 // ... (Infer types skipped for brevity if not changing) ...
 /**
@@ -47,11 +48,20 @@ type InferCollectionSelect<
 	TLocalized extends ReadonlyArray<keyof TFields>,
 	TVirtuals extends Record<string, SQL>,
 	TTitle extends SQL | undefined,
-> = InferSelectModel<TTable> & {
-	[K in keyof TVirtuals]: InferSQLType<TVirtuals[K]>;
-} & {
-	[K in TLocalized[number]]: GetColumnData<TFields[K]>;
-} & (TTitle extends SQL ? { _title: string } : {});
+> = Prettify<
+	InferSelectModel<TTable> &
+		(keyof TVirtuals extends never
+			? Record<never, never>
+			: {
+					[K in keyof TVirtuals]: InferSQLType<TVirtuals[K]>;
+				}) &
+		(TLocalized[number] extends never
+			? Record<never, never>
+			: {
+					[K in TLocalized[number]]: GetColumnData<TFields[K]>;
+				}) &
+		(TTitle extends SQL ? { _title: string } : Record<never, never>)
+>;
 
 /**
  * Infer insert type from Collection
@@ -61,10 +71,15 @@ type InferCollectionInsert<
 	TTable extends PgTable,
 	TFields extends Record<string, any>,
 	TLocalized extends ReadonlyArray<keyof TFields>,
-> = InferInsertModel<TTable> & {
-	// Localized fields are optional on insert (default locale)
-	[K in TLocalized[number]]?: GetColumnData<TFields[K]>;
-};
+> = Prettify<
+	InferInsertModel<TTable> &
+		(TLocalized[number] extends never
+			? Record<never, never>
+			: {
+					// Localized fields are optional on insert (default locale)
+					[K in TLocalized[number]]?: GetColumnData<TFields[K]>;
+				})
+>;
 
 /**
  * Infer update type from Collection
@@ -74,9 +89,14 @@ type InferCollectionUpdate<
 	TTable extends PgTable,
 	TFields extends Record<string, any>,
 	TLocalized extends ReadonlyArray<keyof TFields>,
-> = Partial<InferInsertModel<TTable>> & {
-	[K in TLocalized[number]]?: GetColumnData<TFields[K]>;
-};
+> = Prettify<
+	Partial<InferInsertModel<TTable>> &
+		(TLocalized[number] extends never
+			? Record<never, never>
+			: {
+					[K in TLocalized[number]]?: GetColumnData<TFields[K]>;
+				})
+>;
 
 // Re-export for convenience
 export type { CollectionBuilder } from "./collection-builder.js";

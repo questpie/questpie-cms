@@ -7,7 +7,7 @@
 	},
 	"scripts": {
 		"build": "tsdown",
-		"test": "bun test",
+		"test": "QCMS_MIGRATIONS_SILENT=1 bun test",
 		"test:watch": "bun test --watch",
 		"check-types": "tsc --noEmit",
 		"dev": "bun run --watch src/index.ts"

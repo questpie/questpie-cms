@@ -48,8 +48,8 @@ const createBeforeAfterModule = (hookCallOrder: string[]) =>
 					status: varchar("status", { length: 50 }),
 				})
 				.hooks({
-					beforeCreate: async ({ data }) => {
-						hookCallOrder.push("beforeCreate");
+					beforeChange: async ({ data, operation }) => {
+						hookCallOrder.push(`before-${operation}`);
 						if (!data.slug && data.title) {
 							data.slug = data.title
 								.toLowerCase()
@@ -58,8 +58,8 @@ const createBeforeAfterModule = (hookCallOrder: string[]) =>
 						}
 						return data;
 					},
-					afterCreate: async ({ data }) => {
-						hookCallOrder.push("afterCreate");
+					afterChange: async ({ data, operation }) => {
+						hookCallOrder.push(`after-${operation}`);
 						const cms = getCMSFromContext<typeof testModuleBeforeAfter>();
 						await cms.queue["article:created"].publish({
 							articleId: data.id,
@@ -83,18 +83,23 @@ const testModuleUpdate = defineQCMS({ name: "test-module" }).collections({
 			viewCount: varchar("view_count"),
 		})
 		.hooks({
-			beforeUpdate: async ({ data }) => {
+			beforeChange: async ({ data, operation }) => {
 				const cms = getCMSFromContext<typeof testModuleUpdate>();
-				if (data.status === "published") {
+				if (operation === "update" && data.status === "published") {
 					cms.logger.info("Article being published", {
 						title: data.title,
 					});
 				}
 				return data;
 			},
-			afterUpdate: async ({ data, original }) => {
+			afterChange: async ({ data, original, operation }) => {
 				const cms = getCMSFromContext<typeof testModuleUpdate>();
-				if (original.status !== "published" && data.status === "published") {
+				if (
+					operation === "update" &&
+					original &&
+					original.status !== "published" &&
+					data.status === "published"
+				) {
 					cms.email?.send({
 						to: "admin@example.com",
 						subject: "Article Published",
@@ -139,7 +144,7 @@ const testModuleError = defineQCMS({ name: "test-module" }).collections({
 			status: varchar("status", { length: 50 }),
 		})
 		.hooks({
-			beforeCreate: async ({ data }) => {
+			beforeChange: async ({ data }) => {
 				if (data.title === "forbidden") {
 					throw new Error("Forbidden title");
 				}
@@ -157,14 +162,14 @@ const createEnrichmentModule = (enrichmentData: Map<string, any>) =>
 					title: text("title").notNull(),
 				})
 				.hooks({
-					beforeCreate: async ({ data }) => {
+					beforeChange: async ({ data }) => {
 						enrichmentData.set(data.id, {
 							enriched: true,
 							timestamp: Date.now(),
 						});
 						return data;
 					},
-					afterCreate: async ({ data }) => {
+					afterChange: async ({ data }) => {
 						const cms = getCMSFromContext<typeof testModuleEnrichment>();
 						const enrichment = enrichmentData.get(data.id);
 						await cms.queue["article:enriched"].publish({
@@ -237,7 +242,7 @@ describe("collection hooks", () => {
 				},
 				ctx,
 			);
-			expect(hookCallOrder).toEqual(["beforeCreate", "afterCreate"]);
+			expect(hookCallOrder).toEqual(["before-create", "after-create"]);
 		});
 	});
 

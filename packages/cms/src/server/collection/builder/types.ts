@@ -10,6 +10,7 @@ import type {
 	SQL,
 } from "drizzle-orm";
 import type { PgColumn, PgTableWithColumns } from "drizzle-orm/pg-core";
+import type { ValidationSchemas } from "#questpie/cms/server/collection/builder/validation-helpers";
 
 /**
  * Versioning configuration
@@ -158,11 +159,20 @@ export interface RelationVariant {
 }
 
 /**
- * Context for hooks - receives full CMS access
+ * Base context for hooks - receives full CMS access
  * @template TData - The record data type (created/updated/deleted)
+ * @template TOperation - The operation type
  * @template TCMS - The CMS type for full type safety
  */
-export interface HookContext<TData = any, TCMS = any> {
+export interface HookContext<
+	TData = any,
+	TOperation extends "create" | "update" | "delete" | "read" =
+		| "create"
+		| "update"
+		| "delete"
+		| "read",
+	TCMS = any,
+> {
 	/**
 	 * The record data (created/updated record)
 	 */
@@ -189,9 +199,9 @@ export interface HookContext<TData = any, TCMS = any> {
 	accessMode?: AccessMode;
 
 	/**
-	 * Operation type
+	 * Operation type (specific to hook)
 	 */
-	operation: "create" | "update" | "delete" | "read";
+	operation: TOperation;
 
 	/**
 	 * Full CMS instance - type-safe access to all services and collections
@@ -231,31 +241,92 @@ export interface AccessContext<TRow = any> {
 
 /**
  * Hook function type
+ * Receives full CMS context with specific operation type
  * @template TData - The record data type
+ * @template TOperation - The operation type
  * @template TCMS - The CMS type for full type safety
  */
-export type HookFunction<TData = any, TCMS = any> = (
-	ctx: HookContext<TData, TCMS>,
-) => Promise<void> | void;
+export type HookFunction<
+	TData = any,
+	TOperation extends "create" | "update" | "delete" | "read" =
+		| "create"
+		| "update"
+		| "delete"
+		| "read",
+	TCMS = any,
+> = (ctx: HookContext<TData, TOperation, TCMS>) => Promise<void> | void;
 
 /**
  * Collection lifecycle hooks
  * Each hook type can have multiple functions (executed in order)
+ * Operation types are specific to each hook for better type safety
  * @template TRow - The record type
  * @template TCMS - The CMS type for full type safety in hooks
  */
 export interface CollectionHooks<TRow = any, TCMS = any> {
-	beforeCreate?: HookFunction<TRow, TCMS>[] | HookFunction<TRow, TCMS>;
-	afterCreate?: HookFunction<TRow, TCMS>[] | HookFunction<TRow, TCMS>;
-	beforeUpdate?: HookFunction<TRow, TCMS>[] | HookFunction<TRow, TCMS>;
-	afterUpdate?: HookFunction<TRow, TCMS>[] | HookFunction<TRow, TCMS>;
-	beforeDelete?: HookFunction<TRow, TCMS>[] | HookFunction<TRow, TCMS>;
-	afterDelete?: HookFunction<TRow, TCMS>[] | HookFunction<TRow, TCMS>;
-	beforeRead?: HookFunction<TRow, TCMS>[] | HookFunction<TRow, TCMS>;
-	afterRead?: HookFunction<TRow, TCMS>[] | HookFunction<TRow, TCMS>;
-	// Shorthand: runs on both create AND update
-	beforeChange?: HookFunction<TRow, TCMS>[] | HookFunction<TRow, TCMS>;
-	afterChange?: HookFunction<TRow, TCMS>[] | HookFunction<TRow, TCMS>;
+	/**
+	 * Runs before any operation (create/update/delete/read)
+	 * Use for: logging, rate limiting, early validation
+	 */
+	beforeOperation?:
+		| HookFunction<TRow, "create" | "update" | "delete" | "read", TCMS>[]
+		| HookFunction<TRow, "create" | "update" | "delete" | "read", TCMS>;
+
+	/**
+	 * Runs before validation on create/update operations
+	 * Use for: transforming input, setting defaults, normalizing data
+	 */
+	beforeValidate?:
+		| HookFunction<TRow, "create" | "update", TCMS>[]
+		| HookFunction<TRow, "create" | "update", TCMS>;
+
+	/**
+	 * Runs before create/update operations (after validation)
+	 * Use for: business logic, slug generation, complex validation
+	 */
+	beforeChange?:
+		| HookFunction<TRow, "create" | "update", TCMS>[]
+		| HookFunction<TRow, "create" | "update", TCMS>;
+
+	/**
+	 * Runs after create/update operations
+	 * Use for: notifications, webhooks, syncing to external services
+	 */
+	afterChange?:
+		| HookFunction<TRow, "create" | "update", TCMS>[]
+		| HookFunction<TRow, "create" | "update", TCMS>;
+
+	/**
+	 * Runs before read operations
+	 * Use for: modifying query options, adding filters
+	 */
+	beforeRead?:
+		| HookFunction<TRow, "read", TCMS>[]
+		| HookFunction<TRow, "read", TCMS>;
+
+	/**
+	 * Runs after any operation that returns data (create/update/delete/read)
+	 * Use for: transforming output, adding computed fields, formatting
+	 */
+	afterRead?:
+		| HookFunction<TRow, "create" | "update" | "delete" | "read", TCMS>[]
+		| HookFunction<TRow, "create" | "update" | "delete" | "read", TCMS>;
+
+	/**
+	 * Runs before delete operations
+	 * Use for: preventing deletion, cascading deletes, backups
+	 */
+	beforeDelete?:
+		| HookFunction<TRow, "delete", TCMS>[]
+		| HookFunction<TRow, "delete", TCMS>;
+
+	/**
+	 * Runs after delete operations
+	 * Use for: cleanup, logging, notifying users
+	 */
+	afterDelete?:
+		| HookFunction<TRow, "delete", TCMS>[]
+		| HookFunction<TRow, "delete", TCMS>;
 }
 
 /**
@@ -335,6 +406,7 @@ export interface CollectionBuilderState {
 	access: CollectionAccess;
 	functions: CollectionFunctionsMap;
 	searchable: SearchableConfig | undefined;
+	validation: ValidationSchemas | undefined;
 }
 
 /**
@@ -379,6 +451,7 @@ export type EmptyCollectionState<TName extends string> =
 		access: {};
 		functions: {};
 		searchable: undefined;
+		validation: undefined;
 	};
 
 /**

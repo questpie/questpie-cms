@@ -29,7 +29,7 @@ const profiles = defineCollection("profiles")
 			.notNull()
 			.unique()
 			.references(() => users.table.id, { onDelete: "cascade" }),
-		bio: text("bio"),
+		bio: text("bio").notNull(),
 		avatar: text("avatar"),
 	})
 	.relations(({ table, one }) => ({

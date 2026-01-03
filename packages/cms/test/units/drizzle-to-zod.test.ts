@@ -52,17 +52,11 @@ describe("drizzle-to-zod", () => {
 		});
 
 		test("varchar with runtime default ($default)", () => {
-			const column = varchar("name", { length: 255 }).$default(
-				() => "Generated",
-			);
+			const column = varchar("name", { length: 255 }).$default(() => "Generated");
 			const schema = drizzleColumnToZod(column);
 
 			expect(schema.parse("John Doe")).toBe("John Doe");
-			// Should be optional - can be omitted entirely
 			expect(schema.parse(undefined)).toBe(undefined);
-			// Should pass validation when field is not provided (optional)
-			const result = schema.safeParse(undefined);
-			expect(result.success).toBe(true);
 		});
 
 		test("integer notNull", () => {

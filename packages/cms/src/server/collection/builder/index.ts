@@ -6,6 +6,11 @@ export {
 } from "./collection-builder";
 export { Collection } from "./collection";
 export { softDeleteUniqueIndex } from "./index-helpers";
+export {
+	mergeFieldsForValidation,
+	createCollectionValidationSchemas,
+	type ValidationSchemas,
+} from "./validation-helpers";
 export type {
 	CollectionBuilderState,
 	CollectionOptions,

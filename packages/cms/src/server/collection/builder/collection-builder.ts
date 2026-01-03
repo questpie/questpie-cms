@@ -15,6 +15,11 @@ import type {
 import type { SearchableConfig } from "#questpie/cms/server/integrated/search";
 import type { PgTableExtraConfigValue } from "drizzle-orm/pg-core";
 import type { SQL } from "drizzle-orm";
+import {
+	createCollectionValidationSchemas,
+	type ValidationSchemas,
+} from "#questpie/cms/server/collection/builder/validation-helpers";
+import type { z } from "zod";
 
 /**
  * Main collection builder class
@@ -340,6 +345,67 @@ export class CollectionBuilder<TState extends CollectionBuilderState> {
 	}
 
 	/**
+	 * Configure runtime validation schemas for create/update operations
+	 * Automatically merges main table fields with localized fields
+	 * Schemas are generated once and reused for all validations
+	 *
+	 * @example
+	 * .validation({
+	 *   exclude: { id: true, createdAt: true, updatedAt: true },
+	 *   refine: {
+	 *     email: (s) => s.email("Invalid email"),
+	 *     age: (s) => s.min(0, "Age must be positive")
+	 *   }
+	 * })
+	 */
+	validation(options?: {
+		/** Fields to exclude from validation (e.g., id, timestamps) */
+		exclude?: Record<string, true>;
+		/** Custom refinements per field */
+		refine?: Record<string, (schema: z.ZodTypeAny) => z.ZodTypeAny>;
+	}): CollectionBuilder<
+		Omit<TState, "validation"> & {
+			validation: ValidationSchemas;
+		}
+	> {
+		// Extract localized and non-localized fields
+		const localizedFieldNames = new Set(this.state.localized);
+		const mainFields: Record<string, any> = {};
+		const localizedFields: Record<string, any> = {};
+
+		for (const [key, column] of Object.entries(this.state.fields)) {
+			if (localizedFieldNames.has(key)) {
+				localizedFields[key] = column;
+			} else {
+				mainFields[key] = column;
+			}
+		}
+
+		// Generate validation schemas
+		const validationSchemas = createCollectionValidationSchemas(
+			this.state.name,
+			mainFields,
+			localizedFields,
+			options,
+		);
+
+		const newState = {
+			...this.state,
+			validation: validationSchemas,
+		} as any;
+
+		const newBuilder = new CollectionBuilder(newState);
+
+		// Copy callback functions
+		newBuilder._virtualsFn = this._virtualsFn;
+		newBuilder._relationsFn = this._relationsFn;
+		newBuilder._indexesFn = this._indexesFn;
+		newBuilder._titleFn = this._titleFn;
+
+		return newBuilder;
+	}
+
+	/**
 	 * Build the final collection
 	 * Generates Drizzle tables and sets up all type inference
 	 * Can be called explicitly or happens lazily on first property access
@@ -509,11 +575,11 @@ export class CollectionBuilder<TState extends CollectionBuilderState> {
 
 			if (!hook1 && !hook2) continue;
 			if (!hook1) {
-				merged[key] = hook2;
+				merged[key] = hook2 as any;
 				continue;
 			}
 			if (!hook2) {
-				merged[key] = hook1;
+				merged[key] = hook1 as any;
 				continue;
 			}
 
@@ -546,5 +612,6 @@ export function defineCollection<TName extends string>(
 		access: {},
 		functions: {},
 		searchable: undefined,
+		validation: undefined,
 	});
 }

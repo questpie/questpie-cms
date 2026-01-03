@@ -13,10 +13,7 @@ import type {
 } from "#questpie/cms/exports/server";
 import type {
 	AccessWhere,
-	CollectionAccess,
 	CollectionBuilderState,
-	CollectionHooks,
-	CollectionOptions,
 	HookContext,
 	HookFunction,
 	RelationConfig,
@@ -146,6 +143,17 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 		return async (options: FindManyOptions = {}, context: CRUDContext = {}) => {
 			const db = this.getDb(context);
 
+			// Execute beforeOperation hook
+			await this.executeHooks(
+				this.state.hooks?.beforeOperation,
+				this.createHookContext({
+					data: options,
+					operation: "read",
+					context,
+					db,
+				}),
+			);
+
 			// Enforce access control
 			const accessWhere = await this.enforceAccessControl(
 				"read",
@@ -157,7 +165,7 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 			// Execute beforeRead hooks (read doesn't modify data)
 			if (this.state.hooks?.beforeRead) {
 				await this.executeHooks(
-					this.state.hooks.beforeRead,
+					this.state.hooks.beforeRead as any,
 					this.createHookContext({
 						data: options,
 						operation: "read",
@@ -304,10 +312,21 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 		) => {
 			const db = this.getDb(context);
 
+			// Execute beforeOperation hook
+			await this.executeHooks(
+				this.state.hooks?.beforeOperation,
+				this.createHookContext({
+					data: options,
+					operation: "read",
+					context,
+					db,
+				}),
+			);
+
 			// Execute beforeRead hooks (read doesn't modify data)
 			if (this.state.hooks?.beforeRead) {
 				await this.executeHooks(
-					this.state.hooks.beforeRead,
+					this.state.hooks.beforeRead as any,
 					this.createHookContext({
 						data: options,
 						operation: "read",
@@ -1260,6 +1279,17 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 		return async (input: CreateInput, context: CRUDContext = {}) => {
 			const db = this.getDb(context);
 
+			// Execute beforeOperation hook
+			await this.executeHooks(
+				this.state.hooks?.beforeOperation,
+				this.createHookContext({
+					data: input,
+					operation: "create",
+					context,
+					db,
+				}),
+			);
+
 			// Enforce access control
 			const canCreate = await this.enforceAccessControl(
 				"create",
@@ -1271,9 +1301,9 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 				throw new Error("Access denied: create");
 			}
 
-			// Execute beforeCreate hooks
+			// Execute beforeValidate hook (transform input before validation)
 			await this.executeHooks(
-				this.state.hooks?.beforeCreate,
+				this.state.hooks?.beforeValidate as any,
 				this.createHookContext({
 					data: input,
 					operation: "create",
@@ -1282,9 +1312,19 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 				}),
 			);
 
-			// Execute beforeChange hooks
+			// Runtime validation (if schemas are configured)
+			if (this.state.validation?.insertSchema) {
+				try {
+					// Validate and potentially transform the input
+					input = this.state.validation.insertSchema.parse(input);
+				} catch (error: any) {
+					throw new Error(`Validation error: ${error.message}`);
+				}
+			}
+
+			// Execute beforeChange hooks (after validation)
 			await this.executeHooks(
-				this.state.hooks?.beforeChange,
+				this.state.hooks?.beforeChange as any,
 				this.createHookContext({
 					data: input,
 					operation: "create",
@@ -1336,20 +1376,9 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 				// Create version
 				await this.createVersion(tx, record, "create", context);
 
-				// Execute afterCreate hooks
-				await this.executeHooks(
-					this.state.hooks?.afterCreate,
-					this.createHookContext({
-						data: record,
-						operation: "create",
-						context,
-						db: tx,
-					}),
-				);
-
 				// Execute afterChange hooks
 				await this.executeHooks(
-					this.state.hooks?.afterChange,
+					this.state.hooks?.afterChange as any,
 					this.createHookContext({
 						data: record,
 						operation: "create",
@@ -1374,6 +1403,17 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 				return record;
 			});
 
+			// Execute afterRead hook (transform output)
+			await this.executeHooks(
+				this.state.hooks?.afterRead,
+				this.createHookContext({
+					data: record,
+					operation: "create",
+					context,
+					db,
+				}),
+			);
+
 			await this.notifyRealtimeChange(changeEvent);
 			return record;
 		};
@@ -1386,6 +1426,17 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 		return async (params: UpdateParams, context: CRUDContext = {}) => {
 			const db = this.getDb(context);
 			const { id, data } = params;
+
+			// Execute beforeOperation hook
+			await this.executeHooks(
+				this.state.hooks?.beforeOperation,
+				this.createHookContext({
+					data,
+					operation: "update",
+					context,
+					db,
+				}),
+			);
 
 			// Load existing record using core query builder
 			const existingRows = await db
@@ -1420,9 +1471,9 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 				}
 			}
 
-			// Execute beforeUpdate hooks
+			// Execute beforeValidate hook (transform input before validation)
 			await this.executeHooks(
-				this.state.hooks?.beforeUpdate,
+				this.state.hooks?.beforeValidate as any,
 				this.createHookContext({
 					data,
 					original: existing,
@@ -1432,11 +1483,22 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 				}),
 			);
 
-			// Execute beforeChange hooks
+			// Runtime validation (if schemas are configured)
+			let validatedData = data;
+			if (this.state.validation?.updateSchema) {
+				try {
+					// Validate and potentially transform the input
+					validatedData = this.state.validation.updateSchema.parse(data);
+				} catch (error: any) {
+					throw new Error(`Validation error: ${error.message}`);
+				}
+			}
+
+			// Execute beforeChange hooks (after validation)
 			await this.executeHooks(
-				this.state.hooks?.beforeChange,
+				this.state.hooks?.beforeChange as any,
 				this.createHookContext({
-					data,
+					data: validatedData,
 					original: existing,
 					operation: "update",
 					context,
@@ -1446,7 +1508,8 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 
 			let changeEvent: any = null;
 			const updatedRecord = await db.transaction(async (tx: any) => {
-				const { localized, nonLocalized } = this.splitLocalizedFields(data);
+				const { localized, nonLocalized } =
+					this.splitLocalizedFields(validatedData);
 
 				// Update main table
 				if (Object.keys(nonLocalized).length > 0) {
@@ -1498,21 +1561,9 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 				// Create version
 				await this.createVersion(tx, updated, "update", context);
 
-				// Execute afterUpdate hooks
-				await this.executeHooks(
-					this.state.hooks?.afterUpdate,
-					this.createHookContext({
-						data: updated,
-						original: existing,
-						operation: "update",
-						context,
-						db: tx,
-					}),
-				);
-
 				// Execute afterChange hooks
 				await this.executeHooks(
-					this.state.hooks?.afterChange,
+					this.state.hooks?.afterChange as any,
 					this.createHookContext({
 						data: updated,
 						original: existing,
@@ -1538,6 +1589,18 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 				return updated;
 			});
 
+			// Execute afterRead hook (transform output)
+			await this.executeHooks(
+				this.state.hooks?.afterRead,
+				this.createHookContext({
+					data: updatedRecord,
+					original: existing,
+					operation: "update",
+					context,
+					db,
+				}),
+			);
+
 			await this.notifyRealtimeChange(changeEvent);
 			return updatedRecord;
 		};
@@ -1550,6 +1613,17 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 		return async (params: DeleteParams, context: CRUDContext = {}) => {
 			const db = this.getDb(context);
 			const { id } = params;
+
+			// Execute beforeOperation hook
+			await this.executeHooks(
+				this.state.hooks?.beforeOperation,
+				this.createHookContext({
+					data: params as any,
+					operation: "delete",
+					context,
+					db,
+				}),
+			);
 
 			// Load existing record
 			// Use select instead of query to avoid dependency on query builder structure which might not exist if collection not registered in db.query
@@ -1587,7 +1661,7 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 
 			// Execute beforeDelete hooks
 			await this.executeHooks(
-				this.state.hooks?.beforeDelete,
+				this.state.hooks?.beforeDelete as any,
 				this.createHookContext({
 					data: existing,
 					original: existing,
@@ -1628,7 +1702,7 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 
 			// Execute afterDelete hooks
 			await this.executeHooks(
-				this.state.hooks?.afterDelete,
+				this.state.hooks?.afterDelete as any,
 				this.createHookContext({
 					data: existing,
 					original: existing,
@@ -1643,7 +1717,21 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 
 			await this.notifyRealtimeChange(changeEvent);
 
-			return { success: true };
+			const result = { success: true, data: existing };
+
+			// Execute afterRead hook (transform output)
+			await this.executeHooks(
+				this.state.hooks?.afterRead,
+				this.createHookContext({
+					data: existing,
+					original: existing,
+					operation: "delete",
+					context,
+					db,
+				}),
+			);
+
+			return result;
 		};
 	}
 
@@ -1750,21 +1838,9 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 					}
 				}
 
-				// Execute beforeUpdate hooks
-				await this.executeHooks(
-					this.state.hooks?.beforeUpdate,
-					this.createHookContext({
-						data: params.data,
-						original: record,
-						operation: "update",
-						context,
-						db,
-					}),
-				);
-
 				// Execute beforeChange hooks
 				await this.executeHooks(
-					this.state.hooks?.beforeChange,
+					this.state.hooks?.beforeChange as any,
 					this.createHookContext({
 						data: params.data,
 						original: record,
@@ -1836,21 +1912,9 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 					const updated = updatedRows[i];
 					const original = records[i];
 
-					// Execute afterUpdate hooks
-					await this.executeHooks(
-						this.state.hooks?.afterUpdate,
-						this.createHookContext({
-							data: updated,
-							original,
-							operation: "update",
-							context,
-							db: tx,
-						}),
-					);
-
 					// Execute afterChange hooks
 					await this.executeHooks(
-						this.state.hooks?.afterChange,
+						this.state.hooks?.afterChange as any,
 						this.createHookContext({
 							data: updated,
 							original,
@@ -1926,7 +1990,7 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 
 				// Execute beforeDelete hooks
 				await this.executeHooks(
-					this.state.hooks?.beforeDelete,
+					this.state.hooks?.beforeDelete as any,
 					this.createHookContext({
 						data: record,
 						original: record,
@@ -1976,7 +2040,7 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 			for (const record of records) {
 				// Execute afterDelete hooks
 				await this.executeHooks(
-					this.state.hooks?.afterDelete,
+					this.state.hooks?.afterDelete as any,
 					this.createHookContext({
 						data: record,
 						original: record,
@@ -2160,18 +2224,7 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 			}
 
 			await this.executeHooks(
-				this.state.hooks?.beforeUpdate,
-				this.createHookContext({
-					data: restoreData,
-					original: existing,
-					operation: "update",
-					context: normalized,
-					db,
-				}),
-			);
-
-			await this.executeHooks(
-				this.state.hooks?.beforeChange,
+				this.state.hooks?.beforeChange as any,
 				this.createHookContext({
 					data: restoreData,
 					original: existing,
@@ -2242,18 +2295,7 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 				await this.createVersion(tx, updated, "update", normalized);
 
 				await this.executeHooks(
-					this.state.hooks?.afterUpdate,
-					this.createHookContext({
-						data: updated,
-						original: existing,
-						operation: "update",
-						context: normalized,
-						db: tx,
-					}),
-				);
-
-				await this.executeHooks(
-					this.state.hooks?.afterChange,
+					this.state.hooks?.afterChange as any,
 					this.createHookContext({
 						data: updated,
 						original: existing,
