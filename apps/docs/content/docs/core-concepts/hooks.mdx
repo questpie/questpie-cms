@@ -25,75 +25,83 @@ Think of hooks as middleware for your data operations - they intercept the flow 
 
 ## Available Hooks
 
-### Create Lifecycle
+All hooks are fully type-safe with specific data types and field availability based on the operation.
 
-**`beforeCreate`**
-- Runs before a new record is inserted
-- Can modify the `data` object before saving
-- Useful for: validation, generating slugs, setting defaults
+### Lifecycle Hooks
 
-**`afterCreate`**
-- Runs after a record is successfully created
-- Has access to the created record (with `id` and timestamps)
-- Useful for: sending notifications, triggering workflows, syncing to external services
+**`beforeOperation`**
+- **When**: Before any operation (create, update, delete, read)
+- **Data type**: Depends on operation (TInsert, TUpdate, or TSelect)
+- **`original` available**: No
+- **Use for**: Logging, rate limiting, early validation
 
-### Update Lifecycle
-
-**`beforeUpdate`**
-- Runs before an existing record is updated
-- Can modify the `data` object before saving
-- Has access to the original record via `original`
-- Useful for: validation, conditional updates, audit logging
-
-**`afterUpdate`**
-- Runs after a record is successfully updated
-- Has access to both the updated record and the original
-- Useful for: detecting changes, triggering notifications, invalidating caches
-
-### Delete Lifecycle
-
-**`beforeDelete`**
-- Runs before a record is deleted (or soft-deleted)
-- Can access the record being deleted
-- Useful for: preventing deletion, cascading deletes, backups
-
-**`afterDelete`**
-- Runs after a record is successfully deleted
-- Useful for: cleanup, logging, notifying users
-
-### Read Lifecycle
-
-**`beforeRead`**
-- Runs before records are queried
-- Can modify query options
-- Useful for: adding default filters, logging access
-
-**`afterRead`**
-- Runs after records are retrieved
-- Can transform the result data
-- Useful for: post-processing, adding computed fields
-
-### Change Shortcuts
+**`beforeValidate`**
+- **When**: Before validation on create/update operations
+- **Data type**: TInsert (create) or TUpdate (update) - mutable input data
+- **`original` available**: No
+- **Use for**: Transforming input, setting defaults, normalizing data
 
 **`beforeChange`**
-- Runs on both create AND update operations
-- Convenient for shared validation logic
+- **When**: Before create/update operations (after validation)
+- **Data type**: TInsert (create) or TUpdate (update) - validated input data
+- **`original` available**: No
+- **Use for**: Business logic, slug generation, complex validation
 
 **`afterChange`**
-- Runs after both create AND update operations
-- Convenient for shared side effects
+- **When**: After create/update operations
+- **Data type**: TSelect - complete record with all fields
+- **`original` available**: Yes (only on update operations)
+- **Use for**: Notifications, webhooks, syncing to external services
+
+**`beforeRead`**
+- **When**: Before read operations
+- **Data type**: Query context/options
+- **`original` available**: No
+- **Use for**: Modifying query options, adding filters
+
+**`afterRead`**
+- **When**: After any operation that returns data
+- **Data type**: TSelect - complete record
+- **`original` available**: Yes (only on update operations)
+- **Use for**: Transforming output, adding computed fields, formatting
+
+**`beforeDelete`**
+- **When**: Before delete operations
+- **Data type**: TSelect - record to be deleted
+- **`original` available**: No
+- **Use for**: Preventing deletion, cascading deletes, backups
+
+**`afterDelete`**
+- **When**: After delete operations
+- **Data type**: TSelect - deleted record
+- **`original` available**: No
+- **Use for**: Cleanup, logging, notifying users
+
+### Hook Execution Order
+
+**Create**: `beforeOperation` → `beforeValidate` → `beforeChange` → [DB INSERT] → `afterChange` → `afterRead`
+
+**Update**: `beforeOperation` → `beforeValidate` → `beforeChange` → [DB UPDATE] → `afterChange` → `afterRead`
+
+**Delete**: `beforeOperation` → `beforeDelete` → [DB DELETE] → `afterDelete` → `afterRead`
+
+**Read**: `beforeOperation` → `beforeRead` → [DB SELECT] → `afterRead`
 
 ## Hook Context
 
 Every hook receives a context object with:
 
 ```typescript
-interface HookContext<TData, TCMS> {
-  // The record data (created/updated)
+interface HookContext<TData, TOriginal, TOperation, TCMS> {
+  // The record data (type depends on hook)
+  // - beforeValidate/beforeChange: TInsert | TUpdate (mutable)
+  // - afterChange/afterRead/beforeDelete/afterDelete: TSelect (complete record)
   data: TData;
 
-  // Original record (for update/delete operations only)
-  original?: TData;
+  // Original record (ONLY available in specific hooks)
+  // - Type is 'never' in: beforeValidate, beforeChange, beforeDelete, afterDelete, beforeOperation
+  // - Type is 'TSelect | undefined' in: afterChange (on update), afterRead (on update)
+  original: TOriginal extends never ? never : TOriginal | undefined;
 
   // Current authenticated user
   user?: User;
@@ -104,8 +112,8 @@ interface HookContext<TData, TCMS> {
   // Access mode (system or user)
   accessMode?: "user" | "system";
 
-  // Operation type
-  operation: "create" | "update" | "delete" | "read";
+  // Operation type (specific to hook)
+  operation: TOperation;
 
   // Full CMS instance - type-safe access to all services
   cms: TCMS;
@@ -116,11 +124,13 @@ interface HookContext<TData, TCMS> {
 ```
 
 **Key properties:**
-- `data` - The record being created/updated (mutable in before hooks)
-- `original` - The previous state (in update/delete hooks)
+- `data` - The record being processed. Type changes based on the hook:
+  - `beforeValidate`/`beforeChange`: Insert or update data (TInsert | TUpdate)
+  - `afterChange`/`afterRead`/`beforeDelete`/`afterDelete`: Complete record (TSelect)
+- `original` - Previous state of the record. Only available in `afterChange` (on update) and `afterRead` (on update). In other hooks, this field has type `never` and cannot be accessed.
 - `cms` - Full access to queue, email, storage, logger, and other collections
 - `user` - Current authenticated user (if any)
-- `operation` - What type of operation is happening
+- `operation` - The operation type: "create", "update", "delete", or "read"
 
 When you need the CMS instance inside hooks without importing a global singleton:
 
@@ -146,17 +156,18 @@ export const posts = defineCollection("posts")
     content: text("content"),
   })
   .hooks({
-    beforeCreate: async ({ data }) => {
-      // Auto-generate slug if not provided
-      if (!data.slug && data.title) {
-        data.slug = slugify(data.title, { lower: true, strict: true });
-      }
-    },
-
-    beforeUpdate: async ({ data, original }) => {
-      // Regenerate slug if title changed and slug wasn't manually set
-      if (data.title && data.title !== original.title && !data.slug) {
-        data.slug = slugify(data.title, { lower: true, strict: true });
+    beforeChange: async ({ data, operation }) => {
+      // Runs on both create and update
+      if (operation === "create") {
+        // Auto-generate slug on create if not provided
+        if (!data.slug && data.title) {
+          data.slug = slugify(data.title, { lower: true, strict: true });
+        }
+      } else if (operation === "update") {
+        // Regenerate slug if title changed and slug wasn't manually set
+        if (data.title && !data.slug) {
+          data.slug = slugify(data.title, { lower: true, strict: true });
+        }
       }
     },
   });
@@ -168,7 +179,9 @@ export const posts = defineCollection("posts")
 export const posts = defineCollection("posts")
   .fields({ /* ... */ })
   .hooks({
-    afterCreate: async ({ data }) => {
+    afterChange: async ({ data, operation }) => {
+      if (operation !== "create") return;
+
       const cms = getCMSFromContext();
       // Queue a job to send email notifications
       await cms.queue["post-created-notification"].publish({
@@ -220,7 +233,9 @@ export const products = defineCollection("products")
 export const posts = defineCollection("posts")
   .fields({ /* ... */ })
   .hooks({
-    afterUpdate: async ({ data, original, user }) => {
+    afterChange: async ({ data, original, operation, user }) => {
+      if (operation !== "update" || !original) return;
+
       const cms = getCMSFromContext();
       // Detect what changed
       const changes: Record<string, { from: any; to: any }> = {};
@@ -290,8 +305,12 @@ export const posts = defineCollection("posts")
     publishedAt: timestamp("published_at", { mode: "date" }),
   })
   .hooks({
-    afterUpdate: async ({ data, original }) => {
+    afterChange: async ({ data, original, operation }) => {
       const cms = getCMSFromContext();
+
+      // Only handle update operations with original data
+      if (operation !== "update" || !original) return;
+
       // Detect if post was just published
       const wasJustPublished = data.isPublished && !original.isPublished;
 
@@ -338,46 +357,46 @@ Sync data to external services:
 export const products = defineCollection("products")
   .fields({ /* ... */ })
   .hooks({
-    afterCreate: async ({ data }) => {
+    afterChange: async ({ data, operation }) => {
       const cms = getCMSFromContext();
-      // Sync to external inventory system
-      try {
-        await fetch("https://api.inventory-system.com/products", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${process.env.INVENTORY_API_KEY}`,
-          },
-          body: JSON.stringify({
-            externalId: data.id,
-            name: data.name,
-            sku: data.sku,
-            quantity: data.stock,
-          }),
-        });
 
-        cms.logger.info("Product synced to inventory system", {
-          productId: data.id,
-        });
-      } catch (error) {
-        // Don't fail the operation, queue retry instead
-        cms.logger.error("Failed to sync product to inventory", {
-          productId: data.id,
-          error,
-        });
+      if (operation === "create") {
+        // Sync to external inventory system on create
+        try {
+          await fetch("https://api.inventory-system.com/products", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${process.env.INVENTORY_API_KEY}`,
+            },
+            body: JSON.stringify({
+              externalId: data.id,
+              name: data.name,
+              sku: data.sku,
+              quantity: data.stock,
+            }),
+          });
 
-        await cms.queue["retry-inventory-sync"].publish({
+          cms.logger.info("Product synced to inventory system", {
+            productId: data.id,
+          });
+        } catch (error) {
+          // Don't fail the operation, queue retry instead
+          cms.logger.error("Failed to sync product to inventory", {
+            productId: data.id,
+            error,
+          });
+
+          await cms.queue["retry-inventory-sync"].publish({
+            productId: data.id,
+          });
+        }
+      } else if (operation === "update") {
+        // Sync updates to external system
+        await cms.queue["sync-product-to-inventory"].publish({
           productId: data.id,
         });
       }
-    },
-
-    afterUpdate: async ({ data }) => {
-      const cms = getCMSFromContext();
-      // Sync updates to external system
-      await cms.queue["sync-product-to-inventory"].publish({
-        productId: data.id,
-      });
     },
   });
 ```
@@ -391,9 +410,10 @@ export const posts = defineCollection("posts")
   .fields({ /* ... */ })
   .hooks({
     // Array of hook functions
-    afterCreate: [
-      // Hook 1: Send notification
-      async ({ data }) => {
+    afterChange: [
+      // Hook 1: Send notification (only on create)
+      async ({ data, operation }) => {
+        if (operation !== "create") return;
         const cms = getCMSFromContext();
         await cms.queue["post-created"].publish({ postId: data.id });
       },
@@ -420,24 +440,34 @@ export const posts = defineCollection("posts")
 
 ## Hook Execution Order
 
-For a create operation:
-1. `beforeChange` hooks (if defined)
-2. `beforeCreate` hooks (if defined)
-3. **Database INSERT**
-4. `afterCreate` hooks (if defined)
-5. `afterChange` hooks (if defined)
+For a **create** operation:
+1. `beforeOperation` (if defined)
+2. `beforeValidate` (if defined)
+3. `beforeChange` (if defined)
+4. **Database INSERT**
+5. `afterChange` (if defined)
+6. `afterRead` (if defined)
 
-For an update operation:
-1. `beforeChange` hooks (if defined)
-2. `beforeUpdate` hooks (if defined)
-3. **Database UPDATE**
-4. `afterUpdate` hooks (if defined)
-5. `afterChange` hooks (if defined)
+For an **update** operation:
+1. `beforeOperation` (if defined)
+2. `beforeValidate` (if defined)
+3. `beforeChange` (if defined)
+4. **Database UPDATE**
+5. `afterChange` (if defined, with `original` available)
+6. `afterRead` (if defined, with `original` available)
 
-For a delete operation:
-1. `beforeDelete` hooks (if defined)
-2. **Database DELETE** (or soft delete)
-3. `afterDelete` hooks (if defined)
+For a **delete** operation:
+1. `beforeOperation` (if defined)
+2. `beforeDelete` (if defined)
+3. **Database DELETE** (or soft delete)
+4. `afterDelete` (if defined)
+5. `afterRead` (if defined)
+
+For a **read** operation:
+1. `beforeOperation` (if defined)
+2. `beforeRead` (if defined)
+3. **Database SELECT**
+4. `afterRead` (if defined)
 
 **Important:** If any `before*` hook throws an error, the operation is aborted and the database is not modified.
 
@@ -449,12 +479,14 @@ Hooks run synchronously in the request flow. For slow operations, use queue jobs
 
 ```typescript
 // ❌ Bad - Slow operation blocks the request
-afterCreate: async ({ data }) => {
+afterChange: async ({ data, operation }) => {
+  if (operation !== "create") return;
   await processLargeImage(data.imageUrl); // Might take 10 seconds
 }
 
 // ✅ Good - Queue the work
-afterCreate: async ({ data }) => {
+afterChange: async ({ data, operation }) => {
+  if (operation !== "create") return;
   const cms = getCMSFromContext();
   await cms.queue["process-image"].publish({ imageId: data.imageId });
 }
@@ -466,19 +498,21 @@ Be careful when updating the same collection inside hooks:
 
 ```typescript
 // ❌ Bad - Infinite loop!
-afterUpdate: async ({ data }) => {
+afterChange: async ({ data, operation }) => {
+  if (operation !== "update") return;
   const cms = getCMSFromContext();
   await cms.api.collections.posts.updateById({
     id: data.id,
     data: { updatedCount: data.updatedCount + 1 },
-  }); // This triggers afterUpdate again!
+  }); // This triggers afterChange again!
 }
 
 // ✅ Good - Use a flag or condition
-afterUpdate: async ({ data, original }) => {
+afterChange: async ({ data, original, operation }) => {
+  if (operation !== "update" || !original) return;
   const cms = getCMSFromContext();
+  // Only update when status changes
   if (data.isPublished && !original.isPublished) {
-    // Only update when status changes
     await cms.api.collections.posts.updateById({
       id: data.id,
       data: { publishedAt: new Date() },
@@ -489,21 +523,18 @@ afterUpdate: async ({ data, original }) => {
 
 ### 3. Use beforeChange for Shared Logic
 
-Instead of duplicating code between `beforeCreate` and `beforeUpdate`:
+`beforeChange` runs on both create and update - perfect for shared logic:
 
 ```typescript
-// ❌ Bad - Duplicated logic
-beforeCreate: async ({ data }) => {
-  data.slug = slugify(data.title);
-},
-beforeUpdate: async ({ data }) => {
-  data.slug = slugify(data.title);
-},
-
-// ✅ Good - Use beforeChange
-beforeChange: async ({ data }) => {
+// ✅ Good - Single hook for both operations
+beforeChange: async ({ data, operation }) => {
   if (data.title) {
     data.slug = slugify(data.title);
+  }
+
+  // You can still differentiate if needed
+  if (operation === "create") {
+    data.createdBy = "system";
   }
 },
 ```
@@ -514,15 +545,15 @@ After hooks run after the database operation - throwing an error won't roll back
 
 ```typescript
 // ❌ Bad - Record already created, error is confusing
-afterCreate: async ({ data }) => {
-  if (!data.email) {
+afterChange: async ({ data, operation }) => {
+  if (operation === "create" && !data.email) {
     throw new Error("Email required"); // Too late!
   }
 }
 
 // ✅ Good - Validate in before hooks
-beforeCreate: async ({ data }) => {
-  if (!data.email) {
+beforeChange: async ({ data, operation }) => {
+  if (operation === "create" && !data.email) {
     throw new Error("Email required"); // Prevents creation
   }
 }
@@ -536,12 +567,14 @@ Always access services through the CMS context (use `getCMSFromContext` inside h
 // ❌ Bad - Using global/imported instance
 import { cms } from "./cms";
 
-afterCreate: async ({ data }) => {
+afterChange: async ({ data, operation }) => {
+  if (operation !== "create") return;
   await cms.queue["job-name"].publish(...); // Don't do this
 }
 
 // ✅ Good - Use the CMS from context
-afterCreate: async ({ data }) => {
+afterChange: async ({ data, operation }) => {
+  if (operation !== "create") return;
   const cms = getCMSFromContext();
   await cms.queue["job-name"].publish(...); // Type-safe and context-aware
 }
@@ -549,7 +582,7 @@ afterCreate: async ({ data }) => {
 
 ## Type Safety
 
-Hooks are fully typed - you get autocomplete and type checking:
+Hooks are fully typed with precise data types and field availability:
 
 ```typescript
 export const posts = defineCollection("posts")
@@ -558,19 +591,47 @@ export const posts = defineCollection("posts")
     viewCount: integer("view_count").default(0),
   })
   .hooks({
-    beforeCreate: async ({ data }) => {
+    beforeChange: async ({ data, operation, original }) => {
       const cms = getCMSFromContext();
-      // ✅ TypeScript knows the shape of data
-      data.title.toUpperCase(); // ✅ OK
-      data.viewCount = 0; // ✅ OK
 
-      // data.invalidField = "x"; // ❌ TypeScript error
+      // ✅ TypeScript knows the shape of data based on operation
+      if (operation === "create") {
+        // data is TInsert type
+        data.title.toUpperCase(); // ✅ OK
+        data.viewCount = 0; // ✅ OK
+      } else {
+        // data is TUpdate type (all fields optional)
+        data.title?.toUpperCase(); // ✅ OK
+      }
+
+      // original has type 'never' - cannot access in beforeChange
+      // const x = original; // ❌ TypeScript error
 
       // ✅ TypeScript knows cms.queue exists
       await cms.queue["job-name"].publish({ /* typed payload */ });
     },
+
+    afterChange: async ({ data, original, operation }) => {
+      // data is always TSelect (complete record)
+      data.id; // ✅ Always available
+      data.title; // ✅ Always available
+      data.viewCount; // ✅ Always available
+      data.createdAt; // ✅ Always available
+      data._title; // ✅ Generated title field available
+
+      // original is available but might be undefined
+      if (operation === "update" && original) {
+        // TypeScript knows both are TSelect
+        const titleChanged = data.title !== original.title; // ✅ Type-safe
+
+        original.id; // ✅ OK
+        original.title; // ✅ OK
+      }
+    },
   });
 ```
+
+**Hover over any hook parameter** to see exactly what fields are available and their types!
 
 ## Next Steps
 

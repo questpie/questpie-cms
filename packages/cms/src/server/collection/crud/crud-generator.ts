@@ -15,7 +15,6 @@ import type {
 	AccessWhere,
 	CollectionBuilderState,
 	HookContext,
-	HookFunction,
 	RelationConfig,
 } from "#questpie/cms/server/collection/builder/types";
 import type {
@@ -2412,8 +2411,8 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 	 * Passes full CMS instance and proper hook context
 	 */
 	private async executeHooks(
-		hooks: HookFunction | HookFunction[] | undefined,
-		ctx: HookContext,
+		hooks: any | any[] | undefined,
+		ctx: HookContext<any, any, any, any>,
 	) {
 		if (!hooks) return;
 
@@ -2432,7 +2431,7 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 		operation: "create" | "update" | "delete" | "read";
 		context: CRUDContext;
 		db: any;
-	}): HookContext {
+	}): HookContext<any, any, any, any> {
 		const normalized = this.normalizeContext(params.context);
 
 		return {

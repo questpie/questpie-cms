@@ -1,15 +1,16 @@
-import { describe, it, beforeEach, afterEach, expect } from "bun:test";
-import { text, varchar } from "drizzle-orm/pg-core";
-import { runTestDbMigrations } from "../utils/test-db";
-import { buildMockCMS } from "../utils/mocks/mock-cms-builder";
-import { createTestContext } from "../utils/test-context";
-import { z } from "zod";
 import {
 	defineCollection,
 	defineJob,
 	defineQCMS,
 	getCMSFromContext,
 } from "#questpie/cms/server/index.js";
+import { isNullish } from "#questpie/cms/shared/utils/index.js";
+import { afterEach, beforeEach, describe, expect, it } from "bun:test";
+import { text, varchar } from "drizzle-orm/pg-core";
+import { z } from "zod";
+import { buildMockCMS } from "../utils/mocks/mock-cms-builder";
+import { createTestContext } from "../utils/test-context";
+import { runTestDbMigrations } from "../utils/test-db";
 
 const articleCreatedJob = defineJob({
 	name: "article:created",
@@ -56,7 +57,6 @@ const createBeforeAfterModule = (hookCallOrder: string[]) =>
 								.replace(/\s+/g, "-")
 								.replace(/[^a-z0-9-]/g, "");
 						}
-						return data;
 					},
 					afterChange: async ({ data, operation }) => {
 						hookCallOrder.push(`after-${operation}`);
@@ -90,7 +90,6 @@ const testModuleUpdate = defineQCMS({ name: "test-module" }).collections({
 						title: data.title,
 					});
 				}
-				return data;
 			},
 			afterChange: async ({ data, original, operation }) => {
 				const cms = getCMSFromContext<typeof testModuleUpdate>();
@@ -120,7 +119,7 @@ const testModuleDelete = defineQCMS({ name: "test-module" })
 			.hooks({
 				beforeDelete: async ({ data }) => {
 					const cms = getCMSFromContext<typeof testModuleDelete>();
-					await cms.logger?.warn("Article deletion requested", {
+					cms.logger?.warn("Article deletion requested", {
 						id: data.id,
 					});
 				},
@@ -148,7 +147,6 @@ const testModuleError = defineQCMS({ name: "test-module" }).collections({
 				if (data.title === "forbidden") {
 					throw new Error("Forbidden title");
 				}
-				return data;
 			},
 		})
 		.build(),
@@ -163,11 +161,11 @@ const createEnrichmentModule = (enrichmentData: Map<string, any>) =>
 				})
 				.hooks({
 					beforeChange: async ({ data }) => {
+						if (isNullish(data.id)) return;
 						enrichmentData.set(data.id, {
 							enriched: true,
 							timestamp: Date.now(),
 						});
-						return data;
 					},
 					afterChange: async ({ data }) => {
 						const cms = getCMSFromContext<typeof testModuleEnrichment>();

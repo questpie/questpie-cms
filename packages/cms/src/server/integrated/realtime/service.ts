@@ -1,5 +1,4 @@
 import { asc, desc, gt } from "drizzle-orm";
-import type { PgDatabase } from "drizzle-orm/pg-core";
 import type { RealtimeAdapter } from "./adapter";
 import { questpieRealtimeLogTable } from "./collection";
 import type {
@@ -10,13 +9,17 @@ import type {
 	RealtimeResourceType,
 	RealtimeSubscriptionContext,
 } from "./types";
+import type {
+	DbClientType,
+	DrizzleClientFromCMSConfig,
+} from "#questpie/cms/exports/server.js";
 
 export type RealtimeListener = (event: RealtimeChangeEvent) => void;
 
 type AppendChangeInput = Omit<RealtimeChangeEvent, "seq" | "createdAt">;
 
 type AppendChangeOptions = {
-	db?: PgDatabase<any>;
+	db?: DrizzleClientFromCMSConfig<any, any, DbClientType>;
 };
 
 // Topic format: "resourceType:resource" or "resourceType:resource:field1:value1:field2:value2"
@@ -141,7 +144,8 @@ export class RealtimeService {
 	private subscriptionContext?: RealtimeSubscriptionContext;
 
 	constructor(
-		private db: PgDatabase<any>,
+		// TODO: this should be typed better
+		private db: DrizzleClientFromCMSConfig<any, any, DbClientType>,
 		config: RealtimeConfig = {},
 		private pgConnectionString?: string,
 	) {

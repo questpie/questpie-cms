@@ -12,6 +12,11 @@ import type {
 	EmptyCollectionState,
 	CollectionBuilderRelationFn,
 } from "#questpie/cms/server/collection/builder/types";
+import type {
+	CollectionSelect,
+	CollectionInsert,
+	CollectionUpdate,
+} from "#questpie/cms/server/collection/builder/collection";
 import type { SearchableConfig } from "#questpie/cms/server/integrated/search";
 import type { PgTableExtraConfigValue } from "drizzle-orm/pg-core";
 import type { SQL } from "drizzle-orm";
@@ -232,7 +237,14 @@ export class CollectionBuilder<TState extends CollectionBuilderState> {
 	/**
 	 * Set lifecycle hooks
 	 */
-	hooks<TNewHooks extends CollectionHooks>(
+	hooks<
+		TNewHooks extends CollectionHooks<
+			CollectionSelect<TState>,
+			CollectionInsert<TState>,
+			CollectionUpdate<TState>,
+			any
+		>,
+	>(
 		hooks: TNewHooks,
 	): CollectionBuilder<
 		Omit<TState, "hooks"> & {
@@ -512,7 +524,12 @@ export class CollectionBuilder<TState extends CollectionBuilderState> {
 		}
 	> {
 		// Merge hooks - combine arrays
-		const mergedHooks = this.mergeHooks(this.state.hooks, other.state.hooks);
+		const mergedHooks = this.mergeHooks<
+			CollectionSelect<TState> | CollectionSelect<TOtherState>,
+			CollectionInsert<TState> | CollectionInsert<TOtherState>,
+			CollectionUpdate<TState> | CollectionUpdate<TOtherState>,
+			any
+		>(this.state.hooks as any, other.state.hooks as any);
 
 		// Merge access control - other's access overrides this
 		const mergedAccess = {
@@ -557,11 +574,11 @@ export class CollectionBuilder<TState extends CollectionBuilderState> {
 	/**
 	 * Helper to merge hooks - combines hook arrays
 	 */
-	private mergeHooks(
-		hooks1: CollectionHooks,
-		hooks2: CollectionHooks,
-	): CollectionHooks {
-		const merged: CollectionHooks = {};
+	private mergeHooks<TSelect = any, TInsert = any, TUpdate = any, TCMS = any>(
+		hooks1: CollectionHooks<TSelect, TInsert, TUpdate, TCMS>,
+		hooks2: CollectionHooks<TSelect, TInsert, TUpdate, TCMS>,
+	): CollectionHooks<TSelect, TInsert, TUpdate, TCMS> {
+		const merged: CollectionHooks<TSelect, TInsert, TUpdate, TCMS> = {};
 
 		// All possible hook keys
 		const hookKeys = new Set([

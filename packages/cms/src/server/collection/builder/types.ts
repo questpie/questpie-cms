@@ -161,11 +161,13 @@ export interface RelationVariant {
 /**
  * Base context for hooks - receives full CMS access
  * @template TData - The record data type (created/updated/deleted)
+ * @template TOriginal - The original record type (for update/delete operations), use `never` if not available
  * @template TOperation - The operation type
  * @template TCMS - The CMS type for full type safety
  */
 export interface HookContext<
 	TData = any,
+	TOriginal = any,
 	TOperation extends "create" | "update" | "delete" | "read" =
 		| "create"
 		| "update"
@@ -179,9 +181,9 @@ export interface HookContext<
 	data: TData;
 
 	/**
-	 * Original record (for update/delete operations)
+	 * Original record (only available for update operations in afterChange/afterRead hooks)
 	 */
-	original?: TData;
+	original: TOriginal extends never ? never : TOriginal | undefined;
 
 	/**
 	 * Current authenticated user (from request context)
@@ -243,90 +245,323 @@ export interface AccessContext<TRow = any> {
  * Hook function type
  * Receives full CMS context with specific operation type
  * @template TData - The record data type
+ * @template TOriginal - The original record type (for update/delete operations)
  * @template TOperation - The operation type
  * @template TCMS - The CMS type for full type safety
  */
 export type HookFunction<
 	TData = any,
+	TOriginal = any,
 	TOperation extends "create" | "update" | "delete" | "read" =
 		| "create"
 		| "update"
 		| "delete"
 		| "read",
 	TCMS = any,
-> = (ctx: HookContext<TData, TOperation, TCMS>) => Promise<void> | void;
+> = (
+	ctx: HookContext<TData, TOriginal, TOperation, TCMS>,
+) => Promise<void> | void;
+
+/**
+ * BeforeOperation hook - runs before any operation
+ * @property data - Input data (TInsert for create, TUpdate for update, TSelect for read/delete)
+ * @property original - Not available
+ * @property operation - "create" | "update" | "delete" | "read"
+ */
+export type BeforeOperationHook<
+	TSelect = any,
+	TInsert = any,
+	TUpdate = any,
+	TCMS = any,
+> = HookFunction<
+	TInsert | TUpdate | TSelect,
+	never,
+	"create" | "update" | "delete" | "read",
+	TCMS
+>;
+
+/**
+ * BeforeValidate hook - runs before validation on create/update
+ * @property data - Mutable input data (TInsert on create, TUpdate on update)
+ * @property original - Not available
+ * @property operation - "create" | "update"
+ * @remarks Use this to transform/normalize input before validation
+ */
+export type BeforeValidateHook<
+	_TSelect = any,
+	TInsert = any,
+	TUpdate = any,
+	TCMS = any,
+> = HookFunction<TInsert | TUpdate, never, "create" | "update", TCMS>;
+
+/**
+ * BeforeChange hook - runs before create/update (after validation)
+ * @property data - Validated input data (TInsert on create, TUpdate on update)
+ * @property original - Not available
+ * @property operation - "create" | "update"
+ * @remarks Use this for business logic, slug generation, complex validation
+ */
+export type BeforeChangeHook<
+	_TSelect = any,
+	TInsert = any,
+	TUpdate = any,
+	TCMS = any,
+> = HookFunction<TInsert | TUpdate, never, "create" | "update", TCMS>;
+
+/**
+ * AfterChange hook - runs after create/update operations
+ * @property data - Complete record (TSelect)
+ * @property original - Original record (TSelect) - only available on update operations
+ * @property operation - "create" | "update"
+ * @remarks Use this for notifications, webhooks, syncing to external services
+ */
+export type AfterChangeHook<TSelect = any, TCMS = any> = HookFunction<
+	TSelect,
+	TSelect | undefined,
+	"create" | "update",
+	TCMS
+>;
+
+/**
+ * BeforeRead hook - runs before read operations
+ * @property data - Query context/options (implementation specific)
+ * @property original - Not available
+ * @property operation - "read"
+ * @remarks Use this to modify query options or add filters
+ */
+export type BeforeReadHook<TSelect = any, TCMS = any> = HookFunction<
+	TSelect,
+	never,
+	"read",
+	TCMS
+>;
+
+/**
+ * AfterRead hook - runs after any operation that returns data
+ * @property data - Complete record (TSelect)
+ * @property original - Original record (TSelect) - only available on update operations
+ * @property operation - "create" | "update" | "delete" | "read"
+ * @remarks Use this to transform output, add computed fields, format data
+ */
+export type AfterReadHook<TSelect = any, TCMS = any> = HookFunction<
+	TSelect,
+	TSelect | undefined,
+	"create" | "update" | "delete" | "read",
+	TCMS
+>;
+
+/**
+ * BeforeDelete hook - runs before delete operations
+ * @property data - Record to be deleted (TSelect)
+ * @property original - Not available
+ * @property operation - "delete"
+ * @remarks Use this to prevent deletion, cascade deletes, create backups
+ */
+export type BeforeDeleteHook<TSelect = any, TCMS = any> = HookFunction<
+	TSelect,
+	never,
+	"delete",
+	TCMS
+>;
+
+/**
+ * AfterDelete hook - runs after delete operations
+ * @property data - Deleted record (TSelect)
+ * @property original - Not available
+ * @property operation - "delete"
+ * @remarks Use this for cleanup, logging, notifying users
+ */
+export type AfterDeleteHook<TSelect = any, TCMS = any> = HookFunction<
+	TSelect,
+	never,
+	"delete",
+	TCMS
+>;
 
 /**
  * Collection lifecycle hooks
  * Each hook type can have multiple functions (executed in order)
- * Operation types are specific to each hook for better type safety
- * @template TRow - The record type
+ *
+ * Hook execution order:
+ * - Create: beforeOperation → beforeValidate → beforeChange → [DB INSERT] → afterChange → afterRead
+ * - Update: beforeOperation → beforeValidate → beforeChange → [DB UPDATE] → afterChange → afterRead
+ * - Delete: beforeOperation → beforeDelete → [DB DELETE] → afterDelete → afterRead
+ * - Read: beforeOperation → beforeRead → [DB SELECT] → afterRead
+ *
+ * @template TSelect - The complete record type (after read)
+ * @template TInsert - The insert data type
+ * @template TUpdate - The update data type
  * @template TCMS - The CMS type for full type safety in hooks
  */
-export interface CollectionHooks<TRow = any, TCMS = any> {
+export interface CollectionHooks<
+	TSelect = any,
+	TInsert = any,
+	TUpdate = any,
+	TCMS = any,
+> {
 	/**
 	 * Runs before any operation (create/update/delete/read)
-	 * Use for: logging, rate limiting, early validation
+	 *
+	 * **Available fields:**
+	 * - `data`: Input data (type depends on operation)
+	 * - `original`: Not available
+	 * - `operation`: "create" | "update" | "delete" | "read"
+	 *
+	 * **Use cases:** logging, rate limiting, early validation
 	 */
 	beforeOperation?:
-		| HookFunction<TRow, "create" | "update" | "delete" | "read", TCMS>[]
-		| HookFunction<TRow, "create" | "update" | "delete" | "read", TCMS>;
+		| BeforeOperationHook<TSelect, TInsert, TUpdate, TCMS>[]
+		| BeforeOperationHook<TSelect, TInsert, TUpdate, TCMS>;
 
 	/**
 	 * Runs before validation on create/update operations
-	 * Use for: transforming input, setting defaults, normalizing data
+	 *
+	 * **Available fields:**
+	 * - `data`: Mutable input data (TInsert on create, TUpdate on update)
+	 * - `original`: Not available
+	 * - `operation`: "create" | "update"
+	 *
+	 * **Use cases:** transforming input, setting defaults, normalizing data
+	 *
+	 * @example
+	 * ```ts
+	 * beforeValidate: ({ data, operation }) => {
+	 *   if (operation === 'create' && !data.slug) {
+	 *     data.slug = slugify(data.title);
+	 *   }
+	 * }
+	 * ```
 	 */
 	beforeValidate?:
-		| HookFunction<TRow, "create" | "update", TCMS>[]
-		| HookFunction<TRow, "create" | "update", TCMS>;
+		| BeforeValidateHook<TSelect, TInsert, TUpdate, TCMS>[]
+		| BeforeValidateHook<TSelect, TInsert, TUpdate, TCMS>;
 
 	/**
 	 * Runs before create/update operations (after validation)
-	 * Use for: business logic, slug generation, complex validation
+	 *
+	 * **Available fields:**
+	 * - `data`: Validated input data (TInsert on create, TUpdate on update)
+	 * - `original`: Not available
+	 * - `operation`: "create" | "update"
+	 *
+	 * **Use cases:** business logic, complex validation, derived fields
+	 *
+	 * @example
+	 * ```ts
+	 * beforeChange: ({ data, operation, cms }) => {
+	 *   if (operation === 'create') {
+	 *     data.createdBy = cms.context.user?.id;
+	 *   }
+	 * }
+	 * ```
 	 */
 	beforeChange?:
-		| HookFunction<TRow, "create" | "update", TCMS>[]
-		| HookFunction<TRow, "create" | "update", TCMS>;
+		| BeforeChangeHook<TSelect, TInsert, TUpdate, TCMS>[]
+		| BeforeChangeHook<TSelect, TInsert, TUpdate, TCMS>;
 
 	/**
 	 * Runs after create/update operations
-	 * Use for: notifications, webhooks, syncing to external services
+	 *
+	 * **Available fields:**
+	 * - `data`: Complete record (TSelect)
+	 * - `original`: Original record (TSelect) - **only on update**
+	 * - `operation`: "create" | "update"
+	 *
+	 * **Use cases:** notifications, webhooks, syncing to external services
+	 *
+	 * @example
+	 * ```ts
+	 * afterChange: async ({ data, original, operation, cms }) => {
+	 *   if (operation === 'update' && original) {
+	 *     if (data.status !== original.status) {
+	 *       await cms.queue['status-change'].publish({ id: data.id });
+	 *     }
+	 *   }
+	 * }
+	 * ```
 	 */
 	afterChange?:
-		| HookFunction<TRow, "create" | "update", TCMS>[]
-		| HookFunction<TRow, "create" | "update", TCMS>;
+		| AfterChangeHook<TSelect, TCMS>[]
+		| AfterChangeHook<TSelect, TCMS>;
 
 	/**
 	 * Runs before read operations
-	 * Use for: modifying query options, adding filters
+	 *
+	 * **Available fields:**
+	 * - `data`: Query context/options
+	 * - `original`: Not available
+	 * - `operation`: "read"
+	 *
+	 * **Use cases:** modifying query options, adding filters
 	 */
-	beforeRead?:
-		| HookFunction<TRow, "read", TCMS>[]
-		| HookFunction<TRow, "read", TCMS>;
+	beforeRead?: BeforeReadHook<TSelect, TCMS>[] | BeforeReadHook<TSelect, TCMS>;
 
 	/**
-	 * Runs after any operation that returns data (create/update/delete/read)
-	 * Use for: transforming output, adding computed fields, formatting
+	 * Runs after any operation that returns data
+	 *
+	 * **Available fields:**
+	 * - `data`: Complete record (TSelect)
+	 * - `original`: Original record (TSelect) - **only on update**
+	 * - `operation`: "create" | "update" | "delete" | "read"
+	 *
+	 * **Use cases:** transforming output, adding computed fields, formatting
+	 *
+	 * @example
+	 * ```ts
+	 * afterRead: ({ data }) => {
+	 *   // Add computed field
+	 *   data.displayName = `${data.firstName} ${data.lastName}`;
+	 * }
+	 * ```
 	 */
-	afterRead?:
-		| HookFunction<TRow, "create" | "update" | "delete" | "read", TCMS>[]
-		| HookFunction<TRow, "create" | "update" | "delete" | "read", TCMS>;
+	afterRead?: AfterReadHook<TSelect, TCMS>[] | AfterReadHook<TSelect, TCMS>;
 
 	/**
 	 * Runs before delete operations
-	 * Use for: preventing deletion, cascading deletes, backups
+	 *
+	 * **Available fields:**
+	 * - `data`: Record to be deleted (TSelect)
+	 * - `original`: Not available
+	 * - `operation`: "delete"
+	 *
+	 * **Use cases:** preventing deletion, cascading deletes, creating backups
+	 *
+	 * @example
+	 * ```ts
+	 * beforeDelete: async ({ data, cms }) => {
+	 *   // Prevent deletion if has active relations
+	 *   const hasOrders = await cms.db.select().from(orders)
+	 *     .where(eq(orders.userId, data.id));
+	 *   if (hasOrders.length > 0) {
+	 *     throw new Error('Cannot delete user with active orders');
+	 *   }
+	 * }
+	 * ```
 	 */
 	beforeDelete?:
-		| HookFunction<TRow, "delete", TCMS>[]
-		| HookFunction<TRow, "delete", TCMS>;
+		| BeforeDeleteHook<TSelect, TCMS>[]
+		| BeforeDeleteHook<TSelect, TCMS>;
 
 	/**
 	 * Runs after delete operations
-	 * Use for: cleanup, logging, notifying users
+	 *
+	 * **Available fields:**
+	 * - `data`: Deleted record (TSelect)
+	 * - `original`: Not available
+	 * - `operation`: "delete"
+	 *
+	 * **Use cases:** cleanup, logging, notifying users
+	 *
+	 * @example
+	 * ```ts
+	 * afterDelete: async ({ data, cms }) => {
+	 *   await cms.queue['user-deleted'].publish({ userId: data.id });
+	 * }
+	 * ```
 	 */
 	afterDelete?:
-		| HookFunction<TRow, "delete", TCMS>[]
-		| HookFunction<TRow, "delete", TCMS>;
+		| AfterDeleteHook<TSelect, TCMS>[]
+		| AfterDeleteHook<TSelect, TCMS>;
 }
 
 /**
@@ -402,7 +637,7 @@ export interface CollectionBuilderState {
 	indexes: Record<string, any>;
 	title: SQL | undefined;
 	options: CollectionOptions;
-	hooks: CollectionHooks;
+	hooks: CollectionHooks<any, any, any, any>;
 	access: CollectionAccess;
 	functions: CollectionFunctionsMap;
 	searchable: SearchableConfig | undefined;
@@ -447,7 +682,7 @@ export type EmptyCollectionState<TName extends string> =
 		indexes: {};
 		title: undefined;
 		options: {};
-		hooks: {};
+		hooks: CollectionHooks<any, any, any, any>;
 		access: {};
 		functions: {};
 		searchable: undefined;

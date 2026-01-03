@@ -46,7 +46,8 @@ const createTestModule = () => {
 		})
 		.title(({ table }) => sql`${table.name}`)
 		.hooks({
-			afterCreate: async ({ data }) => {
+			afterChange: async ({ data, operation }) => {
+				if (operation !== "create") return;
 				const cms = getCMSFromContext();
 				// Send welcome email when author is created
 				await cms.email?.send({
@@ -96,7 +97,8 @@ const createTestModule = () => {
 			versioning: true,
 		})
 		.hooks({
-			beforeCreate: async ({ data }) => {
+			beforeChange: async ({ data, operation }) => {
+				if (operation !== "create") return;
 				// Auto-generate slug if not provided
 				if (!data.slug && data.title) {
 					data.slug = data.title
@@ -104,29 +106,28 @@ const createTestModule = () => {
 						.replace(/\s+/g, "-")
 						.replace(/[^a-z0-9-]/g, "");
 				}
-				return data;
 			},
-			afterCreate: async ({ data }) => {
-				const cms = getCMSFromContext();
-				await cms.logger?.info("Article created", {
-					id: data.id,
-					title: data.title,
-				});
-			},
-			afterUpdate: async ({ data, original }) => {
+			afterChange: async ({ data, original, operation }) => {
 				const cms = getCMSFromContext<any>();
-				// Track publication
-				if (original.status !== "published" && data.status === "published") {
-					await cms.queue["article:published"].publish({
-						articleId: data.id,
-						title: data.title,
-						authorId: data.authorId,
-					});
-
-					await cms.logger?.info("Article published", {
+				if (operation === "create") {
+					await cms.logger?.info("Article created", {
 						id: data.id,
 						title: data.title,
 					});
+				} else if (operation === "update" && original) {
+					// Track publication
+					if (original.status !== "published" && data.status === "published") {
+						await cms.queue["article:published"].publish({
+							articleId: data.id,
+							title: data.title,
+							authorId: data.authorId,
+						});
+
+						await cms.logger?.info("Article published", {
+							id: data.id,
+							title: data.title,
+						});
+					}
 				}
 			},
 			afterDelete: async ({ data }) => {
