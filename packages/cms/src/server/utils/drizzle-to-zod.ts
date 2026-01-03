@@ -6,7 +6,7 @@
  *
  * @example
  * ```ts
- * import { varchar, integer, boolean } from "drizzle-orm/pg-core";
+ * import { varchar, integer, boolean, pgEnum } from "drizzle-orm/pg-core";
  * import { drizzleColumnsToZod, createZodSchema } from "./drizzle-to-zod";
  *
  * const columns = {
@@ -17,6 +17,16 @@
  *
  * const schema = drizzleColumnsToZod(columns);
  * // Type: z.ZodObject<{ name: z.ZodString, age: z.ZodNumber.optional(), isActive: z.ZodBoolean.optional() }>
+ *
+ * // Using pgEnum
+ * const statusEnum = pgEnum("status", ["draft", "published", "archived"]);
+ * const table = pgTable("posts", {
+ *   status: statusEnum("status").notNull(),
+ *   title: varchar("title", { length: 255 }).notNull(),
+ * });
+ *
+ * const postSchema = drizzleColumnsToZod(table);
+ * // Type: z.ZodObject<{ status: z.ZodEnum<["draft", "published", "archived"]>, title: z.ZodString }>
  * ```
  */
 
@@ -46,6 +56,7 @@ import type {
 	PgUUID,
 	PgVarchar,
 	PgTable,
+	PgEnumColumn,
 } from "drizzle-orm/pg-core";
 import { z } from "zod";
 
@@ -56,11 +67,17 @@ import { z } from "zod";
 // Get table columns without reserved keys
 type TableColumns<T extends PgTable<any>> = ReturnType<typeof getColumns<T>>;
 
+type EnumLikeFromArray<T extends string[]> = {
+	[K in T[number]]: K;
+};
+
 // Base Zod type inference from Drizzle column types
 type DrizzleColumnToZodType<T extends PgColumn> =
 	T extends PgColumn<infer TConfig>
 		? TConfig["data"] extends string
-			? z.ZodString
+			? TConfig["enumValues"] extends string[]
+				? z.ZodEnum<EnumLikeFromArray<TConfig["enumValues"]>> // Enum of specific strings
+				: z.ZodString // General string type
 			: TConfig["data"] extends number
 				? z.ZodNumber
 				: TConfig["data"] extends boolean
@@ -129,13 +146,43 @@ function getColumnConfig(column: PgColumn): any {
 }
 
 /**
+ * Extract Zod schema for pgEnum columns
+ */
+function enumToZod(column: PgEnumColumn<any>): z.ZodEnum<any> {
+	const config = getColumnConfig(column);
+
+	// Get enum values from the enum definition
+	// In pgEnum columns, values are stored in config.enum.enumValues
+	const enumFn = config.enum;
+	const enumValues = enumFn?.enumValues;
+
+	if (!enumValues || !Array.isArray(enumValues) || enumValues.length === 0) {
+		throw new Error("pgEnum column must have enum values defined");
+	}
+
+	return z.enum(enumValues as [string, ...string[]]);
+}
+
+/**
  * Extract Zod schema for varchar/char columns
  */
-function varcharToZod(column: PgVarchar<any> | PgChar<any>): z.ZodString {
+function varcharToZod(
+	column: PgVarchar<any> | PgChar<any>,
+): z.ZodString | z.ZodEnum<any> {
+	const config = getColumnConfig(column);
+
+	// Check if enum values are specified
+	if (
+		config.enumValues &&
+		Array.isArray(config.enumValues) &&
+		config.enumValues.length > 0
+	) {
+		return z.enum(config.enumValues as [string, ...string[]]);
+	}
+
 	let schema = z.string();
 
 	// Add max length constraint if specified
-	const config = getColumnConfig(column);
 	if (config.length && typeof config.length === "number") {
 		schema = schema.max(config.length);
 	}
@@ -293,6 +340,10 @@ export function drizzleColumnToZod(column: any): z.ZodTypeAny {
 	const columnType = config.columnType || column.constructor.name;
 
 	switch (columnType) {
+		case "PgEnum":
+		case "PgEnumColumn":
+			baseSchema = enumToZod(column as any);
+			break;
 		case "PgVarchar":
 		case "PgChar":
 			baseSchema = varcharToZod(column as any);
@@ -396,19 +447,6 @@ export function drizzleColumnsToZod<TTable extends PgTable<any>>(
 		ColumnsToZodShape<TableColumns<TTable>>
 	>;
 }
-
-type CreateInsertSchemaOpts<TTable extends PgTable<any>> = {
-	/** Fields to exclude from the schema */
-	exclude?: { [K in keyof TableColumns<TTable>]?: true };
-	/** Fields to make optional (even if notNull in DB) */
-	optional?: { [K in keyof TableColumns<TTable>]?: true };
-	/** Custom refinements or transformations per field */
-	refine?: Partial<{
-		[K in keyof TableColumns<TTable>]: (
-			schema: ColumnToZodType<TableColumns<TTable>[K]>,
-		) => z.ZodTypeAny;
-	}>;
-};
 
 /**
  * Helper to create a Zod schema from collection fields (excluding system fields)

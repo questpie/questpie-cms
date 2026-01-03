@@ -9,6 +9,7 @@ import {
 	integer,
 	jsonb,
 	numeric,
+	pgEnum,
 	pgTable,
 	real,
 	text,
@@ -52,10 +53,73 @@ describe("drizzle-to-zod", () => {
 		});
 
 		test("varchar with runtime default ($default)", () => {
-			const column = varchar("name", { length: 255 }).$default(() => "Generated");
+			const column = varchar("name", { length: 255 }).$default(
+				() => "Generated",
+			);
 			const schema = drizzleColumnToZod(column);
 
 			expect(schema.parse("John Doe")).toBe("John Doe");
+			// Should be optional - can be omitted entirely
+			expect(schema.parse(undefined)).toBe(undefined);
+			// Should pass validation when field is not provided (optional)
+			const result = schema.safeParse(undefined);
+			expect(result.success).toBe(true);
+		});
+
+		test("varchar with enum values", () => {
+			const column = varchar("status", {
+				length: 50,
+				enum: ["draft", "published"],
+			}).notNull();
+			const schema = drizzleColumnToZod(column);
+
+			// Should accept valid enum values
+			expect(schema.parse("draft")).toBe("draft");
+			expect(schema.parse("published")).toBe("published");
+
+			// Should reject invalid enum values
+			const invalidResult = schema.safeParse("invalid");
+			expect(invalidResult.success).toBe(false);
+		});
+
+		test("pgEnum column notNull", () => {
+			const statusEnum = pgEnum("status", ["draft", "published", "archived"]);
+			const column = statusEnum("status").notNull();
+			const schema = drizzleColumnToZod(column);
+
+			// Should accept valid enum values
+			expect(schema.parse("draft")).toBe("draft");
+			expect(schema.parse("published")).toBe("published");
+			expect(schema.parse("archived")).toBe("archived");
+
+			// Should reject invalid enum values
+			const invalidResult = schema.safeParse("invalid");
+			expect(invalidResult.success).toBe(false);
+		});
+
+		test("pgEnum column nullable", () => {
+			const roleEnum = pgEnum("role", ["admin", "user", "guest"]);
+			const column = roleEnum("role");
+			const schema = drizzleColumnToZod(column);
+
+			// Should accept valid enum values
+			expect(schema.parse("admin")).toBe("admin");
+			expect(schema.parse("user")).toBe("user");
+
+			// Should accept null
+			expect(schema.parse(null)).toBe(null);
+		});
+
+		test("pgEnum column with default", () => {
+			const statusEnum = pgEnum("status", ["active", "inactive"]);
+			const column = statusEnum("status").default("active");
+			const schema = drizzleColumnToZod(column);
+
+			// Should accept valid enum values
+			expect(schema.parse("active")).toBe("active");
+			expect(schema.parse("inactive")).toBe("inactive");
+
+			// Should be optional
 			expect(schema.parse(undefined)).toBe(undefined);
 		});
 
@@ -490,6 +554,51 @@ describe("drizzle-to-zod", () => {
 			// TypeScript should know the shape
 			expect(parsed.name).toBe("John");
 			expect(parsed.age).toBe(30);
+		});
+
+		test("enum type inference", () => {
+			const productsTable = pgTable("products", {
+				status: varchar("status", {
+					length: 50,
+					enum: ["draft", "published", "archived"],
+				}).notNull(),
+				name: varchar("name", { length: 255 }).notNull(),
+			});
+
+			const schema = drizzleColumnsToZod(productsTable);
+
+			// Should parse valid enum values
+			const parsed = schema.parse({
+				status: "draft",
+				name: "Product",
+			});
+
+			expect(parsed.status).toBe("draft");
+		});
+
+		test("pgEnum type inference", () => {
+			const statusEnum = pgEnum("status", ["pending", "approved", "rejected"]);
+			const ordersTable = pgTable("orders", {
+				status: statusEnum("status").notNull(),
+				itemName: varchar("item_name", { length: 255 }).notNull(),
+			});
+
+			const schema = drizzleColumnsToZod(ordersTable);
+
+			// Should parse valid enum values
+			const parsed = schema.parse({
+				status: "pending",
+				itemName: "Widget",
+			});
+
+			expect(parsed.status).toBe("pending");
+
+			// Should reject invalid enum values
+			const invalidResult = schema.safeParse({
+				status: "invalid",
+				itemName: "Widget",
+			});
+			expect(invalidResult.success).toBe(false);
 		});
 	});
 });
