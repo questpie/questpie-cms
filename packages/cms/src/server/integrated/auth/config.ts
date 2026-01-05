@@ -66,18 +66,30 @@ export function mergeAuthOptions<
 	A extends BetterAuthOptions,
 	B extends BetterAuthOptions,
 >(base: A, overrides: B): MergeAuthOptions<A, B> {
+	// Separate plugins and socialProviders to avoid cloning issues
+	const {
+		plugins: basePlugins,
+		socialProviders: baseSocialProviders,
+		...baseRest
+	} = base || {};
+	const {
+		plugins: overridePlugins,
+		socialProviders: overrideSocialProviders,
+		...overridesRest
+	} = overrides || {};
+
 	const merged = {
-		// we deepmerge all
-		...deepMerge(base, overrides),
+		// we deepmerge all except plugins and socialProviders
+		...deepMerge(baseRest, overridesRest),
 		// merge plugins, newer plugins take precedence
 		plugins: dedupeBy(
-			[...(overrides?.plugins || []), ...(base?.plugins || [])],
+			[...(overridePlugins || []), ...(basePlugins || [])],
 			(plugin) => plugin.id,
 		),
 		// social providers are merged shallowly
 		socialProviders: {
-			...base?.socialProviders,
-			...overrides?.socialProviders,
+			...baseSocialProviders,
+			...overrideSocialProviders,
 		},
 	} as any;
 
