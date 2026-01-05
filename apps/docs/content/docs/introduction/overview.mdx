@@ -36,14 +36,32 @@ You can still swap these out, but the defaults are production-ready and work tog
 
 ### Type Safety from Database to API
 
-QUESTPIE leverages **Drizzle ORM** for schema definition, which means:
+QUESTPIE leverages **Drizzle ORM** and **advanced TypeScript inference** for schema definition, which means:
 
 - Database schema and TypeScript types are **the same thing**
-- No code generation required - **live type inference**
+- No code generation required - **live type inference across the builder chain**
+- Plugin methods are **automatically inferred** based on enabled plugins
 - Migrations are **deterministic and reversible**
 - Query builder is **fully typed** at every step
 
-Combined with the builder pattern for collections and globals, you get **end-to-end type safety** that catches errors at compile time, not runtime.
+Combined with the builder pattern for collections, globals, and auth, you get **end-to-end type safety** that catches errors at compile time, not runtime.
+
+```typescript
+const cms = defineQCMS({ name: "app" })
+  .auth({ plugins: [organization()] })
+  .build({
+    /* ... */
+  });
+
+// TypeScript knows this method exists:
+cms.auth.api.createOrganization({ name: "Acme" }); // ✅
+
+// Without the plugin, TypeScript errors:
+const cmsWithoutOrg = defineQCMS({ name: "app" }).build({
+  /* ... */
+});
+cmsWithoutOrg.auth.api.createOrganization(); // ❌ Type error!
+```
 
 ### Designed for Modern Frameworks
 
@@ -57,13 +75,55 @@ The CMS core is **framework-agnostic** - adapters handle the HTTP layer while th
 
 ### Developer Experience First
 
-- **Fluent builder API** - Define collections like `defineCollection("posts").fields({...}).hooks({...}).access({...})`
-- **Autocomplete everywhere** - Your IDE knows your schema, fields, relations, and access rules
+- **Fluent builder API** - Chain methods like `.collections({...}).auth({...}).build({...})`
+- **Autocomplete everywhere** - Your IDE knows your schema, fields, relations, access rules, and auth methods
+- **Modular composition** - Create reusable modules with `.use()` for features like auth, storage, or custom collections
+- **Progressive enhancement** - Use callbacks to build on previous configurations: `.auth((prev) => ({ ...prev, plugins: [...] }))`
 - **Clear error messages** - TypeScript catches issues before they reach production
 - **Convention over configuration** - Sensible defaults, override when needed
 - **Hot module reloading** - Changes to collections reflect instantly in dev mode
 
 ## Key Features
+
+### Modular Architecture
+
+QUESTPIE CMS uses a **composable module system** that allows you to:
+
+- **Start simple** - Use `defineQCMS({ name: 'app' })` for full control, or `createCoreModule()` for batteries-included setup
+- **Compose modules** - Merge modules with `.use()` to add features from other packages or your own code
+- **Progressive enhancement** - Build on previous configurations using callbacks
+
+```typescript
+// Create reusable modules
+const orgModule = defineQCMS({ name: "org" }).auth({
+  plugins: [organization()],
+});
+
+const twoFactorModule = defineQCMS({ name: "2fa" }).auth({
+  plugins: [twoFactor()],
+});
+
+// Compose them together
+const cms = defineQCMS({ name: "app" })
+  .use(orgModule) // ✅ Merge organization auth
+  .use(twoFactorModule) // ✅ Merge two-factor auth
+  .collections({ posts, products })
+  .build({
+    /* ... */
+  });
+
+// All auth methods are available and typed:
+cms.auth.api.createUser(); // From default auth
+cms.auth.api.createOrganization(); // From orgModule
+cms.auth.api.sendTwoFactorCode(); // From twoFactorModule
+```
+
+**Why this matters:**
+
+- Share auth configurations across multiple projects
+- Create organization-specific modules (e.g., "e-commerce-auth", "multi-tenant-auth")
+- Test modules in isolation
+- Type safety is preserved through composition
 
 ### Collections & Globals
 
@@ -71,6 +131,7 @@ The CMS core is **framework-agnostic** - adapters handle the HTTP layer while th
 **Globals** are single-instance settings (homepage, site config, SEO defaults).
 
 Both support:
+
 - Drizzle-based schema definition
 - Localization (i18n) for multi-language sites
 - Virtual fields (computed SQL expressions)
@@ -122,6 +183,7 @@ Intercept operations at every stage:
 ```
 
 Hooks have access to:
+
 - All integrated services (queue, email, storage, logger)
 - Other collections via `cms.api.collections`
 - Full type safety on data and context
@@ -156,10 +218,24 @@ Access rules are **enforced at the database level** - no manual filtering needed
 
 #### Authentication (Better Auth)
 
+- **Type-safe plugin inference** - Add plugins, get typed API methods automatically
+- **Composable auth modules** - Reuse auth configurations across projects with `.use()`
+- **Progressive field enhancement** - Extend user/session models with callbacks
 - Email/password, OAuth (Google, GitHub, etc.)
 - Session management
-- Role-based access control
+- Role-based access control with plugins (admin, organization, two-factor, etc.)
 - Auto-generated user/session/account tables
+
+```typescript
+// Add organization plugin → get organization methods
+const cms = defineQCMS({ name: "app" })
+  .auth({ plugins: [organization()] })
+  .build({
+    /* ... */
+  });
+
+cms.auth.api.createOrganization({ name: "Acme" }); // ✅ Fully typed
+```
 
 #### Storage (Flydrive)
 
@@ -255,11 +331,12 @@ The CMS is published as a single package with **subpath exports**:
 
 ```typescript
 import { QCMS, defineCollection } from "@questpie/cms/server"; // Server-only
-import { createClient } from "@questpie/cms/client";           // Client-only
-import { utils } from "@questpie/cms/shared";                  // Shared
+import { createClient } from "@questpie/cms/client"; // Client-only
+import { utils } from "@questpie/cms/shared"; // Shared
 ```
 
 This ensures:
+
 - No accidental server code in client bundles
 - Clear separation of concerns
 - Tree-shakeable imports
@@ -353,18 +430,18 @@ CREATE TABLE posts_versions (
 
 ## Comparison to Other CMS
 
-| Feature | QUESTPIE | Payload CMS | Strapi | Contentful |
-|---------|----------|-------------|--------|------------|
-| **Type Safety** | ✅ Full (Drizzle) | ⚠️ Partial | ❌ Limited | ❌ API only |
-| **Batteries Included** | ✅ Auth, Storage, Queue, Email | ⚠️ Partial | ⚠️ Plugins | ❌ No |
-| **Self-Hosted** | ✅ Yes | ✅ Yes | ✅ Yes | ❌ SaaS only |
-| **Database** | Postgres | MongoDB | SQL/NoSQL | Proprietary |
-| **Framework** | Hono/Elysia | Express | Koa | N/A |
-| **Runtime** | Bun/Node/Deno | Node | Node | N/A |
-| **Schema Definition** | Code (Drizzle) | Code (Config) | GUI/Code | GUI |
-| **Migrations** | Auto-generated | Custom | Auto | N/A |
-| **Access Control** | Database-level | Code-level | RBAC | API-level |
-| **Admin UI** | Coming soon | ✅ Built-in | ✅ Built-in | ✅ SaaS |
+| Feature                | QUESTPIE                       | Payload CMS   | Strapi      | Contentful   |
+| ---------------------- | ------------------------------ | ------------- | ----------- | ------------ |
+| **Type Safety**        | ✅ Full (Drizzle)              | ⚠️ Partial    | ❌ Limited  | ❌ API only  |
+| **Batteries Included** | ✅ Auth, Storage, Queue, Email | ⚠️ Partial    | ⚠️ Plugins  | ❌ No        |
+| **Self-Hosted**        | ✅ Yes                         | ✅ Yes        | ✅ Yes      | ❌ SaaS only |
+| **Database**           | Postgres                       | MongoDB       | SQL/NoSQL   | Proprietary  |
+| **Framework**          | Hono/Elysia/Next/TanstackStart | Express       | Koa         | N/A          |
+| **Runtime**            | Bun/Node/Deno                  | Node          | Node        | N/A          |
+| **Schema Definition**  | Code (Drizzle)                 | Code (Config) | GUI/Code    | GUI          |
+| **Migrations**         | Auto-generated                 | Custom        | Auto        | N/A          |
+| **Access Control**     | Database-level                 | Code-level    | RBAC        | API-level    |
+| **Admin UI**           | Coming soon                    | ✅ Built-in   | ✅ Built-in | ✅ SaaS      |
 
 ## Getting Started
 
@@ -379,15 +456,11 @@ bun add -d drizzle-kit
 
 ```typescript
 // cms.ts
-import { QCMS, defineCollection } from "@questpie/cms/server";
+import { defineQCMS, defineCollection } from "@questpie/cms/server";
 import { varchar, text } from "drizzle-orm/pg-core";
-import { drizzle } from "drizzle-orm/postgres-js";
-import postgres from "postgres";
+import { organization } from "better-auth/plugins";
 
-const queryClient = postgres(process.env.DATABASE_URL);
-const db = drizzle(queryClient);
-
-// Define a collection
+// Define a custom collection
 export const posts = defineCollection("posts")
   .fields({
     title: varchar("title", { length: 255 }).notNull(),
@@ -398,26 +471,31 @@ export const posts = defineCollection("posts")
     create: ({ user }) => !!user,
   });
 
-// Initialize CMS
-export const cms = new QCMS({
-  db: { drizzle: db },
-  collections: [posts],
-});
+// Initialize CMS with custom collections + auth plugins
+export const cms = defineQCMS({ name: "app" })
+  .collections({ posts })
+  .auth({ plugins: [organization()] })
+  .build({
+    app: { url: process.env.APP_URL },
+    db: { url: process.env.DATABASE_URL },
+  });
 
-// Run migrations
-await cms.migrations.push();
+// TypeScript knows all auth methods:
+cms.auth.api.signIn.email({ email, password }); // ✅ Default auth
+cms.auth.api.createOrganization({ name: "Acme" }); // ✅ Organization plugin
 ```
 
 ### With Hono
 
 ```typescript
 import { Hono } from "hono";
-import { questpieHono } from "@questpie/hono";
+import { createCMSAdapterRoutes } from "@questpie/cms/server";
 import { cms } from "./cms";
 
 const app = new Hono();
 
-app.route("/", questpieHono(cms, { basePath: "/cms" }));
+// Mount CMS routes
+app.route("/api", createCMSAdapterRoutes(cms));
 
 export default {
   port: 3000,
@@ -426,10 +504,13 @@ export default {
 ```
 
 Now you have a fully functional CMS with:
-- RESTful API at `/cms/posts`
+
+- RESTful API at `/api/cms/*` for collections
+- Authentication endpoints at `/api/auth/*`
 - Type-safe CRUD operations
 - Access control enforced
 - Auto-generated migrations
+- Composable, reusable auth modules
 
 ## Next Steps
 

@@ -1,7 +1,6 @@
 import type {
 	AnyCollectionOrBuilder,
 	AnyGlobalOrBuilder,
-	AuthConfig,
 	CMSDbConfig,
 	LocaleConfig,
 	StorageConfig,
@@ -20,6 +19,7 @@ import type {
 import type { RealtimeConfig } from "#questpie/cms/server/integrated/realtime";
 import type { SearchConfig } from "#questpie/cms/server/integrated/search";
 import type { Migration } from "#questpie/cms/server/migration/types";
+import type { BetterAuthOptions } from "better-auth";
 
 export type BuilderCollectionsMap = Record<string, AnyCollectionOrBuilder>;
 export type BuilderGlobalsMap = Record<string, AnyGlobalOrBuilder>;
@@ -44,7 +44,7 @@ export interface QCMSBuilderState<
 	TJobs extends BuilderJobsMap = BuilderJobsMap,
 	TEmailTemplates extends BuilderEmailTemplatesMap = BuilderEmailTemplatesMap,
 	TFunctions extends BuilderFunctionsMap = BuilderFunctionsMap,
-	TAuth extends AuthConfig | undefined = AuthConfig | undefined,
+	TAuth extends BetterAuthOptions | Record<never, never> = Record<never, never>,
 > {
 	name: TName;
 	collections: TCollections;
@@ -54,7 +54,7 @@ export interface QCMSBuilderState<
 	functions: TFunctions;
 
 	// Type-inferrable configurations (affect types)
-	auth?: TAuth;
+	auth: TAuth;
 	locale?: LocaleConfig;
 
 	// Migrations from modules
@@ -141,9 +141,9 @@ export type EmptyNamedBuilderState<TName extends string> = QCMSBuilderState<
 	EmptyBuilderMap,
 	EmptyBuilderMap,
 	EmptyBuilderMap,
-	undefined
+	Record<never, never>
 > & {
-	auth: undefined;
+	auth: {};
 	locale: undefined;
 	migrations: undefined;
 };

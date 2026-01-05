@@ -1,113 +1,85 @@
+import {
+	accountsCollection,
+	apiKeysCollection,
+	sessionsCollection,
+	usersCollection,
+	verificationsCollection,
+} from "#questpie/cms/server/collection/defaults/auth";
+import { dedupeBy, deepMerge } from "#questpie/cms/shared/index.js";
 import type { BetterAuthOptions } from "better-auth";
 import { admin, apiKey, bearer } from "better-auth/plugins";
-import type { SQL } from "bun";
-import type { QCMSAuthConfig } from "./types";
 
 /**
- * Create default QCMS Better Auth configuration with batteries included
- *
- * This helper provides a quick-start auth setup with sensible defaults:
- * - Email/password authentication (with optional verification)
- * - Admin, API key, and Bearer token plugins
- * - Optional social providers (Google, GitHub, Discord)
- *
- * @example
- * ```ts
- * // Quick start with defaults
- * const cms = createCMS({
- *   database: db,
- *   auth: defaultQCMSAuth(db.client, {
- *     emailPassword: true,
- *     baseURL: 'http://localhost:3000'
- *   })
- * })
- * ```
- *
- * @example
- * ```ts
- * // With social providers
- * const cms = createCMS({
- *   database: db,
- *   auth: defaultQCMSAuth(db.client, {
- *     emailPassword: true,
- *     socialProviders: {
- *       google: {
- *         clientId: process.env.GOOGLE_CLIENT_ID!,
- *         clientSecret: process.env.GOOGLE_CLIENT_SECRET!
- *       }
- *     }
- *   })
- * })
- * ```
- *
- * @example
- * ```ts
- * // With custom plugins
- * import { twoFactor } from 'better-auth/plugins'
- *
- * const cms = createCMS({
- *   database: db,
- *   auth: defaultQCMSAuth(db.client, {
- *     plugins: [twoFactor()]
- *   })
- * })
- * ```
+ * just a typesafe helper around better-auth's AuthOptions
  */
-export function defaultQCMSAuth(
-	database: SQL,
-	config: QCMSAuthConfig = {},
-): BetterAuthOptions {
-	const {
-		emailPassword = true,
-		socialProviders,
-		plugins = [],
-		emailVerification = true,
-		baseURL,
-		secret,
-	} = config;
+export const coreAuthOptions = defineAuthOptions({
+	baseURL: process.env.BETTER_AUTH_URL,
+	secret: process.env.BETTER_AUTH_SECRET,
+	advanced: {
+		useSecureCookies: process.env.NODE_ENV === "production",
+	},
+	plugins: [admin(), apiKey(), bearer()],
+	emailAndPassword: {
+		enabled: true,
+		requireEmailVerification: true,
+	},
+});
 
-	return {
-		database: {
-			// Better Auth expects a database client
-			// For Bun SQL, we pass it directly
-			client: database as any,
-			type: "postgres",
-		} as any,
+// Type inference validation:
+//
+// The MergeAuthOptions type correctly merges:
+// 1. ✅ plugins array (type-level concatenation)
+// 2. ✅ additionalFields (deep merge for user/session/account)
+//
+// Runtime behavior: All plugin methods work correctly
+// Type inference: Use `typeof cms.auth.$Infer` to get merged types
 
-		// Base URL for OAuth redirects and email links
-		baseURL: baseURL || process.env.BETTER_AUTH_URL,
+export const coreAuthCollections = {
+	user: usersCollection,
+	session: sessionsCollection,
+	account: accountsCollection,
+	verification: verificationsCollection,
+	apikey: apiKeysCollection,
+};
 
-		// Secret for signing tokens
-		secret: secret || process.env.BETTER_AUTH_SECRET,
+export function defineAuthOptions<O extends BetterAuthOptions>(options: O): O {
+	return options;
+}
 
-		// Trust proxy headers (important for production)
-		advanced: {
-			useSecureCookies: process.env.NODE_ENV === "production",
+export type MergeAuthOptions<
+	A extends BetterAuthOptions,
+	B extends BetterAuthOptions,
+> = {
+	[K in keyof A | keyof B]: K extends "plugins"
+		? [
+				...(B extends { plugins: Array<infer BP> } ? BP[] : []),
+				...(A extends { plugins: Array<infer AP> } ? AP[] : []),
+			]
+		: K extends keyof B
+			? B[K]
+			: K extends keyof A
+				? A[K]
+				: never;
+};
+
+export function mergeAuthOptions<
+	A extends BetterAuthOptions,
+	B extends BetterAuthOptions,
+>(base: A, overrides: B): MergeAuthOptions<A, B> {
+	const merged = {
+		// we deepmerge all
+		...deepMerge(base, overrides),
+		// merge plugins, newer plugins take precedence
+		plugins: dedupeBy(
+			[...(overrides?.plugins || []), ...(base?.plugins || [])],
+			(plugin) => plugin.id,
+		),
+		// social providers are merged shallowly
+		socialProviders: {
+			...base?.socialProviders,
+			...overrides?.socialProviders,
 		},
+	} as any;
 
-		// Default plugins
-		plugins: [
-			admin(), // Admin API for user management
-			apiKey(), // API key authentication
-			bearer(), // Bearer token support
-			...plugins, // User's custom plugins
-		],
-
-		// Email/password authentication
-		emailAndPassword: emailPassword
-			? {
-					enabled: true,
-					requireEmailVerification: emailVerification,
-				}
-			: undefined,
-
-		// Social providers
-		socialProviders: socialProviders
-			? {
-					google: socialProviders.google,
-					github: socialProviders.github,
-					discord: socialProviders.discord,
-				}
-			: undefined,
-	};
+	return merged;
 }

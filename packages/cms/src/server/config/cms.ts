@@ -1,6 +1,7 @@
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { betterAuth } from "better-auth";
+import type { BetterAuthOptions } from "better-auth";
 import { SQL } from "bun";
 import { drizzle as drizzleBun } from "drizzle-orm/bun-sql";
 import type { PgTable } from "drizzle-orm/pg-core";
@@ -46,7 +47,8 @@ import {
 	type JobsService,
 } from "#questpie/cms/server/modules/jobs/services/jobs.service";
 import { createDiskDriver } from "#questpie/cms/server/integrated/storage/create-driver";
-import type { CMSConfig, GetFunctions, InferAuthFromConfig } from "./types";
+import type { CMSConfig, GetFunctions } from "./types";
+import { drizzleAdapter } from "better-auth/adapters/drizzle";
 
 export class QCMS<TConfig extends CMSConfig = CMSConfig> {
 	static readonly __internal = {
@@ -64,9 +66,9 @@ export class QCMS<TConfig extends CMSConfig = CMSConfig> {
 	 * Better Auth instance - properly typed based on auth configuration
 	 * Type is inferred from the AuthConfig passed to .auth() in the builder
 	 */
-	public auth: TConfig["auth"] extends undefined
-		? undefined
-		: InferAuthFromConfig<NonNullable<TConfig["auth"]>>;
+	public auth: TConfig["auth"] extends BetterAuthOptions
+		? ReturnType<typeof betterAuth<TConfig["auth"]>>
+		: ReturnType<typeof betterAuth<BetterAuthOptions>>;
 	public storage: DriveManager<{
 		[QCMS.__internal
 			.storageDriverServiceName]: () => import("flydrive/types").DriverContract;
@@ -162,22 +164,15 @@ export class QCMS<TConfig extends CMSConfig = CMSConfig> {
 		// For critical infrastructure, we currently require config or throw
 		// In the future, we could provide safe "dev" defaults (e.g. local storage, console mail)
 
-		if (config.auth) {
-			// Resolve auth config - could be a factory function
-			const authConfig =
-				typeof config.auth === "function" ? config.auth(this.db) : config.auth;
+		// Resolve auth config - could be a factory function
 
-			// Check if it's a betterAuth instance (has handler method) or BetterAuthOptions
-			if ("handler" in authConfig && typeof authConfig.handler === "function") {
-				// Already a betterAuth instance
-				this.auth = authConfig as any;
-			} else {
-				// BetterAuthOptions - create instance
-				this.auth = betterAuth(authConfig) as any;
-			}
-		} else {
-			this.auth = undefined as any;
-		}
+		this.auth = betterAuth({
+			...(config.auth ?? {}),
+			database: drizzleAdapter(this.db, {
+				provider: "pg",
+				schema: this.getSchema(),
+			}),
+		}) as typeof this.auth;
 
 		// Initialize storage with default or custom driver
 		this.storage = new DriveManager({

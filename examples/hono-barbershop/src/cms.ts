@@ -10,7 +10,6 @@
 
 import {
 	defineQCMS,
-	defaultQCMSAuth,
 	defineCollection,
 	defineJob,
 	pgBossAdapter,
@@ -225,15 +224,14 @@ export const cms = defineQCMS({ name: "barbershop" })
 		sendAppointmentReminder,
 	})
 	// Configure authentication (Better Auth)
-	.auth((db: any) =>
-		defaultQCMSAuth(db, {
-			emailPassword: true,
-			emailVerification: false, // Simplified for demo
-			baseURL: process.env.APP_URL || "http://localhost:3000",
-			secret:
-				process.env.BETTER_AUTH_SECRET || "demo-secret-change-in-production",
-		}),
-	)
+	.auth({
+		emailAndPassword: {
+			enabled: true,
+			requireEmailVerification: false, // Simplified for demo
+		},
+		baseURL: process.env.APP_URL || "http://localhost:3000",
+		secret: process.env.BETTER_AUTH_SECRET || "demo-secret-change-in-production",
+	})
 	// Build the final instance with runtime configuration
 	.build({
 		app: {

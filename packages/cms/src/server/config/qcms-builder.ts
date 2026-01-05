@@ -1,3 +1,7 @@
+import {
+	mergeAuthOptions,
+	type MergeAuthOptions,
+} from "#questpie/cms/exports/server.js";
 import type {
 	BuilderCollectionsMap,
 	BuilderEmailTemplatesMap,
@@ -9,16 +13,16 @@ import type {
 } from "#questpie/cms/server/config/builder-types";
 import { QCMS } from "#questpie/cms/server/config/cms";
 import type {
-	AuthConfig,
 	CMSConfig,
 	CMSDbConfig,
 	LocaleConfig,
 } from "#questpie/cms/server/config/types";
 import type { Migration } from "#questpie/cms/server/migration/types";
 import { createCoreModule } from "#questpie/cms/server/modules/core/core.module.js";
+import type { BetterAuthOptions } from "better-auth";
 
 type QCMSFromState<TState extends QCMSBuilderState> = QCMS<
-	CMSConfig & {
+	Omit<CMSConfig, "auth"> & {
 		collections: TState["collections"];
 		globals: TState["globals"];
 		functions: TState["functions"];
@@ -78,7 +82,7 @@ export class QCMSBuilder<TState extends QCMSBuilderState = QCMSBuilderState> {
 			jobs: {},
 			emailTemplates: {},
 			functions: {},
-			auth: undefined,
+			auth: {},
 			locale: undefined,
 			migrations: undefined,
 		});
@@ -230,34 +234,38 @@ export class QCMSBuilder<TState extends QCMSBuilderState = QCMSBuilderState> {
 	 *
 	 * @example
 	 * ```ts
-	 * // With BetterAuthOptions
-	 * .auth(defaultQCMSAuth(db, {
-	 *   emailPassword: true,
-	 *   baseURL: 'http://localhost:3000',
-	 * }))
+	 * // With BetterAuthOptions (merged with core auth defaults)
+	 * .auth({
+	 *   emailAndPassword: { enabled: true, requireEmailVerification: false },
+	 *   baseURL: "http://localhost:3000",
+	 *   secret: process.env.BETTER_AUTH_SECRET,
+	 * })
 	 * ```
 	 *
 	 * @example
 	 * ```ts
-	 * // With factory function (recommended - shares db connection)
-	 * .auth((db) => defaultQCMSAuth(db, {
-	 *   emailPassword: true,
-	 *   baseURL: 'http://localhost:3000',
-	 * }))
+	 * // With factory function (full control over DB wiring)
+	 * .auth((db) =>
+	 *   withAuthDatabase(mergeAuthOptions(coreAuthOptions, {
+	 *     emailAndPassword: { enabled: true, requireEmailVerification: false },
+	 *     baseURL: "http://localhost:3000",
+	 *     secret: process.env.BETTER_AUTH_SECRET,
+	 *   }), db)
+	 * )
 	 * ```
 	 *
 	 * @example
 	 * ```ts
 	 * // With Better Auth instance
 	 * .auth(betterAuth({
-	 *   database: { client: db, type: 'postgres' },
+	 *   database: drizzleAdapter(db, { provider: "pg" }),
 	 *   emailAndPassword: { enabled: true },
 	 *   baseURL: 'http://localhost:3000',
 	 * }))
 	 * ```
 	 */
-	auth<TNewAuth extends AuthConfig>(
-		auth: TNewAuth,
+	auth<const TNewAuth extends BetterAuthOptions>(
+		auth: TNewAuth | ((oldAuth: TState["auth"]) => TNewAuth),
 	): QCMSBuilder<
 		QCMSBuilderState<
 			TState["name"],
@@ -266,12 +274,15 @@ export class QCMSBuilder<TState extends QCMSBuilderState = QCMSBuilderState> {
 			TState["jobs"],
 			TState["emailTemplates"],
 			TState["functions"],
-			TNewAuth
+			MergeAuthOptions<TState["auth"], TNewAuth>
 		>
 	> {
 		return new QCMSBuilder({
 			...this.state,
-			auth,
+			auth: mergeAuthOptions(
+				this.state.auth,
+				typeof auth === "function" ? auth(this.state.auth) : auth,
+			),
 		} as any);
 	}
 
@@ -372,9 +383,7 @@ export class QCMSBuilder<TState extends QCMSBuilderState = QCMSBuilderState> {
 				TOtherState["emailTemplates"],
 			Omit<TState["functions"], keyof TOtherState["functions"]> &
 				TOtherState["functions"],
-			TOtherState["auth"] extends undefined
-				? TState["auth"]
-				: TOtherState["auth"]
+			MergeAuthOptions<TState["auth"], TOtherState["auth"]>
 		> & {
 			locale: TOtherState["locale"] extends undefined
 				? TState["locale"]
@@ -406,8 +415,8 @@ export class QCMSBuilder<TState extends QCMSBuilderState = QCMSBuilderState> {
 				...this.state.functions,
 				...otherState.functions,
 			},
-			// Override strategy: Last wins (module overrides if defined)
-			auth: otherState.auth ?? this.state.auth,
+			auth: mergeAuthOptions(this.state.auth, otherState.auth),
+
 			locale: otherState.locale ?? this.state.locale,
 			migrations: [
 				...(this.state.migrations || []),

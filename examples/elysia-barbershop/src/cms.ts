@@ -11,7 +11,6 @@
 import {
 	ConsoleAdapter,
 	createEtherealSmtpAdapter,
-	defaultQCMSAuth,
 	defineCollection,
 	defineEmailTemplate,
 	defineJob,
@@ -314,15 +313,14 @@ const DATABASE_URL =
  */
 export const cms = defineQCMS({ name: "barbershop" })
 	// Configure authentication (type-inferrable)
-	.auth((db: any) =>
-		defaultQCMSAuth(db, {
-			emailPassword: true,
-			emailVerification: false, // Simplified for demo
-			baseURL: process.env.APP_URL || "http://localhost:3001",
-			secret:
-				process.env.BETTER_AUTH_SECRET || "demo-secret-change-in-production",
-		}),
-	)
+	.auth({
+		emailAndPassword: {
+			enabled: true,
+			requireEmailVerification: false, // Simplified for demo
+		},
+		baseURL: process.env.APP_URL || "http://localhost:3001",
+		secret: process.env.BETTER_AUTH_SECRET || "demo-secret-change-in-production",
+	})
 	// Define collections (as a map for type-safe access)
 	.collections({
 		barbers,

@@ -30,7 +30,6 @@ export type {
 };
 
 import type { PGlite } from "@electric-sql/pglite";
-import type { Auth, BetterAuthOptions } from "better-auth";
 import type { drizzle as drizzleBun } from "drizzle-orm/bun-sql";
 import type { drizzle as drizzlePgLite } from "drizzle-orm/pglite";
 import type { DriverContract } from "flydrive/types";
@@ -39,6 +38,7 @@ import type { QueueConfig as BaseQueueConfig } from "../integrated/queue/types";
 import type { RealtimeConfig } from "../integrated/realtime";
 import type { SearchConfig } from "../integrated/search";
 import type { Migration } from "../migration/types";
+import type { BetterAuthOptions } from "better-auth";
 
 export type DrizzleSchemaFromCollections<
 	TCollections extends Record<string, AnyCollectionOrBuilder>,
@@ -192,35 +192,6 @@ export type CmsDbClient<
 
 export type AccessMode = "user" | "system";
 
-/**
- * Auth configuration for QCMS
- * Can be:
- * 1. BetterAuthOptions object (will be passed to betterAuth() internally)
- * 2. A factory function returning BetterAuthOptions (db) => BetterAuthOptions
- * 3. A Better Auth instance (already instantiated via betterAuth())
- */
-export type AuthConfig =
-	| BetterAuthOptions
-	| Auth
-	| ((db: any) => BetterAuthOptions | Auth);
-
-/**
- * Infer the Better Auth instance type from AuthConfig
- * If AuthConfig is already an Auth instance, use it as-is
- * Otherwise, create a generic Auth type from BetterAuthOptions
- */
-export type InferAuthFromConfig<TAuthConfig> = TAuthConfig extends Auth
-	? TAuthConfig
-	: TAuthConfig extends BetterAuthOptions
-		? Auth
-		: TAuthConfig extends (db: any) => infer TReturn
-			? TReturn extends Auth
-				? TReturn
-				: TReturn extends BetterAuthOptions
-					? Auth
-					: Auth
-			: Auth;
-
 export interface StorageConfig {
 	/**
 	 * FlyDrive driver instance to be used for
@@ -282,35 +253,11 @@ export interface CMSConfig {
 
 	/**
 	 * Authentication configuration (Better Auth)
-	 *
-	 * Three patterns supported:
-	 *
-	 * 1. Callback with defaultQCMSAuth() helper (RECOMMENDED):
-	 * ```ts
-	 * auth: (db) => defaultQCMSAuth(db, {
-	 *   emailPassword: true,
-	 *   baseURL: 'http://localhost:3000'
-	 * })
-	 * ```
-	 *
-	 * 2. Direct BetterAuthOptions (creates separate connection):
-	 * ```ts
-	 * auth: defaultQCMSAuth(new SQL({ url: DATABASE_URL }), {
-	 *   emailPassword: true,
-	 *   baseURL: 'http://localhost:3000'
-	 * })
-	 * ```
-	 *
-	 * 3. Full control with custom betterAuth() instance:
-	 * ```ts
-	 * auth: betterAuth({
-	 *   database: { client: db.client, type: 'postgres' },
-	 *   plugins: [admin(), twoFactor()],
-	 *   // ... full Better Auth config
-	 * })
+	 * Add any new plugins on overrides. Db
+	 * part cannot be overridden here, as it is internally handled by the CMS instance.
 	 * ```
 	 */
-	auth?: AuthConfig;
+	auth?: BetterAuthOptions;
 
 	/**
 	 * Storage configuration
