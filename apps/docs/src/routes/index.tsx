@@ -8,12 +8,34 @@ import { Comparison } from "@/components/landing/Comparison";
 import { Examples } from "@/components/landing/Examples";
 import { Frameworks } from "@/components/landing/Frameworks";
 import { Footer } from "@/components/landing/Footer";
+import { generateMeta, generateJsonLd, siteConfig } from "@/lib/seo";
+import { getRandomHeadlineIndex } from "@/components/landing/headlines";
 
 export const Route = createFileRoute("/")({
 	component: Home,
+	head: () => ({
+		meta: generateMeta({
+			title: siteConfig.title,
+			description: siteConfig.description,
+			url: siteConfig.url,
+		}),
+		scripts: [
+			{
+				type: "application/ld+json",
+				children: JSON.stringify(generateJsonLd()),
+			},
+		],
+	}),
+	loader: () => {
+		return {
+			headlineIndex: getRandomHeadlineIndex(),
+		};
+	},
 });
 
 function Home() {
+	const { headlineIndex } = Route.useLoaderData();
+
 	return (
 		<HomeLayout {...baseOptions()} nav={{ component: <Navbar /> }}>
 			<div className="flex flex-col min-h-screen text-foreground bg-grid-quest font-sans selection:bg-primary/20 selection:text-primary">
@@ -45,7 +67,7 @@ function Home() {
 
 				{/* Main Content */}
 				<main className="flex-1 relative z-10">
-					<Hero />
+					<Hero headlineIndex={headlineIndex} />
 					<Comparison />
 					<Features />
 					<Frameworks />

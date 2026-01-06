@@ -2,49 +2,14 @@ import { Link } from "@tanstack/react-router";
 import { AnimatedWorkflow } from "./AnimatedWorkflow";
 import { workflowSteps } from "./workflow-steps";
 import { ArrowRight } from "lucide-react";
-import { useMemo } from "react";
+import { headlines, type Headline } from "./headlines";
 
-const headlines = [
-	{
-		top: "CMS Speedrun",
-		highlight: "any%",
-	},
-	{
-		top: "Drizzle + Auth + Queues.",
-		highlight: "Ship it.",
-	},
-	{
-		top: "It's Just Drizzle",
-		highlight: "All the Way Down",
-	},
-	{
-		top: "Your Favorite Libraries.",
-		highlight: "One Backend.",
-	},
-	{
-		top: "Stop Reinventing.",
-		highlight: "Start Shipping.",
-	},
-	{
-		top: "The TypeScript CMS",
-		highlight: "Without the BS",
-	},
-	{
-		top: "Postgres Goes",
-		highlight: "Brrrr",
-	},
-	{
-		top: "Finally, a CMS Built on",
-		highlight: "Tools You Know",
-	},
-];
+export type HeroProps = {
+	headlineIndex: number;
+};
 
-function getRandomHeadline() {
-	return headlines[Math.floor(Math.random() * headlines.length)];
-}
-
-export function Hero() {
-	const headline = useMemo(() => getRandomHeadline(), []);
+export function Hero({ headlineIndex }: HeroProps) {
+	const headline: Headline = headlines[headlineIndex] ?? headlines[0];
 
 	return (
 		<section className="relative overflow-hidden pt-24 pb-24 lg:pt-32 lg:pb-32">

@@ -267,21 +267,21 @@ export function AnimatedWorkflow({ steps, className }: AnimatedWorkflowProps) {
 		<div className={cn("flex flex-col relative", className)}>
 			{/* Action Badge/Toast */}
 			{currentAction && (
-				<div className="absolute -top-12 left-1/2 -translate-x-1/2 z-20 animate-in fade-in slide-in-from-top-2 duration-300">
-					<div className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-full text-sm font-medium shadow-lg border border-primary/20">
+				<div className="absolute -top-8 md:-top-12 left-1/2 -translate-x-1/2 z-20 animate-in fade-in slide-in-from-top-2 duration-300">
+					<div className="flex items-center gap-2 bg-primary text-primary-foreground px-3 py-1.5 md:px-4 md:py-2 rounded-full text-xs md:text-sm font-medium shadow-lg border border-primary/20">
 						{isTyping ? (
 							<>
-								<Sparkles className="w-4 h-4 animate-pulse" />
+								<Sparkles className="w-3 h-3 md:w-4 md:h-4 animate-pulse" />
 								<span>{currentAction}</span>
 							</>
 						) : currentAction === "✓ Complete" ? (
 							<>
-								<CheckCircle className="w-4 h-4" />
+								<CheckCircle className="w-3 h-3 md:w-4 md:h-4" />
 								<span>{currentAction}</span>
 							</>
 						) : (
 							<>
-								<FileCode className="w-4 h-4" />
+								<FileCode className="w-3 h-3 md:w-4 md:h-4" />
 								<span>{currentAction}</span>
 							</>
 						)}

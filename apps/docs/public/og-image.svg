@@ -1,0 +1,47 @@
+<svg width="1200" height="630" viewBox="0 0 1200 630" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background -->
+  <rect width="1200" height="630" fill="#02012B"/>
+  
+  <!-- Grid pattern -->
+  <defs>
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#ffffff" stroke-width="0.5" stroke-opacity="0.05"/>
+    </pattern>
+  </defs>
+  <rect width="1200" height="630" fill="url(#grid)"/>
+  
+  <!-- Gradient accent -->
+  <rect x="0" y="620" width="1200" height="10" fill="#B700FF"/>
+  
+  <!-- Q Symbol (scaled and positioned) -->
+  <g transform="translate(80, 165) scale(0.47)">
+    <path fill-rule="evenodd" clip-rule="evenodd" d="M466.377 350.987C468.486 340.983 469.595 330.611 469.595 319.98C469.595 237.377 402.624 170.406 320.001 170.406C237.378 170.406 170.406 237.377 170.406 319.98C170.406 393.857 223.976 455.23 294.402 467.372V510.268C200.465 497.754 128 417.329 128 319.98C128 213.952 213.962 128 320.001 128C426.04 128 512.002 213.952 512.002 319.98C512.002 344.198 507.517 367.37 499.332 388.708C489.817 374.897 478.748 362.239 466.377 350.987ZM320.002 469.553C381.932 469.553 435.067 431.927 457.799 378.296C468.772 389.602 478.366 402.254 486.309 415.98C453.11 473.357 391.065 511.959 320.002 511.959L320.002 469.553Z" fill="#ffffff"/>
+    <path fill-rule="evenodd" clip-rule="evenodd" d="M320.002 512H512.004V511.985C512.004 405.958 426.042 320.005 320.003 320.005C320.003 320.005 320.002 320.005 320.002 320.005V512Z" fill="#B700FF"/>
+  </g>
+  
+  <!-- Text content -->
+  <text x="380" y="260" font-family="system-ui, -apple-system, sans-serif" font-size="72" font-weight="700" fill="#ffffff">QUESTPIE CMS</text>
+  
+  <text x="380" y="330" font-family="system-ui, -apple-system, sans-serif" font-size="28" font-weight="400" fill="#ffffff" opacity="0.8">Type-Safe Headless CMS</text>
+  
+  <!-- Feature pills -->
+  <g transform="translate(380, 370)">
+    <rect x="0" y="0" width="130" height="36" rx="18" fill="#B700FF" fill-opacity="0.2" stroke="#B700FF" stroke-width="1"/>
+    <text x="65" y="24" font-family="system-ui, -apple-system, sans-serif" font-size="14" font-weight="500" fill="#B700FF" text-anchor="middle">Drizzle ORM</text>
+    
+    <rect x="145" y="0" width="130" height="36" rx="18" fill="#B700FF" fill-opacity="0.2" stroke="#B700FF" stroke-width="1"/>
+    <text x="210" y="24" font-family="system-ui, -apple-system, sans-serif" font-size="14" font-weight="500" fill="#B700FF" text-anchor="middle">Better Auth</text>
+    
+    <rect x="290" y="0" width="110" height="36" rx="18" fill="#B700FF" fill-opacity="0.2" stroke="#B700FF" stroke-width="1"/>
+    <text x="345" y="24" font-family="system-ui, -apple-system, sans-serif" font-size="14" font-weight="500" fill="#B700FF" text-anchor="middle">pg-boss</text>
+    
+    <rect x="415" y="0" width="110" height="36" rx="18" fill="#B700FF" fill-opacity="0.2" stroke="#B700FF" stroke-width="1"/>
+    <text x="470" y="24" font-family="system-ui, -apple-system, sans-serif" font-size="14" font-weight="500" fill="#B700FF" text-anchor="middle">Flydrive</text>
+  </g>
+  
+  <!-- Tagline -->
+  <text x="380" y="480" font-family="system-ui, -apple-system, sans-serif" font-size="20" font-weight="400" fill="#ffffff" opacity="0.6">Just PostgreSQL. Native libraries, not abstractions.</text>
+  
+  <!-- URL -->
+  <text x="380" y="530" font-family="ui-monospace, monospace" font-size="18" font-weight="500" fill="#B700FF">questpie.com</text>
+</svg>
