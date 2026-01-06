@@ -37,7 +37,8 @@ docker build -t questpie-docs .
 
 ```bash
 docker run -p 3000:3000 \
-  -e VITE_OPENPANEL_CLIENT_ID=your_client_id_here \
+  -e VITE_UMAMI_URL=https://analytics.yourdomain.com/script.js \
+  -e VITE_UMAMI_WEBSITE_ID=your_website_id \
   questpie-docs
 ```
 
@@ -50,7 +51,8 @@ services:
     ports:
       - "3000:3000"
     environment:
-      - VITE_OPENPANEL_CLIENT_ID=${VITE_OPENPANEL_CLIENT_ID}
+      - VITE_UMAMI_URL=${VITE_UMAMI_URL}
+      - VITE_UMAMI_WEBSITE_ID=${VITE_UMAMI_WEBSITE_ID}
     restart: unless-stopped
 ```
 
@@ -62,26 +64,45 @@ The Docker container includes a health check that pings the server every 30 seco
 
 ## Analytics
 
-This app uses [OpenPanel](https://openpanel.dev) for analytics tracking.
+This app uses [Umami](https://umami.is) for privacy-focused analytics tracking.
 
 ### Setup
 
-1. Sign up at [openpanel.dev](https://openpanel.dev)
-2. Get your client ID from the dashboard
+#### Option 1: Self-hosted Umami
+
+1. Deploy your own Umami instance (see [Umami docs](https://umami.is/docs/install))
+2. Add a website in Umami dashboard and get your website ID
 3. Create `.env.local` file:
 
 ```bash
-VITE_OPENPANEL_CLIENT_ID=your_client_id_here
+VITE_UMAMI_URL=https://analytics.yourdomain.com/script.js
+VITE_UMAMI_WEBSITE_ID=your_website_id_here
 ```
 
-The tracking will automatically be enabled when the environment variable is set. If not set, the app will run without analytics.
+#### Option 2: Umami Cloud
+
+1. Sign up at [cloud.umami.is](https://cloud.umami.is)
+2. Add a website and get your tracking code
+3. Extract the `src` and `data-website-id` from the tracking code
+4. Create `.env.local` file with those values
+
+The tracking will automatically be enabled when both environment variables are set. If not set, the app will run without analytics.
 
 ### What gets tracked
 
 - Page views (automatically)
-- Visit duration
-- Outgoing links
+- Referrers
 - Device and browser information
-- User location
+- User location (country/region)
+- Session duration
+
+### Privacy
+
+Umami is privacy-focused and GDPR compliant:
+
+- No cookies
+- Anonymous data collection
+- No personal information tracked
+- Self-hostable for complete data ownership
 
 Implementation in: `src/routes/__root.tsx`

@@ -20,7 +20,6 @@
         "@base-ui/react": "^1.0.0",
         "@fontsource-variable/dm-sans": "^5.2.8",
         "@fontsource-variable/jetbrains-mono": "^5.2.8",
-        "@openpanel/web": "^1.0.6",
         "@phosphor-icons/react": "^2.1.10",
         "@tanstack/react-router": "1.136.18",
         "@tanstack/react-router-devtools": "1.136.18",
@@ -783,10 +782,6 @@
     "@open-draft/logger": ["@open-draft/logger@0.3.0", "", { "dependencies": { "is-node-process": "^1.2.0", "outvariant": "^1.4.0" } }, "sha512-X2g45fzhxH238HKO4xbSr7+wBS8Fvw6ixhTDuvLd5mqh6bJJCFAPwU9mPDxbcrRtfxv4u5IHCEH77BmxvXmmxQ=="],
 
     "@open-draft/until": ["@open-draft/until@2.1.0", "", {}, "sha512-U69T3ItWHvLwGg5eJ0n3I62nWuE6ilHlmz7zM0npLBRvPRd7e6NYmg54vvRtP5mZG7kZqZCFVdsTWo7BPtBujg=="],
-
-    "@openpanel/sdk": ["@openpanel/sdk@1.0.3", "", {}, "sha512-VzxHN4wfMd6iP7Amq572plQKvj6bnsp+KgVK/7sbqEvzJ2N505a3Sn/wCwectBYiJ0QPRi2djeqU5tdacm6hhg=="],
-
-    "@openpanel/web": ["@openpanel/web@1.0.6", "", { "dependencies": { "@openpanel/sdk": "1.0.3" } }, "sha512-82D/pP6SIpHrQn2Q9JshlU4cg8LLx+we/DdrXNBdy1qLXuty1jhA2TqIH7UAG4pJrHvG4se+hhlNUYclRDD7MQ=="],
 
     "@orama/orama": ["@orama/orama@3.1.18", "", {}, "sha512-a61ljmRVVyG5MC/698C8/FfFDw5a8LOIvyOLW5fztgUXqUpc1jOfQzOitSCbge657OgXXThmY3Tk8fpiDb4UcA=="],
 

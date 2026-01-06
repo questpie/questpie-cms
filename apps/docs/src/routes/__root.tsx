@@ -60,29 +60,15 @@ function RootComponent() {
 }
 
 function RootDocument({ children }: { children: React.ReactNode }) {
-	const clientId = import.meta.env.VITE_OPENPANEL_CLIENT_ID;
+	const umamiUrl = import.meta.env.VITE_UMAMI_URL;
+	const umamiWebsiteId = import.meta.env.VITE_UMAMI_WEBSITE_ID;
 
 	return (
 		<html suppressHydrationWarning>
 			<head>
 				<HeadContent />
-				{clientId && (
-					<>
-						<script
-							dangerouslySetInnerHTML={{
-								__html: `
-									window.op=window.op||function(){var n=[];return new Proxy(function(){arguments.length&&n.push([].slice.call(arguments))},{get:function(t,r){return"q"===r?n:function(){n.push([r].concat([].slice.call(arguments)))}},has:function(t,r){return"q"===r}})}();
-									window.op('init', {
-										clientId: '${clientId}',
-										trackScreenViews: true,
-										trackOutgoingLinks: true,
-										trackAttributes: true,
-									});
-								`,
-							}}
-						/>
-						<script src="https://openpanel.dev/op1.js" defer async />
-					</>
+				{umamiUrl && umamiWebsiteId && (
+					<script defer src={umamiUrl} data-website-id={umamiWebsiteId} />
 				)}
 			</head>
 			<body className="flex flex-col min-h-screen bg-grid-quest">
