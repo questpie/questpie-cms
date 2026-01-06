@@ -29,27 +29,29 @@ export function Navbar() {
 				<nav className="flex items-center justify-between">
 					{/* Logo */}
 					<Link to="/" className="flex items-center gap-2 group">
-						{/* Symbol for mobile */}
+						{/* Symbol for mobile - light mode */}
 						<img
 							src="/symbol/Q-symbol-dark-pink.svg"
 							alt="Questpie Symbol"
-							className="h-8 w-auto sm:hidden dark:hidden"
+							className="h-8 w-auto sm:hidden block dark:hidden"
 						/>
+						{/* Symbol for mobile - dark mode */}
 						<img
 							src="/symbol/Q-symbol-white-pink.svg"
 							alt="Questpie Symbol"
-							className="h-8 w-auto sm:hidden hidden dark:block"
+							className="h-8 w-auto sm:hidden hidden dark:block dark:sm:hidden"
 						/>
-						{/* Full logo for desktop */}
+						{/* Full logo for desktop - light mode */}
 						<img
 							src="/logo/Questpie-dark-pink.svg"
 							alt="Questpie Logo"
 							className="h-6 w-auto hidden sm:block dark:hidden"
 						/>
+						{/* Full logo for desktop - dark mode */}
 						<img
 							src="/logo/Questpie-white-pink.svg"
 							alt="Questpie Logo"
-							className="h-6 w-auto hidden sm:dark:block"
+							className="h-6 w-auto hidden dark:sm:block"
 						/>
 					</Link>
 
