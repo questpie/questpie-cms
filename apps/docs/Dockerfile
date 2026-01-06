@@ -25,11 +25,11 @@ WORKDIR /app
 COPY --from=pruner /app/out/json/ .
 COPY --from=pruner /app/out/bun.lock ./bun.lock
 
+# Copy source code BEFORE install (needed for postinstall fumadocs-mdx)
+COPY --from=pruner /app/out/full/ .
+
 # Install dependencies
 RUN bun install --frozen-lockfile
-
-# Copy source code
-COPY --from=pruner /app/out/full/ .
 
 # Build docs app
 WORKDIR /app/apps/docs
