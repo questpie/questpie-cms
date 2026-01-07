@@ -61,7 +61,7 @@ cat packages/cms/package.json | grep -E "\"(zod|drizzle-orm|better-auth|pg|pg-bo
 
 ## When Adding New Examples/Packages
 
-1. **Copy from existing example** (e.g., `examples/hono-barbershop/package.json`)
+1. **Copy from existing example** (e.g., `examples/portfolio-hono/package.json`)
 2. **Verify critical versions match** this document
 3. **Never guess versions** - always check existing packages first
 4. **Update this doc** if new critical dependencies are added

@@ -1008,7 +1008,7 @@ We're building a **config-driven admin UI** package (`@questpie/admin`):
 
 Clone and run production-ready examples:
 
-1. **[Barbershop Booking System](examples/hono-barbershop)** (Hono)
+1. **[Barbershop Booking System](examples/elysia-barbershop)** (Elysia)
    - Barbers, services, appointments, reviews
    - Better Auth (email/password)
    - Queue jobs for email notifications
