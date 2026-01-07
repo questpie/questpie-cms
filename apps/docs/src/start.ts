@@ -4,7 +4,7 @@ import { redirect } from "@tanstack/react-router";
 
 const { rewrite: rewriteLLM } = rewritePath(
 	"/docs{/*path}.mdx",
-	"/llms.mdx/docs{/*path}"
+	"llms.mdx/docs{/*path}"
 );
 
 const llmMiddleware = createMiddleware().server(({ next, request }) => {
@@ -12,7 +12,7 @@ const llmMiddleware = createMiddleware().server(({ next, request }) => {
 	const path = rewriteLLM(url.pathname);
 
 	if (path) {
-		throw redirect({ href: path });
+		throw redirect({ href: new URL(path, url).pathname });
 	}
 
 	return next();
