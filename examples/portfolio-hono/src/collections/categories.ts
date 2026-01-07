@@ -8,6 +8,7 @@
  */
 
 import { defineCollection } from "@questpie/cms/server";
+import { sql } from "drizzle-orm";
 import { varchar, text, integer } from "drizzle-orm/pg-core";
 
 export const categories = defineCollection("categories")
@@ -21,7 +22,7 @@ export const categories = defineCollection("categories")
 	// Localize name and description
 	.localized(["name", "description"])
 	// Use name as title
-	.title((t, i18n) => i18n.name)
+	.title(({ i18n }) => sql<string>`${i18n.name}`)
 	// Public read, auth for write
 	.access({
 		read: true,

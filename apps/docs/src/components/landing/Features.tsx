@@ -20,8 +20,10 @@ const features = [
     update: ({ user, doc }) => user?.id === doc.authorId
   })
   .hooks({
-    beforeCreate: async ({ data }) => {
-      if (!data.slug) data.slug = slugify(data.title)
+    beforeChange: async ({ data, operation }) => {
+      if (operation === 'create' && !data.slug) {
+        data.slug = slugify(data.title)
+      }
     }
   })`,
 	},
@@ -100,8 +102,8 @@ const createCheckout = defineFunction({
   schema: z.object({ 
     items: z.array(z.object({ id: z.string(), qty: z.number() }))
   }),
-  handler: async ({ items }, ctx) => {
-    const total = await calculateTotal(items)
+  handler: async (input) => {
+    const total = await calculateTotal(input.items)
     return { checkoutUrl: \`/pay?amount=\${total}\` }
   }
 })

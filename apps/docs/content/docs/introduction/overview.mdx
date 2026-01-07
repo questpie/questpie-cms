@@ -116,13 +116,13 @@ const blogModule = defineQCMS({ name: "blog" })
   })
   .functions({
     publishPost: defineFunction({
-      input: z.object({
+      schema: z.object({
         postId: z.string().uuid(),
       }),
-      handler: async ({ postId }) => {
+      handler: async (input) => {
         const cms = getCMSFromContext<typeof cms>(); // for easy type-safe access
         await cms.collections.posts.update({
-          where: { id: postId },
+          where: { id: input.postId },
           data: { isPublished: true },
         });
         return { success: true }; // Output is also typed
@@ -186,11 +186,11 @@ const cms = defineQCMS({ name: "app" })
   .functions({
     // Add custom functions
     sendNewsletter: defineFunction({
-      input: z.object({
+      schema: z.object({
         subject: z.string(),
         content: z.string(),
       }),
-      handler: async ({ subject, content }) => {
+      handler: async (input) => {
         const cms = getCMSFromContext<typeof cms>();
         // Send email to all subscribers (pseudo-code)
         const subscribers = await cms.collections.users.findMany({
@@ -199,8 +199,8 @@ const cms = defineQCMS({ name: "app" })
         for (const user of subscribers) {
           await cms.email.send({
             to: user.email,
-            subject,
-            html: content,
+            subject: input.subject,
+            html: input.content,
           });
         }
         return { sentTo: subscribers.length };
@@ -271,13 +271,16 @@ Intercept operations at every stage:
 
 ```typescript
 .hooks({
-  beforeCreate: async ({ data }) => {
-    const cms = getCMSFromContext();
-    // Generate slug from title
-    data.slug = slugify(data.title);
+  beforeChange: async ({ data, operation }) => {
+    if (operation === "create") {
+      // Generate slug from title
+      data.slug = slugify(data.title);
+    }
   },
 
-  afterCreate: async ({ data }) => {
+  afterChange: async ({ data, operation }) => {
+    if (operation !== "create") return;
+
     const cms = getCMSFromContext();
     // Queue email notification
     await cms.queue["post-created"].publish({ postId: data.id });

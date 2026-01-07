@@ -9,6 +9,7 @@
 
 import { defineCollection } from "@questpie/cms/server";
 import { varchar, text, boolean, integer } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm/sql/sql";
 
 export const testimonials = defineCollection("testimonials")
 	.fields({
@@ -27,7 +28,7 @@ export const testimonials = defineCollection("testimonials")
 		order: integer("order").default(0).notNull(),
 	})
 	.localized(["content"])
-	.title((t) => t.clientName)
+	.title(({ table }) => sql<string>`${table.clientName}`)
 	.relations(({ table, one }) => ({
 		project: one("projects", {
 			fields: [table.projectId],

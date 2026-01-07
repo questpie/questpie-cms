@@ -188,19 +188,20 @@ import { blogModule, posts as basePosts } from "@my-org/blog-module";
 
 // Add hooks to the posts collection
 const postsWithHooks = basePosts.hooks({
-  afterCreate: async ({ data }) => {
+  afterChange: async ({ data, operation, original }) => {
     const cms = getCMSFromContext();
 
-    // Custom logic when a post is created
-    await cms.queue["send-notification"].publish({
-      type: "new-post",
-      postId: data.id,
-    });
-  },
-  afterUpdate: async ({ data, previousData }) => {
-    // Track when posts are published
-    if (!previousData.isPublished && data.isPublished) {
-      console.log(`Post ${data.id} was published`);
+    if (operation === "create") {
+      // Custom logic when a post is created
+      await cms.queue["send-notification"].publish({
+        type: "new-post",
+        postId: data.id,
+      });
+    } else if (operation === "update" && original) {
+      // Track when posts are published
+      if (!original.isPublished && data.isPublished) {
+        console.log(`Post ${data.id} was published`);
+      }
     }
   },
 });

@@ -31,7 +31,7 @@ export const services = defineCollection("services")
 		isActive: boolean("is_active").default(true).notNull(),
 	})
 	.localized(["title", "tagline", "description"])
-	.title((t, i18n) => i18n.title)
+	.title(({ i18n }) => i18n.title)
 	.access({
 		read: true,
 		create: ({ user }) => !!user,

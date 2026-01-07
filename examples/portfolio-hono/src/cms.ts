@@ -74,8 +74,8 @@ export const cms = defineQCMS({ name: "portfolio" })
 	})
 	// Register background jobs
 	.jobs({
-		"contact-notification": contactNotificationJob,
-		"notify-new-project": newProjectNotificationJob,
+		contactNotification: contactNotificationJob,
+		notifyNewProject: newProjectNotificationJob,
 	})
 	// Configure authentication
 	.auth({

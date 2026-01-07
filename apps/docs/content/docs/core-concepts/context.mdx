@@ -1,0 +1,276 @@
+---
+title: Context
+description: Understanding request context and how to access CMS services.
+---
+
+# Context
+
+QUESTPIE CMS uses **AsyncLocalStorage** (from Node.js `node:async_hooks`) to provide request-scoped context throughout your application. This allows you to access the CMS instance and request information from anywhere in your code without explicitly passing it through every function call.
+
+## Why Context Matters
+
+In a typical request flow, you might need to:
+
+- Access the current user in a hook
+- Send an email from a job handler
+- Query another collection from within a function
+
+Instead of passing the CMS instance and user through every function, QUESTPIE CMS automatically sets up context that you can access anywhere.
+
+## Accessing Context
+
+### `getCMSFromContext()`
+
+Returns the CMS instance with full type-safe access to all services:
+
+```typescript
+import { getCMSFromContext } from "@questpie/cms/server";
+
+// In a hook, function, or job handler
+const cms = getCMSFromContext();
+
+// Now you have access to everything:
+await cms.api.collections.posts.find();
+await cms.email.send({
+  to: "user@example.com",
+  subject: "Hello",
+  html: "<p>Hi</p>",
+});
+await cms.queue["send-notification"].publish({ userId: "123" });
+cms.logger.info("Something happened");
+```
+
+### `getRequestContext()`
+
+Returns the current request context with user, locale, and other request-specific data:
+
+```typescript
+import { getRequestContext } from "@questpie/cms/server";
+
+const ctx = getRequestContext();
+
+// Access request-specific data
+console.log(ctx?.user); // Current authenticated user
+console.log(ctx?.locale); // Current locale (e.g., "en", "sk")
+console.log(ctx?.accessMode); // "user" or "system"
+console.log(ctx?.session); // Current session
+```
+
+## RequestContext Interface
+
+```typescript
+interface RequestContext {
+  /** Current authenticated user (from Better Auth) */
+  user?: User & { role?: string };
+
+  /** Current request session */
+  session?: Session;
+
+  /** Current locale for this request */
+  locale?: string;
+
+  /** Default locale (fallback) */
+  defaultLocale?: string;
+
+  /** Access mode - 'system' bypasses access control, 'user' enforces it */
+  accessMode?: "user" | "system";
+
+  /** Database client (for transactions) */
+  db?: any;
+
+  /** Custom extensions */
+  [key: string]: any;
+}
+```
+
+## Where Context is Available
+
+Context is automatically set up in these scenarios:
+
+### 1. HTTP Requests
+
+When a request comes through the CMS adapter, context is automatically created:
+
+```typescript
+// In Hono
+app.use(questpieMiddleware(cms)); // Sets up context
+
+app.get("/api/custom", async (c) => {
+  // Context is available here
+  const cms = getCMSFromContext();
+  const ctx = getRequestContext();
+});
+```
+
+### 2. Collection Hooks
+
+All hooks run within context:
+
+```typescript
+defineCollection("posts").hooks({
+  afterChange: async ({ data, operation }) => {
+    // Context is available
+    const cms = getCMSFromContext();
+    const ctx = getRequestContext();
+
+    if (operation === "create") {
+      await cms.queue["post-created"].publish({ postId: data.id });
+    }
+  },
+});
+```
+
+### 3. Custom Functions
+
+Functions execute within context:
+
+```typescript
+defineFunction({
+  schema: z.object({ postId: z.string() }),
+  handler: async (input) => {
+    // Context is available
+    const cms = getCMSFromContext();
+    const ctx = getRequestContext();
+
+    // Access current user
+    if (!ctx?.user) {
+      throw new Error("Must be authenticated");
+    }
+
+    return { success: true };
+  },
+});
+```
+
+### 4. Job Handlers
+
+Jobs run with a fresh context:
+
+```typescript
+defineJob({
+  name: "send-email",
+  schema: z.object({ to: z.string(), subject: z.string() }),
+  handler: async (payload) => {
+    // Context is available
+    const cms = getCMSFromContext();
+
+    await cms.email.send({
+      to: payload.to,
+      subject: payload.subject,
+      html: "<p>Hello</p>",
+    });
+  },
+});
+```
+
+## Running Code Within Context
+
+For advanced use cases, you can manually run code within a context:
+
+```typescript
+import { runWithCMSContext } from "@questpie/cms/server";
+
+// Create a context
+const context = await cms.createContext({
+  user: someUser,
+  locale: "en",
+  accessMode: "system",
+});
+
+// Run code within that context
+await runWithCMSContext(cms, context, async () => {
+  // getCMSFromContext() and getRequestContext() work here
+  const cms = getCMSFromContext();
+  await cms.api.collections.posts.find();
+});
+```
+
+## Access Modes
+
+The `accessMode` in context controls how access control is applied:
+
+### `"user"` Mode (Default for HTTP requests)
+
+Access control rules are enforced based on the current user:
+
+```typescript
+const context = await cms.createContext({
+  user: currentUser,
+  accessMode: "user", // Access control is enforced
+});
+```
+
+### `"system"` Mode (Default for jobs and internal operations)
+
+Access control is bypassed - full access to all data:
+
+```typescript
+const context = await cms.createContext({
+  accessMode: "system", // Full access, no restrictions
+});
+```
+
+## Best Practices
+
+### 1. Always Use `getCMSFromContext()` in Hooks and Functions
+
+```typescript
+// Good - uses context
+afterChange: async ({ data }) => {
+  const cms = getCMSFromContext();
+  await cms.queue["notify"].publish({ id: data.id });
+};
+
+// Bad - imports global instance
+import { cms } from "./cms";
+afterChange: async ({ data }) => {
+  await cms.queue["notify"].publish({ id: data.id }); // Don't do this
+};
+```
+
+### 2. Check for User When Needed
+
+```typescript
+handler: async (input) => {
+  const ctx = getRequestContext();
+
+  if (!ctx?.user) {
+    throw new Error("Authentication required");
+  }
+
+  // Now TypeScript knows ctx.user exists
+  console.log(ctx.user.id);
+};
+```
+
+### 3. Use Type Parameter for Full Type Safety
+
+```typescript
+import type { AppCMS } from "./cms";
+
+const cms = getCMSFromContext<AppCMS>();
+// Now cms.api.collections.yourCollection is fully typed
+```
+
+## How It Works (Technical)
+
+Under the hood, QUESTPIE CMS uses Node.js `AsyncLocalStorage`:
+
+1. When a request arrives, `createCMSAdapterContext()` creates context from the request
+2. The handler runs inside `runWithCMSContext()` which stores context in AsyncLocalStorage
+3. Any code that calls `getCMSFromContext()` or `getRequestContext()` retrieves from AsyncLocalStorage
+4. When the request completes, context is automatically cleaned up
+
+This pattern allows context to "flow" through async operations without explicit passing:
+
+```
+Request → Middleware → Handler → Hook → Job trigger
+                ↓           ↓        ↓
+           [Context flows through AsyncLocalStorage]
+```
+
+## Next Steps
+
+- Learn about [Hooks](/docs/core-concepts/hooks) for adding business logic
+- Explore [Access Control](/docs/core-concepts/access-control) for securing operations
+- See [Queue Jobs](/docs/guides/queue-jobs) for background processing

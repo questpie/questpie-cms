@@ -100,22 +100,23 @@ export const appointments = defineCollection("appointments")
 		}),
 	}))
 	.hooks({
-		afterCreate: async ({ data }) => {
+		afterChange: async ({ data, operation, original }) => {
 			const cms = getCMSFromContext<AppCMS>();
-			// Send confirmation email after booking (type-safe job publishing)
-			await cms.queue["send-appointment-confirmation"].publish({
-				appointmentId: data.id,
-				customerId: data.customerId,
-			});
-		},
-		afterUpdate: async ({ data }) => {
-			const cms = getCMSFromContext<AppCMS>();
-			// Notify customer if appointment is cancelled
-			if (data.status === "cancelled" && data.cancelledAt) {
-				await cms.queue["send-appointment-cancellation"].publish({
+
+			if (operation === "create") {
+				// Send confirmation email after booking (type-safe job publishing)
+				await cms.queue["send-appointment-confirmation"].publish({
 					appointmentId: data.id,
 					customerId: data.customerId,
 				});
+			} else if (operation === "update" && original) {
+				// Notify customer if appointment is cancelled
+				if (data.status === "cancelled" && data.cancelledAt) {
+					await cms.queue["send-appointment-cancellation"].publish({
+						appointmentId: data.id,
+						customerId: data.customerId,
+					});
+				}
 			}
 		},
 	});
@@ -230,7 +231,8 @@ export const cms = defineQCMS({ name: "barbershop" })
 			requireEmailVerification: false, // Simplified for demo
 		},
 		baseURL: process.env.APP_URL || "http://localhost:3000",
-		secret: process.env.BETTER_AUTH_SECRET || "demo-secret-change-in-production",
+		secret:
+			process.env.BETTER_AUTH_SECRET || "demo-secret-change-in-production",
 	})
 	// Build the final instance with runtime configuration
 	.build({

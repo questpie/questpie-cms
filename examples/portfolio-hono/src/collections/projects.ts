@@ -55,7 +55,7 @@ export const projects = defineCollection("projects")
 		"metaDescription",
 	])
 	// Computed title for search and display
-	.title((t, i18n) => i18n.title)
+	.title(({ i18n }) => i18n.title)
 	// Define relations
 	.relations(({ table, one, many }) => ({
 		category: one("categories", {
@@ -68,26 +68,37 @@ export const projects = defineCollection("projects")
 	}))
 	// Lifecycle hooks
 	.hooks({
-		beforeCreate: async ({ data }) => {
-			// Auto-generate slug from title if not provided
-			if (!data.slug && data.title) {
-				data.slug = slugify(data.title as string);
+		beforeChange: async ({ data, operation }) => {
+			if (operation === "create") {
+				// Auto-generate slug from title if not provided
+				if (!data.slug && data.title) {
+					data.slug = slugify(data.title as string);
+				}
 			}
 		},
-		beforeUpdate: async ({ data, original }) => {
-			// Set publishedAt when first published
-			if (data.status === "published" && original.status !== "published") {
-				data.publishedAt = new Date();
-			}
-		},
-		afterCreate: async ({ data }) => {
+		afterChange: async ({ data, operation, original }) => {
 			const cms = getCMSFromContext<AppCMS>();
-			// Notify admin about new project
-			if (data.status === "published") {
-				await cms.queue["notify-new-project"].publish({
-					projectId: data.id,
-					title: data.title as string,
-				});
+
+			if (operation === "create") {
+				// Notify admin about new project
+				if (data.status === "published") {
+					await cms.queue["notify-new-project"].publish({
+						projectId: data.id,
+						title: data._title,
+					});
+				}
+			} else if (operation === "update" && original) {
+				// Set publishedAt when first published
+				if (
+					data.status === "published" &&
+					original.status !== "published" &&
+					!data.publishedAt
+				) {
+					await cms.api.collections.projects.updateById({
+						id: data.id,
+						data: { publishedAt: new Date() },
+					});
+				}
 			}
 		},
 	})

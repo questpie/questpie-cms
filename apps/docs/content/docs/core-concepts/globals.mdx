@@ -10,6 +10,7 @@ Globals are singleton content types that represent data with only one instance. 
 ## What are Globals?
 
 Globals in QUESTPIE CMS:
+
 - Store **single-instance** data (only one record exists)
 - Use the same **builder pattern** as Collections
 - Support **localization** for multi-language sites
@@ -37,18 +38,17 @@ Use `defineGlobal` with a fluent builder API:
 import { defineGlobal } from "@questpie/cms/server";
 import { varchar, text, boolean, jsonb } from "drizzle-orm/pg-core";
 
-export const siteConfig = defineGlobal("site_config")
-  .fields({
-    siteName: varchar("site_name", { length: 100 }).notNull(),
-    tagline: varchar("tagline", { length: 255 }),
-    contactEmail: varchar("contact_email", { length: 255 }).notNull(),
-    socialLinks: jsonb("social_links").$type<{
-      twitter?: string;
-      github?: string;
-      linkedin?: string;
-    }>(),
-    maintenanceMode: boolean("maintenance_mode").default(false),
-  });
+export const siteConfig = defineGlobal("site_config").fields({
+  siteName: varchar("site_name", { length: 100 }).notNull(),
+  tagline: varchar("tagline", { length: 255 }),
+  contactEmail: varchar("contact_email", { length: 255 }).notNull(),
+  socialLinks: jsonb("social_links").$type<{
+    twitter?: string;
+    github?: string;
+    linkedin?: string;
+  }>(),
+  maintenanceMode: boolean("maintenance_mode").default(false),
+});
 ```
 
 ## Builder Methods
@@ -60,14 +60,13 @@ Globals support most of the same methods as Collections:
 Define the schema using Drizzle ORM column types:
 
 ```typescript
-export const homepage = defineGlobal("homepage")
-  .fields({
-    heroTitle: varchar("hero_title", { length: 255 }),
-    heroSubtitle: text("hero_subtitle"),
-    heroImage: uuid("hero_image").references(() => assets.table.id),
-    featuredPosts: jsonb("featured_posts").$type<string[]>(), // Array of post IDs
-    showNewsletter: boolean("show_newsletter").default(true),
-  });
+export const homepage = defineGlobal("homepage").fields({
+  heroTitle: varchar("hero_title", { length: 255 }),
+  heroSubtitle: text("hero_subtitle"),
+  heroImage: uuid("hero_image").references(() => assets.table.id),
+  featuredPosts: jsonb("featured_posts").$type<string[]>(), // Array of post IDs
+  showNewsletter: boolean("show_newsletter").default(true),
+});
 ```
 
 ### `.localized()`
@@ -129,10 +128,12 @@ Configure global behavior:
 
 ```typescript
 export const siteConfig = defineGlobal("site_config")
-  .fields({ /* ... */ })
+  .fields({
+    /* ... */
+  })
   .options({
-    timestamps: true,    // Add createdAt, updatedAt (default: true)
-    versioning: true,    // Track history of changes (default: false)
+    timestamps: true, // Add createdAt, updatedAt (default: true)
+    versioning: true, // Track history of changes (default: false)
     tableName: "config", // Custom table name (default: global name)
   });
 ```
@@ -147,7 +148,9 @@ export const siteConfig = defineGlobal("site_config")
     maintenanceMode: boolean("maintenance_mode"),
   })
   .hooks({
-    afterUpdate: async ({ data, original }) => {
+    afterChange: async ({ data, original }) => {
+      if (!original) return; // Globals always have original on update
+
       const cms = getCMSFromContext();
       // Notify admins when maintenance mode changes
       if (data.maintenanceMode !== original.maintenanceMode) {
@@ -169,7 +172,9 @@ Control who can view/modify:
 
 ```typescript
 export const siteConfig = defineGlobal("site_config")
-  .fields({ /* ... */ })
+  .fields({
+    /* ... */
+  })
   .access({
     read: true, // Everyone can read
     update: ({ user }) => user?.role === "admin", // Only admins can update
@@ -185,8 +190,12 @@ import { QCMS } from "@questpie/cms/server";
 import { siteConfig, homepage, seoDefaults } from "./globals";
 
 export const cms = new QCMS({
-  db: { /* ... */ },
-  collections: [/* ... */],
+  db: {
+    /* ... */
+  },
+  collections: [
+    /* ... */
+  ],
   globals: [siteConfig, homepage, seoDefaults],
   // ...
 });
@@ -217,12 +226,15 @@ console.log(config.contactEmail); // "hello@example.com"
 Update the global record:
 
 ```typescript
-const updated = await cms.api.globals.siteConfig.update({
-  data: {
-    siteName: "New Site Name",
-    maintenanceMode: true,
+const updated = await cms.api.globals.siteConfig.update(
+  {
+    data: {
+      siteName: "New Site Name",
+      maintenanceMode: true,
+    },
   },
-}, context);
+  context,
+);
 ```
 
 **Note:** Unlike collections, you don't specify an ID - there's only one record.
@@ -232,12 +244,15 @@ const updated = await cms.api.globals.siteConfig.update({
 Load related data:
 
 ```typescript
-const homepage = await cms.api.globals.homepage.get({
-  with: {
-    featuredPost: true,
-    featuredProduct: true,
+const homepage = await cms.api.globals.homepage.get(
+  {
+    with: {
+      featuredPost: true,
+      featuredProduct: true,
+    },
   },
-}, context);
+  context,
+);
 
 console.log(homepage.featuredPost.title);
 console.log(homepage.featuredProduct.name);
@@ -248,31 +263,38 @@ console.log(homepage.featuredProduct.name);
 If versioning is enabled, track changes:
 
 ```typescript
-export const siteConfig = defineGlobal("site_config")
-  .options({ versioning: true });
+export const siteConfig = defineGlobal("site_config").options({
+  versioning: true,
+});
 
 // Get version history
-const versions = await cms.api.globals.siteConfig.findVersions({
-  limit: 10,
-}, context);
+const versions = await cms.api.globals.siteConfig.findVersions(
+  {
+    limit: 10,
+  },
+  context,
+);
 
 // Revert to a previous version
-await cms.api.globals.siteConfig.revertToVersion({
-  version: versions[0].versionNumber,
-}, context);
+await cms.api.globals.siteConfig.revertToVersion(
+  {
+    version: versions[0].versionNumber,
+  },
+  context,
+);
 ```
 
 ## Differences from Collections
 
-| Feature | Collections | Globals |
-|---------|------------|---------|
-| Records | Many | One (singleton) |
-| Create | `create()` | Auto-created |
-| Read | `find()`, `findOne()` | `get()` |
-| Update | `updateById()` | `update()` |
-| Delete | `deleteById()`, `delete()` | Not available |
-| List | Yes | No |
-| ID | Required | Not needed |
+| Feature | Collections                | Globals         |
+| ------- | -------------------------- | --------------- |
+| Records | Many                       | One (singleton) |
+| Create  | `create()`                 | Auto-created    |
+| Read    | `find()`, `findOne()`      | `get()`         |
+| Update  | `updateById()`             | `update()`      |
+| Delete  | `deleteById()`, `delete()` | Not available   |
+| List    | Yes                        | No              |
+| ID      | Required                   | Not needed      |
 
 ## Practical Examples
 
@@ -321,7 +343,12 @@ export const homepage = defineGlobal("homepage")
 
     testimonialsEnabled: boolean("testimonials_enabled").default(true),
   })
-  .localized(["heroTitle", "heroSubtitle", "heroCtaText", "featuredSectionTitle"])
+  .localized([
+    "heroTitle",
+    "heroSubtitle",
+    "heroCtaText",
+    "featuredSectionTitle",
+  ])
   .relations(({ table, one }) => ({
     heroBackground: one("assets", {
       fields: [table.heroBackgroundImage],
@@ -329,7 +356,7 @@ export const homepage = defineGlobal("homepage")
     }),
   }))
   .hooks({
-    afterUpdate: async ({ data }) => {
+    afterChange: async ({ data }) => {
       const cms = getCMSFromContext();
       // Invalidate cache when homepage changes
       await cms.queue["invalidate-cache"].publish({
@@ -379,18 +406,22 @@ export const featureFlags = defineGlobal("feature_flags")
     maintenanceMessage: text("maintenance_message"),
   })
   .hooks({
-    afterUpdate: async ({ data, original }) => {
+    afterChange: async ({ data, original }) => {
+      if (!original) return;
+
       const cms = getCMSFromContext();
       // Log feature flag changes
       const changes = Object.keys(data).filter(
-        key => data[key] !== original[key]
+        (key) =>
+          data[key as keyof typeof data] !==
+          original[key as keyof typeof original],
       );
 
       for (const change of changes) {
         cms.logger.info("Feature flag changed", {
           flag: change,
-          oldValue: original[change],
-          newValue: data[change],
+          oldValue: original[change as keyof typeof original],
+          newValue: data[change as keyof typeof data],
         });
       }
     },
@@ -415,14 +446,18 @@ export const navigation = defineGlobal("navigation")
   .fields({
     headerMenu: jsonb("header_menu").$type<MenuItem[]>().default([]),
     footerMenu: jsonb("footer_menu").$type<MenuItem[]>().default([]),
-    socialLinks: jsonb("social_links").$type<{
-      platform: string;
-      url: string;
-    }[]>().default([]),
+    socialLinks: jsonb("social_links")
+      .$type<
+        {
+          platform: string;
+          url: string;
+        }[]
+      >()
+      .default([]),
   })
   .localized(["headerMenu", "footerMenu"])
   .hooks({
-    beforeUpdate: async ({ data }) => {
+    beforeChange: async ({ data }) => {
       // Validate menu structure
       const validateMenu = (items: MenuItem[]) => {
         for (const item of items) {
@@ -447,66 +482,61 @@ export const navigation = defineGlobal("navigation")
 
 ```typescript
 // ❌ Bad - Should be a Collection
-export const blogPosts = defineGlobal("blog_posts")
-  .fields({ /* multiple posts */ });
+export const blogPosts = defineGlobal("blog_posts").fields({
+  /* multiple posts */
+});
 
 // ✅ Good - Single instance
-export const homepage = defineGlobal("homepage")
-  .fields({ /* one homepage */ });
+export const homepage = defineGlobal("homepage").fields({
+  /* one homepage */
+});
 ```
 
 ### 2. Provide Sensible Defaults
 
 ```typescript
-export const siteConfig = defineGlobal("site_config")
-  .fields({
-    siteName: varchar("site_name", { length: 100 })
-      .notNull()
-      .default("My Site"), // Default value
+export const siteConfig = defineGlobal("site_config").fields({
+  siteName: varchar("site_name", { length: 100 }).notNull().default("My Site"), // Default value
 
-    enableComments: boolean("enable_comments")
-      .default(true), // Sensible default
-  });
+  enableComments: boolean("enable_comments").default(true), // Sensible default
+});
 ```
 
 ### 3. Use JSON for Structured Data
 
 ```typescript
-export const homepage = defineGlobal("homepage")
-  .fields({
-    // ✅ Good - Structured as JSON
-    featuredPosts: jsonb("featured_posts").$type<string[]>(),
+export const homepage = defineGlobal("homepage").fields({
+  // ✅ Good - Structured as JSON
+  featuredPosts: jsonb("featured_posts").$type<string[]>(),
 
-    // ❌ Bad - Multiple fields for array items
-    featuredPost1: uuid("featured_post_1"),
-    featuredPost2: uuid("featured_post_2"),
-    featuredPost3: uuid("featured_post_3"),
-  });
+  // ❌ Bad - Multiple fields for array items
+  featuredPost1: uuid("featured_post_1"),
+  featuredPost2: uuid("featured_post_2"),
+  featuredPost3: uuid("featured_post_3"),
+});
 ```
 
 ### 4. Add Hooks for Side Effects
 
 ```typescript
-export const siteConfig = defineGlobal("site_config")
-  .hooks({
-    afterUpdate: async ({ data }) => {
-      const cms = getCMSFromContext();
-      // Invalidate caches
-      await cms.queue["invalidate-cache"].publish({
-        keys: ["site-config"],
-      });
-    },
-  });
+export const siteConfig = defineGlobal("site_config").hooks({
+  afterChange: async ({ data }) => {
+    const cms = getCMSFromContext();
+    // Invalidate caches
+    await cms.queue["invalidate-cache"].publish({
+      keys: ["site-config"],
+    });
+  },
+});
 ```
 
 ### 5. Control Access Appropriately
 
 ```typescript
-export const siteConfig = defineGlobal("site_config")
-  .access({
-    read: true, // Public reading
-    update: ({ user }) => user?.role === "admin", // Admin-only updates
-  });
+export const siteConfig = defineGlobal("site_config").access({
+  read: true, // Public reading
+  update: ({ user }) => user?.role === "admin", // Admin-only updates
+});
 ```
 
 ## Type Safety
@@ -514,11 +544,10 @@ export const siteConfig = defineGlobal("site_config")
 Globals are fully typed:
 
 ```typescript
-export const siteConfig = defineGlobal("site_config")
-  .fields({
-    siteName: varchar("site_name", { length: 100 }),
-    enableNewsletter: boolean("enable_newsletter"),
-  });
+export const siteConfig = defineGlobal("site_config").fields({
+  siteName: varchar("site_name", { length: 100 }),
+  enableNewsletter: boolean("enable_newsletter"),
+});
 
 // TypeScript knows the shape
 type SiteConfig = typeof siteConfig.$infer.select;

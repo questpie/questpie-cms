@@ -122,7 +122,7 @@ describe("collection CRUD", () => {
 				},
 				createTestContext({ accessMode: "user" }),
 			),
-		).rejects.toThrow("Access denied: create");
+		).rejects.toThrow("User does not have permission to create records");
 
 		const created = await setup.cms.api.collections.locked_products.create(
 			{

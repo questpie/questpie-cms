@@ -1,7 +1,6 @@
 ---
 title: Queue Jobs
 description: Background processing with pg-boss.
-
 ---
 
 # Queue Jobs
@@ -13,7 +12,7 @@ Perform background tasks like sending emails, image processing, or data synchron
 Use `defineJob` to specify the job name, payload schema, and handler.
 
 ```typescript
-import { defineJob } from "@questpie/cms/server";
+import { defineJob, getCMSFromContext } from "@questpie/cms/server";
 import { z } from "zod";
 
 const emailJob = defineJob({
@@ -23,9 +22,15 @@ const emailJob = defineJob({
     subject: z.string(),
     body: z.string(),
   }),
-  handler: async (payload, { cms }) => {
+  handler: async (payload) => {
+    const cms = getCMSFromContext();
     console.log(`Sending email to ${payload.to}`);
-    // Implement email sending logic
+    // Use cms.email.send() or other CMS services
+    await cms.email.send({
+      to: payload.to,
+      subject: payload.subject,
+      html: payload.body,
+    });
   },
 });
 ```

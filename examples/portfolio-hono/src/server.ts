@@ -34,7 +34,7 @@ const app = new Hono()
 // Contact form schema
 const contactFormSchema = z.object({
 	name: z.string().min(1, "Name is required"),
-	email: z.string().email("Invalid email"),
+	email: z.email("Invalid email"),
 	phone: z.string().optional(),
 	company: z.string().optional(),
 	subject: z.string().optional(),
@@ -114,7 +114,8 @@ app.get("/api/health", (c) => {
  */
 app.get("/api/homepage", async (c) => {
 	// Get homepage config
-	const homepageConfig = await cms.api.globals.homepage.get();
+	// TODO homepage config should never be null, typing is wrong here
+	const homepageConfig = (await cms.api.globals.homepage.get())!;
 
 	// Get featured projects
 	const featuredProjects = homepageConfig.featuredProjectIds?.length
@@ -184,13 +185,13 @@ console.log(`
   Portfolio API Server
   ====================
   URL: http://localhost:${port}
-  
+
   CMS Endpoints:
   - GET  /cms/projects         List projects
   - POST /cms/projects         Create project
   - GET  /cms/projects/:id     Get project
   - etc.
-  
+
   Custom Endpoints:
   - POST /api/contact          Submit contact form
   - GET  /api/homepage         Get homepage data

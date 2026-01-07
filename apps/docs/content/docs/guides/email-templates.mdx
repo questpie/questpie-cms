@@ -243,32 +243,31 @@ export const orders = defineCollection("orders")
     total: integer("total").notNull(),
   })
   .hooks({
-    afterCreate: async ({ data }) => {
+    afterChange: async ({ data, operation, original }) => {
       const cms = getCMSFromContext();
 
-      await cms.email.sendTemplate({
-        template: "order-confirmation",
-        to: data.customerEmail,
-        context: {
-          customerName: data.customerName,
-          orderId: data.id,
-          total: data.total,
-        },
-      });
-    },
-    afterUpdate: async ({ data, previousData }) => {
-      // Send shipping notification when status changes
-      if (previousData.status !== "shipped" && data.status === "shipped") {
-        const cms = getCMSFromContext();
-
+      if (operation === "create") {
         await cms.email.sendTemplate({
-          template: "order-shipped",
+          template: "order-confirmation",
           to: data.customerEmail,
           context: {
             customerName: data.customerName,
             orderId: data.id,
+            total: data.total,
           },
         });
+      } else if (operation === "update" && original) {
+        // Send shipping notification when status changes
+        if (original.status !== "shipped" && data.status === "shipped") {
+          await cms.email.sendTemplate({
+            template: "order-shipped",
+            to: data.customerEmail,
+            context: {
+              customerName: data.customerName,
+              orderId: data.id,
+            },
+          });
+        }
       }
     },
   });
@@ -318,7 +317,9 @@ Then publish from your hook:
 
 ```typescript
 .hooks({
-  afterCreate: async ({ data }) => {
+  afterChange: async ({ data, operation }) => {
+    if (operation !== "create") return;
+
     const cms = getCMSFromContext();
 
     // Queue email instead of sending synchronously
@@ -448,7 +449,8 @@ defineEmailTemplate({
 ```typescript
 // Don't send in hooks - queue instead
 .hooks({
-  afterCreate: async ({ data }) => {
+  afterChange: async ({ data, operation }) => {
+    if (operation !== "create") return;
     const cms = getCMSFromContext();
     await cms.queue["send-email"].publish({ /* ... */ });
   },

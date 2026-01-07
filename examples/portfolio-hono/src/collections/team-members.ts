@@ -10,6 +10,7 @@
 
 import { defineCollection } from "@questpie/cms/server";
 import { varchar, text, integer, jsonb } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm/sql/sql";
 
 type SocialLinks = {
 	twitter?: string;
@@ -36,7 +37,7 @@ export const teamMembers = defineCollection("team_members")
 		order: integer("order").default(0).notNull(),
 	})
 	.localized(["role", "bio"])
-	.title((t) => t.name)
+	.title(({ table }) => sql<string>`${table.name}`)
 	.access({
 		read: true,
 		create: ({ user }) => !!user,

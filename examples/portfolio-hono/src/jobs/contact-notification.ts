@@ -24,7 +24,8 @@ export const contactNotificationJob = defineJob({
 		const cms = getCMSFromContext<AppCMS>();
 
 		// Get site settings for admin email
-		const settings = await cms.api.globals.site_settings.get();
+		// TODO: globals should never be null, typing is wrong here
+		const settings = (await cms.api.globals.site_settings.get())!;
 		const adminEmail = settings.contactEmail || "admin@example.com";
 
 		// Send notification email

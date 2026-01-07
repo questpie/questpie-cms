@@ -69,9 +69,9 @@ export const sendReminder = defineJob({
     appointmentId: z.string(),
     email: z.string().email()
   }),
-  handler: async ({ appointmentId, email }) => {
+  handler: async (payload) => {
     // Send reminder email
-    console.log(\`Reminder sent to \${email}\`)
+    console.log(\`Reminder sent to \${payload.email}\`)
   }
 })`,
 	},
@@ -98,7 +98,9 @@ export const sendReminder = defineJob({
 			{
 				line: -1,
 				code: `  .hooks({
-    afterCreate: async ({ data, cms }) => {
+    afterChange: async ({ data, operation }) => {
+      if (operation !== 'create') return
+      const cms = getCMSFromContext()
       // Queue reminder 1 hour before appointment
       await cms.queue['send-reminder'].publish({
         appointmentId: data.id,

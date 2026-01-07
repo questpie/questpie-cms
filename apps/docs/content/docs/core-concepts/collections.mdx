@@ -10,12 +10,14 @@ Collections are the fundamental data structures in QUESTPIE CMS. They represent 
 ## What is a Collection?
 
 A Collection is:
+
 - A **database table** with a typed schema
 - A set of **CRUD operations** (create, read, update, delete) automatically generated
 - **Type-safe** throughout your entire application
 - **Extensible** through hooks, access control, and relations
 
 Think of a Collection as a content model that combines:
+
 1. Database schema (via Drizzle ORM)
 2. Business logic (via hooks)
 3. Access control (via access rules)
@@ -52,21 +54,29 @@ The `CollectionBuilder` provides a fluent API for configuring your collection:
 Define the schema using Drizzle ORM column types:
 
 ```typescript
-import { varchar, text, integer, boolean, timestamp, jsonb, uuid } from "drizzle-orm/pg-core";
+import {
+  varchar,
+  text,
+  integer,
+  boolean,
+  timestamp,
+  jsonb,
+  uuid,
+} from "drizzle-orm/pg-core";
 
-defineCollection("products")
-  .fields({
-    name: varchar("name", { length: 255 }).notNull(),
-    description: text("description"),
-    price: integer("price").notNull(), // in cents
-    stock: integer("stock").default(0),
-    isAvailable: boolean("is_available").default(true),
-    metadata: jsonb("metadata").$type<{ sku: string; weight: number }>(),
-    publishedAt: timestamp("published_at", { mode: "date" }),
-  })
+defineCollection("products").fields({
+  name: varchar("name", { length: 255 }).notNull(),
+  description: text("description"),
+  price: integer("price").notNull(), // in cents
+  stock: integer("stock").default(0),
+  isAvailable: boolean("is_available").default(true),
+  metadata: jsonb("metadata").$type<{ sku: string; weight: number }>(),
+  publishedAt: timestamp("published_at", { mode: "date" }),
+});
 ```
 
 **Available Field Types:**
+
 - `varchar(name, { length })` - Variable-length string
 - `text(name)` - Unlimited text
 - `integer(name)` - 32-bit integer
@@ -81,6 +91,7 @@ defineCollection("products")
 ### `.title()`
 
 Generate a computed `_title` field for each record. This is used for:
+
 - Search indexing and full-text search
 - Display in lists and references
 - Logging and audit trails
@@ -94,12 +105,12 @@ import { sql } from "drizzle-orm";
 defineCollection("posts")
   .fields({
     title: varchar("title", { length: 255 }),
-    status: varchar("status", { length: 50 })
+    status: varchar("status", { length: 50 }),
   })
   .title((t) => t.title) // Simple field reference
 
-// Or use SQL expressions for complex titles:
-  .title((t) => sql`${t.title} || ' [' || ${t.status} || ']'`)
+  // Or use SQL expressions for complex titles:
+  .title((t) => sql`${t.title} || ' [' || ${t.status} || ']'`);
 
 // Title is available in query results as _title:
 const post = await cms.api.collections.posts.findOne({ where: { id } });
@@ -107,10 +118,12 @@ console.log(post._title); // "My Post [published]"
 ```
 
 The title expression can reference:
+
 - Non-localized fields directly: `t.fieldName`
 - Localized fields via i18n accessor: `i18n.fieldName`
 
 **Why use `.title()`:**
+
 - Enables search to find records by their human-readable name
 - Provides consistent display across the system
 - Automatically included in search indexes if `.searchable()` is configured
@@ -127,10 +140,11 @@ defineCollection("posts")
     slug: varchar("slug", { length: 255 }).notNull(), // Not localized
   })
   .localized(["title", "content"]) // These fields go to i18n table
-  .title((t, i18n) => i18n.title) // Access localized fields via i18n
+  .title((t, i18n) => i18n.title); // Access localized fields via i18n
 ```
 
 **How Localization Works:**
+
 1. Non-localized fields stay in the main table
 2. Localized fields are moved to a separate `{collection}_i18n` table
 3. CMS automatically joins the i18n table based on the request locale
@@ -152,10 +166,11 @@ defineCollection("users")
   .virtuals((t) => ({
     fullName: sql<string>`${t.firstName} || ' ' || ${t.lastName}`,
     emailDomain: sql<string>`substring(${t.email} from '@(.*)$')`,
-  }))
+  }));
 ```
 
 Virtual fields are:
+
 - Computed at query time (not stored)
 - Type-safe (use `sql<Type>` for typing)
 - Available in queries and API responses
@@ -187,15 +202,17 @@ defineCollection("posts")
     comments: many("comments", {
       relationName: "post-comments",
     }),
-  }))
+  }));
 ```
 
 **Key points:**
+
 - `fields` parameter uses **table column references** (`table.fieldName`), not strings
 - `references` parameter uses **column name strings** in the target collection
 - The `table` object is provided in the relation callback context
 
 **Relation Types:**
+
 - `one()` - Many-to-one or one-to-one
 - `many()` - One-to-many (inverse)
 - `manyToMany()` - Many-to-many through junction table
@@ -219,7 +236,7 @@ defineCollection("posts")
     uniqueIndex("posts_slug_idx").on(t.slug),
     index("posts_author_idx").on(t.authorId),
     index("posts_published_idx").on(t.publishedAt),
-  ])
+  ]);
 ```
 
 **Soft-delete-aware unique indexes (Postgres):**
@@ -231,7 +248,7 @@ defineCollection("posts")
   .options({ softDelete: true })
   .indexes(({ table }) => [
     softDeleteUniqueIndex("posts_slug_active_idx", table.deletedAt, table.slug),
-  ])
+  ]);
 ```
 
 ### `.options()`
@@ -240,21 +257,24 @@ Configure collection behavior:
 
 ```typescript
 defineCollection("posts")
-  .fields({ /* ... */ })
+  .fields({
+    /* ... */
+  })
   .options({
-    timestamps: true,      // Add createdAt, updatedAt (default: true)
-    softDelete: true,      // Add deletedAt for soft deletes (default: false)
+    timestamps: true, // Add createdAt, updatedAt (default: true)
+    softDelete: true, // Add deletedAt for soft deletes (default: false)
     tableName: "blog_posts", // Custom table name (default: collection name)
-    versioning: true,      // Enable version history (default: false)
+    versioning: true, // Enable version history (default: false)
     // Or with detailed versioning config:
     versioning: {
       enabled: true,
-      maxVersions: 100,    // Keep last 100 versions (default: 50)
+      maxVersions: 100, // Keep last 100 versions (default: 50)
     },
-  })
+  });
 ```
 
 **Automatic Fields:**
+
 - `id` (UUID v7) - Always added as primary key
 - `createdAt` (timestamp) - Added if `timestamps: true`
 - `updatedAt` (timestamp) - Added if `timestamps: true`
@@ -266,35 +286,36 @@ Add lifecycle hooks for business logic:
 
 ```typescript
 defineCollection("posts")
-  .fields({ /* ... */ })
+  .fields({
+    /* ... */
+  })
   .hooks({
-    beforeCreate: async ({ data }) => {
-      const cms = getCMSFromContext();
+    beforeChange: async ({ data, operation }) => {
       // Validate data, generate slug, etc.
-      if (!data.slug) {
+      if (operation === "create" && !data.slug) {
         data.slug = slugify(data.title);
       }
     },
 
-    afterCreate: async ({ data }) => {
+    afterChange: async ({ data, operation, original }) => {
       const cms = getCMSFromContext();
-      // Send notifications, trigger jobs, etc.
-      await cms.queue["post-created"].publish({
-        postId: data.id,
-        title: data.title,
-      });
-    },
 
-    afterUpdate: async ({ data, original }) => {
-      const cms = getCMSFromContext();
-      // Check what changed
-      if (data.isPublished && !original.isPublished) {
-        await cms.queue["post-published"].publish({
+      if (operation === "create") {
+        // Send notifications, trigger jobs, etc.
+        await cms.queue["post-created"].publish({
           postId: data.id,
+          title: data.title,
         });
+      } else if (operation === "update" && original) {
+        // Check what changed
+        if (data.isPublished && !original.isPublished) {
+          await cms.queue["post-published"].publish({
+            postId: data.id,
+          });
+        }
       }
     },
-  })
+  });
 ```
 
 See [Hooks](/docs/core-concepts/hooks) for complete documentation.
@@ -305,7 +326,9 @@ Control who can perform operations:
 
 ```typescript
 defineCollection("posts")
-  .fields({ /* ... */ })
+  .fields({
+    /* ... */
+  })
   .access({
     // Anyone can read published posts
     read: ({ user, row }) => {
@@ -315,10 +338,7 @@ defineCollection("posts")
       }
       // Logged in - published OR own posts
       return {
-        OR: [
-          { isPublished: true },
-          { authorId: user.id },
-        ],
+        OR: [{ isPublished: true }, { authorId: user.id }],
       };
     },
 
@@ -337,7 +357,7 @@ defineCollection("posts")
         write: ({ user }) => user?.role === "admin", // Only admins can change author
       },
     },
-  })
+  });
 ```
 
 See [Access Control](/docs/core-concepts/access-control) for complete documentation.
@@ -371,7 +391,7 @@ defineCollection("posts")
       const text = `${record.title} ${extractTextFromRichText(record.content)}`;
       return await cms.search.embeddings.generate(text);
     },
-  })
+  });
 ```
 
 ## Using Collections in Your CMS
@@ -383,7 +403,9 @@ import { QCMS } from "@questpie/cms/server";
 import { posts, categories, comments } from "./collections";
 
 export const cms = new QCMS({
-  db: { /* ... */ },
+  db: {
+    /* ... */
+  },
   collections: [posts, categories, comments],
   // ...
 });
@@ -398,37 +420,47 @@ Once registered, collections provide type-safe CRUD operations:
 const context = await cms.createContext({ user, locale: "en" });
 
 // Create
-const post = await cms.api.collections.posts.create({
-  title: "Hello World",
-  content: "This is my first post",
-  isPublished: false,
-}, context);
+const post = await cms.api.collections.posts.create(
+  {
+    title: "Hello World",
+    content: "This is my first post",
+    isPublished: false,
+  },
+  context,
+);
 
 // Read (with relations)
-const posts = await cms.api.collections.posts.find({
-  where: { isPublished: true },
-  with: {
-    author: true,
-    comments: {
-      with: { user: true },
-      limit: 5,
+const posts = await cms.api.collections.posts.find(
+  {
+    where: { isPublished: true },
+    with: {
+      author: true,
+      comments: {
+        with: { user: true },
+        limit: 5,
+      },
     },
+    orderBy: { createdAt: "desc" },
+    limit: 10,
   },
-  orderBy: { createdAt: "desc" },
-  limit: 10,
-}, context);
+  context,
+);
 
 // Update
-const updated = await cms.api.collections.posts.updateById({
-  id: post.id,
-  data: { isPublished: true },
-}, context);
+const updated = await cms.api.collections.posts.updateById(
+  {
+    id: post.id,
+    data: { isPublished: true },
+  },
+  context,
+);
 
 // Delete (soft delete if enabled)
 await cms.api.collections.posts.deleteById({ id: post.id }, context);
 ```
 
 All operations:
+
 - Enforce access control automatically
 - Execute hooks in the correct order
 - Support transactions via `context.db`
@@ -451,7 +483,7 @@ type UpdatePost = typeof posts.$infer.update;
 // Use in your application
 function displayPost(post: Post) {
   console.log(post.title); // ✅ Type-safe
-  console.log(post.slug);  // ✅ Type-safe
+  console.log(post.slug); // ✅ Type-safe
   // console.log(post.invalid); // ❌ TypeScript error
 }
 ```
@@ -468,6 +500,7 @@ Understanding what happens under the hood:
 6. **Access Enforcement**: Access rules filter data automatically
 
 **Key Files:**
+
 - `packages/cms/src/server/collection/builder/collection-builder.ts` - Builder implementation
 - `packages/cms/src/server/collection/crud/crud-generator.ts` - CRUD operations
 - `packages/cms/src/server/collection/builder/types.ts` - Type definitions
@@ -513,9 +546,11 @@ Keep business logic in hooks, not in application code:
 
 ```typescript
 .hooks({
-  beforeCreate: async ({ data }) => {
-    // Generate slug automatically
-    data.slug = slugify(data.title);
+  beforeChange: async ({ data, operation }) => {
+    if (operation === "create") {
+      // Generate slug automatically
+      data.slug = slugify(data.title);
+    }
     // Set publish date if publishing
     if (data.isPublished && !data.publishedAt) {
       data.publishedAt = new Date();
@@ -544,20 +579,25 @@ Always define access rules - default is allow all (system mode):
 Track historical changes to your records:
 
 ```typescript
-defineCollection("posts")
-  .options({ versioning: true })
+defineCollection("posts").options({ versioning: true });
 
 // Query versions
-const versions = await cms.api.collections.posts.findVersions({
-  id: postId,
-  limit: 10,
-}, context);
+const versions = await cms.api.collections.posts.findVersions(
+  {
+    id: postId,
+    limit: 10,
+  },
+  context,
+);
 
 // Revert to a version
-await cms.api.collections.posts.revertToVersion({
-  id: postId,
-  version: versions[0].versionNumber,
-}, context);
+await cms.api.collections.posts.revertToVersion(
+  {
+    id: postId,
+    version: versions[0].versionNumber,
+  },
+  context,
+);
 ```
 
 ### Soft Delete
@@ -565,8 +605,7 @@ await cms.api.collections.posts.revertToVersion({
 Keep deleted records for recovery or auditing:
 
 ```typescript
-defineCollection("posts")
-  .options({ softDelete: true })
+defineCollection("posts").options({ softDelete: true });
 
 // Delete sets deletedAt instead of removing
 await cms.api.collections.posts.deleteById({ id: postId }, context);
@@ -576,9 +615,12 @@ const posts = await cms.api.collections.posts.find({}, context);
 // Won't include deleted posts
 
 // Force include deleted records
-const allPosts = await cms.api.collections.posts.find({
-  includeDeleted: true,
-}, context);
+const allPosts = await cms.api.collections.posts.find(
+  {
+    includeDeleted: true,
+  },
+  context,
+);
 
 // Restore a soft-deleted record
 await cms.api.collections.posts.restoreById({ id: postId }, context);
@@ -589,10 +631,9 @@ await cms.api.collections.posts.restoreById({ id: postId }, context);
 Override the default table name:
 
 ```typescript
-defineCollection("blogPosts")
-  .options({
-    tableName: "blog_posts", // Database table will be named "blog_posts"
-  })
+defineCollection("blogPosts").options({
+  tableName: "blog_posts", // Database table will be named "blog_posts"
+});
 ```
 
 ## Next Steps

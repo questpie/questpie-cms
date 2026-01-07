@@ -34,7 +34,8 @@ export const newProjectNotificationJob = defineJob({
 		}
 
 		// Get site settings
-		const settings = await cms.api.globals.site_settings.get();
+		// TODO: globals should never be null, typing is wrong here
+		const settings = (await cms.api.globals.site_settings.get())!;
 
 		// Log the event (could also notify subscribers, post to social, etc.)
 		console.log(

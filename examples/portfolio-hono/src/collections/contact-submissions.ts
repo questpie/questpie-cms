@@ -11,6 +11,7 @@
 import { defineCollection, getCMSFromContext } from "@questpie/cms/server";
 import { varchar, text, timestamp } from "drizzle-orm/pg-core";
 import type { AppCMS } from "../cms";
+import { sql } from "drizzle-orm/sql/sql";
 
 export const contactSubmissions = defineCollection("contact_submissions")
 	.fields({
@@ -31,9 +32,9 @@ export const contactSubmissions = defineCollection("contact_submissions")
 		// Internal notes
 		internalNotes: text("internal_notes"),
 	})
-	.title((t) => t.name)
+	.title(({ table }) => sql<string>`${table.name}`)
 	.hooks({
-		afterCreate: async ({ data }) => {
+		afterChange: async ({ data }) => {
 			const cms = getCMSFromContext<AppCMS>();
 			// Notify admin about new contact submission
 			await cms.queue["contact-notification"].publish({
