@@ -48,14 +48,16 @@ bun add @questpie/admin
 
 ```typescript
 // src/cms/collections/posts.ts
-import { defineCollection, f } from "@questpie/cms";
+import { defineCollection } from "@questpie/cms";
+import { varchar, text, timestamp, boolean } from "drizzle-orm/pg-core";
 
 export const posts = defineCollection("posts")
   .fields({
-    title: f.text("title").notNull(),
-    slug: f.text("slug").notNull().unique(),
-    content: f.text("content"),
-    publishedAt: f.timestamp("published_at"),
+    title: varchar("title", { length: 255 }).notNull(),
+    slug: varchar("slug", { length: 255 }).notNull().unique(),
+    content: text("content"),
+    publishedAt: timestamp("published_at", { mode: "date" }),
+    featured: boolean("featured").default(false),
   })
   .title("title")
   .timestamps()
@@ -138,12 +140,14 @@ bunx qcms migrate:up
 Multi-record content types with full CRUD operations:
 
 ```typescript
+import { varchar, text, integer, boolean } from "drizzle-orm/pg-core";
+
 const products = defineCollection("products")
   .fields({
-    name: f.text("name").notNull(),
-    price: f.numeric("price", { precision: 10, scale: 2 }).notNull(),
-    description: f.text("description"),
-    inStock: f.boolean("in_stock").default(true),
+    name: varchar("name", { length: 255 }).notNull(),
+    price: integer("price").notNull(), // in cents
+    description: text("description"),
+    inStock: boolean("in_stock").default(true),
   })
   .title("name")
   .timestamps()
@@ -168,10 +172,13 @@ const products = defineCollection("products")
 Singleton content for site-wide settings:
 
 ```typescript
+import { defineGlobal } from "@questpie/cms";
+import { varchar, text, jsonb } from "drizzle-orm/pg-core";
+
 const siteSettings = defineGlobal("site_settings").fields({
-  siteName: f.text("site_name").notNull(),
-  tagline: f.text("tagline"),
-  socialLinks: f.json("social_links").$type<SocialLinks>(),
+  siteName: varchar("site_name", { length: 255 }).notNull(),
+  tagline: text("tagline"),
+  socialLinks: jsonb("social_links").$type<SocialLinks>(),
 });
 ```
 
@@ -180,28 +187,27 @@ const siteSettings = defineGlobal("site_settings").fields({
 Define relationships between collections:
 
 ```typescript
+import { varchar } from "drizzle-orm/pg-core";
+
 const posts = defineCollection("posts")
   .fields({
-    title: f.text("title").notNull(),
-    authorId: f.uuid("author_id").notNull(),
+    title: varchar("title", { length: 255 }).notNull(),
+    authorId: varchar("author_id", { length: 255 }).notNull(),
   })
-  .relations(({ one }) => ({
+  .relations(({ one, table }) => ({
     author: one("users", {
-      from: "authorId",
-      to: "id",
+      fields: [table.authorId],
+      references: ["id"],
     }),
   }));
 
 const users = defineCollection("users")
   .fields({
-    name: f.text("name").notNull(),
-    email: f.text("email").notNull().unique(),
+    name: varchar("name", { length: 255 }).notNull(),
+    email: varchar("email", { length: 255 }).notNull().unique(),
   })
   .relations(({ many }) => ({
-    posts: many("posts", {
-      from: "id",
-      to: "authorId",
-    }),
+    posts: many("posts"),
   }));
 ```
 

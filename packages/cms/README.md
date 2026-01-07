@@ -30,16 +30,17 @@ bun add drizzle-orm pg zod
 
 ```typescript
 // src/cms/collections/posts.ts
-import { defineCollection, f } from "@questpie/cms";
+import { defineCollection } from "@questpie/cms";
+import { varchar, text, timestamp, boolean } from "drizzle-orm/pg-core";
 
 export const posts = defineCollection("posts")
   .fields({
-    title: f.text("title").notNull(),
-    slug: f.text("slug").notNull().unique(),
-    content: f.text("content"),
-    excerpt: f.text("excerpt"),
-    publishedAt: f.timestamp("published_at"),
-    featured: f.boolean("featured").default(false),
+    title: varchar("title", { length: 255 }).notNull(),
+    slug: varchar("slug", { length: 255 }).notNull().unique(),
+    content: text("content"),
+    excerpt: text("excerpt"),
+    publishedAt: timestamp("published_at", { mode: "date" }),
+    featured: boolean("featured").default(false),
   })
   .title("title")
   .timestamps()
@@ -51,13 +52,14 @@ export const posts = defineCollection("posts")
 
 ```typescript
 // src/cms/globals/site-settings.ts
-import { defineGlobal, f } from "@questpie/cms";
+import { defineGlobal } from "@questpie/cms";
+import { varchar, text, jsonb } from "drizzle-orm/pg-core";
 
 export const siteSettings = defineGlobal("site_settings").fields({
-  siteName: f.text("site_name").notNull(),
-  tagline: f.text("tagline"),
-  logo: f.text("logo_url"),
-  socialLinks: f.json("social_links").$type<{
+  siteName: varchar("site_name", { length: 255 }).notNull(),
+  tagline: text("tagline"),
+  logo: varchar("logo_url", { length: 500 }),
+  socialLinks: jsonb("social_links").$type<{
     twitter?: string;
     github?: string;
   }>(),
@@ -120,15 +122,17 @@ Collections are multi-record content types with full CRUD operations.
 ### Builder API
 
 ```typescript
+import { varchar, text, integer, boolean, jsonb } from "drizzle-orm/pg-core";
+
 const products = defineCollection("products")
-  // Define database fields
+  // Define database fields using Drizzle column types
   .fields({
-    name: f.text("name").notNull(),
-    price: f.numeric("price", { precision: 10, scale: 2 }).notNull(),
-    sku: f.text("sku").notNull().unique(),
-    description: f.text("description"),
-    inStock: f.boolean("in_stock").default(true),
-    metadata: f.json("metadata").$type<ProductMetadata>(),
+    name: varchar("name", { length: 255 }).notNull(),
+    price: integer("price").notNull(), // in cents
+    sku: varchar("sku", { length: 100 }).notNull().unique(),
+    description: text("description"),
+    inStock: boolean("in_stock").default(true),
+    metadata: jsonb("metadata").$type<ProductMetadata>(),
   })
 
   // Set title field for admin display
@@ -231,44 +235,66 @@ await cms.collections.products.restore("product-id");
 
 ## Fields
 
-Fields use native Drizzle ORM column types:
+Fields use native Drizzle ORM column types from `drizzle-orm/pg-core`:
 
 ### String Fields
 
 ```typescript
-f.text("content"); // TEXT
-f.varchar("name", { length: 255 }); // VARCHAR(255)
-f.char("code", { length: 3 }); // CHAR(3)
+import { text, varchar, char } from "drizzle-orm/pg-core";
+
+text("content"); // TEXT
+varchar("name", { length: 255 }); // VARCHAR(255)
+char("code", { length: 3 }); // CHAR(3)
 ```
 
 ### Number Fields
 
 ```typescript
-f.integer("count"); // INTEGER
-f.bigint("views"); // BIGINT
-f.smallint("rating"); // SMALLINT
-f.serial("id"); // SERIAL (auto-increment)
-f.real("score"); // REAL (float)
-f.doublePrecision("amount"); // DOUBLE PRECISION
-f.numeric("price", { precision: 10, scale: 2 }); // NUMERIC(10,2)
+import {
+  integer,
+  bigint,
+  smallint,
+  serial,
+  real,
+  doublePrecision,
+  numeric,
+} from "drizzle-orm/pg-core";
+
+integer("count"); // INTEGER
+bigint("views", { mode: "number" }); // BIGINT
+smallint("rating"); // SMALLINT
+serial("id"); // SERIAL (auto-increment)
+real("score"); // REAL (float)
+doublePrecision("amount"); // DOUBLE PRECISION
+numeric("price", { precision: 10, scale: 2 }); // NUMERIC(10,2)
 ```
 
 ### Other Types
 
 ```typescript
-f.boolean("active"); // BOOLEAN
-f.timestamp("publishedAt"); // TIMESTAMP
-f.date("birthDate"); // DATE
-f.time("startTime"); // TIME
-f.uuid("externalId"); // UUID
-f.json("metadata"); // JSON
-f.jsonb("data"); // JSONB
+import {
+  boolean,
+  timestamp,
+  date,
+  time,
+  uuid,
+  json,
+  jsonb,
+} from "drizzle-orm/pg-core";
+
+boolean("active"); // BOOLEAN
+timestamp("publishedAt", { mode: "date" }); // TIMESTAMP
+date("birthDate"); // DATE
+time("startTime"); // TIME
+uuid("externalId"); // UUID
+json("metadata"); // JSON
+jsonb("data"); // JSONB
 ```
 
 ### Field Modifiers
 
 ```typescript
-f.text("title")
+varchar("title", { length: 255 })
   .notNull() // NOT NULL constraint
   .default("Untitled") // Default value
   .unique() // UNIQUE constraint
@@ -278,16 +304,20 @@ f.text("title")
 ### Arrays
 
 ```typescript
-f.text("tags").array(); // TEXT[]
-f.integer("scores").array(); // INTEGER[]
+text("tags").array(); // TEXT[]
+integer("scores").array(); // INTEGER[]
 ```
 
 ### Enums
 
 ```typescript
-const statusEnum = pgEnum("status", ["draft", "published", "archived"]);
+import { pgEnum } from "drizzle-orm/pg-core";
 
-f.enum("status", statusEnum).default("draft");
+const statusEnum = pgEnum("status", ["draft", "published", "archived"])
+  // Use in collection
+  .fields({
+    status: statusEnum("status").default("draft"),
+  });
 ```
 
 ## Relations
@@ -295,15 +325,17 @@ f.enum("status", statusEnum).default("draft");
 ### One (Many-to-One)
 
 ```typescript
+import { varchar } from "drizzle-orm/pg-core";
+
 const posts = defineCollection("posts")
   .fields({
-    title: f.text("title").notNull(),
-    authorId: f.uuid("author_id").notNull(),
+    title: varchar("title", { length: 255 }).notNull(),
+    authorId: varchar("author_id", { length: 255 }).notNull(),
   })
-  .relations(({ one }) => ({
+  .relations(({ one, table }) => ({
     author: one("users", {
-      from: "authorId",
-      to: "id",
+      fields: [table.authorId],
+      references: ["id"],
     }),
   }));
 ```
@@ -313,13 +345,10 @@ const posts = defineCollection("posts")
 ```typescript
 const users = defineCollection("users")
   .fields({
-    name: f.text("name").notNull(),
+    name: varchar("name", { length: 255 }).notNull(),
   })
   .relations(({ many }) => ({
-    posts: many("posts", {
-      from: "id",
-      to: "authorId",
-    }),
+    posts: many("posts"),
   }));
 ```
 
@@ -327,25 +356,31 @@ const users = defineCollection("users")
 
 ```typescript
 const posts = defineCollection("posts")
-  .fields({ title: f.text("title").notNull() })
+  .fields({ title: varchar("title", { length: 255 }).notNull() })
   .relations(({ many }) => ({
-    tags: many("post_tags", { from: "id", to: "postId" }),
+    postTags: many("post_tags"),
   }));
 
 const tags = defineCollection("tags")
-  .fields({ name: f.text("name").notNull() })
+  .fields({ name: varchar("name", { length: 255 }).notNull() })
   .relations(({ many }) => ({
-    posts: many("post_tags", { from: "id", to: "tagId" }),
+    postTags: many("post_tags"),
   }));
 
 const postTags = defineCollection("post_tags")
   .fields({
-    postId: f.uuid("post_id").notNull(),
-    tagId: f.uuid("tag_id").notNull(),
+    postId: varchar("post_id", { length: 255 }).notNull(),
+    tagId: varchar("tag_id", { length: 255 }).notNull(),
   })
-  .relations(({ one }) => ({
-    post: one("posts", { from: "postId", to: "id" }),
-    tag: one("tags", { from: "tagId", to: "id" }),
+  .relations(({ one, table }) => ({
+    post: one("posts", {
+      fields: [table.postId],
+      references: ["id"],
+    }),
+    tag: one("tags", {
+      fields: [table.tagId],
+      references: ["id"],
+    }),
   }));
 ```
 
@@ -518,8 +553,8 @@ cms.auth({
   // Extend user model
   user: {
     additionalFields: {
-      bio: f.text("bio"),
-      avatarUrl: f.text("avatar_url"),
+      bio: text("bio"),
+      avatarUrl: varchar("avatar_url", { length: 500 }),
     },
   },
 });
