@@ -1,25 +1,52 @@
 # @questpie/admin
 
-**Config-driven, batteries-included admin UI for Questpie CMS**
+**Config-driven, batteries-included admin UI for QUESTPIE CMS**
 
-## ⚡ Quick Start
+A fully-featured admin interface that auto-generates from your CMS schema with extensive customization options.
+
+## Features
+
+- **Zero Config** - Works out of the box with just a CMS client
+- **Config-Driven** - Customize everything via `defineAdminConfig`
+- **Type-Safe** - Full TypeScript inference from your CMS schema
+- **Tailwind v4** - Built with Tailwind CSS v4 + shadcn/ui components
+- **Rich Text** - Tiptap editor with slash commands, tables, images
+- **Relations** - Inline, picker, and create modes for related content
+- **Layouts** - Sections, tabs, columns, grids, sidebars
+- **Realtime** - SSE-powered live updates
+- **Versioning** - Built-in version history and audit logging
+- **i18n Ready** - Localization support for content
+
+## Installation
+
+```bash
+bun add @questpie/admin @questpie/cms @questpie/tanstack-query
+bun add @tanstack/react-query @tanstack/react-table
+```
+
+## Quick Start
 
 ### Minimal Setup (One Component!)
 
 ```tsx
-import { AdminApp } from '@questpie/admin'
-import { cmsClient } from './lib/cms-client'
-import { Link, useLocation, useNavigate, useParams } from '@tanstack/react-router'
+import { AdminApp } from "@questpie/admin";
+import { cmsClient } from "./lib/cms-client";
+import {
+  Link,
+  useLocation,
+  useNavigate,
+  useParams,
+} from "@tanstack/react-router";
 
 function App() {
-  const location = useLocation()
-  const navigate = useNavigate()
-  const params = useParams()
-  const segments = params._.split('/').filter(Boolean)
+  const location = useLocation();
+  const navigate = useNavigate();
+  const params = useParams();
+  const segments = params._.split("/").filter(Boolean);
 
   return (
     <AdminApp
-      client={cmsClient}  // That's it! Everything else is auto-generated
+      client={cmsClient} // That's it! Everything else is auto-generated
       router={{
         LinkComponent: Link,
         currentPath: location.pathname,
@@ -27,7 +54,7 @@ function App() {
         navigate,
       }}
     />
-  )
+  );
 }
 ```
 
@@ -54,22 +81,22 @@ function App() {
 Most UI is auto-generated from CMS collections. Field types and relation targets must be explicit in admin config.
 
 ```typescript
-import { defineAdminConfig } from '@questpie/admin/config'
-import type { AppCMS } from './server/cms'
+import { defineAdminConfig } from "@questpie/admin/config";
+import type { AppCMS } from "./server/cms";
 
 export const adminConfig = defineAdminConfig<AppCMS>()({
   app: {
-    brand: { name: "My Admin" }
+    brand: { name: "My Admin" },
   },
   collections: {
     posts: {
-      label: "Blog Posts",  // Override label
+      label: "Blog Posts", // Override label
 
       // List view
       list: {
         defaultColumns: ["title", "author", "publishedAt"],
         defaultSort: { field: "publishedAt", direction: "desc" },
-        with: ["author"]  // Auto-load relations
+        with: ["author"], // Auto-load relations
       },
 
       // Edit form
@@ -81,50 +108,52 @@ export const adminConfig = defineAdminConfig<AppCMS>()({
         sections: [
           {
             title: "Content",
-            fields: ["title", "content"]
+            fields: ["title", "content"],
           },
           {
             title: "Publishing",
-            fields: ["status", "publishedAt"]
-          }
-        ]
+            fields: ["status", "publishedAt"],
+          },
+        ],
       },
 
       // Field-level overrides
       fields: {
         title: {
           label: "Post Title",
-          required: true
+          required: true,
         },
         content: {
-          type: "richText",  // Custom field type
-          placeholder: "Write your post..."
+          type: "richText", // Custom field type
+          placeholder: "Write your post...",
         },
         status: {
           type: "select",
           options: [
             { label: "Draft", value: "draft" },
-            { label: "Published", value: "published" }
-          ]
+            { label: "Published", value: "published" },
+          ],
         },
         publishedAt: {
           label: "Publish Date",
           type: "datetime",
           // Conditional: readonly unless draft
-          readOnly: (values) => values.status !== "draft"
-        }
-      }
-    }
-  }
-})
+          readOnly: (values) => values.status !== "draft",
+        },
+      },
+    },
+  },
+});
 ```
 
 ## ✨ What's Automatic
 
 ### From CMS Schema
+
 - 🚫 Schema introspection (field types, required, defaults, relations) - not planned (explicit config)
 
 ### From Admin Config
+
 - ✅ **Sidebar navigation** - auto-generated from collections
 - ✅ **Routing** - `/admin/:collection/:id` patterns
 - ✅ **List views** - columns, sorting, filtering
@@ -178,13 +207,13 @@ edit: {
       description: "Main appointment details",
       fields: ["customer", "barber", "service", "scheduledAt"],
       collapsible: true,
-      defaultOpen: true
+      defaultOpen: true,
     },
     {
       title: "Status",
-      fields: ["status", "notes"]
-    }
-  ]
+      fields: ["status", "notes"],
+    },
+  ];
 }
 ```
 
@@ -199,7 +228,7 @@ edit: {
       title: "Basic",
       layout: "columns",
       columns: 2,
-      fields: ["title", "slug", "author", "category"]
+      fields: ["title", "slug", "author", "category"],
     },
     {
       title: "Pricing",
@@ -208,15 +237,15 @@ edit: {
       fields: [
         { field: "price", span: 1 },
         { field: "currency", span: 1 },
-        { field: "stock", span: 2 }
-      ]
+        { field: "stock", span: 2 },
+      ],
     },
     {
       title: "Dates",
       layout: "inline",
-      fields: ["startDate", "endDate"]
-    }
-  ]
+      fields: ["startDate", "endDate"],
+    },
+  ];
 }
 ```
 
@@ -244,14 +273,14 @@ edit: {
     {
       id: "content",
       label: "Content",
-      fields: ["title", "content"]
+      fields: ["title", "content"],
     },
     {
       id: "meta",
       label: "Metadata",
-      fields: ["seo", "tags", "category"]
-    }
-  ]
+      fields: ["seo", "tags", "category"],
+    },
+  ];
 }
 ```
 
@@ -308,6 +337,7 @@ fields: {
 ```
 
 **Features:**
+
 - ✅ **Plus button** - Create new related item (opens side sheet)
 - ✅ **Edit button** - Modify selected item (opens side sheet)
 - ✅ **Auto-complete** - Search and filter options
@@ -411,6 +441,7 @@ collections: {
 ```
 
 **Features:**
+
 - ✅ **Version tracking** - Every change creates a new version
 - ✅ **Change history** - See what changed, when, and by whom
 - ✅ **Diff view** - Compare old vs new values
@@ -456,13 +487,13 @@ import { ImagePicker } from './components/ImagePicker'
 
 ```typescript
 // Main component
-import { AdminApp } from '@questpie/admin'
+import { AdminApp } from "@questpie/admin";
 
 // Config helper
-import { defineAdminConfig } from '@questpie/admin/config'
+import { defineAdminConfig } from "@questpie/admin/config";
 
 // Hooks
-import { AdminProvider, useCollection } from '@questpie/admin/hooks'
+import { AdminProvider, useCollection } from "@questpie/admin/hooks";
 
 // Components
 import {
@@ -470,19 +501,20 @@ import {
   CollectionForm,
   RelationSelect,
   RelationPicker,
-  VersionHistory
-} from '@questpie/admin/components'
+  VersionHistory,
+} from "@questpie/admin/components";
 
 // Utilities
-import { cn } from '@questpie/admin/utils'
+import { cn } from "@questpie/admin/utils";
 
 // Styles
-import '@questpie/admin/styles'
+import "@questpie/admin/styles";
 ```
 
 ## 🎨 Styling
 
 Complete shadcn/ui setup with Tailwind CSS v4:
+
 - 53+ pre-built components (base-lyra style)
 - Light/dark theme support
 - oklch color space
@@ -510,6 +542,15 @@ See [tanstack-barbershop](../../examples/tanstack-barbershop) for complete examp
 - [ ] Custom dashboard
 - [ ] Permissions UI
 
-## 📝 License
+## Related Packages
+
+- [`@questpie/cms`](../cms) - Core CMS engine
+- [`@questpie/tanstack-query`](../tanstack-query) - TanStack Query integration
+- [`@questpie/hono`](../hono) - Hono adapter
+- [`@questpie/elysia`](../elysia) - Elysia adapter
+- [`@questpie/next`](../next) - Next.js adapter
+- [`@questpie/tanstack-start`](../tanstack-start) - TanStack Start adapter
+
+## License
 
 MIT
