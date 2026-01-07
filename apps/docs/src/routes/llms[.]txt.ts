@@ -8,16 +8,16 @@ QUESTPIE CMS is a type-safe, embeddable headless CMS built with TypeScript. It i
 
 ## Documentation
 
-- Full documentation: /llms-full.txt
-- Individual pages: /docs/{path}.mdx
+- Full documentation: https://questpie.com/llms-full.txt
+- Individual pages: https://questpie.com/docs/{path}.mdx
 
 ## Quick Links
 
-- Getting Started: /docs/introduction/getting-started.mdx
-- Collections: /docs/core-concepts/collections.mdx
-- Fields: /docs/core-concepts/fields.mdx
-- Hooks: /docs/core-concepts/hooks.mdx
-- Authentication: /docs/guides/authentication.mdx
+- Getting Started: https://questpie.com/docs/introduction/getting-started.mdx
+- Collections: https://questpie.com/docs/core-concepts/collections.mdx
+- Fields: https://questpie.com/docs/core-concepts/fields.mdx
+- Hooks: https://questpie.com/docs/core-concepts/hooks.mdx
+- Authentication: https://questpie.com/docs/guides/authentication.mdx
 
 ## Features
 
