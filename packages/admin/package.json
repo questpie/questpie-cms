@@ -94,7 +94,6 @@
 		}
 	},
 	"devDependencies": {
-		"@questpie/typescript-config": "workspace:*",
 		"@tanstack/db": "^0.1.1",
 		"drizzle-orm": "1.0.0-beta.6-4414a19",
 		"@testing-library/jest-dom": "^6.9.1",

@@ -1,5 +1,5 @@
 {
-	"extends": "@questpie/typescript-config/base.json",
+	"$schema": "https://json.schemastore.org/tsconfig",
 	"compilerOptions": {
 		"target": "ESNext",
 		"module": "ESNext",

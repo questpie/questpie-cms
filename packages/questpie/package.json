@@ -33,7 +33,6 @@
 	},
 	"devDependencies": {
 		"@electric-sql/pglite": "^0.3.14",
-		"@questpie/typescript-config": "workspace:*",
 		"@types/html-to-text": "^9.0.4",
 		"@types/nodemailer": "^7.0.5",
 		"@types/pg": "^8.16.0",
