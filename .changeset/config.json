@@ -23,5 +23,8 @@
 		"elysia-barbershop-example",
 		"portfolio-hono-example",
 		"tanstack-barbershop-example"
-	]
+	],
+	"___experimentalUnsafeOptions_WILL_CHANGE_IN_PATCH": {
+		"onlyUpdatePeerDependentsWhenOutOfRange": true
+	}
 }
