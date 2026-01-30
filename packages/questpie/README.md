@@ -267,12 +267,11 @@ bun questpie migrate:fresh     # Reset + run all migrations
 
 ## Framework Adapters
 
-| Adapter        | Package                    |
-| -------------- | -------------------------- |
-| Hono           | `@questpie/hono`           |
-| Elysia         | `@questpie/elysia`         |
-| Next.js        | `@questpie/next`           |
-| TanStack Start | `@questpie/tanstack-start` |
+| Adapter | Package            |
+| ------- | ------------------ |
+| Hono    | `@questpie/hono`   |
+| Elysia  | `@questpie/elysia` |
+| Next.js | `@questpie/next`   |
 
 ## Documentation
 

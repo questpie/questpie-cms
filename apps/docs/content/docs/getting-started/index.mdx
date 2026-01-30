@@ -13,7 +13,7 @@ QUESTPIE provides:
 
 - **Backend CMS** (`questpie`) - Type-safe data layer with Drizzle ORM
 - **Admin UI** (`@questpie/admin`) - Beautiful, config-driven admin interface
-- **Framework Adapters** - Hono, Elysia, Next.js, TanStack Start
+- **Framework Adapters** - Hono, Elysia, Next.js
 
 ## Quick Start
 
@@ -32,7 +32,7 @@ bun install
 ### 2. Install Dependencies
 
 ```bash
-bun add questpie @questpie/admin @questpie/tanstack-start
+bun add questpie @questpie/admin @questpie/hono
 bun add @questpie/tanstack-query @tanstack/react-query
 bun add drizzle-orm postgres
 bun add -D drizzle-kit
@@ -112,11 +112,15 @@ export const admin = qa<AppCMS>()
 ### 5. Mount the API
 
 ```typescript
-// src/routes/api/cms.ts (TanStack Start)
-import { createTanStackStartAdapter } from "@questpie/tanstack-start";
-import { cms } from "@/questpie/server/cms";
+// src/server.ts (Hono)
+import { Hono } from "hono";
+import { createHonoAdapter } from "@questpie/hono";
+import { cms } from "./questpie/server/cms";
 
-export const { GET, POST, PUT, DELETE } = createTanStackStartAdapter(cms);
+const app = new Hono();
+app.route("/api/cms", createHonoAdapter(cms));
+
+export default app;
 ```
 
 ### 6. Mount the Admin

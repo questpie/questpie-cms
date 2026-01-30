@@ -11,28 +11,11 @@ QUESTPIE CMS is framework-agnostic. Use adapters to connect it to your preferred
 
 | Framework | Package | Status |
 |-----------|---------|--------|
-| TanStack Start | `@questpie/tanstack-start` | Stable |
 | Hono | `@questpie/hono` | Stable |
 | Elysia | `@questpie/elysia` | Stable |
 | Next.js | `@questpie/next` | Stable |
 
 ## Quick Start
-
-### TanStack Start
-
-```bash
-bun add @questpie/tanstack-start
-```
-
-```typescript
-// routes/api/cms.ts
-import { createTanStackStartAdapter } from "@questpie/tanstack-start";
-import { cms } from "@/questpie/server/cms";
-
-export const { GET, POST, PUT, DELETE } = createTanStackStartAdapter(cms);
-```
-
-[Full TanStack Start Guide →](/docs/adapters/tanstack-start)
 
 ### Hono
 
@@ -139,7 +122,6 @@ export async function handleRequest(request: Request): Promise<Response> {
 ## Next Steps
 
 <Cards>
-  <Card href="/docs/adapters/tanstack-start" title="TanStack Start" description="Full-stack React framework" />
   <Card href="/docs/adapters/hono" title="Hono" description="Lightweight, edge-ready" />
   <Card href="/docs/adapters/elysia" title="Elysia" description="Bun-first framework" />
   <Card href="/docs/adapters/nextjs" title="Next.js" description="React framework by Vercel" />

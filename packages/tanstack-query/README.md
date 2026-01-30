@@ -297,7 +297,6 @@ const { data } = useQuery(q.collections.posts.find({ limit: 10 }));
 - [`@questpie/hono`](../hono) - Hono adapter
 - [`@questpie/elysia`](../elysia) - Elysia adapter
 - [`@questpie/next`](../next) - Next.js adapter
-- [`@questpie/tanstack-start`](../tanstack-start) - TanStack Start adapter
 
 ## License
 

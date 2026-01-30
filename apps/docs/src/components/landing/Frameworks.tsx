@@ -36,17 +36,6 @@ import { questpieNextRouteHandlers } from "@questpie/next"
 
 export const { GET, POST, PATCH, DELETE } = questpieNextRouteHandlers(app)`,
   },
-  tanstack: {
-    title: "TanStack Start",
-    code: `// routes/api/$.ts
-import { createAPIFileRoute } from "@tanstack/start/api"
-import { questpieStartHandlers } from "@questpie/tanstack-start"
-import { app } from "@/server/app"
-
-export const Route = createAPIFileRoute("/api/$")({
-  ...questpieStartHandlers(app),
-})`,
-  },
 };
 
 export function Frameworks() {
@@ -70,7 +59,6 @@ export function Frameworks() {
                 <TabsTrigger value="hono">Hono</TabsTrigger>
                 <TabsTrigger value="elysia">Elysia</TabsTrigger>
                 <TabsTrigger value="next">Next.js</TabsTrigger>
-                <TabsTrigger value="tanstack">TanStack Start</TabsTrigger>
               </TabsList>
             </div>
 

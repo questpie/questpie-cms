@@ -83,8 +83,7 @@ Always use `workspace:*` for internal packages:
   "dependencies": {
     "@questpie/cms": "workspace:*",
     "@questpie/admin": "workspace:*",
-    "@questpie/tanstack-start": "workspace:*",
-    "@questpie/tanstack-query": "workspace:*"
+        "@questpie/tanstack-query": "workspace:*"
   }
 }
 ```

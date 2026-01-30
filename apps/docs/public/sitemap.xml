@@ -131,9 +131,4 @@
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
-  <url>
-    <loc>https://questpie.com/docs/reference/tanstack-start-adapter</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
 </urlset>

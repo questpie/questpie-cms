@@ -14,7 +14,6 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
-      id-token: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -23,12 +22,6 @@ jobs:
         uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
-
-      - name: Setup Node (for npm provenance)
-        uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-          registry-url: "https://registry.npmjs.org"
 
       - name: Install dependencies
         run: bun install --frozen-lockfile
@@ -43,7 +36,7 @@ jobs:
           commit: "chore: release"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          NPM_CONFIG_PROVENANCE: true
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Create GitHub Release
         if: steps.changesets.outputs.published == 'true'

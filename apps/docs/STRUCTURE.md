@@ -148,7 +148,6 @@ apps/docs/
 │   │   ├── elysia.mdx
 │   │   ├── hono.mdx
 │   │   ├── nextjs.mdx
-│   │   ├── tanstack-start.mdx
 │   │   └── custom-adapter.mdx
 │   │
 │   ├── recipes/

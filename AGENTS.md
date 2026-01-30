@@ -13,7 +13,7 @@ This is the source-of-truth guidance for AI agents working in this repo. It supe
 - `apps/docs` — Docs site (TanStack Start + Vite + Fumadocs).
 - `packages/questpie` — Core engine, adapters, CLI, server/client/shared exports.
 - `packages/admin` — Config-driven admin UI package (React + Tailwind v4 + shadcn).
-- `packages/elysia`, `packages/hono`, `packages/next`, `packages/tanstack-start` — Framework adapters.
+- `packages/elysia`, `packages/hono`, `packages/next` — Framework adapters.
 - `packages/tanstack-query` — Query option builders + DB helpers.
 - `examples/*` — Full reference implementations (hono/elysia/tanstack barbershop).
 - `specifications/*` — Product specs; treat these as requirements.
