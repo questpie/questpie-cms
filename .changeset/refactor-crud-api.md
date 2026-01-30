@@ -1,5 +1,5 @@
 ---
-"@questpie/questpie": patch
+"questpie": patch
 ---
 
 refactor: use cms.api.collections for CRUD operations
