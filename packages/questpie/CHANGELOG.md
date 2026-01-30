@@ -1,5 +1,14 @@
 # questpie
 
+## 1.0.4
+
+### Patch Changes
+
+- [`01562df`](https://github.com/questpie/questpie-cms/commit/01562dfb6771a47eddcb797f36f951ae434f29c8) Thanks [@drepkovsky](https://github.com/drepkovsky)! - feat: add Prettify to admin builder types and improve DX
+  - Add `Prettify` wrapper to merged types in AdminBuilder for better IDE tooltips
+  - Add default `ConsoleAdapter` for email in development mode (no config needed)
+  - Fix package.json dependencies: move runtime deps (pino, drizzle-orm, zod) to dependencies, keep optional adapters (pg, ioredis, nodemailer, pg-boss) as optional peer deps
+
 ## 1.0.3
 
 ## 1.0.2
