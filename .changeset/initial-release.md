@@ -7,4 +7,4 @@
 "@questpie/tanstack-query": minor
 ---
 
-Initial public release of QuestPie CMS framework.
+Initial public release of QUESTPIE CMS framework.
