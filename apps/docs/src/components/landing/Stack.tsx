@@ -85,7 +85,7 @@ export function Stack() {
 							href={item.href}
 							target="_blank"
 							rel="noopener noreferrer"
-							className="group p-6 border border-border hover:border-primary/50 transition-colors"
+							className="group p-6 border border-border backdrop-blur-xs bg-background/5 hover:border-primary/50 transition-colors"
 						>
 							<div className="flex items-start justify-between mb-4">
 								<div className="p-2 border border-border group-hover:border-primary/50 transition-colors">
