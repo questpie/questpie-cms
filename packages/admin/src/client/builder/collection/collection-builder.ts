@@ -5,6 +5,7 @@
  * Single generic TState pattern with ~adminApp for type safety.
  */
 
+import type { SetProperty } from "questpie/shared";
 import type { Questpie } from "questpie";
 import type { I18nText } from "../../i18n/types.js";
 import type { AdminBuilder } from "../admin-builder";
@@ -158,7 +159,7 @@ export class CollectionBuilder<TState extends CollectionBuilderState> {
 	 */
 	use<TAdminApp extends AdminBuilder<any>>(
 		adminApp: TAdminApp,
-	): CollectionBuilder<Omit<TState, "~adminApp"> & { "~adminApp": TAdminApp }> {
+	): CollectionBuilder<SetProperty<TState, "~adminApp", TAdminApp>> {
 		return new CollectionBuilder({
 			...this.state,
 			"~adminApp": adminApp,
@@ -192,11 +193,7 @@ export class CollectionBuilder<TState extends CollectionBuilderState> {
 				AdminAppBlocks<TState["~adminApp"]>
 			>;
 		}) => TNewFields,
-	): CollectionBuilder<
-		Omit<TState, "fields"> & {
-			fields: TNewFields;
-		}
-	> {
+	): CollectionBuilder<SetProperty<TState, "fields", TNewFields>> {
 		// Extract field registry from admin app
 		const adminApp = this.state["~adminApp"];
 		const adminFields =
@@ -251,7 +248,7 @@ export class CollectionBuilder<TState extends CollectionBuilderState> {
 				AdminAppBlocks<TState["~adminApp"]>
 			>;
 		}) => TViewResult,
-	): CollectionBuilder<Omit<TState, "list"> & { list: TViewResult }> {
+	): CollectionBuilder<SetProperty<TState, "list", TViewResult>> {
 		const adminApp = this.state["~adminApp"];
 		const adminFields =
 			adminApp && "state" in adminApp
@@ -332,7 +329,7 @@ export class CollectionBuilder<TState extends CollectionBuilderState> {
 				AdminAppBlocks<TState["~adminApp"]>
 			>;
 		}) => TViewResult,
-	): CollectionBuilder<Omit<TState, "form"> & { form: TViewResult }> {
+	): CollectionBuilder<SetProperty<TState, "form", TViewResult>> {
 		const adminApp = this.state["~adminApp"];
 		const adminFields =
 			adminApp && "state" in adminApp
@@ -376,7 +373,7 @@ export class CollectionBuilder<TState extends CollectionBuilderState> {
 	 */
 	preview(
 		config: PreviewConfig,
-	): CollectionBuilder<Omit<TState, "preview"> & { preview: PreviewConfig }> {
+	): CollectionBuilder<SetProperty<TState, "preview", PreviewConfig>> {
 		return new CollectionBuilder({
 			...this.state,
 			preview: config,
@@ -403,9 +400,7 @@ export class CollectionBuilder<TState extends CollectionBuilderState> {
 	 */
 	autoSave(
 		config: AutoSaveConfig,
-	): CollectionBuilder<
-		Omit<TState, "autoSave"> & { autoSave: AutoSaveConfig }
-	> {
+	): CollectionBuilder<SetProperty<TState, "autoSave", AutoSaveConfig>> {
 		return new CollectionBuilder({
 			...this.state,
 			autoSave: config,

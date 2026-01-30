@@ -4,6 +4,7 @@
  * Defines reusable field types with form and cell components.
  */
 
+import type { SetProperty } from "questpie/shared";
 import type React from "react";
 import type { z } from "zod";
 import type {
@@ -222,7 +223,7 @@ export class FieldBuilder<TState extends FieldBuilderState>
 	 */
 	$options<TNewOptions>(
 		options: TNewOptions,
-	): FieldBuilder<Omit<TState, "~options"> & { "~options": TNewOptions }> {
+	): FieldBuilder<SetProperty<TState, "~options", TNewOptions>> {
 		return new FieldBuilder({
 			...this.state,
 			"~options": options,
@@ -234,9 +235,7 @@ export class FieldBuilder<TState extends FieldBuilderState>
 	 */
 	withCell<TNewCellComponent extends MaybeLazyComponent>(
 		component: TNewCellComponent,
-	): FieldBuilder<
-		Omit<TState, "cellComponent"> & { cellComponent: TNewCellComponent }
-	> {
+	): FieldBuilder<SetProperty<TState, "cellComponent", TNewCellComponent>> {
 		return new FieldBuilder({
 			...this.state,
 			cellComponent: component,

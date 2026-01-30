@@ -5,7 +5,12 @@
  * Single generic TState pattern.
  */
 
-import { DEFAULT_LOCALE_CONFIG } from "questpie/shared";
+import {
+	DEFAULT_LOCALE_CONFIG,
+	type SetProperty,
+	type TypeMerge,
+	type UnsetProperty,
+} from "questpie/shared";
 import type { SimpleMessages } from "../i18n/simple";
 import type {
 	AdminBuilderState,
@@ -98,9 +103,7 @@ export class AdminBuilder<TState extends AdminBuilderState> {
 	fields<TNewFields extends Record<string, any>>(
 		fields: TNewFields,
 	): AdminBuilder<
-		Omit<TState, "fields"> & {
-			fields: TState["fields"] & TNewFields;
-		}
+		SetProperty<TState, "fields", TypeMerge<TState["fields"], TNewFields>>
 	> {
 		return new AdminBuilder({
 			...this.state,
@@ -117,10 +120,13 @@ export class AdminBuilder<TState extends AdminBuilderState> {
 	views<TNewViews extends Record<string, any>>(
 		views: TNewViews,
 	): AdminBuilder<
-		Omit<TState, "listViews" | "editViews"> & {
-			listViews: TState["listViews"] & FilterListViews<TNewViews>;
-			editViews: TState["editViews"] & FilterEditViews<TNewViews>;
-		}
+		TypeMerge<
+			UnsetProperty<TState, "listViews" | "editViews">,
+			{
+				listViews: TypeMerge<TState["listViews"], FilterListViews<TNewViews>>;
+				editViews: TypeMerge<TState["editViews"], FilterEditViews<TNewViews>>;
+			}
+		>
 	> {
 		const listViews: Record<string, any> = {};
 		const editViews: Record<string, any> = {};
@@ -148,9 +154,7 @@ export class AdminBuilder<TState extends AdminBuilderState> {
 	widgets<TNewWidgets extends Record<string, any>>(
 		widgets: TNewWidgets,
 	): AdminBuilder<
-		Omit<TState, "widgets"> & {
-			widgets: TState["widgets"] & TNewWidgets;
-		}
+		SetProperty<TState, "widgets", TypeMerge<TState["widgets"], TNewWidgets>>
 	> {
 		return new AdminBuilder({
 			...this.state,
@@ -167,9 +171,7 @@ export class AdminBuilder<TState extends AdminBuilderState> {
 	pages<TNewPages extends Record<string, any>>(
 		pages: TNewPages,
 	): AdminBuilder<
-		Omit<TState, "pages"> & {
-			pages: TState["pages"] & TNewPages;
-		}
+		SetProperty<TState, "pages", TypeMerge<TState["pages"], TNewPages>>
 	> {
 		return new AdminBuilder({
 			...this.state,
@@ -207,9 +209,7 @@ export class AdminBuilder<TState extends AdminBuilderState> {
 	blocks<TNewBlocks extends Record<string, any>>(
 		blocks: TNewBlocks,
 	): AdminBuilder<
-		Omit<TState, "blocks"> & {
-			blocks: TState["blocks"] & TNewBlocks;
-		}
+		SetProperty<TState, "blocks", TypeMerge<TState["blocks"], TNewBlocks>>
 	> {
 		return new AdminBuilder({
 			...this.state,
@@ -237,9 +237,11 @@ export class AdminBuilder<TState extends AdminBuilderState> {
 	translations<TNewTranslations extends TranslationsMap>(
 		translations: TNewTranslations,
 	): AdminBuilder<
-		Omit<TState, "translations"> & {
-			translations: TState["translations"] & TNewTranslations;
-		}
+		SetProperty<
+			TState,
+			"translations",
+			TypeMerge<TState["translations"], TNewTranslations>
+		>
 	> {
 		return new AdminBuilder({
 			...this.state,
@@ -283,9 +285,11 @@ export class AdminBuilder<TState extends AdminBuilderState> {
 	messages<TNewMessages extends TranslationsMap>(
 		messages: TNewMessages,
 	): AdminBuilder<
-		Omit<TState, "translations"> & {
-			translations: TState["translations"] & TNewMessages;
-		}
+		SetProperty<
+			TState,
+			"translations",
+			TypeMerge<TState["translations"], TNewMessages>
+		>
 	> {
 		return this.translations(messages);
 	}
@@ -296,45 +300,54 @@ export class AdminBuilder<TState extends AdminBuilderState> {
 	use<TOther extends AdminBuilder<any>>(
 		other: TOther,
 	): AdminBuilder<
-		Omit<
-			TState,
-			| "fields"
-			| "listViews"
-			| "editViews"
-			| "widgets"
-			| "pages"
-			| "blocks"
-			| "collections"
-			| "globals"
-			| "sidebar"
-			| "translations"
-		> & {
-			fields: TState["fields"] & TOther["state"]["fields"];
-			listViews: TState["listViews"] & TOther["state"]["listViews"];
-			editViews: TState["editViews"] & TOther["state"]["editViews"];
-			widgets: TState["widgets"] & TOther["state"]["widgets"];
-			pages: TState["pages"] & TOther["state"]["pages"];
-			blocks: TState["blocks"] & TOther["state"]["blocks"];
-			collections: TState["collections"] & TOther["state"]["collections"];
-			globals: TState["globals"] & TOther["state"]["globals"];
-			sidebar: TOther["state"]["sidebar"] extends { sections: any[] }
-				? {
-						sections: [
-							...(TState["sidebar"] extends { sections: infer S }
-								? S extends any[]
-									? S
-									: []
-								: []),
-							...(TOther["state"]["sidebar"] extends { sections: infer S }
-								? S extends any[]
-									? S
-									: []
-								: []),
-						];
-					}
-				: TState["sidebar"];
-			translations: TState["translations"] & TOther["state"]["translations"];
-		}
+		TypeMerge<
+			UnsetProperty<
+				TState,
+				| "fields"
+				| "listViews"
+				| "editViews"
+				| "widgets"
+				| "pages"
+				| "blocks"
+				| "collections"
+				| "globals"
+				| "sidebar"
+				| "translations"
+			>,
+			{
+				fields: TypeMerge<TState["fields"], TOther["state"]["fields"]>;
+				listViews: TypeMerge<TState["listViews"], TOther["state"]["listViews"]>;
+				editViews: TypeMerge<TState["editViews"], TOther["state"]["editViews"]>;
+				widgets: TypeMerge<TState["widgets"], TOther["state"]["widgets"]>;
+				pages: TypeMerge<TState["pages"], TOther["state"]["pages"]>;
+				blocks: TypeMerge<TState["blocks"], TOther["state"]["blocks"]>;
+				collections: TypeMerge<
+					TState["collections"],
+					TOther["state"]["collections"]
+				>;
+				globals: TypeMerge<TState["globals"], TOther["state"]["globals"]>;
+				sidebar: TOther["state"]["sidebar"] extends { sections: any[] }
+					? {
+							sections: [
+								...(TState["sidebar"] extends { sections: infer S }
+									? S extends any[]
+										? S
+										: []
+									: []),
+								...(TOther["state"]["sidebar"] extends { sections: infer S }
+									? S extends any[]
+										? S
+										: []
+									: []),
+							];
+						}
+					: TState["sidebar"];
+				translations: TypeMerge<
+					TState["translations"],
+					TOther["state"]["translations"]
+				>;
+			}
+		>
 	> {
 		const otherState = (other as any).state;
 
@@ -371,9 +384,11 @@ export class AdminBuilder<TState extends AdminBuilderState> {
 	collections<TNewCollections extends Record<string, any>>(
 		collections: TNewCollections,
 	): AdminBuilder<
-		Omit<TState, "collections"> & {
-			collections: TState["collections"] & TNewCollections;
-		}
+		SetProperty<
+			TState,
+			"collections",
+			TypeMerge<TState["collections"], TNewCollections>
+		>
 	> {
 		return new AdminBuilder({
 			...this.state,
@@ -390,9 +405,7 @@ export class AdminBuilder<TState extends AdminBuilderState> {
 	globals<TNewGlobals extends Record<string, any>>(
 		globals: TNewGlobals,
 	): AdminBuilder<
-		Omit<TState, "globals"> & {
-			globals: TState["globals"] & TNewGlobals;
-		}
+		SetProperty<TState, "globals", TypeMerge<TState["globals"], TNewGlobals>>
 	> {
 		return new AdminBuilder({
 			...this.state,
@@ -435,12 +448,14 @@ export class AdminBuilder<TState extends AdminBuilderState> {
 	sidebar<TSectionIds extends string>(
 		config: SidebarConfig<TSectionIds> | SidebarBuilder<TSectionIds>,
 	): AdminBuilder<
-		Omit<TState, "sidebar"> & {
-			sidebar: SidebarConfig<
+		SetProperty<
+			TState,
+			"sidebar",
+			SidebarConfig<
 				| (TState["sidebar"] extends SidebarConfig<infer TIds> ? TIds : never)
 				| TSectionIds
-			>;
-		}
+			>
+		>
 	> {
 		const newSidebarConfig =
 			config instanceof SidebarBuilder ? config.build() : config;
@@ -504,12 +519,14 @@ export class AdminBuilder<TState extends AdminBuilderState> {
 			>,
 		) => SidebarBuilder<TNewSectionIds>,
 	): AdminBuilder<
-		Omit<TState, "sidebar"> & {
-			sidebar: SidebarConfig<
+		SetProperty<
+			TState,
+			"sidebar",
+			SidebarConfig<
 				| (TState["sidebar"] extends SidebarConfig<infer TIds> ? TIds : never)
 				| TNewSectionIds
-			>;
-		}
+			>
+		>
 	> {
 		const currentSidebar = this.state.sidebar as SidebarConfig<string>;
 		const builder = SidebarBuilder.from(currentSidebar);
@@ -548,9 +565,11 @@ export class AdminBuilder<TState extends AdminBuilderState> {
 	defaultViews<TDefaultViews extends DefaultViewsConfig>(
 		config: TDefaultViews,
 	): AdminBuilder<
-		Omit<TState, "defaultViews"> & {
-			defaultViews: TState["defaultViews"] & TDefaultViews;
-		}
+		SetProperty<
+			TState,
+			"defaultViews",
+			TypeMerge<TState["defaultViews"], TDefaultViews>
+		>
 	> {
 		return new AdminBuilder({
 			...this.state,

@@ -30,6 +30,7 @@
  * ```
  */
 
+import type { SetProperty } from "questpie/shared";
 import type * as React from "react";
 import type {
 	BlockCategory,
@@ -95,7 +96,7 @@ export class BlockBuilder<TState extends BlockBuilderState> {
 	 */
 	use<TAdminApp extends AdminBuilder<any>>(
 		adminApp: TAdminApp,
-	): BlockBuilder<Omit<TState, "~adminApp"> & { "~adminApp": TAdminApp }> {
+	): BlockBuilder<SetProperty<TState, "~adminApp", TAdminApp>> {
 		return new BlockBuilder({
 			...this.state,
 			"~adminApp": adminApp,

@@ -5,6 +5,7 @@
  * Single generic TState pattern with ~adminApp for type safety.
  */
 
+import type { SetProperty } from "questpie/shared";
 import type { I18nText } from "../../i18n/types.js";
 import type { AdminBuilder } from "../admin-builder";
 import type {
@@ -55,7 +56,7 @@ export class GlobalBuilder<TState extends GlobalBuilderState> {
 	 */
 	use<TAdminApp extends AdminBuilder<any>>(
 		adminApp: TAdminApp,
-	): GlobalBuilder<Omit<TState, "~adminApp"> & { "~adminApp": TAdminApp }> {
+	): GlobalBuilder<SetProperty<TState, "~adminApp", TAdminApp>> {
 		return new GlobalBuilder({
 			...this.state,
 			"~adminApp": adminApp,
@@ -87,7 +88,7 @@ export class GlobalBuilder<TState extends GlobalBuilderState> {
 				AdminAppBlocks<TState["~adminApp"]>
 			>;
 		}) => TNewFields,
-	): GlobalBuilder<Omit<TState, "fields"> & { fields: TNewFields }> {
+	): GlobalBuilder<SetProperty<TState, "fields", TNewFields>> {
 		const adminApp = this.state["~adminApp"];
 		const adminFields =
 			adminApp && "state" in adminApp

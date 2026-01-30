@@ -4,6 +4,7 @@
  * Defines custom admin pages outside of collections/globals.
  */
 
+import type { SetProperty } from "questpie/shared";
 import type { MaybeLazyComponent } from "../types/common";
 
 export interface PageDefinition<TName extends string = string> {
@@ -21,7 +22,7 @@ export interface PageBuilderState {
 export class PageBuilder<TState extends PageBuilderState> {
   constructor(public readonly state: TState) {}
 
-  path(path: string): PageBuilder<Omit<TState, "path"> & { path: string }> {
+  path(path: string): PageBuilder<SetProperty<TState, "path", string>> {
     return new PageBuilder({
       ...this.state,
       path,
