@@ -20,10 +20,10 @@ export function Examples() {
 	return (
 		<section
 			id="examples"
-			className="py-24 border-t border-border/50 relative overflow-hidden"
+			className="py-24 border-t border-border/30 relative overflow-hidden"
 		>
-			{/* Background glow */}
-			<div className="absolute top-0 right-1/4 w-[400px] h-[400px] bg-primary/5 rounded-full blur-[120px]" />
+			{/* Subtle background glow */}
+			<div className="absolute top-0 right-1/4 w-[400px] h-[400px] bg-primary/3 rounded-full blur-[150px]" />
 
 			<div className="w-full max-w-7xl mx-auto px-4 relative z-10">
 				<div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-12 gap-6">
@@ -105,9 +105,9 @@ export function Examples() {
 					{[1, 2].map((i) => (
 						<div
 							key={i}
-							className="flex flex-col items-center justify-center p-6 border border-dashed border-border/50 text-center min-h-[280px]"
+							className="flex flex-col items-center justify-center p-6 border border-dashed border-border/30 text-center min-h-[280px]"
 						>
-							<div className="w-10 h-10 rounded-full bg-muted/50 flex items-center justify-center mb-4">
+							<div className="w-10 h-10 bg-muted/50 flex items-center justify-center mb-4">
 								<FolderOpen className="h-5 w-5 text-muted-foreground/50" />
 							</div>
 							<p className="text-sm text-muted-foreground">More coming soon</p>

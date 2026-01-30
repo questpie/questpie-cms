@@ -12,10 +12,10 @@ export function Hero({ headlineIndex }: HeroProps) {
 
 	return (
 		<section className="relative overflow-hidden py-20 lg:py-28">
-			{/* Background */}
+			{/* Subtle background */}
 			<div className="absolute inset-0 pointer-events-none">
-				<div className="absolute top-0 left-1/4 w-[500px] h-[500px] bg-primary/10 rounded-full blur-[120px]" />
-				<div className="absolute bottom-0 right-1/4 w-[400px] h-[400px] bg-primary/5 rounded-full blur-[100px]" />
+				<div className="absolute top-0 left-1/4 w-[500px] h-[500px] bg-primary/5 rounded-full blur-[150px]" />
+				<div className="absolute bottom-0 right-1/4 w-[400px] h-[400px] bg-primary/3 rounded-full blur-[120px]" />
 			</div>
 
 			<div className="w-full max-w-7xl relative mx-auto px-4 z-10">

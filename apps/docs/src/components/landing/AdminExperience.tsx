@@ -108,19 +108,19 @@ export function AdminExperience() {
 									{/* Header */}
 									<div className="flex items-center justify-between mb-4">
 										<h3 className="font-semibold text-sm">Posts</h3>
-										<div className="px-2 py-1 bg-primary text-primary-foreground text-xs font-medium rounded">
+										<div className="px-2 py-1 bg-primary text-primary-foreground text-xs font-medium">
 											+ New Post
 										</div>
 									</div>
 
 									{/* Search */}
 									<div className="flex gap-2 mb-4">
-										<div className="flex-1 h-8 bg-muted/50 border border-border rounded px-2 flex items-center">
+										<div className="flex-1 h-8 bg-muted/50 border border-border px-2 flex items-center">
 											<span className="text-xs text-muted-foreground">
 												Search posts...
 											</span>
 										</div>
-										<div className="h-8 px-3 bg-muted/50 border border-border rounded flex items-center">
+										<div className="h-8 px-3 bg-muted/50 border border-border flex items-center">
 											<span className="text-xs text-muted-foreground">
 												Filter
 											</span>
@@ -128,8 +128,8 @@ export function AdminExperience() {
 									</div>
 
 									{/* Table */}
-									<div className="border border-border rounded overflow-hidden">
-										<div className="grid grid-cols-4 gap-2 px-3 py-2 bg-muted/50 text-xs font-medium text-muted-foreground border-b border-border">
+									<div className="border border-border overflow-hidden">
+										<div className="grid grid-cols-4 gap-2 px-3 py-2 bg-muted/50 text-[10px] font-medium text-muted-foreground border-b border-border uppercase tracking-wider">
 											<div>Cover</div>
 											<div>Title</div>
 											<div>Status</div>
@@ -157,11 +157,11 @@ export function AdminExperience() {
 												key={i}
 												className="grid grid-cols-4 gap-2 px-3 py-2 text-xs border-b border-border last:border-0 hover:bg-muted/30 transition-colors"
 											>
-												<div className="w-8 h-6 bg-muted rounded" />
+												<div className="w-8 h-6 bg-muted" />
 												<div className="truncate">{row.title}</div>
 												<div className="flex items-center gap-1">
 													<div
-														className={`w-1.5 h-1.5 rounded-full ${row.statusColor}`}
+														className={`w-1.5 h-1.5 ${row.statusColor}`}
 													/>
 													<span className="text-muted-foreground">
 														{row.status}

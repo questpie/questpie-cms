@@ -60,9 +60,9 @@ const stack = [
 
 export function Stack() {
 	return (
-		<section className="py-24 border-t border-border/50 relative overflow-hidden">
-			{/* Background glow */}
-			<div className="absolute top-1/2 left-1/4 w-[400px] h-[400px] bg-primary/5 rounded-full blur-[120px] -translate-y-1/2" />
+		<section className="py-24 border-t border-border/30 relative overflow-hidden">
+			{/* Subtle background glow */}
+			<div className="absolute top-1/2 left-1/4 w-[400px] h-[400px] bg-primary/3 rounded-full blur-[150px] -translate-y-1/2" />
 
 			<div className="w-full max-w-7xl mx-auto px-4 relative z-10">
 				<div className="text-center max-w-2xl mx-auto space-y-4 mb-16">

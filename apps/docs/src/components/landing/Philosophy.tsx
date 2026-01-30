@@ -36,10 +36,10 @@ export const postsAdmin = qa.collection('posts')
 
 export function Philosophy() {
 	return (
-		<section className="py-24 border-t border-border/50 relative overflow-hidden">
-			{/* Background glows */}
-			<div className="absolute top-0 left-1/3 w-[400px] h-[400px] bg-primary/5 rounded-full blur-[120px]" />
-			<div className="absolute bottom-0 right-1/3 w-[300px] h-[300px] bg-primary/5 rounded-full blur-[100px]" />
+		<section className="py-24 border-t border-border/30 relative overflow-hidden">
+			{/* Subtle background glows */}
+			<div className="absolute top-0 left-1/3 w-[400px] h-[400px] bg-primary/3 rounded-full blur-[150px]" />
+			<div className="absolute bottom-0 right-1/3 w-[300px] h-[300px] bg-primary/3 rounded-full blur-[120px]" />
 
 			<div className="w-full max-w-7xl mx-auto px-4 relative z-10">
 				{/* Header */}

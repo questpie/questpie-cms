@@ -47,9 +47,11 @@ function Home() {
 
 	return (
 		<HomeLayout {...baseOptions()} nav={{ component: <Navbar /> }}>
-			<div className="flex flex-col min-h-screen text-foreground bg-grid-quest font-sans selection:bg-primary/20 selection:text-primary">
-				{/* Background Grid */}
-				<div className="fixed inset-0 bg-grid-quest opacity-[0.03] pointer-events-none z-0" />
+			<div className="flex flex-col min-h-screen text-foreground font-sans selection:bg-primary/20 selection:text-primary">
+				{/* Background Grid - more subtle with fade overlay */}
+				<div className="fixed inset-0 bg-grid-quest opacity-[0.02] pointer-events-none z-0" />
+				{/* Subtle gradient overlay to soften grid visibility */}
+				<div className="fixed inset-0 bg-gradient-to-b from-background/30 via-transparent to-background/30 pointer-events-none z-0" />
 
 				{/* Layout Guide Lines */}
 				<div className="fixed inset-0 pointer-events-none z-[1] flex justify-center px-4">

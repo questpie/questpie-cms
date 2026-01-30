@@ -40,7 +40,7 @@ export const { GET, POST, PATCH, DELETE } = questpieNextRouteHandlers(app)`,
 
 export function Frameworks() {
   return (
-    <section className="py-24 border-t border-border/50">
+    <section className="py-24 border-t border-border/30">
       <div className="w-full max-w-7xl mx-auto px-4 text-center">
         <h2 className="font-mono text-sm tracking-[0.2em] uppercase text-primary mb-4">
           Framework Adapters

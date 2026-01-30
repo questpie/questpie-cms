@@ -328,3 +328,318 @@ table td {
 table tr:last-child td {
   border-bottom: none;
 }
+
+/* ============================================
+   Fumadocs Cards Component Override
+   ============================================ */
+
+/* Cards container - the grid wrapper */
+[data-cards],
+.fd-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 1rem;
+}
+
+/* Individual Card - matching the design system */
+[data-card],
+.fd-card,
+a[data-card] {
+  display: block;
+  border-radius: 0 !important;
+  border: 1px solid var(--border);
+  background: transparent;
+  padding: 1rem 1.25rem;
+  text-decoration: none !important;
+  transition: all 0.2s ease;
+}
+
+[data-card]:hover,
+.fd-card:hover,
+a[data-card]:hover {
+  border-color: var(--primary);
+  background: oklch(from var(--primary) l c h / 0.03);
+}
+
+.dark [data-card]:hover,
+.dark .fd-card:hover,
+.dark a[data-card]:hover {
+  background: oklch(from var(--primary) l c h / 0.05);
+}
+
+/* Card title */
+[data-card] [data-card-title],
+[data-card] h3,
+[data-card] strong,
+.fd-card [data-card-title] {
+  display: block;
+  font-weight: 600;
+  font-size: 0.9375rem;
+  color: var(--foreground);
+  margin-bottom: 0.25rem;
+  transition: color 0.2s ease;
+}
+
+[data-card]:hover [data-card-title],
+[data-card]:hover h3,
+[data-card]:hover strong {
+  color: var(--primary);
+}
+
+/* Card description */
+[data-card] [data-card-description],
+[data-card] p,
+.fd-card [data-card-description] {
+  font-size: 0.8125rem;
+  color: var(--muted-foreground);
+  line-height: 1.5;
+  margin: 0;
+}
+
+/* Card icon if present */
+[data-card] svg,
+.fd-card svg {
+  width: 1.25rem;
+  height: 1.25rem;
+  color: var(--muted-foreground);
+  margin-bottom: 0.5rem;
+  transition: color 0.2s ease;
+}
+
+[data-card]:hover svg,
+.fd-card:hover svg {
+  color: var(--primary);
+}
+
+/* Remove any inner rounded corners */
+[data-card] *,
+.fd-card * {
+  border-radius: 0 !important;
+}
+
+/* ============================================
+   Fumadocs Prose Tables Override
+   ============================================ */
+
+/* Ensure all MDX/prose tables match the design system */
+.prose table,
+article table,
+.mdx table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  border: 1px solid var(--border);
+  margin: 1.5rem 0;
+  font-size: 0.875rem;
+  overflow: hidden;
+}
+
+.prose table th,
+article table th,
+.mdx table th {
+  background: var(--muted);
+  font-weight: 600;
+  text-align: left;
+  padding: 0.625rem 1rem;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted-foreground);
+}
+
+.prose table td,
+article table td,
+.mdx table td {
+  padding: 0.625rem 1rem;
+  border-bottom: 1px solid oklch(from var(--border) l c h / 0.5);
+  vertical-align: top;
+}
+
+.prose table tr:last-child td,
+article table tr:last-child td,
+.mdx table tr:last-child td {
+  border-bottom: none;
+}
+
+.prose table tr:hover,
+article table tr:hover,
+.mdx table tr:hover {
+  background: oklch(from var(--muted) l c h / 0.3);
+}
+
+/* TypeTable specific overrides (fumadocs type tables) */
+[data-type-table],
+.fd-type-table {
+  border-radius: 0 !important;
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+
+[data-type-table] th,
+.fd-type-table th {
+  background: var(--muted);
+  border-bottom: 1px solid var(--border);
+}
+
+[data-type-table] td,
+.fd-type-table td {
+  border-bottom: 1px solid oklch(from var(--border) l c h / 0.5);
+}
+
+[data-type-table] tr:last-child td,
+.fd-type-table tr:last-child td {
+  border-bottom: none;
+}
+
+/* ============================================
+   Section Background Transitions
+   ============================================ */
+
+/* Smooth gradient fades for section backgrounds */
+.section-fade-top {
+  position: relative;
+}
+
+.section-fade-top::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 120px;
+  background: linear-gradient(to bottom, var(--background), transparent);
+  pointer-events: none;
+  z-index: 1;
+}
+
+.section-fade-bottom {
+  position: relative;
+}
+
+.section-fade-bottom::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 120px;
+  background: linear-gradient(to top, var(--background), transparent);
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* ============================================
+   Landing Page Section Styles
+   ============================================ */
+
+/* Softer grid visibility for sections with solid backgrounds */
+section {
+  position: relative;
+}
+
+/* Grid overlay that fades */
+.grid-fade-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to bottom,
+    transparent 0%,
+    oklch(from var(--background) l c h / 0.7) 20%,
+    oklch(from var(--background) l c h / 0.7) 80%,
+    transparent 100%
+  );
+  pointer-events: none;
+}
+
+/* ============================================
+   Fumadocs Specific Component Overrides
+   ============================================ */
+
+/* Callouts/Alerts */
+[data-callout],
+.fd-callout {
+  border-radius: 0 !important;
+  border-left-width: 2px;
+}
+
+/* Steps component */
+[data-step],
+.fd-step {
+  border-radius: 0 !important;
+}
+
+/* Tabs */
+[data-tabs],
+.fd-tabs {
+  border-radius: 0 !important;
+}
+
+[data-tabs] [role="tablist"],
+.fd-tabs [role="tablist"] {
+  border-radius: 0 !important;
+}
+
+[data-tabs] [role="tab"],
+.fd-tabs [role="tab"] {
+  border-radius: 0 !important;
+}
+
+[data-tabs] [role="tabpanel"],
+.fd-tabs [role="tabpanel"] {
+  border-radius: 0 !important;
+}
+
+/* Accordion */
+[data-accordion],
+.fd-accordion {
+  border-radius: 0 !important;
+}
+
+[data-accordion-item],
+.fd-accordion-item {
+  border-radius: 0 !important;
+}
+
+/* File tree */
+[data-file-tree],
+.fd-file-tree {
+  border-radius: 0 !important;
+}
+
+/* Banner */
+[data-banner],
+.fd-banner {
+  border-radius: 0 !important;
+}
+
+/* Image zoom */
+[data-image-zoom],
+.fd-image-zoom {
+  border-radius: 0 !important;
+}
+
+/* ============================================
+   Global All Rounded Override
+   ============================================ */
+
+/* Force square corners on all fumadocs components */
+[class*="fd-"],
+[data-fumadocs] *,
+.fumadocs * {
+  border-radius: 0 !important;
+}
+
+/* Specific overrides for common rounded classes in fumadocs context */
+.prose .rounded,
+.prose .rounded-md,
+.prose .rounded-lg,
+.prose .rounded-xl,
+.prose .rounded-2xl,
+article .rounded,
+article .rounded-md,
+article .rounded-lg,
+article .rounded-xl,
+article .rounded-2xl {
+  border-radius: 0 !important;
+}

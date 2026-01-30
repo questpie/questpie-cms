@@ -160,7 +160,7 @@ export function Footer() {
           </div>
         </div>
 
-        <div className="flex flex-col gap-6 pt-8 border-t border-border/50">
+        <div className="flex flex-col gap-6 pt-8 border-t border-border/30">
           <div className="flex flex-col md:flex-row justify-between items-center gap-4">
             <div className="flex flex-col items-center md:items-start gap-2">
               <p className="text-xs text-muted-foreground">
