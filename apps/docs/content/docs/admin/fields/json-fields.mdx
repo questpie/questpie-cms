@@ -1,0 +1,408 @@
+---
+title: JSON & Structured Fields
+description: json, object, and array field types for complex data
+---
+
+# JSON & Structured Fields
+
+These fields handle complex, structured data like nested objects and repeatable items.
+
+## json
+
+Raw JSON editor for unstructured data.
+
+```typescript
+metadata: r.json({
+  label: "Metadata",
+})
+```
+
+### Options
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `label` | `string \| I18nText` | - | Display label |
+| `description` | `string \| I18nText` | - | Help text |
+| `required` | `boolean \| fn` | `false` | Required validation |
+| `readOnly` | `boolean \| fn` | `false` | Disable editing |
+| `visible` | `fn` | - | Conditional visibility |
+| `defaultValue` | `object` | - | Default JSON value |
+| `height` | `string` | `"200px"` | Editor height |
+| `validateJson` | `boolean` | `true` | Validate JSON syntax |
+
+### Examples
+
+```typescript
+// Basic JSON field
+metadata: r.json({
+  label: "Metadata",
+  description: "Additional data in JSON format",
+})
+
+// With default value
+config: r.json({
+  label: "Configuration",
+  defaultValue: {
+    theme: "light",
+    features: [],
+  },
+})
+
+// Taller editor
+customData: r.json({
+  label: "Custom Data",
+  height: "400px",
+})
+```
+
+<Callout type="info">
+For structured data with known fields, prefer `object` over `json`. It provides better UX with proper form fields instead of a code editor.
+</Callout>
+
+## object
+
+Typed object with defined fields. Renders as a nested form.
+
+```typescript
+address: r.object({
+  label: "Address",
+  fields: ({ r }) => ({
+    street: r.text({ label: "Street" }),
+    city: r.text({ label: "City" }),
+    zip: r.text({ label: "ZIP Code" }),
+    country: r.select({
+      label: "Country",
+      options: [
+        { label: "USA", value: "us" },
+        { label: "Canada", value: "ca" },
+      ],
+    }),
+  }),
+})
+```
+
+### Options
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `label` | `string \| I18nText` | - | Display label |
+| `description` | `string \| I18nText` | - | Help text |
+| `fields` | `fn` | - | Field definitions (with registry proxy) |
+| `layout` | `"stack" \| "inline" \| "grid"` | `"stack"` | Field arrangement |
+| `wrapper` | `"none" \| "card" \| "collapsible"` | `"card"` | Visual wrapper |
+| `defaultOpen` | `boolean` | `true` | Initial state (if collapsible) |
+| `visible` | `fn` | - | Conditional visibility |
+
+### Layout Options
+
+```typescript
+// Stack (default) - fields vertically stacked
+address: r.object({
+  label: "Address",
+  layout: "stack",
+  fields: ({ r }) => ({...}),
+})
+
+// Inline - fields in a row
+workingDay: r.object({
+  label: "Monday",
+  layout: "inline",
+  fields: ({ r }) => ({
+    isOpen: r.switch({ label: "Open" }),
+    start: r.time({ label: "Start" }),
+    end: r.time({ label: "End" }),
+  }),
+})
+
+// Grid - CSS grid layout
+contact: r.object({
+  label: "Contact",
+  layout: "grid",
+  fields: ({ r }) => ({
+    firstName: r.text({ label: "First Name" }),
+    lastName: r.text({ label: "Last Name" }),
+    email: r.email({ label: "Email" }),
+    phone: r.text({ label: "Phone" }),
+  }),
+})
+```
+
+### Wrapper Options
+
+```typescript
+// Card wrapper (default)
+address: r.object({
+  label: "Address",
+  wrapper: "card",
+  fields: ({ r }) => ({...}),
+})
+
+// Collapsible
+seoSettings: r.object({
+  label: "SEO Settings",
+  wrapper: "collapsible",
+  defaultOpen: false,
+  fields: ({ r }) => ({
+    metaTitle: r.text({ label: "Meta Title" }),
+    metaDescription: r.textarea({ label: "Meta Description" }),
+  }),
+})
+
+// No wrapper
+dimensions: r.object({
+  label: "Dimensions",
+  wrapper: "none",
+  layout: "inline",
+  fields: ({ r }) => ({
+    width: r.number({ label: "Width" }),
+    height: r.number({ label: "Height" }),
+  }),
+})
+```
+
+### Nested Objects
+
+```typescript
+workingHours: r.object({
+  label: "Working Hours",
+  layout: "grid",
+  wrapper: "collapsible",
+  fields: ({ r }) => ({
+    monday: r.object({
+      label: "Monday",
+      layout: "inline",
+      wrapper: "none",
+      fields: ({ r }) => ({
+        isOpen: r.switch({ label: "Open" }),
+        start: r.time({ label: "Start" }),
+        end: r.time({ label: "End" }),
+      }),
+    }),
+    tuesday: r.object({
+      label: "Tuesday",
+      layout: "inline",
+      wrapper: "none",
+      fields: ({ r }) => ({
+        isOpen: r.switch({ label: "Open" }),
+        start: r.time({ label: "Start" }),
+        end: r.time({ label: "End" }),
+      }),
+    }),
+    // ... more days
+  }),
+})
+```
+
+## array
+
+Repeatable list of items. Each item can be a primitive or complex object.
+
+```typescript
+socialLinks: r.array({
+  label: "Social Links",
+  item: ({ r }) => ({
+    platform: r.select({
+      label: "Platform",
+      options: [
+        { label: "Instagram", value: "instagram" },
+        { label: "Twitter", value: "twitter" },
+      ],
+    }),
+    url: r.text({ label: "URL" }),
+  }),
+})
+```
+
+### Options
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `label` | `string \| I18nText` | - | Display label |
+| `description` | `string \| I18nText` | - | Help text |
+| `item` | `fn` | - | Item field definitions |
+| `minItems` | `number` | - | Minimum items |
+| `maxItems` | `number` | - | Maximum items |
+| `orderable` | `boolean` | `true` | Allow reordering |
+| `addLabel` | `string` | "Add item" | Add button label |
+| `itemLabel` | `fn` | - | Dynamic item label |
+| `mode` | `"inline" \| "modal" \| "accordion"` | `"inline"` | Edit mode |
+| `visible` | `fn` | - | Conditional visibility |
+| `defaultValue` | `array` | `[]` | Default items |
+
+### Examples
+
+```typescript
+// Simple array
+tags: r.array({
+  label: "Tags",
+  item: ({ r }) => ({
+    name: r.text({ label: "Tag" }),
+  }),
+  addLabel: "Add Tag",
+  maxItems: 10,
+})
+
+// Social links with custom labels
+socialLinks: r.array({
+  label: "Social Links",
+  item: ({ r }) => ({
+    platform: r.select({
+      label: "Platform",
+      options: [
+        { label: "Instagram", value: "instagram" },
+        { label: "Facebook", value: "facebook" },
+        { label: "Twitter", value: "twitter" },
+        { label: "LinkedIn", value: "linkedin" },
+      ],
+    }),
+    url: r.text({ label: "URL" }),
+  }),
+  orderable: true,
+  maxItems: 5,
+  itemLabel: (item) => item?.platform || "New link",
+  mode: "inline",
+})
+
+// Gallery images
+gallery: r.array({
+  label: "Gallery",
+  item: ({ r }) => ({
+    image: r.upload({ label: "Image", accept: ["image/*"] }),
+    caption: r.text({ label: "Caption" }),
+    alt: r.text({ label: "Alt Text" }),
+  }),
+  maxItems: 20,
+  orderable: true,
+  addLabel: "Add Image",
+})
+
+// FAQ items
+faq: r.array({
+  label: "FAQ",
+  item: ({ r }) => ({
+    question: r.text({ label: "Question", required: true }),
+    answer: r.textarea({ label: "Answer", required: true }),
+  }),
+  mode: "accordion",
+  itemLabel: (item) => item?.question || "New question",
+})
+```
+
+### Array Mode Options
+
+```typescript
+// Inline - items shown directly
+socialLinks: r.array({
+  mode: "inline",
+  ...
+})
+
+// Modal - items edited in modal dialog
+complexItems: r.array({
+  mode: "modal",
+  ...
+})
+
+// Accordion - items collapsed/expanded
+faq: r.array({
+  mode: "accordion",
+  ...
+})
+```
+
+## Table Display
+
+### Object in Tables
+
+Objects typically show a summary or specific field:
+
+```typescript
+.list(({ v, f }) => v.table({
+  columns: [
+    f.name,
+    {
+      field: f.address,
+      render: (value) => value?.city || "-",  // Show just city
+    },
+  ],
+}))
+```
+
+### Array in Tables
+
+Arrays show item count:
+
+```typescript
+.list(({ v, f }) => v.table({
+  columns: [
+    f.name,
+    f.socialLinks,  // Shows "3 links"
+  ],
+}))
+```
+
+## Complete Example
+
+```typescript
+export const barbersAdmin = builder
+  .collection("barbers")
+  .fields(({ r }) => ({
+    name: r.text({ label: "Name", required: true }),
+    email: r.email({ label: "Email" }),
+
+    // Object: Address
+    address: r.object({
+      label: "Address",
+      wrapper: "collapsible",
+      fields: ({ r }) => ({
+        street: r.text({ label: "Street" }),
+        city: r.text({ label: "City" }),
+        zip: r.text({ label: "ZIP" }),
+      }),
+    }),
+
+    // Object: Working hours with nested objects
+    workingHours: r.object({
+      label: "Working Hours",
+      wrapper: "collapsible",
+      fields: ({ r }) => ({
+        monday: r.object({
+          label: "Monday",
+          layout: "inline",
+          wrapper: "none",
+          fields: ({ r }) => ({
+            isOpen: r.switch({ label: "Open" }),
+            start: r.time({ label: "Start" }),
+            end: r.time({ label: "End" }),
+          }),
+        }),
+        // ... repeat for other days
+      }),
+    }),
+
+    // Array: Social links
+    socialLinks: r.array({
+      label: "Social Links",
+      item: ({ r }) => ({
+        platform: r.select({
+          label: "Platform",
+          options: [
+            { label: "Instagram", value: "instagram" },
+            { label: "Facebook", value: "facebook" },
+            { label: "Twitter", value: "twitter" },
+          ],
+        }),
+        url: r.text({ label: "URL" }),
+      }),
+      orderable: true,
+      maxItems: 5,
+      itemLabel: (item) => item?.platform || "New link",
+    }),
+
+    // Raw JSON for extensibility
+    metadata: r.json({
+      label: "Custom Metadata",
+      description: "Additional data in JSON format",
+    }),
+  }));
+```

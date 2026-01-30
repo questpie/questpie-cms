@@ -1,0 +1,274 @@
+---
+title: Context
+description: Understanding request context and how to access app services.
+---
+
+QUESTPIE uses **AsyncLocalStorage** (from Node.js `node:async_hooks`) to provide request-scoped context throughout your application. This allows you to access the app instance and request information from anywhere in your code without explicitly passing it through every function call.
+
+## Why Context Matters
+
+In a typical request flow, you might need to:
+
+- Access the current user in a hook
+- Send an email from a job handler
+- Query another collection from within a function
+
+Instead of passing the app instance and user through every function, QUESTPIE automatically sets up context that you can access anywhere.
+
+## Accessing Context
+
+### `getAppFromContext()`
+
+Returns the app instance with full type-safe access to all services:
+
+```typescript
+import { getAppFromContext } from "questpie";
+
+// In a hook, function, or job handler
+const app = getAppFromContext();
+
+// Now you have access to everything:
+await app.api.collections.posts.find();
+await app.email.send({
+  to: "user@example.com",
+  subject: "Hello",
+  html: "<p>Hi</p>",
+});
+await app.queue.sendNotification.publish({ userId: "123" });
+app.logger.info("Something happened");
+```
+
+### `getRequestContext()`
+
+Returns the current request context with user, locale, and other request-specific data:
+
+```typescript
+import { getRequestContext } from "questpie";
+
+const ctx = getRequestContext();
+
+// Access request-specific data
+console.log(ctx?.user); // Current authenticated user
+console.log(ctx?.locale); // Current locale (e.g., "en", "sk")
+console.log(ctx?.accessMode); // "user" or "system"
+console.log(ctx?.session); // Current session
+```
+
+## RequestContext Interface
+
+```typescript
+interface RequestContext {
+  /** Current authenticated user (from Better Auth) */
+  user?: User & { role?: string };
+
+  /** Current request session */
+  session?: Session;
+
+  /** Current locale for this request */
+  locale?: string;
+
+  /** Default locale (fallback) */
+  defaultLocale?: string;
+
+  /** Access mode - 'system' bypasses access control, 'user' enforces it */
+  accessMode?: "user" | "system";
+
+  /** Database client (for transactions) */
+  db?: any;
+
+  /** Custom extensions */
+  [key: string]: any;
+}
+```
+
+## Where Context is Available
+
+Context is automatically set up in these scenarios:
+
+### 1. HTTP Requests
+
+When a request comes through the adapter, context is automatically created:
+
+```typescript
+// In Hono
+server.use(questpieMiddleware(app)); // Sets up context
+
+server.get("/api/custom", async (c) => {
+  // Context is available here
+  const app = getAppFromContext();
+  const ctx = getRequestContext();
+});
+```
+
+### 2. Collection Hooks
+
+All hooks run within context:
+
+```typescript
+q.collection("posts").hooks({
+  afterChange: async ({ data, operation }) => {
+    // Context is available
+    const app = getAppFromContext();
+    const ctx = getRequestContext();
+
+    if (operation === "create") {
+      await app.queue.postCreated.publish({ postId: data.id });
+    }
+  },
+});
+```
+
+### 3. Custom Functions
+
+Functions execute within context:
+
+```typescript
+q.fn({
+  schema: z.object({ postId: z.string() }),
+  handler: async (input) => {
+    // Context is available
+    const app = getAppFromContext();
+    const ctx = getRequestContext();
+
+    // Access current user
+    if (!ctx?.user) {
+      throw new Error("Must be authenticated");
+    }
+
+    return { success: true };
+  },
+});
+```
+
+### 4. Job Handlers
+
+Jobs run with a fresh context:
+
+```typescript
+q.job({
+  name: "send-email",
+  schema: z.object({ to: z.string(), subject: z.string() }),
+  handler: async (payload) => {
+    // Context is available
+    const app = getAppFromContext();
+
+    await app.email.send({
+      to: payload.to,
+      subject: payload.subject,
+      html: "<p>Hello</p>",
+    });
+  },
+});
+```
+
+## Running Code Within Context
+
+For advanced use cases, you can manually run code within a context:
+
+```typescript
+import { runWithAppContext } from "questpie";
+
+// Create a context
+const context = await app.createContext({
+  user: someUser,
+  locale: "en",
+  accessMode: "system",
+});
+
+// Run code within that context
+await runWithAppContext(app, context, async () => {
+  // getAppFromContext() and getRequestContext() work here
+  const app = getAppFromContext();
+  await app.api.collections.posts.find();
+});
+```
+
+## Access Modes
+
+The `accessMode` in context controls how access control is applied:
+
+### `"user"` Mode (Default for HTTP requests)
+
+Access control rules are enforced based on the current user:
+
+```typescript
+const context = await app.createContext({
+  user: currentUser,
+  accessMode: "user", // Access control is enforced
+});
+```
+
+### `"system"` Mode (Default for jobs and internal operations)
+
+Access control is bypassed - full access to all data:
+
+```typescript
+const context = await app.createContext({
+  accessMode: "system", // Full access, no restrictions
+});
+```
+
+## Best Practices
+
+### 1. Always Use `getAppFromContext()` in Hooks and Functions
+
+```typescript
+// Good - uses context
+afterChange: async ({ data }) => {
+  const app = getAppFromContext();
+  await app.queue.notify.publish({ id: data.id });
+};
+
+// Bad - imports global instance
+import { app } from "./app";
+afterChange: async ({ data }) => {
+  await app.queue.notify.publish({ id: data.id }); // Don't do this
+};
+```
+
+### 2. Check for User When Needed
+
+```typescript
+handler: async (input) => {
+  const ctx = getRequestContext();
+
+  if (!ctx?.user) {
+    throw new Error("Authentication required");
+  }
+
+  // Now TypeScript knows ctx.user exists
+  console.log(ctx.user.id);
+};
+```
+
+### 3. Use Type Parameter for Full Type Safety
+
+```typescript
+import type { MyApp } from "./app";
+
+const app = getAppFromContext<MyApp>();
+// Now app.api.collections.yourCollection is fully typed
+```
+
+## How It Works (Technical)
+
+Under the hood, QUESTPIE uses Node.js `AsyncLocalStorage`:
+
+1. When a request arrives, `createAdapterContext()` creates context from the request
+2. The handler runs inside `runWithAppContext()` which stores context in AsyncLocalStorage
+3. Any code that calls `getAppFromContext()` or `getRequestContext()` retrieves from AsyncLocalStorage
+4. When the request completes, context is automatically cleaned up
+
+This pattern allows context to "flow" through async operations without explicit passing:
+
+```
+Request → Middleware → Handler → Hook → Job trigger
+                ↓           ↓        ↓
+           [Context flows through AsyncLocalStorage]
+```
+
+## Next Steps
+
+- Learn about [Hooks](/docs/core-concepts/hooks) for adding business logic
+- Explore [Access Control](/docs/core-concepts/access-control) for securing operations
+- See [Queue Jobs](/docs/guides/queue-jobs) for background processing

@@ -1,0 +1,389 @@
+---
+title: Queue Adapter
+description: Background jobs and scheduled tasks
+---
+
+# Queue Adapter
+
+The queue adapter handles background jobs, scheduled tasks, and async processing.
+
+## Configuration
+
+### pg-boss (PostgreSQL)
+
+The recommended adapter for PostgreSQL databases:
+
+```typescript
+import { pgBossAdapter } from "questpie/queue";
+
+const cms = q({ name: "my-cms" })
+  .build({
+    queue: {
+      adapter: pgBossAdapter({
+        connectionString: process.env.DATABASE_URL,
+        // Optional: Schema for pg-boss tables
+        schema: "pgboss",
+        // Optional: Job retention
+        archiveCompletedAfterSeconds: 60 * 60 * 24, // 24 hours
+      }),
+    },
+  });
+```
+
+### In-Memory (Development)
+
+For development and testing:
+
+```typescript
+const cms = q({ name: "my-cms" })
+  .build({
+    queue: {
+      adapter: memoryQueueAdapter(),
+    },
+  });
+```
+
+## Defining Jobs
+
+Define jobs in your CMS configuration:
+
+```typescript
+// jobs/send-email.ts
+export const sendEmail = q.job({
+  name: "send-email",
+  schema: z.object({
+    to: z.string().email(),
+    subject: z.string(),
+    html: z.string(),
+  }),
+  handler: async ({ payload, app }) => {
+    await app.email.send({
+      to: payload.to,
+      subject: payload.subject,
+      html: payload.html,
+    });
+  },
+  options: {
+    retryLimit: 3,
+    retryDelay: 60, // seconds
+    retryBackoff: true, // exponential backoff
+  },
+});
+
+// jobs/process-image.ts
+export const processImage = q.job({
+  name: "process-image",
+  schema: z.object({
+    imagePath: z.string(),
+    sizes: z.array(z.object({
+      width: z.number(),
+      height: z.number(),
+      suffix: z.string(),
+    })),
+  }),
+  handler: async ({ payload, app }) => {
+    const image = await app.storage.get(payload.imagePath);
+
+    for (const size of payload.sizes) {
+      const resized = await sharp(image)
+        .resize(size.width, size.height)
+        .toBuffer();
+
+      const newPath = payload.imagePath.replace(
+        /(\.\w+)$/,
+        `${size.suffix}$1`
+      );
+
+      await app.storage.put(newPath, resized);
+    }
+  },
+});
+```
+
+Register jobs in the CMS:
+
+```typescript
+const cms = q({ name: "my-cms" })
+  .jobs({
+    sendEmail,
+    processImage,
+  })
+  .build({ ... });
+```
+
+## Publishing Jobs
+
+### Immediate Execution
+
+```typescript
+// Publish a job for immediate processing
+await cms.queue.sendEmail.publish({
+  to: "user@example.com",
+  subject: "Welcome!",
+  html: "<h1>Hello!</h1>",
+});
+
+// Returns job ID
+const jobId = await cms.queue.processImage.publish({
+  imagePath: "uploads/image.jpg",
+  sizes: [
+    { width: 800, height: 600, suffix: "-medium" },
+    { width: 200, height: 150, suffix: "-thumb" },
+  ],
+});
+```
+
+### Delayed Execution
+
+```typescript
+// Delay by seconds
+await cms.queue.sendEmail.publish(
+  { to: "user@example.com", ... },
+  { startAfter: 60 } // Start after 60 seconds
+);
+
+// Delay until specific time
+await cms.queue.sendEmail.publish(
+  { to: "user@example.com", ... },
+  { startAfter: new Date("2024-01-01T10:00:00Z") }
+);
+```
+
+### Scheduled Jobs (Cron)
+
+```typescript
+// Schedule recurring job
+await cms.queue.sendEmail.schedule(
+  { to: "admin@example.com", subject: "Daily Report", ... },
+  "0 8 * * *" // Every day at 8 AM
+);
+
+// With timezone
+await cms.queue.sendEmail.schedule(
+  { to: "admin@example.com", ... },
+  "0 8 * * *",
+  { timezone: "America/New_York" }
+);
+```
+
+## Job Options
+
+```typescript
+interface JobOptions {
+  // Number of retry attempts
+  retryLimit?: number;
+
+  // Delay between retries (seconds)
+  retryDelay?: number;
+
+  // Use exponential backoff
+  retryBackoff?: boolean;
+
+  // Job timeout (seconds)
+  expireInSeconds?: number;
+
+  // Keep completed jobs for this long (seconds)
+  retentionSeconds?: number;
+
+  // Job priority (higher = sooner)
+  priority?: number;
+
+  // Singleton key (only one job with this key)
+  singletonKey?: string;
+
+  // Singleton time window (seconds)
+  singletonSeconds?: number;
+}
+```
+
+## Job Handler Context
+
+The handler receives a context object:
+
+```typescript
+q.job({
+  name: "my-job",
+  schema: z.object({ ... }),
+  handler: async (context) => {
+    const {
+      payload,    // Job payload (typed)
+      app,        // CMS instance (access storage, email, etc.)
+      job,        // Job metadata
+    } = context;
+
+    // Access job metadata
+    console.log("Job ID:", job.id);
+    console.log("Attempt:", job.retryCount);
+    console.log("Created:", job.createdOn);
+
+    // Use CMS services
+    await app.storage.put("file.txt", buffer);
+    await app.email.send({ ... });
+  },
+});
+```
+
+## Error Handling
+
+Jobs automatically retry on failure:
+
+```typescript
+q.job({
+  name: "risky-job",
+  schema: z.object({ ... }),
+  handler: async ({ payload }) => {
+    try {
+      await riskyOperation(payload);
+    } catch (error) {
+      // Log error
+      console.error("Job failed:", error);
+
+      // Re-throw to trigger retry
+      throw error;
+
+      // Or throw specific error to stop retries
+      throw new FatalJobError("Cannot recover", { retryable: false });
+    }
+  },
+  options: {
+    retryLimit: 5,
+    retryDelay: 30,
+    retryBackoff: true, // 30s, 60s, 120s, 240s, 480s
+  },
+});
+```
+
+## Job Status
+
+Check job status:
+
+```typescript
+const jobId = await cms.queue.sendEmail.publish({ ... });
+
+// Get job status
+const status = await cms.queue.getJobStatus(jobId);
+// { state: "completed", completedOn: Date, ... }
+// { state: "failed", failedOn: Date, error: "...", ... }
+// { state: "active", startedOn: Date, ... }
+// { state: "created", createdOn: Date, ... }
+```
+
+## Monitoring
+
+### Job Counts
+
+```typescript
+const counts = await cms.queue.getJobCounts("send-email");
+// {
+//   created: 10,
+//   active: 2,
+//   completed: 100,
+//   failed: 5,
+// }
+```
+
+### Failed Jobs
+
+```typescript
+// Get failed jobs
+const failed = await cms.queue.getFailedJobs("send-email", {
+  limit: 100,
+});
+
+// Retry failed job
+await cms.queue.retryJob(failedJobId);
+
+// Retry all failed jobs
+await cms.queue.retryAllFailed("send-email");
+```
+
+## Queue Adapter Interface
+
+```typescript
+interface QueueAdapter {
+  // Start the queue (connect, create tables)
+  start(): Promise<void>;
+
+  // Stop the queue (disconnect, cleanup)
+  stop(): Promise<void>;
+
+  // Publish a job
+  publish(
+    jobName: string,
+    payload: unknown,
+    options?: JobOptions
+  ): Promise<string>;
+
+  // Schedule a recurring job
+  schedule(
+    jobName: string,
+    cron: string,
+    payload: unknown,
+    options?: ScheduleOptions
+  ): Promise<void>;
+
+  // Register a job handler
+  work(
+    jobName: string,
+    handler: JobHandler
+  ): Promise<void>;
+
+  // Get job status
+  getJobStatus(jobId: string): Promise<JobStatus>;
+}
+```
+
+## Best Practices
+
+### 1. Keep Jobs Small
+
+```typescript
+// ❌ Bad: One job does too much
+handler: async ({ payload }) => {
+  const users = await getAllUsers();
+  for (const user of users) {
+    await sendEmail(user);
+    await updateStats(user);
+  }
+}
+
+// ✅ Good: Split into smaller jobs
+handler: async ({ payload }) => {
+  const user = await getUser(payload.userId);
+  await sendEmail(user);
+}
+```
+
+### 2. Make Jobs Idempotent
+
+```typescript
+// ✅ Safe to retry
+handler: async ({ payload }) => {
+  // Check if already processed
+  const existing = await db.getProcessedItem(payload.itemId);
+  if (existing) return;
+
+  // Process
+  await processItem(payload);
+
+  // Mark as processed
+  await db.markProcessed(payload.itemId);
+}
+```
+
+### 3. Use Singleton for Unique Jobs
+
+```typescript
+// Only one welcome email per user
+await cms.queue.sendWelcome.publish(
+  { userId: "123" },
+  { singletonKey: `welcome-${userId}` }
+);
+```
+
+## Next Steps
+
+<Cards>
+  <Card href="/docs/backend/adapters/email" title="Email" description="Email sending" />
+  <Card href="/docs/guides/queue-jobs" title="Jobs Guide" description="Complete jobs guide" />
+</Cards>

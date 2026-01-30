@@ -1,0 +1,318 @@
+---
+title: Relation Fields
+description: relation and reverseRelation field types for linking data
+---
+
+# Relation Fields
+
+Relation fields link records between collections.
+
+## relation
+
+Link to records in another collection.
+
+```typescript
+author: r.relation({
+  label: "Author",
+  targetCollection: "users",
+})
+```
+
+### Options
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `label` | `string \| I18nText` | - | Display label |
+| `description` | `string \| I18nText` | - | Help text |
+| `targetCollection` | `string` | - | Collection to link to (autocomplete!) |
+| `type` | `"single" \| "multiple"` | `"single"` | Single or multiple relations |
+| `required` | `boolean \| fn` | `false` | Required validation |
+| `readOnly` | `boolean \| fn` | `false` | Disable editing |
+| `visible` | `fn` | - | Conditional visibility |
+| `orderable` | `boolean` | `false` | Allow reordering (multiple only) |
+| `filter` | `object` | - | Filter available options |
+| `displayField` | `string` | `"_title"` | Field to display |
+| `searchFields` | `string[]` | `["_title"]` | Fields to search |
+| `createNew` | `boolean` | `false` | Allow creating new items inline |
+
+### Single Relation
+
+Links to one record:
+
+```typescript
+// Basic single relation
+author: r.relation({
+  label: "Author",
+  targetCollection: "users",
+})
+
+// Required relation
+barber: r.relation({
+  label: "Barber",
+  targetCollection: "barbers",
+  required: true,
+})
+
+// With filter
+activeBarber: r.relation({
+  label: "Barber",
+  targetCollection: "barbers",
+  filter: { isActive: true },  // Only show active barbers
+})
+
+// Custom display
+service: r.relation({
+  label: "Service",
+  targetCollection: "services",
+  displayField: "name",
+  searchFields: ["name", "description"],
+})
+```
+
+### Multiple Relations
+
+Links to many records:
+
+```typescript
+// Basic multiple relation
+tags: r.relation({
+  label: "Tags",
+  targetCollection: "tags",
+  type: "multiple",
+})
+
+// With ordering
+services: r.relation({
+  label: "Services",
+  targetCollection: "services",
+  type: "multiple",
+  orderable: true,  // Drag to reorder
+  description: "Select services this barber offers",
+})
+
+// With creation
+categories: r.relation({
+  label: "Categories",
+  targetCollection: "categories",
+  type: "multiple",
+  createNew: true,  // Show "Create new" option
+})
+```
+
+### Filtered Relations
+
+```typescript
+// Only active items
+barber: r.relation({
+  label: "Barber",
+  targetCollection: "barbers",
+  filter: { isActive: true },
+})
+
+// Filter based on another field
+service: r.relation({
+  label: "Service",
+  targetCollection: "services",
+  filter: (values) => ({
+    barberId: values.barber,  // Only services offered by selected barber
+  }),
+})
+```
+
+## reverseRelation
+
+Display related items from another collection (read-only).
+
+```typescript
+posts: r.reverseRelation({
+  label: "Posts by this Author",
+  targetCollection: "posts",
+  foreignKey: "authorId",
+})
+```
+
+### Options
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `label` | `string \| I18nText` | - | Display label |
+| `description` | `string \| I18nText` | - | Help text |
+| `targetCollection` | `string` | - | Collection containing related items |
+| `foreignKey` | `string` | - | Field in target collection that references this item |
+| `displayField` | `string` | `"_title"` | Field to display |
+| `limit` | `number` | `10` | Max items to show |
+| `orderBy` | `object` | - | Sort order |
+
+### Examples
+
+```typescript
+// Show posts by author
+posts: r.reverseRelation({
+  label: "Posts",
+  targetCollection: "posts",
+  foreignKey: "authorId",
+  orderBy: { createdAt: "desc" },
+  limit: 5,
+})
+
+// Show appointments for barber
+appointments: r.reverseRelation({
+  label: "Upcoming Appointments",
+  targetCollection: "appointments",
+  foreignKey: "barberId",
+  filter: { status: { in: ["pending", "confirmed"] } },
+  orderBy: { scheduledAt: "asc" },
+  limit: 10,
+})
+
+// Show reviews for service
+reviews: r.reverseRelation({
+  label: "Reviews",
+  targetCollection: "reviews",
+  foreignKey: "serviceId",
+  displayField: "rating",
+  orderBy: { createdAt: "desc" },
+})
+```
+
+## Table Display
+
+### Single Relation in Tables
+
+Displays the related item's title:
+
+```typescript
+.list(({ v, f }) => v.table({
+  columns: [
+    f.title,
+    f.author,  // Shows author name
+    f.status,
+  ],
+}))
+```
+
+### Multiple Relations in Tables
+
+Displays count or list of related items:
+
+```typescript
+.list(({ v, f }) => v.table({
+  columns: [
+    f.name,
+    f.services,  // Shows "3 services" or list of names
+  ],
+}))
+```
+
+## Form Display
+
+### Single Relation
+
+Renders as a searchable select/combobox:
+
+- Search by typing
+- Shows preview of selected item
+- Click to open picker modal
+
+### Multiple Relations
+
+Renders as a multi-select with optional drag-and-drop:
+
+- Search and add items
+- Remove items with X button
+- Reorder by dragging (if `orderable: true`)
+- Shows count and expandable list
+
+## Complete Example: Appointment System
+
+```typescript
+// appointments collection
+export const appointmentsAdmin = builder
+  .collection("appointments")
+  .fields(({ r }) => ({
+    customerName: r.text({
+      label: "Customer",
+      required: true,
+    }),
+
+    // Single relation to barber
+    barber: r.relation({
+      label: "Barber",
+      targetCollection: "barbers",
+      required: true,
+      filter: { isActive: true },
+    }),
+
+    // Single relation to service (filtered by barber)
+    service: r.relation({
+      label: "Service",
+      targetCollection: "services",
+      required: true,
+      // This would need custom implementation for dynamic filtering
+      description: "Select a service",
+    }),
+
+    scheduledAt: r.datetime({
+      label: "Date & Time",
+      required: true,
+    }),
+
+    status: r.select({
+      label: "Status",
+      options: [
+        { label: "Pending", value: "pending" },
+        { label: "Confirmed", value: "confirmed" },
+        { label: "Completed", value: "completed" },
+      ],
+    }),
+  }))
+  .list(({ v, f }) => v.table({
+    columns: [f.customerName, f.barber, f.service, f.scheduledAt, f.status],
+  }))
+  .form(({ v, f }) => v.form({
+    sections: [
+      {
+        title: "Customer",
+        fields: [f.customerName],
+      },
+      {
+        title: "Appointment Details",
+        layout: "grid",
+        grid: { columns: 2 },
+        fields: [f.barber, f.service, f.scheduledAt, f.status],
+      },
+    ],
+  }));
+```
+
+```typescript
+// barbers collection (with reverse relation)
+export const barbersAdmin = builder
+  .collection("barbers")
+  .fields(({ r }) => ({
+    name: r.text({ label: "Name", required: true }),
+    email: r.email({ label: "Email" }),
+    isActive: r.switch({ label: "Active" }),
+
+    // Multiple relation to services
+    services: r.relation({
+      label: "Services Offered",
+      targetCollection: "services",
+      type: "multiple",
+      orderable: true,
+    }),
+
+    // Reverse relation showing appointments
+    upcomingAppointments: r.reverseRelation({
+      label: "Upcoming Appointments",
+      targetCollection: "appointments",
+      foreignKey: "barberId",
+      filter: {
+        status: { in: ["pending", "confirmed"] },
+        scheduledAt: { gte: new Date().toISOString() },
+      },
+      orderBy: { scheduledAt: "asc" },
+      limit: 10,
+    }),
+  }));
+```

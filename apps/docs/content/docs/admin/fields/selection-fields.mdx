@@ -1,0 +1,279 @@
+---
+title: Selection Fields
+description: select, checkbox, and switch field types
+---
+
+# Selection Fields
+
+Selection fields allow users to choose from predefined options or toggle boolean values.
+
+## select
+
+Dropdown selection from a list of options.
+
+```typescript
+status: r.select({
+  label: "Status",
+  options: [
+    { label: "Draft", value: "draft" },
+    { label: "Published", value: "published" },
+    { label: "Archived", value: "archived" },
+  ],
+  defaultValue: "draft",
+})
+```
+
+### Options
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `label` | `string \| I18nText` | - | Display label |
+| `description` | `string \| I18nText` | - | Help text |
+| `options` | `SelectOption[]` | - | Available options |
+| `placeholder` | `string \| I18nText` | "Select..." | Placeholder text |
+| `required` | `boolean \| fn` | `false` | Required validation |
+| `readOnly` | `boolean \| fn` | `false` | Disable editing |
+| `visible` | `fn` | - | Conditional visibility |
+| `defaultValue` | `string` | - | Default value |
+| `searchable` | `boolean` | `false` | Enable search filtering |
+| `clearable` | `boolean` | `true` | Allow clearing selection |
+
+### Option Format
+
+```typescript
+// Simple options
+options: [
+  { label: "Draft", value: "draft" },
+  { label: "Published", value: "published" },
+]
+
+// With i18n labels
+options: [
+  { label: { en: "Draft", sk: "Koncept" }, value: "draft" },
+  { label: { en: "Published", sk: "Publikovane" }, value: "published" },
+]
+
+// With descriptions
+options: [
+  {
+    label: "Draft",
+    value: "draft",
+    description: "Only visible to editors",
+  },
+  {
+    label: "Published",
+    value: "published",
+    description: "Visible to everyone",
+  },
+]
+
+// With colors (for status badges)
+options: [
+  { label: "Pending", value: "pending", color: "yellow" },
+  { label: "Confirmed", value: "confirmed", color: "blue" },
+  { label: "Completed", value: "completed", color: "green" },
+  { label: "Cancelled", value: "cancelled", color: "red" },
+]
+```
+
+### Examples
+
+```typescript
+// Basic status select
+status: r.select({
+  label: "Status",
+  options: [
+    { label: "Draft", value: "draft" },
+    { label: "Published", value: "published" },
+  ],
+})
+
+// Platform select with search
+platform: r.select({
+  label: "Platform",
+  searchable: true,
+  options: [
+    { label: "Instagram", value: "instagram" },
+    { label: "Facebook", value: "facebook" },
+    { label: "Twitter", value: "twitter" },
+    { label: "LinkedIn", value: "linkedin" },
+    { label: "TikTok", value: "tiktok" },
+    { label: "YouTube", value: "youtube" },
+  ],
+})
+
+// Category select with i18n
+category: r.select({
+  label: { en: "Category", sk: "Kategoria" },
+  options: [
+    { label: { en: "News", sk: "Spravy" }, value: "news" },
+    { label: { en: "Tutorial", sk: "Navod" }, value: "tutorial" },
+    { label: { en: "Review", sk: "Recenzia" }, value: "review" },
+  ],
+})
+
+// Non-clearable required select
+priority: r.select({
+  label: "Priority",
+  clearable: false,
+  required: true,
+  defaultValue: "normal",
+  options: [
+    { label: "Low", value: "low" },
+    { label: "Normal", value: "normal" },
+    { label: "High", value: "high" },
+    { label: "Urgent", value: "urgent" },
+  ],
+})
+```
+
+## checkbox
+
+Boolean checkbox for yes/no values.
+
+```typescript
+featured: r.checkbox({
+  label: "Featured",
+  description: "Show on homepage",
+})
+```
+
+### Options
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `label` | `string \| I18nText` | - | Display label |
+| `description` | `string \| I18nText` | - | Help text shown below |
+| `readOnly` | `boolean \| fn` | `false` | Disable editing |
+| `visible` | `fn` | - | Conditional visibility |
+| `defaultValue` | `boolean` | `false` | Default value |
+
+### Examples
+
+```typescript
+// Basic checkbox
+featured: r.checkbox({
+  label: "Featured Post",
+})
+
+// With description
+sendNotification: r.checkbox({
+  label: "Send Notification",
+  description: "Email subscribers when this post is published",
+})
+
+// Default checked
+acceptTerms: r.checkbox({
+  label: "Accept Terms",
+  defaultValue: true,
+})
+```
+
+## switch
+
+Toggle switch for boolean values. Visually different from checkbox.
+
+```typescript
+isActive: r.switch({
+  label: "Active",
+  description: "Whether this item is currently active",
+})
+```
+
+### Options
+
+Same as `checkbox`.
+
+### Examples
+
+```typescript
+// Active toggle
+isActive: r.switch({
+  label: { en: "Active", sk: "Aktivny" },
+  description: {
+    en: "Whether this barber is available for appointments",
+    sk: "Ci je holic dostupny na rezervacie",
+  },
+})
+
+// Maintenance mode
+maintenanceMode: r.switch({
+  label: "Maintenance Mode",
+  description: "When enabled, shows maintenance page to visitors",
+})
+
+// Feature flags
+enableNewFeature: r.switch({
+  label: "Enable Beta Feature",
+  description: "This feature is experimental",
+  defaultValue: false,
+})
+```
+
+## Checkbox vs Switch
+
+Use **checkbox** for:
+- Form agreements ("I accept the terms")
+- Multi-select scenarios (coming soon)
+- Traditional form contexts
+
+Use **switch** for:
+- On/off states
+- Feature toggles
+- Status indicators
+- Settings that take immediate effect
+
+## Table Display
+
+### Select in Tables
+
+Select values display as badges with optional colors:
+
+```typescript
+.list(({ v, f }) => v.table({
+  columns: [
+    f.title,
+    f.status,  // Shows colored badge if options have colors
+  ],
+}))
+```
+
+### Boolean in Tables
+
+Checkbox and switch values display as badges (Yes/No, Active/Inactive):
+
+```typescript
+.list(({ v, f }) => v.table({
+  columns: [
+    f.name,
+    f.isActive,  // Shows "Yes" or "No" badge
+  ],
+}))
+```
+
+## Conditional Logic with Select
+
+Select fields are commonly used for conditional visibility:
+
+```typescript
+appointmentType: r.select({
+  label: "Type",
+  options: [
+    { label: "In-person", value: "in-person" },
+    { label: "Online", value: "online" },
+  ],
+}),
+
+// Show meeting link only for online appointments
+meetingLink: r.text({
+  label: "Meeting Link",
+  visible: (values) => values.appointmentType === "online",
+  required: (values) => values.appointmentType === "online",
+}),
+
+// Show location only for in-person appointments
+location: r.text({
+  label: "Location",
+  visible: (values) => values.appointmentType === "in-person",
+}),
+```

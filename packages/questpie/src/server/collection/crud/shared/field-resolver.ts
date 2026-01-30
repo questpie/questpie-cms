@@ -1,0 +1,44 @@
+/**
+ * Field Resolution Utilities
+ *
+ * Pure functions for resolving field keys from column definitions.
+ */
+
+import type { CollectionBuilderState } from "#questpie/server/collection/builder/types.js";
+import type { PgTable } from "drizzle-orm/pg-core";
+
+/**
+ * Resolve field key from column definition
+ *
+ * Supports both string field names and column objects with a `.name` property.
+ * Looks up the field key in state.fields first, then falls back to table columns.
+ *
+ * @param state - Collection builder state
+ * @param column - Column definition (string or object with .name)
+ * @param table - Optional table to search for column name
+ * @returns The field key or undefined if not found
+ */
+export function resolveFieldKey(
+  state: CollectionBuilderState,
+  column: any,
+  table?: PgTable,
+): string | undefined {
+  if (typeof column === "string") return column;
+
+  const columnName = column?.name;
+  if (!columnName) return undefined;
+
+  // Search in state fields
+  for (const [key, value] of Object.entries(state.fields)) {
+    if ((value as any)?.name === columnName) return key;
+  }
+
+  // Search in table columns
+  if (table) {
+    for (const [key, value] of Object.entries(table)) {
+      if ((value as any)?.name === columnName) return key;
+    }
+  }
+
+  return undefined;
+}

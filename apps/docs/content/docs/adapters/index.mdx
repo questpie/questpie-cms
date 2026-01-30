@@ -1,0 +1,146 @@
+---
+title: Framework Adapters
+description: Connect QUESTPIE CMS to your web framework
+---
+
+# Framework Adapters
+
+QUESTPIE CMS is framework-agnostic. Use adapters to connect it to your preferred web framework.
+
+## Available Adapters
+
+| Framework | Package | Status |
+|-----------|---------|--------|
+| TanStack Start | `@questpie/tanstack-start` | Stable |
+| Hono | `@questpie/hono` | Stable |
+| Elysia | `@questpie/elysia` | Stable |
+| Next.js | `@questpie/next` | Stable |
+
+## Quick Start
+
+### TanStack Start
+
+```bash
+bun add @questpie/tanstack-start
+```
+
+```typescript
+// routes/api/cms.ts
+import { createTanStackStartAdapter } from "@questpie/tanstack-start";
+import { cms } from "@/questpie/server/cms";
+
+export const { GET, POST, PUT, DELETE } = createTanStackStartAdapter(cms);
+```
+
+[Full TanStack Start Guide →](/docs/adapters/tanstack-start)
+
+### Hono
+
+```bash
+bun add @questpie/hono
+```
+
+```typescript
+import { Hono } from "hono";
+import { createHonoAdapter } from "@questpie/hono";
+import { cms } from "./cms";
+
+const app = new Hono();
+app.route("/api/cms", createHonoAdapter(cms));
+
+export default app;
+```
+
+[Full Hono Guide →](/docs/adapters/hono)
+
+### Elysia
+
+```bash
+bun add @questpie/elysia
+```
+
+```typescript
+import { Elysia } from "elysia";
+import { createElysiaAdapter } from "@questpie/elysia";
+import { cms } from "./cms";
+
+const app = new Elysia()
+  .use(createElysiaAdapter(cms, { prefix: "/api/cms" }));
+
+export default app;
+```
+
+[Full Elysia Guide →](/docs/adapters/elysia)
+
+### Next.js
+
+```bash
+bun add @questpie/next
+```
+
+```typescript
+// app/api/cms/[[...slug]]/route.ts
+import { createNextAdapter } from "@questpie/next";
+import { cms } from "@/questpie/server/cms";
+
+const handler = createNextAdapter(cms);
+
+export { handler as GET, handler as POST, handler as PUT, handler as DELETE };
+```
+
+[Full Next.js Guide →](/docs/adapters/nextjs)
+
+## What Adapters Do
+
+Adapters handle:
+
+1. **Request/Response Translation** - Convert framework-specific request/response objects
+2. **Route Mounting** - Mount CMS API at a base path (e.g., `/api/cms`)
+3. **Authentication** - Handle session cookies and headers
+4. **File Uploads** - Process multipart form data
+5. **Streaming** - Support for SSE (Server-Sent Events)
+
+## API Routes
+
+All adapters expose these routes:
+
+| Route | Method | Description |
+|-------|--------|-------------|
+| `/collections/:name` | GET | List items |
+| `/collections/:name` | POST | Create item |
+| `/collections/:name/:id` | GET | Get item |
+| `/collections/:name/:id` | PUT | Update item |
+| `/collections/:name/:id` | DELETE | Delete item |
+| `/globals/:name` | GET | Get global |
+| `/globals/:name` | PUT | Update global |
+| `/functions/:name` | POST | Call function |
+| `/auth/*` | * | Authentication routes |
+| `/assets/*` | * | File storage routes |
+| `/realtime` | GET | SSE subscription |
+
+## Custom Adapters
+
+Create an adapter for any framework:
+
+```typescript
+import { createRequestHandler } from "questpie";
+import { cms } from "./cms";
+
+const handler = createRequestHandler(cms);
+
+// Your framework's route handler
+export async function handleRequest(request: Request): Promise<Response> {
+  return handler(request);
+}
+```
+
+[Creating Custom Adapters →](/docs/adapters/custom)
+
+## Next Steps
+
+<Cards>
+  <Card href="/docs/adapters/tanstack-start" title="TanStack Start" description="Full-stack React framework" />
+  <Card href="/docs/adapters/hono" title="Hono" description="Lightweight, edge-ready" />
+  <Card href="/docs/adapters/elysia" title="Elysia" description="Bun-first framework" />
+  <Card href="/docs/adapters/nextjs" title="Next.js" description="React framework by Vercel" />
+</Cards>

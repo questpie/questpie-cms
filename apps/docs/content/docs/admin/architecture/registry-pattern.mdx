@@ -1,0 +1,255 @@
+---
+title: Registry Pattern
+description: Understanding field, view, and widget registries
+---
+
+# Registry Pattern
+
+QUESTPIE Admin uses a registry pattern to manage extensible components. Each registry is a typed map of definitions.
+
+## What is a Registry?
+
+A registry is a collection of named definitions:
+
+```typescript
+type FieldRegistry = {
+  text: FieldDefinition<TextConfig>;
+  select: FieldDefinition<SelectConfig>;
+  relation: FieldDefinition<RelationConfig>;
+  // ... more fields
+};
+```
+
+Registries enable:
+- **Type-safe autocomplete** when configuring
+- **Easy extensibility** by adding new definitions
+- **Consistent API** across all field/view types
+
+## Field Registry
+
+The field registry contains all available field types:
+
+```typescript
+// Each field is defined with:
+const textField = field("text", {
+  // React component for form editing
+  component: TextFieldComponent,
+
+  // React component for table cell display
+  cell: TextCellComponent,
+
+  // Configuration type
+  config: {} as TextFieldConfig,
+
+  // Zod schema generator
+  createZod: (opts) => z.string().max(opts.maxLength ?? Infinity),
+});
+```
+
+### Field Definition Interface
+
+```typescript
+interface FieldDefinition<TConfig> {
+  type: string;
+  component: React.ComponentType<FieldProps>;
+  cell?: React.ComponentType<CellProps>;
+  config: TConfig;
+  createZod?: (config: TConfig) => ZodSchema;
+  defaultConfig?: Partial<TConfig>;
+}
+```
+
+### Using Fields via Registry Proxy
+
+The `r` parameter is a registry proxy:
+
+```typescript
+.fields(({ r }) => ({
+  // r proxies the field registry
+  title: r.text({ label: "Title", maxLength: 200 }),
+  //       ^--- Calls textField with config
+
+  status: r.select({
+    label: "Status",
+    options: [{ label: "Draft", value: "draft" }],
+  }),
+  //       ^--- Calls selectField with config
+}))
+```
+
+### Available Field Types
+
+The default admin module provides:
+
+| Category | Fields |
+|----------|--------|
+| Text | `text`, `email`, `password`, `textarea` |
+| Number | `number` |
+| Selection | `select`, `checkbox`, `switch` |
+| Date/Time | `date`, `datetime`, `time` |
+| Relations | `relation`, `reverseRelation` |
+| JSON | `json`, `object`, `array` |
+| Media | `upload`, `uploadMany`, `assetPreview` |
+| Rich Content | `richText`, `blocks` |
+
+## View Registry
+
+The view registry contains available view types:
+
+```typescript
+const tableView = view("table", {
+  kind: "list",  // List view or edit view
+  component: TableViewComponent,
+  config: {} as TableViewConfig,
+});
+
+const formView = view("form", {
+  kind: "edit",
+  component: FormViewComponent,
+  config: {} as FormViewConfig,
+});
+```
+
+### View Definition Interface
+
+```typescript
+interface ViewDefinition<TConfig> {
+  type: string;
+  kind: "list" | "edit";
+  component: React.ComponentType<ViewProps>;
+  config: TConfig;
+}
+```
+
+### Using Views via Registry Proxy
+
+```typescript
+.list(({ v, f }) => v.table({
+  // v proxies the view registry
+  columns: [f.title, f.status],
+  //        ^--- f proxies your defined fields
+}))
+
+.form(({ v, f }) => v.form({
+  layout: [
+    v.section({ fields: [f.title, f.content] }),
+  ],
+}))
+```
+
+## Widget Registry
+
+The widget registry contains dashboard widgets:
+
+```typescript
+const statsWidget = widget("stats", {
+  component: StatsWidgetComponent,
+  config: {} as StatsWidgetConfig,
+});
+```
+
+### Widget Definition Interface
+
+```typescript
+interface WidgetDefinition<TConfig> {
+  type: string;
+  component: React.ComponentType<WidgetProps>;
+  config: TConfig;
+  defaultConfig?: Partial<TConfig>;
+}
+```
+
+### Using Widgets via Registry Proxy
+
+```typescript
+.dashboard(({ w }) => ({
+  widgets: [
+    w.stats({
+      label: "Total Posts",
+      value: async () => postCount,
+    }),
+    w.chart({
+      label: "Posts by Month",
+      data: async () => monthlyData,
+    }),
+  ],
+}))
+```
+
+## Block Registry
+
+Blocks are registered similarly:
+
+```typescript
+const heroBlock = block("hero", {
+  component: HeroBlockComponent,
+  adminComponent: HeroBlockAdmin,
+  config: {} as HeroBlockConfig,
+  defaultProps: { title: "", subtitle: "" },
+});
+```
+
+## Registry Merging
+
+When using `.use()`, registries are merged:
+
+```typescript
+const moduleA = qa().fields({
+  text: textFieldV1,
+  custom: customField,
+});
+
+const moduleB = qa().fields({
+  text: textFieldV2,  // Overrides moduleA's text
+  another: anotherField,
+});
+
+const admin = qa()
+  .use(moduleA)
+  .use(moduleB);
+
+// Result:
+// fields: {
+//   text: textFieldV2,    // From moduleB (later wins)
+//   custom: customField,  // From moduleA
+//   another: anotherField // From moduleB
+// }
+```
+
+## Accessing Registry Definitions
+
+You can access registry definitions directly:
+
+```typescript
+// Get all registered fields
+const fields = admin.state.fields;
+
+// Get a specific field definition
+const textDef = admin.state.fields.text;
+
+// Check if a field exists
+if ("customField" in admin.state.fields) {
+  // Use custom field
+}
+```
+
+## Type Inference
+
+TypeScript infers types from registries:
+
+```typescript
+// Field registry type is inferred
+type FieldTypes = keyof typeof admin.state.fields;
+// "text" | "select" | "relation" | ...
+
+// Config type is inferred for each field
+type TextConfig = typeof admin.state.fields.text.config;
+// { label?: string, maxLength?: number, ... }
+```
+
+## Next Steps
+
+<Cards>
+  <Card href="/docs/admin/architecture/module-composition" title="Module Composition" description="How .use() merges modules" />
+  <Card href="/docs/admin/extensibility/custom-fields" title="Custom Fields" description="Create your own fields" />
+</Cards>

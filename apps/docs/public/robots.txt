@@ -1,0 +1,15 @@
+# QUESTPIE CMS Documentation
+# https://questpie.com
+
+User-agent: *
+Allow: /
+
+# Sitemaps
+Sitemap: https://questpie.com/sitemap.xml
+
+# Crawl-delay for politeness
+Crawl-delay: 1
+
+# Block common non-content paths
+Disallow: /api/
+Disallow: /_*

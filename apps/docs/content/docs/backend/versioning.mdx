@@ -1,0 +1,486 @@
+---
+title: Versioning
+description: Version history and change tracking for collections
+---
+
+# Versioning
+
+QUESTPIE supports automatic version history for collections, allowing you to track changes and restore previous versions.
+
+## Enable Versioning
+
+Enable versioning on a collection using `.options()`:
+
+```typescript
+import { q, text, boolean, datetime } from "questpie";
+
+const posts = q.collection("posts")
+  .fields({
+    title: text("title").notNull(),
+    content: text("content"),
+    published: boolean("published").default(false),
+  })
+  .options({
+    versioning: true,
+    timestamps: true,  // Recommended with versioning
+  });
+```
+
+## How It Works
+
+When versioning is enabled:
+
+1. Every update creates a new version record
+2. The main table always contains the current version
+3. Version history is stored in a separate `_versions` table
+4. For localized collections, localized content versions are also preserved
+
+### Database Schema
+
+QUESTPIE automatically creates version tables:
+
+```sql
+-- Main table (current state)
+CREATE TABLE posts (
+  id TEXT PRIMARY KEY,
+  title TEXT NOT NULL,
+  content TEXT,
+  published BOOLEAN DEFAULT FALSE,
+  created_at TIMESTAMP,
+  updated_at TIMESTAMP
+);
+
+-- Version history
+CREATE TABLE posts_versions (
+  id TEXT PRIMARY KEY,
+  post_id TEXT REFERENCES posts(id),
+  version_number INTEGER NOT NULL,
+  title TEXT NOT NULL,
+  content TEXT,
+  published BOOLEAN,
+  created_at TIMESTAMP,       -- When this version was created
+  created_by TEXT,            -- Who created this version
+  change_type TEXT,           -- "create", "update", "restore"
+  change_reason TEXT          -- Optional description
+);
+
+-- For localized collections
+CREATE TABLE posts_i18n_versions (
+  id TEXT PRIMARY KEY,
+  version_id TEXT REFERENCES posts_versions(id),
+  locale TEXT NOT NULL,
+  title TEXT,
+  content TEXT
+);
+```
+
+## Version Metadata
+
+Each version stores:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `versionNumber` | `number` | Sequential version number |
+| `createdAt` | `Date` | When this version was created |
+| `createdBy` | `string` | User ID who made the change |
+| `changeType` | `string` | "create", "update", "restore" |
+| `changeReason` | `string` | Optional description of the change |
+
+## Collection Options
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `versioning` | `boolean` | `false` | Enable version history |
+| `timestamps` | `boolean` | `true` | Add createdAt/updatedAt fields |
+| `softDelete` | `boolean` | `false` | Mark as deleted instead of removing |
+
+### Recommended Configuration
+
+```typescript
+const posts = q.collection("posts")
+  .fields({...})
+  .options({
+    versioning: true,
+    timestamps: true,
+    softDelete: true,  // Preserve deleted records
+  });
+```
+
+With soft delete, deleted records can be restored along with their version history.
+
+## Querying Versions
+
+### Get Version History
+
+```typescript
+// Get all versions of a post
+const versions = await cms.api.collections.posts.versions(postId);
+
+// versions: Array of version records
+// [
+//   { versionNumber: 3, createdAt: "2024-01-15", changeType: "update", ... },
+//   { versionNumber: 2, createdAt: "2024-01-10", changeType: "update", ... },
+//   { versionNumber: 1, createdAt: "2024-01-05", changeType: "create", ... },
+// ]
+```
+
+### Get Specific Version
+
+```typescript
+// Get version 2 of a post
+const version = await cms.api.collections.posts.getVersion(postId, 2);
+
+console.log(version.title);    // Title at version 2
+console.log(version.content);  // Content at version 2
+```
+
+### Compare Versions
+
+```typescript
+const v1 = await cms.api.collections.posts.getVersion(postId, 1);
+const v2 = await cms.api.collections.posts.getVersion(postId, 2);
+
+// Compare field values
+if (v1.title !== v2.title) {
+  console.log(`Title changed from "${v1.title}" to "${v2.title}"`);
+}
+```
+
+## Restoring Versions
+
+### Restore to Previous Version
+
+```typescript
+// Restore post to version 2
+const restored = await cms.api.collections.posts.restore(postId, {
+  toVersion: 2,
+  reason: "Reverting accidental changes",
+});
+
+// This creates a NEW version (version 4) with content from version 2
+// Version history: [4(restore), 3, 2, 1]
+```
+
+### Restore with Context
+
+```typescript
+const ctx = await cms.createContext({ session: userSession });
+
+await cms.api.collections.posts.restore(postId, {
+  toVersion: 2,
+  reason: "Per customer request",
+}, ctx);
+
+// The version record will include:
+// - createdBy: user ID from session
+// - changeType: "restore"
+// - changeReason: "Per customer request"
+```
+
+## Creating Versions
+
+### Automatic Versioning
+
+Versions are created automatically on:
+
+- **Create**: Initial version (version 1)
+- **Update**: New version with changes
+- **Restore**: New version from previous state
+
+### Manual Version Annotation
+
+Add context to versions using the update options:
+
+```typescript
+await cms.api.collections.posts.update(postId, {
+  title: "Updated Title",
+  content: "New content...",
+}, {
+  versionReason: "Quarterly content review",
+});
+```
+
+## Localized Versioning
+
+For localized collections, version history includes all locale data:
+
+```typescript
+const posts = q.collection("posts")
+  .fields({
+    slug: text("slug").notNull(),
+    title: text("title").notNull(),
+    content: text("content"),
+  })
+  .localized(["title", "content"])
+  .options({ versioning: true });
+```
+
+When updating:
+
+```typescript
+// Update English content
+await cms.api.collections.posts.update(postId, {
+  title: "New English Title",
+}, { locale: "en" });
+// Creates version with EN change, SK content preserved
+
+// Update Slovak content
+await cms.api.collections.posts.update(postId, {
+  title: "Nový slovenský názov",
+}, { locale: "sk" });
+// Creates version with SK change, EN content preserved
+```
+
+### Restore Specific Locale
+
+```typescript
+// Restore only English to version 2
+await cms.api.collections.posts.restore(postId, {
+  toVersion: 2,
+  locale: "en",
+});
+
+// Restore all locales to version 2
+await cms.api.collections.posts.restore(postId, {
+  toVersion: 2,
+  allLocales: true,
+});
+```
+
+## Version Limits
+
+Configure maximum versions to retain:
+
+```typescript
+const posts = q.collection("posts")
+  .fields({...})
+  .options({
+    versioning: {
+      enabled: true,
+      maxVersions: 50,  // Keep last 50 versions
+    },
+  });
+```
+
+When limit is reached, oldest versions are automatically pruned.
+
+### Retention Policies
+
+```typescript
+.options({
+  versioning: {
+    enabled: true,
+    maxVersions: 100,
+    retentionDays: 365,  // Delete versions older than 1 year
+  },
+})
+```
+
+## Audit Trail
+
+Version history serves as an audit trail:
+
+```typescript
+// Get audit log for a post
+const versions = await cms.api.collections.posts.versions(postId);
+
+const auditLog = versions.map(v => ({
+  date: v.createdAt,
+  user: v.createdBy,
+  action: v.changeType,
+  reason: v.changeReason,
+}));
+
+// Display in admin or export for compliance
+```
+
+## Hooks with Versioning
+
+Hooks run before version creation:
+
+```typescript
+const posts = q.collection("posts")
+  .options({ versioning: true })
+  .hooks({
+    beforeUpdate: async ({ data, existingData, ctx }) => {
+      // Access current version
+      console.log("Current version:", existingData._version);
+
+      // Modify data before new version is created
+      return {
+        ...data,
+        lastEditedBy: ctx.session?.user?.id,
+      };
+    },
+
+    afterUpdate: async ({ data, ctx }) => {
+      // Log version creation
+      await logActivity({
+        type: "version_created",
+        recordId: data.id,
+        version: data._version,
+        userId: ctx.session?.user?.id,
+      });
+    },
+  });
+```
+
+## API Reference
+
+### Version Methods
+
+| Method | Description |
+|--------|-------------|
+| `versions(id)` | Get version history for a record |
+| `getVersion(id, versionNumber)` | Get specific version |
+| `restore(id, options)` | Restore to previous version |
+| `compareVersions(id, v1, v2)` | Compare two versions |
+
+### Restore Options
+
+| Option | Type | Description |
+|--------|------|-------------|
+| `toVersion` | `number` | Version number to restore to |
+| `reason` | `string` | Reason for restoration |
+| `locale` | `string` | Restore specific locale only |
+| `allLocales` | `boolean` | Restore all locale versions |
+
+## Use Cases
+
+### Content Rollback
+
+Allow editors to undo mistakes:
+
+```tsx
+function VersionHistory({ postId }) {
+  const [versions, setVersions] = useState([]);
+
+  useEffect(() => {
+    cmsClient.collections.posts.versions(postId)
+      .then(setVersions);
+  }, [postId]);
+
+  const handleRestore = async (versionNumber) => {
+    if (confirm(`Restore to version ${versionNumber}?`)) {
+      await cmsClient.collections.posts.restore(postId, {
+        toVersion: versionNumber,
+      });
+      // Refresh current view
+    }
+  };
+
+  return (
+    <ul>
+      {versions.map(v => (
+        <li key={v.versionNumber}>
+          Version {v.versionNumber} - {v.createdAt}
+          <button onClick={() => handleRestore(v.versionNumber)}>
+            Restore
+          </button>
+        </li>
+      ))}
+    </ul>
+  );
+}
+```
+
+### Draft/Publish Workflow
+
+Track published vs draft versions:
+
+```typescript
+const posts = q.collection("posts")
+  .fields({
+    title: text("title").notNull(),
+    content: text("content"),
+    status: text("status").default("draft"),
+    publishedVersion: integer("publishedVersion"),
+  })
+  .options({ versioning: true })
+  .hooks({
+    beforeUpdate: async ({ data, existingData }) => {
+      if (data.status === "published" && existingData.status !== "published") {
+        // Record which version was published
+        return {
+          ...data,
+          publishedVersion: existingData._version + 1,
+        };
+      }
+      return data;
+    },
+  });
+```
+
+### Compliance Logging
+
+Track all changes for regulatory compliance:
+
+```typescript
+.hooks({
+  afterCreate: async ({ data, ctx }) => {
+    await complianceLog.record({
+      action: "CREATE",
+      collection: "posts",
+      recordId: data.id,
+      userId: ctx.session?.user?.id,
+      timestamp: new Date(),
+      data: sanitize(data),  // Remove sensitive fields
+    });
+  },
+  afterUpdate: async ({ data, ctx }) => {
+    await complianceLog.record({
+      action: "UPDATE",
+      collection: "posts",
+      recordId: data.id,
+      version: data._version,
+      userId: ctx.session?.user?.id,
+      timestamp: new Date(),
+    });
+  },
+})
+```
+
+## Performance Considerations
+
+### Indexing
+
+Ensure proper indexes for version queries:
+
+```typescript
+.migrations([{
+  name: "add-version-indexes",
+  up: async (db) => {
+    await db.execute(sql`
+      CREATE INDEX posts_versions_post_id_idx
+      ON posts_versions(post_id);
+
+      CREATE INDEX posts_versions_created_at_idx
+      ON posts_versions(created_at DESC);
+    `);
+  },
+}])
+```
+
+### Cleanup Job
+
+Schedule cleanup for old versions:
+
+```typescript
+.jobs({
+  cleanupVersions: async ({ ctx }) => {
+    const cutoff = new Date();
+    cutoff.setFullYear(cutoff.getFullYear() - 1);
+
+    await ctx.db.delete(postsVersions)
+      .where(lt(postsVersions.createdAt, cutoff));
+  },
+})
+```
+
+## Next Steps
+
+<Cards>
+  <Card href="/docs/backend/crud-operations" title="CRUD Operations" description="Query and mutate data" />
+  <Card href="/docs/backend/hooks" title="Hooks" description="Lifecycle hooks" />
+  <Card href="/docs/backend/access-control" title="Access Control" description="Permission rules" />
+</Cards>

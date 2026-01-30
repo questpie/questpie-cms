@@ -1,0 +1,370 @@
+---
+title: Form Layouts
+description: Sections, tabs, columns, and grid layouts for forms
+---
+
+# Form Layouts
+
+Form layouts control how fields are arranged in create/edit forms.
+
+## Layout Types
+
+### Stack Layout (Default)
+
+Fields stacked vertically:
+
+```typescript
+{
+  title: "Content",
+  layout: "stack",  // default
+  fields: [f.title, f.description, f.content],
+}
+```
+
+### Columns Layout
+
+Fields arranged in equal columns:
+
+```typescript
+{
+  title: "Contact Info",
+  layout: "columns",
+  columns: 2,  // 2, 3, or 4 columns
+  fields: [f.firstName, f.lastName, f.email, f.phone],
+}
+```
+
+Fields wrap to next row automatically.
+
+### Grid Layout
+
+Precise control with column spans:
+
+```typescript
+{
+  title: "Product Details",
+  layout: "grid",
+  grid: {
+    columns: 4,  // 4-column grid
+    gap: 4,      // Gap size (Tailwind spacing)
+  },
+  fields: [
+    { field: f.name, span: 4 },        // Full width
+    { field: f.sku, span: 2 },         // Half width
+    { field: f.category, span: 2 },    // Half width
+    { field: f.price, span: 1 },       // Quarter width
+    { field: f.currency, span: 1 },    // Quarter width
+    { field: f.stock, span: 2 },       // Half width
+    { field: f.description, span: 4 }, // Full width
+  ],
+}
+```
+
+## Sections
+
+### Basic Section
+
+```typescript
+.form(({ v, f }) => v.form({
+  sections: [
+    {
+      title: "Basic Info",
+      fields: [f.title, f.slug],
+    },
+    {
+      title: "Content",
+      fields: [f.content],
+    },
+  ],
+}))
+```
+
+### Section with Description
+
+```typescript
+{
+  title: "SEO Settings",
+  description: "Configure how this page appears in search results",
+  fields: [f.metaTitle, f.metaDescription],
+}
+```
+
+### Collapsible Section
+
+```typescript
+{
+  title: "Advanced Options",
+  collapsible: true,
+  defaultOpen: false,  // Collapsed by default
+  fields: [f.customCss, f.customJs, f.robots],
+}
+```
+
+### Section with I18n
+
+```typescript
+{
+  title: { en: "Contact Information", sk: "Kontaktne informacie" },
+  description: { en: "How to reach you", sk: "Ako vas kontaktovat" },
+  fields: [f.email, f.phone],
+}
+```
+
+## Grid Examples
+
+### Two-Column Contact Form
+
+```typescript
+{
+  title: "Contact",
+  layout: "grid",
+  grid: { columns: 2 },
+  fields: [
+    { field: f.firstName, span: 1 },
+    { field: f.lastName, span: 1 },
+    { field: f.email, span: 1 },
+    { field: f.phone, span: 1 },
+    { field: f.message, span: 2 },  // Full width
+  ],
+}
+```
+
+### Product Pricing
+
+```typescript
+{
+  title: "Pricing",
+  layout: "grid",
+  grid: { columns: 4 },
+  fields: [
+    { field: f.basePrice, span: 2 },
+    { field: f.salePrice, span: 2 },
+    { field: f.currency, span: 1 },
+    { field: f.taxRate, span: 1 },
+    { field: f.stock, span: 1 },
+    { field: f.lowStockThreshold, span: 1 },
+  ],
+}
+```
+
+### Address Form
+
+```typescript
+{
+  title: "Address",
+  layout: "grid",
+  grid: { columns: 6 },
+  fields: [
+    { field: f.street, span: 6 },        // Full width
+    { field: f.street2, span: 6 },       // Full width
+    { field: f.city, span: 3 },          // Half
+    { field: f.state, span: 2 },         // Third
+    { field: f.zip, span: 1 },           // Sixth
+    { field: f.country, span: 6 },       // Full width
+  ],
+}
+```
+
+## Nested Sections
+
+Sections can be nested within fields:
+
+```typescript
+.form(({ v, f }) => v.form({
+  sections: [
+    {
+      title: "Customer",
+      fields: [
+        f.customerName,
+        {
+          type: "section",
+          title: "Contact Details",
+          layout: "columns",
+          columns: 2,
+          fields: [f.email, f.phone],
+        },
+      ],
+    },
+  ],
+}))
+```
+
+## Tabs + Sections
+
+Combine tabs with sections:
+
+```typescript
+.form(({ v, f }) => v.form({
+  tabs: [
+    {
+      id: "content",
+      label: "Content",
+      fields: [
+        {
+          type: "section",
+          title: "Basic Info",
+          layout: "columns",
+          columns: 2,
+          fields: [f.title, f.slug],
+        },
+        {
+          type: "section",
+          title: "Body",
+          fields: [f.content],
+        },
+      ],
+    },
+    {
+      id: "media",
+      label: "Media",
+      fields: [
+        {
+          type: "section",
+          title: "Featured Image",
+          fields: [f.featuredImage],
+        },
+        {
+          type: "section",
+          title: "Gallery",
+          fields: [f.gallery],
+        },
+      ],
+    },
+  ],
+}))
+```
+
+## Sidebar Layouts
+
+### Right Sidebar (Common)
+
+```typescript
+.form(({ v, f }) => v.form({
+  sidebar: {
+    position: "right",
+    width: "300px",
+    fields: [f.status, f.publishedAt, f.author, f.featuredImage],
+  },
+  sections: [
+    { title: "Content", fields: [f.title, f.content] },
+  ],
+}))
+```
+
+### Left Sidebar
+
+```typescript
+.form(({ v, f }) => v.form({
+  sidebar: {
+    position: "left",
+    width: "250px",
+    fields: [f.navigation, f.categories],
+  },
+  sections: [
+    { title: "Content", fields: [f.title, f.content] },
+  ],
+}))
+```
+
+## Complete Complex Example
+
+```typescript
+.form(({ v, f }) => v.form({
+  sidebar: {
+    position: "right",
+    fields: [f.status, f.publishedAt, f.featuredImage],
+  },
+  tabs: [
+    {
+      id: "content",
+      label: { en: "Content", sk: "Obsah" },
+      icon: FileTextIcon,
+      fields: [
+        {
+          type: "section",
+          layout: "grid",
+          grid: { columns: 2 },
+          fields: [
+            { field: f.title, span: 2 },
+            { field: f.slug, span: 1 },
+            { field: f.category, span: 1 },
+          ],
+        },
+        {
+          type: "section",
+          title: { en: "Excerpt", sk: "Ukazka" },
+          fields: [f.excerpt],
+        },
+        {
+          type: "section",
+          title: { en: "Body", sk: "Obsah" },
+          fields: [f.content],
+        },
+      ],
+    },
+    {
+      id: "seo",
+      label: "SEO",
+      icon: SearchIcon,
+      fields: [
+        {
+          type: "section",
+          title: "Search Engine",
+          description: "How this appears in Google",
+          fields: [f.metaTitle, f.metaDescription],
+        },
+        {
+          type: "section",
+          title: "Social Media",
+          description: "Preview when shared",
+          collapsible: true,
+          defaultOpen: false,
+          fields: [f.ogTitle, f.ogDescription, f.ogImage],
+        },
+      ],
+    },
+    {
+      id: "settings",
+      label: { en: "Settings", sk: "Nastavenia" },
+      icon: GearIcon,
+      fields: [
+        {
+          type: "section",
+          title: "Author",
+          fields: [f.author],
+        },
+        {
+          type: "section",
+          title: "Tags",
+          fields: [f.tags],
+        },
+        {
+          type: "section",
+          title: "Advanced",
+          collapsible: true,
+          defaultOpen: false,
+          layout: "columns",
+          columns: 2,
+          fields: [f.template, f.customCss],
+        },
+      ],
+    },
+  ],
+}))
+```
+
+## Best Practices
+
+1. **Group related fields** - Use sections to organize logically related fields
+2. **Use sidebar for metadata** - Status, dates, and secondary info work well in sidebars
+3. **Collapse advanced options** - Hide rarely-used fields in collapsible sections
+4. **Use grids for precise layout** - When you need specific field widths
+5. **Keep tabs focused** - Each tab should have a clear purpose
+6. **Consider mobile** - Test layouts on smaller screens
+
+## Next Steps
+
+<Cards>
+  <Card href="/docs/admin/views/form-view" title="Form View" description="Form view configuration" />
+  <Card href="/docs/admin/fields" title="Field Types" description="Available field types" />
+</Cards>

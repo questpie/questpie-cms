@@ -1,0 +1,411 @@
+---
+title: KV Store Adapter
+description: Key-value caching and storage
+---
+
+# KV Store Adapter
+
+The KV (key-value) adapter provides caching and temporary storage.
+
+## Configuration
+
+### In-Memory (Default)
+
+For development and single-server deployments:
+
+```typescript
+const cms = q({ name: "my-cms" })
+  .build({
+    kv: {
+      adapter: memoryKVAdapter(),
+      defaultTtl: 3600, // 1 hour
+    },
+  });
+```
+
+### Redis
+
+For production and multi-server deployments:
+
+```typescript
+import { RedisKVAdapter } from "questpie/kv";
+import Redis from "ioredis";
+
+const redis = new Redis(process.env.REDIS_URL);
+
+const cms = q({ name: "my-cms" })
+  .build({
+    kv: {
+      adapter: new RedisKVAdapter(redis),
+      defaultTtl: 3600,
+      prefix: "myapp:", // Key prefix
+    },
+  });
+```
+
+### Upstash Redis
+
+For serverless environments:
+
+```typescript
+import { UpstashKVAdapter } from "questpie/kv";
+import { Redis } from "@upstash/redis";
+
+const redis = new Redis({
+  url: process.env.UPSTASH_REDIS_REST_URL,
+  token: process.env.UPSTASH_REDIS_REST_TOKEN,
+});
+
+const cms = q({ name: "my-cms" })
+  .build({
+    kv: {
+      adapter: new UpstashKVAdapter(redis),
+    },
+  });
+```
+
+## Basic Operations
+
+### Get and Set
+
+```typescript
+// Set a value
+await cms.kv.set("user:123", { name: "John", email: "john@example.com" });
+
+// Set with TTL (seconds)
+await cms.kv.set("session:abc", { userId: "123" }, 3600);
+
+// Get a value
+const user = await cms.kv.get<User>("user:123");
+// { name: "John", email: "john@example.com" } or null
+
+// Get with default
+const settings = await cms.kv.get("settings", { theme: "light" });
+```
+
+### Check Existence
+
+```typescript
+const exists = await cms.kv.exists("user:123");
+// true or false
+```
+
+### Delete
+
+```typescript
+// Delete single key
+await cms.kv.delete("user:123");
+
+// Delete multiple keys
+await cms.kv.deleteMany(["user:123", "user:456"]);
+```
+
+### Get Multiple
+
+```typescript
+const users = await cms.kv.getMany<User>(["user:123", "user:456"]);
+// { "user:123": { ... }, "user:456": { ... } }
+```
+
+## Tag-Based Invalidation
+
+Associate keys with tags for bulk invalidation:
+
+```typescript
+// Set with tags
+await cms.kv.setWithTags(
+  "user:123:profile",
+  { name: "John" },
+  ["user:123", "profiles"],
+  3600
+);
+
+await cms.kv.setWithTags(
+  "user:123:settings",
+  { theme: "dark" },
+  ["user:123", "settings"],
+  3600
+);
+
+await cms.kv.setWithTags(
+  "user:456:profile",
+  { name: "Jane" },
+  ["user:456", "profiles"],
+  3600
+);
+
+// Invalidate all keys with tag "user:123"
+await cms.kv.invalidateByTag("user:123");
+// Deletes: user:123:profile, user:123:settings
+
+// Invalidate all profiles
+await cms.kv.invalidateByTag("profiles");
+// Deletes: user:123:profile, user:456:profile
+```
+
+## Increment/Decrement
+
+```typescript
+// Increment
+const newCount = await cms.kv.increment("page:views", 1);
+
+// Decrement
+const remaining = await cms.kv.decrement("quota:remaining", 1);
+
+// Increment by specific amount
+await cms.kv.increment("stats:total", 10);
+```
+
+## TTL Operations
+
+```typescript
+// Get remaining TTL
+const ttl = await cms.kv.ttl("session:abc");
+// 3540 (seconds remaining) or -1 if no TTL
+
+// Update TTL
+await cms.kv.expire("session:abc", 7200);
+
+// Remove TTL (make permanent)
+await cms.kv.persist("user:123");
+```
+
+## Caching Patterns
+
+### Cache-Aside
+
+```typescript
+async function getUserWithCache(userId: string): Promise<User> {
+  const cacheKey = `user:${userId}`;
+
+  // Try cache first
+  const cached = await cms.kv.get<User>(cacheKey);
+  if (cached) {
+    return cached;
+  }
+
+  // Fetch from database
+  const user = await db.users.findById(userId);
+
+  // Store in cache
+  await cms.kv.set(cacheKey, user, 3600);
+
+  return user;
+}
+```
+
+### Write-Through
+
+```typescript
+async function updateUser(userId: string, data: Partial<User>): Promise<User> {
+  // Update database
+  const user = await db.users.update(userId, data);
+
+  // Update cache
+  await cms.kv.set(`user:${userId}`, user, 3600);
+
+  return user;
+}
+```
+
+### Cache Invalidation
+
+```typescript
+async function deleteUser(userId: string): Promise<void> {
+  // Delete from database
+  await db.users.delete(userId);
+
+  // Invalidate all user-related cache
+  await cms.kv.invalidateByTag(`user:${userId}`);
+}
+```
+
+### Memoization
+
+```typescript
+async function getExpensiveData(): Promise<Data> {
+  const cacheKey = "expensive:data";
+
+  const cached = await cms.kv.get<Data>(cacheKey);
+  if (cached) return cached;
+
+  const data = await computeExpensiveData();
+  await cms.kv.set(cacheKey, data, 60 * 60); // 1 hour
+
+  return data;
+}
+```
+
+## Rate Limiting
+
+```typescript
+async function checkRateLimit(
+  userId: string,
+  limit: number,
+  window: number
+): Promise<boolean> {
+  const key = `ratelimit:${userId}`;
+
+  const current = await cms.kv.get<number>(key) ?? 0;
+
+  if (current >= limit) {
+    return false; // Rate limited
+  }
+
+  // Increment counter
+  const newCount = await cms.kv.increment(key, 1);
+
+  // Set TTL on first request
+  if (newCount === 1) {
+    await cms.kv.expire(key, window);
+  }
+
+  return true;
+}
+
+// Usage
+const allowed = await checkRateLimit(userId, 100, 60); // 100 requests per minute
+if (!allowed) {
+  throw new Error("Rate limit exceeded");
+}
+```
+
+## Session Storage
+
+```typescript
+interface Session {
+  userId: string;
+  createdAt: number;
+  data: Record<string, any>;
+}
+
+async function createSession(userId: string): Promise<string> {
+  const sessionId = generateId();
+  const session: Session = {
+    userId,
+    createdAt: Date.now(),
+    data: {},
+  };
+
+  await cms.kv.set(`session:${sessionId}`, session, 24 * 60 * 60); // 24 hours
+
+  return sessionId;
+}
+
+async function getSession(sessionId: string): Promise<Session | null> {
+  return cms.kv.get<Session>(`session:${sessionId}`);
+}
+
+async function updateSession(sessionId: string, data: Record<string, any>): Promise<void> {
+  const session = await getSession(sessionId);
+  if (!session) throw new Error("Session not found");
+
+  session.data = { ...session.data, ...data };
+  await cms.kv.set(`session:${sessionId}`, session, 24 * 60 * 60);
+}
+
+async function destroySession(sessionId: string): Promise<void> {
+  await cms.kv.delete(`session:${sessionId}`);
+}
+```
+
+## KV Adapter Interface
+
+```typescript
+interface KVAdapter {
+  // Basic operations
+  get<T>(key: string): Promise<T | null>;
+  set(key: string, value: any, ttl?: number): Promise<void>;
+  delete(key: string): Promise<void>;
+
+  // Batch operations
+  getMany<T>(keys: string[]): Promise<Record<string, T | null>>;
+  setMany(entries: Array<{ key: string; value: any; ttl?: number }>): Promise<void>;
+  deleteMany(keys: string[]): Promise<void>;
+
+  // Existence and TTL
+  exists(key: string): Promise<boolean>;
+  ttl(key: string): Promise<number>;
+  expire(key: string, ttl: number): Promise<void>;
+  persist(key: string): Promise<void>;
+
+  // Atomic operations
+  increment(key: string, by?: number): Promise<number>;
+  decrement(key: string, by?: number): Promise<number>;
+
+  // Tag-based invalidation
+  setWithTags?(key: string, value: any, tags: string[], ttl?: number): Promise<void>;
+  invalidateByTag?(tag: string): Promise<void>;
+}
+```
+
+## Configuration Options
+
+```typescript
+interface KVConfig {
+  // KV adapter instance
+  adapter: KVAdapter;
+
+  // Default TTL in seconds
+  defaultTtl?: number;
+
+  // Key prefix
+  prefix?: string;
+
+  // Serialize/deserialize functions
+  serializer?: {
+    serialize: (value: any) => string;
+    deserialize: (value: string) => any;
+  };
+}
+```
+
+## Best Practices
+
+### 1. Use Consistent Key Naming
+
+```typescript
+// Good: structured keys
+"user:123:profile"
+"post:456:comments"
+"session:abc123"
+
+// Bad: inconsistent naming
+"user_123"
+"postComments456"
+```
+
+### 2. Set Appropriate TTLs
+
+```typescript
+// Short TTL for frequently changing data
+await cms.kv.set("realtime:stats", stats, 60); // 1 minute
+
+// Medium TTL for user data
+await cms.kv.set("user:profile", profile, 3600); // 1 hour
+
+// Long TTL for static data
+await cms.kv.set("config:features", features, 86400); // 24 hours
+```
+
+### 3. Handle Cache Misses
+
+```typescript
+async function getData(key: string): Promise<Data> {
+  const cached = await cms.kv.get<Data>(key);
+
+  // Don't assume cache hit
+  if (!cached) {
+    return fetchFreshData();
+  }
+
+  return cached;
+}
+```
+
+## Next Steps
+
+<Cards>
+  <Card href="/docs/backend/adapters/logger" title="Logger" description="Logging configuration" />
+  <Card href="/docs/backend/adapters/storage" title="Storage" description="File storage" />
+</Cards>

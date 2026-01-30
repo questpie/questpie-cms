@@ -1,0 +1,77 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+
+concurrency: ${{ github.workflow }}-${{ github.ref }}
+
+jobs:
+  release:
+    name: Release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      id-token: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Setup Node (for npm provenance)
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Create Release Pull Request or Publish
+        id: changesets
+        uses: changesets/action@v1
+        with:
+          version: bun run version
+          publish: bun run release
+          title: "chore: release"
+          commit: "chore: release"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NPM_CONFIG_PROVENANCE: true
+
+      - name: Create GitHub Release
+        if: steps.changesets.outputs.published == 'true'
+        run: |
+          # Get version from main package
+          VERSION=$(jq -r '.version' packages/questpie/package.json)
+          TAG="v${VERSION}"
+
+          # Check if tag exists, if not create it
+          if ! git rev-parse "$TAG" >/dev/null 2>&1; then
+            git tag "$TAG"
+            git push origin "$TAG"
+          fi
+
+          # Generate release notes from CHANGELOG
+          CHANGELOG_FILE="packages/questpie/CHANGELOG.md"
+
+          if [ -f "$CHANGELOG_FILE" ]; then
+            # Extract the latest version's changelog entry
+            RELEASE_NOTES=$(awk '/^## [0-9]/{if(found) exit; found=1; next} found' "$CHANGELOG_FILE")
+          else
+            RELEASE_NOTES="Release ${VERSION}"
+          fi
+
+          # Create GitHub Release
+          gh release create "$TAG" \
+            --title "QuestPie ${VERSION}" \
+            --notes "$RELEASE_NOTES" \
+            --latest
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

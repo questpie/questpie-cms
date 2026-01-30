@@ -1,0 +1,39 @@
+{
+	"name": "@questpie/hono",
+	"version": "0.0.2",
+	"type": "module",
+	"files": [
+		"dist"
+	],
+	"scripts": {
+		"build": "tsdown",
+		"check-types": "tsc --noEmit"
+	},
+	"dependencies": {
+		"questpie": "workspace:*",
+		"hono": "^4.6.14",
+		"qs": "^6.13.1"
+	},
+	"devDependencies": {
+		"@questpie/typescript-config": "workspace:*",
+		"@types/qs": "^6.9.17",
+		"bun-types": "latest",
+		"tsdown": "^0.18.3"
+	},
+	"peerDependencies": {
+		"questpie": "workspace:*"
+	},
+	"exports": {
+		".": {
+			"import": "./dist/server.mjs",
+			"types": "./dist/server.d.mts"
+		},
+		"./client": {
+			"import": "./dist/client.mjs",
+			"types": "./dist/client.d.mts"
+		}
+	},
+	"publishConfig": {
+		"access": "public"
+	}
+}

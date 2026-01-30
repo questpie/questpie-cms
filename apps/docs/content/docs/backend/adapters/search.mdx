@@ -1,0 +1,395 @@
+---
+title: Search Adapter
+description: Full-text and faceted search configuration
+---
+
+# Search Adapter
+
+The search adapter provides full-text search, fuzzy matching, and faceted search capabilities.
+
+## Configuration
+
+### PostgreSQL Search (Default)
+
+Uses PostgreSQL's built-in full-text search and trigram matching:
+
+```typescript
+import { createPostgresSearchAdapter } from "questpie/search";
+
+const cms = q({ name: "my-cms" })
+  .build({
+    search: createPostgresSearchAdapter({
+      // Trigram similarity threshold (0-1)
+      trigramThreshold: 0.3,
+
+      // Full-text search weight (0-1)
+      ftsWeight: 0.7,
+
+      // Trigram weight (0-1)
+      trigramWeight: 0.3,
+
+      // Default language
+      language: "english",
+    }),
+  });
+```
+
+## Collection Search Configuration
+
+Enable search on collections:
+
+```typescript
+const posts = q.collection("posts")
+  .fields({
+    title: text("title"),
+    content: text("content"),
+    author: relation("author").to("users"),
+    status: text("status"),
+    category: text("category"),
+    publishedAt: timestamp("published_at"),
+  })
+  .searchable({
+    // Fields to include in full-text search
+    title: true,
+    content: true,
+
+    // Custom extractor for complex fields
+    authorName: (record) => record.author?.name,
+
+    // Metadata for filtering (not full-text searched)
+    metadata: (record) => ({
+      status: record.status,
+      category: record.category,
+    }),
+
+    // Facet configuration
+    facets: {
+      status: true,  // Simple facet
+      category: {
+        type: "hierarchy",  // Hierarchical facet
+        separator: "/",
+      },
+      publishedAt: {
+        type: "date",
+        ranges: [
+          { label: "Today", days: 1 },
+          { label: "This Week", days: 7 },
+          { label: "This Month", days: 30 },
+        ],
+      },
+    },
+  });
+```
+
+## Search API
+
+### Basic Search
+
+```typescript
+const results = await cms.collections.posts.search({
+  query: "typescript tutorial",
+  limit: 10,
+});
+
+// results: {
+//   docs: [{ id: "1", title: "...", ... }, ...],
+//   total: 42,
+//   facets: { ... },
+// }
+```
+
+### With Filters
+
+```typescript
+const results = await cms.collections.posts.search({
+  query: "react",
+  filters: {
+    status: "published",
+    category: ["frontend", "tutorials"],
+  },
+  limit: 10,
+  offset: 0,
+});
+```
+
+### Faceted Search
+
+```typescript
+const results = await cms.collections.posts.search({
+  query: "javascript",
+  facets: ["status", "category"],  // Request facet counts
+});
+
+// results.facets:
+// {
+//   status: [
+//     { value: "published", count: 42 },
+//     { value: "draft", count: 8 },
+//   ],
+//   category: [
+//     { value: "tutorials", count: 25 },
+//     { value: "news", count: 17 },
+//   ],
+// }
+```
+
+### Sorted Results
+
+```typescript
+const results = await cms.collections.posts.search({
+  query: "react",
+  sort: [
+    { field: "relevance", direction: "desc" },
+    { field: "publishedAt", direction: "desc" },
+  ],
+});
+```
+
+## Search Capabilities
+
+The adapter reports its capabilities:
+
+```typescript
+interface SearchCapabilities {
+  // Full-text search (PostgreSQL tsvector)
+  lexical: boolean;
+
+  // Fuzzy matching (trigram similarity)
+  trigram: boolean;
+
+  // Vector similarity (for embeddings)
+  semantic: boolean;
+
+  // Combined lexical + semantic
+  hybrid: boolean;
+
+  // Faceted search with aggregations
+  facets: boolean;
+}
+
+// PostgreSQL adapter capabilities
+// { lexical: true, trigram: true, semantic: false, hybrid: false, facets: true }
+```
+
+## Facet Types
+
+### Simple Facet
+
+```typescript
+facets: {
+  status: true,  // Counts per unique value
+}
+
+// Result: [{ value: "published", count: 42 }, ...]
+```
+
+### Hierarchy Facet
+
+```typescript
+facets: {
+  category: {
+    type: "hierarchy",
+    separator: "/",  // e.g., "tech/frontend/react"
+  },
+}
+
+// Result: [
+//   { value: "tech", count: 100 },
+//   { value: "tech/frontend", count: 50 },
+//   { value: "tech/frontend/react", count: 25 },
+// ]
+```
+
+### Range Facet
+
+```typescript
+facets: {
+  price: {
+    type: "range",
+    ranges: [
+      { label: "Under $10", max: 10 },
+      { label: "$10-$50", min: 10, max: 50 },
+      { label: "Over $50", min: 50 },
+    ],
+  },
+}
+
+// Result: [
+//   { label: "Under $10", count: 20 },
+//   { label: "$10-$50", count: 35 },
+//   { label: "Over $50", count: 15 },
+// ]
+```
+
+### Date Facet
+
+```typescript
+facets: {
+  createdAt: {
+    type: "date",
+    ranges: [
+      { label: "Today", days: 1 },
+      { label: "This Week", days: 7 },
+      { label: "This Month", days: 30 },
+      { label: "This Year", days: 365 },
+    ],
+  },
+}
+```
+
+## Search Options
+
+```typescript
+interface SearchOptions {
+  // Search query
+  query: string;
+
+  // Filter by field values
+  filters?: Record<string, any>;
+
+  // Pagination
+  limit?: number;
+  offset?: number;
+
+  // Sorting
+  sort?: Array<{
+    field: string;
+    direction: "asc" | "desc";
+  }>;
+
+  // Request facet counts
+  facets?: string[];
+
+  // Highlight matching text
+  highlight?: {
+    fields: string[];
+    preTag?: string;
+    postTag?: string;
+  };
+
+  // Minimum score threshold
+  minScore?: number;
+}
+```
+
+## Highlighting
+
+```typescript
+const results = await cms.collections.posts.search({
+  query: "typescript",
+  highlight: {
+    fields: ["title", "content"],
+    preTag: "<mark>",
+    postTag: "</mark>",
+  },
+});
+
+// results.docs[0].highlights:
+// {
+//   title: "Introduction to <mark>TypeScript</mark>",
+//   content: "Learn <mark>TypeScript</mark> basics...",
+// }
+```
+
+## Indexing
+
+Search indexes are updated automatically when documents change:
+
+```typescript
+// Automatic on create/update
+await cms.collections.posts.create({
+  title: "New Post",
+  content: "Content...",
+});
+
+// Manual reindex (if needed)
+await cms.search.reindex("posts");
+
+// Reindex specific document
+await cms.search.reindexDoc("posts", "post-123");
+```
+
+## Search Adapter Interface
+
+```typescript
+interface SearchAdapter {
+  // Get adapter capabilities
+  capabilities(): SearchCapabilities;
+
+  // Search documents
+  search(
+    collection: string,
+    options: SearchOptions
+  ): Promise<SearchResult>;
+
+  // Index a document
+  index(
+    collection: string,
+    id: string,
+    data: SearchDocument
+  ): Promise<void>;
+
+  // Remove from index
+  remove(
+    collection: string,
+    id: string
+  ): Promise<void>;
+
+  // Reindex collection
+  reindex(collection: string): Promise<void>;
+}
+```
+
+## Best Practices
+
+### 1. Index Relevant Fields
+
+```typescript
+// ❌ Don't index everything
+.searchable({
+  ...allFields,  // Too broad
+})
+
+// ✅ Index what users search for
+.searchable({
+  title: true,
+  description: true,
+  tags: (record) => record.tags.join(" "),
+})
+```
+
+### 2. Use Facets for Filtering UI
+
+```typescript
+// In your search page
+const results = await cms.collections.products.search({
+  query: userQuery,
+  facets: ["category", "brand", "priceRange"],
+});
+
+// Render filter sidebar with facet counts
+results.facets.category.map(({ value, count }) => (
+  <FilterOption label={`${value} (${count})`} />
+));
+```
+
+### 3. Debounce Search Requests
+
+```typescript
+// Client-side
+const debouncedSearch = useDebouncedCallback(
+  (query: string) => {
+    search({ query });
+  },
+  300
+);
+
+<input onChange={(e) => debouncedSearch(e.target.value)} />
+```
+
+## Next Steps
+
+<Cards>
+  <Card href="/docs/backend/adapters/realtime" title="Realtime" description="Live updates" />
+  <Card href="/docs/backend/search" title="Search Guide" description="Complete search guide" />
+</Cards>

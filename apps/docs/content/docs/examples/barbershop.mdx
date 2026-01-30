@@ -1,0 +1,519 @@
+---
+title: Barbershop Example
+description: Complete walkthrough of the tanstack-barbershop example
+---
+
+# Barbershop Example
+
+The tanstack-barbershop example is a complete booking system demonstrating all major QUESTPIE CMS features.
+
+## Overview
+
+A barbershop management system with:
+
+- **Barber profiles** with working hours and services
+- **Service catalog** with pricing and duration
+- **Appointment booking** with status tracking
+- **Customer reviews** with ratings
+- **Page builder** for marketing pages
+- **Analytics dashboard** with revenue tracking
+
+## Project Structure
+
+```
+examples/tanstack-barbershop/
+├── src/
+│   ├── questpie/
+│   │   ├── server/
+│   │   │   ├── cms.ts              # Main CMS instance
+│   │   │   ├── collections/
+│   │   │   │   ├── barbers.ts      # Barber profiles
+│   │   │   │   ├── services.ts     # Service catalog
+│   │   │   │   ├── appointments.ts # Bookings
+│   │   │   │   ├── reviews.ts      # Customer reviews
+│   │   │   │   ├── pages.ts        # CMS pages
+│   │   │   │   └── index.ts
+│   │   │   ├── globals/
+│   │   │   │   └── site-settings.ts
+│   │   │   ├── jobs/               # Email notifications
+│   │   │   └── functions/          # Booking logic
+│   │   │
+│   │   └── admin/
+│   │       ├── admin.ts            # Main admin config
+│   │       ├── builder.ts          # Shared builder
+│   │       ├── collections/
+│   │       │   ├── barbers.ts
+│   │       │   ├── services.ts
+│   │       │   ├── appointments.ts
+│   │       │   ├── reviews.ts
+│   │       │   └── pages.ts
+│   │       ├── blocks/             # 18 page builder blocks
+│   │       ├── sidebar.ts
+│   │       └── dashboard.ts
+│   │
+│   ├── routes/
+│   ├── components/
+│   └── lib/
+│
+├── migrations/
+└── drizzle.config.ts
+```
+
+## Backend Configuration
+
+### CMS Instance
+
+```typescript
+// src/questpie/server/cms.ts
+import { adminModule } from "@questpie/admin/server";
+import { q, ConsoleAdapter, SmtpAdapter, pgBossAdapter } from "questpie";
+import { barbers, services, appointments, reviews, pages } from "./collections";
+import { siteSettings } from "./globals";
+import * as jobs from "./jobs";
+import * as functions from "./functions";
+
+export const cms = q({ name: "barbershop" })
+  .use(adminModule)
+  .collections({
+    barbers,
+    services,
+    appointments,
+    reviews,
+    pages,
+  })
+  .globals({
+    siteSettings,
+  })
+  .jobs(jobs)
+  .functions(functions)
+  .locale({
+    locales: [
+      { code: "en", label: "English", fallback: true },
+      { code: "sk", label: "Slovenčina" },
+    ],
+    defaultLocale: "en",
+  })
+  .auth({
+    emailAndPassword: { enabled: true },
+    secret: process.env.AUTH_SECRET,
+  })
+  .build({
+    db: { url: process.env.DATABASE_URL },
+    email: {
+      adapter: process.env.SMTP_HOST
+        ? new SmtpAdapter({ transport: {...} })
+        : new ConsoleAdapter(),
+    },
+    queue: {
+      adapter: pgBossAdapter({
+        connectionString: process.env.DATABASE_URL,
+      }),
+    },
+  });
+
+export type AppCMS = typeof cms;
+```
+
+### Barbers Collection
+
+```typescript
+// src/questpie/server/collections/barbers.ts
+import { q, text, boolean, json } from "questpie";
+
+export const barbers = q.collection("barbers")
+  .fields({
+    name: text("name").notNull(),
+    email: text("email").notNull().unique(),
+    phone: text("phone"),
+    bio: text("bio"),
+    avatarId: text("avatarId"),
+    isActive: boolean("isActive").default(true),
+    workingHours: json("workingHours").$type<WorkingHours>(),
+    socialLinks: json("socialLinks").$type<SocialLink[]>(),
+  })
+  .relations(({ many }) => ({
+    services: many("barberServices"),
+    appointments: many("appointments"),
+  }))
+  .hooks({
+    beforeDelete: async ({ id, ctx }) => {
+      // Check for future appointments
+      const count = await ctx.cms.api.collections.appointments.count({
+        where: {
+          barberId: id,
+          status: { in: ["pending", "confirmed"] },
+          scheduledAt: { gte: new Date().toISOString() },
+        },
+      });
+      if (count > 0) {
+        throw new Error("Cannot delete barber with future appointments");
+      }
+    },
+  });
+```
+
+### Appointments Collection
+
+```typescript
+// src/questpie/server/collections/appointments.ts
+import { q, text, datetime, integer } from "questpie";
+
+export const appointments = q.collection("appointments")
+  .fields({
+    customerName: text("customerName").notNull(),
+    customerEmail: text("customerEmail").notNull(),
+    customerPhone: text("customerPhone"),
+    barberId: text("barberId").notNull(),
+    serviceId: text("serviceId").notNull(),
+    scheduledAt: datetime("scheduledAt").notNull(),
+    duration: integer("duration").notNull(),
+    price: integer("price").notNull(),
+    status: text("status")
+      .$type<"pending" | "confirmed" | "completed" | "cancelled" | "no-show">()
+      .default("pending"),
+    notes: text("notes"),
+  })
+  .relations(({ one }) => ({
+    barber: one("barbers", {
+      fields: ["barberId"],
+      references: ["id"],
+    }),
+    service: one("services", {
+      fields: ["serviceId"],
+      references: ["id"],
+    }),
+  }))
+  .hooks({
+    afterCreate: async ({ data, ctx }) => {
+      // Send confirmation email
+      await ctx.cms.queue.sendAppointmentConfirmation.publish({
+        appointmentId: data.id,
+      });
+    },
+    afterUpdate: async ({ data, previousData, ctx }) => {
+      if (data.status === "cancelled" && previousData.status !== "cancelled") {
+        await ctx.cms.queue.sendAppointmentCancellation.publish({
+          appointmentId: data.id,
+        });
+      }
+    },
+  });
+```
+
+## Admin Configuration
+
+### Builder Setup
+
+```typescript
+// src/questpie/admin/builder.ts
+import { qa, adminModule } from "@questpie/admin/client";
+import type { AppCMS } from "../server/cms";
+
+export const builder = qa<AppCMS>().use(adminModule);
+```
+
+### Barbers Admin
+
+```typescript
+// src/questpie/admin/collections/barbers.ts
+import { UsersIcon } from "@phosphor-icons/react";
+import { builder } from "../builder";
+
+export const barbersAdmin = builder
+  .collection("barbers")
+  .meta({
+    label: { en: "Barbers", sk: "Holiči" },
+    icon: UsersIcon,
+  })
+  .preview({
+    url: (values) => {
+      const slug = values.name?.toLowerCase().replace(/\s+/g, "-") || "barber";
+      return `/barbers/${slug}?preview=true`;
+    },
+    enabled: true,
+    position: "right",
+    defaultWidth: 50,
+  })
+  .fields(({ r }) => ({
+    name: r.text({
+      label: { en: "Full Name", sk: "Celé meno" },
+      maxLength: 255,
+      required: true,
+    }),
+    email: r.email({
+      label: { en: "Email", sk: "Email" },
+      required: true,
+    }),
+    phone: r.text({
+      label: { en: "Phone", sk: "Telefón" },
+    }),
+    bio: r.richText({
+      label: { en: "Biography", sk: "Životopis" },
+      localized: true,
+    }),
+    avatar: r.upload({
+      label: { en: "Photo", sk: "Fotka" },
+      accept: ["image/*"],
+      maxSize: 5_000_000,
+    }),
+    isActive: r.switch({
+      label: { en: "Active", sk: "Aktívny" },
+    }),
+    services: r.relation({
+      label: { en: "Services", sk: "Služby" },
+      targetCollection: "services",
+      type: "multiple",
+    }),
+    workingHours: r.object({
+      label: { en: "Working Hours", sk: "Pracovná doba" },
+      wrapper: "collapsible",
+      fields: ({ r }) => ({
+        monday: dayFields(r, "Monday", "Pondelok"),
+        tuesday: dayFields(r, "Tuesday", "Utorok"),
+        // ... other days
+      }),
+    }),
+    socialLinks: r.array({
+      label: { en: "Social Links", sk: "Sociálne siete" },
+      item: ({ r }) => ({
+        platform: r.select({
+          label: "Platform",
+          options: [
+            { label: "Instagram", value: "instagram" },
+            { label: "Facebook", value: "facebook" },
+          ],
+        }),
+        url: r.text({ label: "URL" }),
+      }),
+      maxItems: 5,
+    }),
+  }))
+  .list(({ v }) => v.table({}))
+  .form(({ v, f }) => v.form({
+    sidebar: {
+      position: "right",
+      fields: [f.isActive, f.avatar],
+    },
+    sections: [
+      {
+        title: { en: "Contact", sk: "Kontakt" },
+        layout: "grid",
+        grid: { columns: 2 },
+        fields: [f.name, f.email, f.phone],
+      },
+      {
+        title: { en: "Profile", sk: "Profil" },
+        fields: [f.bio, f.services],
+      },
+      {
+        fields: [f.socialLinks, f.workingHours],
+      },
+    ],
+  }));
+```
+
+### Dashboard
+
+```typescript
+// src/questpie/admin/dashboard.ts
+import { qa, type DashboardConfig } from "@questpie/admin/client";
+import { client } from "@/lib/cms-client";
+
+export const dashboard = qa.dashboard({
+  title: { en: "Dashboard", sk: "Prehľad" },
+  columns: 4,
+  items: [
+    // Key metrics section
+    {
+      type: "section",
+      label: { en: "Key Metrics", sk: "Kľúčové metriky" },
+      wrapper: "flat",
+      layout: "grid",
+      columns: 4,
+      items: [
+        {
+          id: "revenue",
+          type: "value",
+          span: 2,
+          cardVariant: "featured",
+          fetchFn: async () => {
+            const stats = await client.functions.getRevenueStats();
+            return {
+              value: stats.totalRevenue / 100,
+              formatted: `${stats.totalRevenue.toLocaleString()} €`,
+              label: { en: "Monthly Revenue", sk: "Mesačné tržby" },
+              icon: CurrencyIcon,
+            };
+          },
+        },
+        {
+          id: "pending",
+          type: "stats",
+          collection: "appointments",
+          filter: { status: "pending" },
+          label: { en: "Pending", sk: "Čakajúce" },
+          span: 1,
+        },
+        {
+          id: "rating",
+          type: "value",
+          span: 1,
+          fetchFn: async () => {
+            // Calculate average rating
+          },
+        },
+      ],
+    },
+    // Tabs for different views
+    {
+      type: "tabs",
+      tabs: [
+        {
+          id: "overview",
+          label: { en: "Overview", sk: "Prehľad" },
+          items: [/* stats, recent items */],
+        },
+        {
+          id: "analytics",
+          label: { en: "Analytics", sk: "Analytika" },
+          items: [/* charts, progress */],
+        },
+      ],
+    },
+  ],
+} satisfies DashboardConfig);
+```
+
+## Page Builder Blocks
+
+### Hero Block
+
+```typescript
+// src/questpie/admin/blocks/hero.tsx
+export const heroBlock = builder
+  .block("hero")
+  .label({ en: "Hero", sk: "Hero" })
+  .icon("Image")
+  .category("sections")
+  .fields(({ r }) => ({
+    title: r.text({ label: "Title", localized: true, required: true }),
+    subtitle: r.textarea({ label: "Subtitle", localized: true }),
+    backgroundImage: r.upload({ label: "Background", accept: ["image/*"] }),
+    ctaText: r.text({ label: "Button Text", localized: true }),
+    ctaLink: r.text({ label: "Button Link" }),
+  }))
+  .prefetch(async ({ values }) => {
+    if (!values.backgroundImage) return {};
+    const asset = await client.collections.assets.findOne({
+      where: { id: values.backgroundImage },
+    });
+    return { backgroundImageUrl: asset?.url };
+  })
+  .renderer(HeroRenderer)
+  .build();
+```
+
+### All Blocks
+
+The example includes 18 blocks:
+
+**Sections:** hero, services, team, reviews, cta, booking-cta, services-featured, barbers-featured, reviews-grid
+
+**Content:** text, heading, image-text, gallery, stats, hours, contact-info
+
+**Layout:** columns, spacer, divider
+
+## Custom Functions
+
+```typescript
+// src/questpie/server/functions/booking.ts
+import { q, getApp } from "questpie";
+import { z } from "zod";
+import type { BaseCMS } from "../cms";
+
+export const createBooking = q.fn({
+  input: z.object({
+    barberId: z.string(),
+    serviceId: z.string(),
+    scheduledAt: z.string().datetime(),
+    customerName: z.string(),
+    customerEmail: z.string().email(),
+    customerPhone: z.string().optional(),
+  }),
+  handler: async ({ input, app }) => {
+    const cms = getApp<BaseCMS>(app);
+
+    // Validate barber exists and is active
+    const barber = await cms.api.collections.barbers.findOne({
+      where: { id: input.barberId, isActive: true },
+    });
+    if (!barber) throw new Error("Barber not available");
+
+    // Validate service
+    const service = await cms.api.collections.services.findOne({
+      where: { id: input.serviceId },
+    });
+    if (!service) throw new Error("Service not found");
+
+    // Check for conflicts
+    const conflicts = await cms.api.collections.appointments.count({
+      where: {
+        barberId: input.barberId,
+        scheduledAt: input.scheduledAt,
+        status: { in: ["pending", "confirmed"] },
+      },
+    });
+    if (conflicts > 0) throw new Error("Time slot not available");
+
+    // Create appointment
+    const appointment = await cms.api.collections.appointments.create({
+      ...input,
+      duration: service.duration,
+      price: service.price,
+      status: "pending",
+    });
+
+    return { success: true, appointmentId: appointment.id };
+  },
+});
+```
+
+## Running the Example
+
+```bash
+# Clone and setup
+git clone https://github.com/questpie/questpie-cms
+cd questpie-cms/examples/tanstack-barbershop
+
+# Install dependencies
+bun install
+
+# Configure environment
+cp .env.example .env
+# Edit .env with your DATABASE_URL
+
+# Run migrations
+bun run db:migrate
+
+# Start dev server
+bun run dev
+```
+
+Visit:
+- `http://localhost:3000` - Frontend
+- `http://localhost:3000/admin` - Admin panel
+
+## Key Takeaways
+
+1. **Organized structure** - Server and admin configs mirror each other
+2. **Type safety** - Types flow from backend to admin automatically
+3. **Rich features** - Dashboard, blocks, preview, i18n all working together
+4. **Real-world patterns** - Hooks, jobs, functions for business logic
+
+## Next Steps
+
+<Cards>
+  <Card href="/docs/backend" title="Backend Deep Dive" description="Learn all backend features" />
+  <Card href="/docs/admin" title="Admin Deep Dive" description="Learn all admin features" />
+  <Card href="/docs/admin/blocks" title="Block System" description="Create your own blocks" />
+</Cards>

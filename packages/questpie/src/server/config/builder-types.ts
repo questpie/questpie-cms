@@ -1,0 +1,166 @@
+import type { BetterAuthOptions } from "better-auth";
+import type {
+	AnyCollectionOrBuilder,
+	AnyGlobalOrBuilder,
+	DbConfig,
+	LocaleConfig,
+	StorageConfig,
+} from "#questpie/server/config/types.js";
+import type { FunctionDefinition } from "#questpie/server/functions/types.js";
+import type { TranslationsConfig } from "#questpie/server/i18n/types.js";
+import type { KVConfig } from "#questpie/server/integrated/kv/index.js";
+import type { LoggerConfig } from "#questpie/server/integrated/logger/index.js";
+import type {
+	EmailTemplateDefinition,
+	MailerConfig,
+} from "#questpie/server/integrated/mailer/index.js";
+import type {
+	JobDefinition,
+	QueueAdapter,
+} from "#questpie/server/integrated/queue/types.js";
+import type { RealtimeConfig } from "#questpie/server/integrated/realtime/index.js";
+import type { SearchAdapter } from "#questpie/server/integrated/search/index.js";
+import type { Migration } from "#questpie/server/migration/types.js";
+
+export type BuilderCollectionsMap = Record<string, AnyCollectionOrBuilder>;
+export type BuilderGlobalsMap = Record<string, AnyGlobalOrBuilder>;
+export type BuilderJobsMap = Record<string, JobDefinition<any, any>>;
+export type BuilderEmailTemplatesMap = Record<
+	string,
+	EmailTemplateDefinition<any, any>
+>;
+export type BuilderFunctionsMap = Record<string, FunctionDefinition>;
+export type BuilderMapValues<TMap extends Record<PropertyKey, any>> =
+	TMap[keyof TMap];
+export type EmptyBuilderMap = Record<never, never>;
+
+/**
+ * Builder state - definition-time configuration (type-inferrable)
+ * Only includes things that affect type inference
+ */
+export interface QuestpieBuilderState<
+	TName extends string = string,
+	TCollections extends BuilderCollectionsMap = BuilderCollectionsMap,
+	TGlobals extends BuilderGlobalsMap = BuilderGlobalsMap,
+	TJobs extends BuilderJobsMap = BuilderJobsMap,
+	TEmailTemplates extends BuilderEmailTemplatesMap = BuilderEmailTemplatesMap,
+	TFunctions extends BuilderFunctionsMap = BuilderFunctionsMap,
+	TAuth extends BetterAuthOptions | Record<never, never> = Record<never, never>,
+	TMessageKeys extends string = never,
+> {
+	name: TName;
+	collections: TCollections;
+	globals: TGlobals;
+	jobs: TJobs;
+	emailTemplates: TEmailTemplates;
+	functions: TFunctions;
+
+	// Type-inferrable configurations (affect types)
+	auth: TAuth;
+	locale?: LocaleConfig;
+
+	// Migrations from modules
+	migrations?: Migration[];
+
+	// I18n translations for backend messages
+	translations?: TranslationsConfig;
+
+	/**
+	 * Phantom type for tracking message keys through the builder chain.
+	 * Not used at runtime - purely for type inference.
+	 */
+	"~messageKeys"?: TMessageKeys;
+}
+
+/**
+ * Runtime configuration - provided at .build() time
+ * This is what requires environment variables and runtime values
+ */
+export interface QuestpieRuntimeConfig<TDbConfig extends DbConfig = DbConfig> {
+	/**
+	 * Application settings
+	 */
+	app: {
+		url: string;
+	};
+
+	/**
+	 * Database connection
+	 */
+	db: TDbConfig;
+
+	/**
+	 * Secret key for signing tokens, etc.
+	 */
+	secret?: string;
+
+	/**
+	 * Storage configuration (driver, etc.)
+	 */
+	storage?: StorageConfig;
+
+	/**
+	 * Email adapter configuration (SMTP, console, etc.)
+	 */
+	email?: Pick<MailerConfig, "adapter" | "defaults">;
+
+	/**
+	 * Queue adapter configuration
+	 */
+	queue?: {
+		adapter: QueueAdapter;
+	};
+
+	/**
+	 * Search adapter
+	 * @example createPostgresSearchAdapter()
+	 */
+	search?: SearchAdapter;
+
+	/**
+	 * Realtime adapter configuration
+	 */
+	realtime?: RealtimeConfig;
+
+	/**
+	 * Logger configuration
+	 */
+	logger?: LoggerConfig;
+
+	/**
+	 * KV adapter configuration
+	 */
+	kv?: KVConfig;
+}
+
+/**
+ * Initial builder state with core collections
+ * Core collections (assets, auth tables) are always included
+ */
+export type EmptyNamedBuilderState<TName extends string> = QuestpieBuilderState<
+	TName,
+	EmptyBuilderMap,
+	EmptyBuilderMap,
+	EmptyBuilderMap,
+	EmptyBuilderMap,
+	EmptyBuilderMap,
+	Record<never, never>,
+	never // No message keys initially
+> & {
+	auth: {};
+	locale: undefined;
+	migrations: undefined;
+	"~messageKeys": never;
+};
+
+export type EmptyBuilderState = EmptyNamedBuilderState<"">;
+
+/**
+ * Extract message keys from a builder state
+ */
+export type ExtractMessageKeys<TState extends QuestpieBuilderState> =
+	TState["~messageKeys"] extends infer TKeys
+		? TKeys extends string
+			? TKeys
+			: never
+		: never;

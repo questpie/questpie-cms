@@ -1,0 +1,297 @@
+---
+title: Storage Adapter
+description: File uploads and serving configuration
+---
+
+# Storage Adapter
+
+The storage adapter handles file uploads, serving, and management.
+
+## Configuration
+
+### Local Filesystem (Default)
+
+```typescript
+const cms = q({ name: "my-cms" })
+  .build({
+    storage: {
+      location: "./uploads",  // Storage directory
+      defaultVisibility: "public",  // Default file visibility
+      signedUrlExpiration: 3600,  // Signed URL expiration (seconds)
+    },
+  });
+```
+
+### Amazon S3
+
+```typescript
+import { S3Driver } from "questpie/storage";
+
+const cms = q({ name: "my-cms" })
+  .build({
+    storage: {
+      driver: new S3Driver({
+        key: process.env.AWS_ACCESS_KEY_ID,
+        secret: process.env.AWS_SECRET_ACCESS_KEY,
+        region: "eu-central-1",
+        bucket: "my-bucket",
+        endpoint: undefined,  // Use default AWS endpoint
+      }),
+      defaultVisibility: "private",
+    },
+  });
+```
+
+### Cloudflare R2
+
+```typescript
+import { R2Driver } from "questpie/storage";
+
+const cms = q({ name: "my-cms" })
+  .build({
+    storage: {
+      driver: new R2Driver({
+        accountId: process.env.R2_ACCOUNT_ID,
+        accessKeyId: process.env.R2_ACCESS_KEY_ID,
+        secretAccessKey: process.env.R2_SECRET_ACCESS_KEY,
+        bucket: "my-bucket",
+      }),
+    },
+  });
+```
+
+### Google Cloud Storage
+
+```typescript
+import { GCSDriver } from "questpie/storage";
+
+const cms = q({ name: "my-cms" })
+  .build({
+    storage: {
+      driver: new GCSDriver({
+        projectId: process.env.GCP_PROJECT_ID,
+        bucket: "my-bucket",
+        keyFilename: "./service-account.json",
+        // Or use credentials object
+        credentials: {
+          client_email: process.env.GCP_CLIENT_EMAIL,
+          private_key: process.env.GCP_PRIVATE_KEY,
+        },
+      }),
+    },
+  });
+```
+
+## Storage API
+
+### Upload Files
+
+```typescript
+// Upload from buffer
+await cms.storage.put("path/to/file.jpg", buffer, {
+  contentType: "image/jpeg",
+  visibility: "public",
+  metadata: {
+    uploadedBy: "user-123",
+  },
+});
+
+// Upload from stream
+await cms.storage.putStream("path/to/large-file.zip", readableStream);
+```
+
+### Read Files
+
+```typescript
+// Get file as buffer
+const buffer = await cms.storage.get("path/to/file.jpg");
+
+// Get file as stream
+const stream = await cms.storage.getStream("path/to/large-file.zip");
+
+// Check if file exists
+const exists = await cms.storage.exists("path/to/file.jpg");
+
+// Get file metadata
+const metadata = await cms.storage.getMetadata("path/to/file.jpg");
+// { size: 12345, contentType: "image/jpeg", lastModified: Date, ... }
+```
+
+### Get URLs
+
+```typescript
+// Get public URL (for public files)
+const publicUrl = await cms.storage.getUrl("path/to/file.jpg");
+
+// Get signed URL (for private files)
+const signedUrl = await cms.storage.getSignedUrl("path/to/file.jpg", {
+  expiresIn: 3600,  // 1 hour
+  operation: "read",  // or "write" for upload URLs
+});
+```
+
+### Delete Files
+
+```typescript
+// Delete single file
+await cms.storage.delete("path/to/file.jpg");
+
+// Delete multiple files
+await cms.storage.deleteMany([
+  "path/to/file1.jpg",
+  "path/to/file2.jpg",
+]);
+```
+
+### List Files
+
+```typescript
+// List files in directory
+const files = await cms.storage.list("uploads/images/");
+// [{ path: "uploads/images/1.jpg", size: 1234, ... }, ...]
+
+// List with prefix
+const files = await cms.storage.list("uploads/", {
+  prefix: "user-123",
+  maxKeys: 100,
+});
+```
+
+### Copy and Move
+
+```typescript
+// Copy file
+await cms.storage.copy(
+  "path/to/source.jpg",
+  "path/to/destination.jpg"
+);
+
+// Move file (copy + delete)
+await cms.storage.move(
+  "path/to/source.jpg",
+  "path/to/destination.jpg"
+);
+```
+
+## File Visibility
+
+Files can be public or private:
+
+```typescript
+// Upload as public
+await cms.storage.put("public-file.jpg", buffer, {
+  visibility: "public",
+});
+
+// Upload as private
+await cms.storage.put("private-file.jpg", buffer, {
+  visibility: "private",
+});
+
+// Change visibility
+await cms.storage.setVisibility("file.jpg", "private");
+```
+
+## Upload Fields
+
+Use storage with upload fields in collections:
+
+```typescript
+// Backend
+const posts = q.collection("posts")
+  .fields({
+    title: text("title"),
+    featuredImage: upload("featured_image"),
+    gallery: uploadMany("gallery"),
+  });
+
+// Files are automatically handled by the storage adapter
+```
+
+## Image Processing
+
+For image transformations, use a CDN or image processing service:
+
+```typescript
+// With Cloudflare Images
+const imageUrl = cms.storage.getUrl("image.jpg", {
+  transform: {
+    width: 800,
+    height: 600,
+    fit: "cover",
+  },
+});
+
+// Or use external service like Imgix
+const imgixUrl = `https://my-site.imgix.net/${path}?w=800&h=600&fit=crop`;
+```
+
+## Configuration Options
+
+```typescript
+interface StorageConfig {
+  // For local storage
+  location?: string;
+
+  // For cloud storage
+  driver?: StorageDriver;
+
+  // Default visibility for new uploads
+  defaultVisibility?: "public" | "private";
+
+  // Signed URL expiration in seconds
+  signedUrlExpiration?: number;
+
+  // Base URL for serving files
+  baseUrl?: string;
+
+  // Path prefix for all files
+  prefix?: string;
+}
+```
+
+## Best Practices
+
+### 1. Use Unique File Names
+
+```typescript
+import { nanoid } from "nanoid";
+
+const uniqueName = `${nanoid()}-${originalFilename}`;
+await cms.storage.put(`uploads/${uniqueName}`, buffer);
+```
+
+### 2. Organize by Date
+
+```typescript
+const date = new Date();
+const path = `uploads/${date.getFullYear()}/${date.getMonth() + 1}/${filename}`;
+await cms.storage.put(path, buffer);
+```
+
+### 3. Validate File Types
+
+```typescript
+const allowedTypes = ["image/jpeg", "image/png", "image/webp"];
+
+if (!allowedTypes.includes(file.type)) {
+  throw new Error("Invalid file type");
+}
+```
+
+### 4. Set Size Limits
+
+```typescript
+const maxSize = 10 * 1024 * 1024; // 10MB
+
+if (file.size > maxSize) {
+  throw new Error("File too large");
+}
+```
+
+## Next Steps
+
+<Cards>
+  <Card href="/docs/backend/adapters/queue" title="Queue" description="Background jobs" />
+  <Card href="/docs/guides/storage-upload" title="Upload Guide" description="Complete upload guide" />
+</Cards>

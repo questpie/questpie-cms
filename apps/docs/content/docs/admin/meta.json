@@ -1,0 +1,22 @@
+{
+	"title": "Admin UI",
+	"pages": [
+		"index",
+		"getting-started",
+		"builder-api",
+		"qa-from",
+		"collections",
+		"globals",
+		"sidebar",
+		"dashboard",
+		"fields",
+		"views",
+		"blocks",
+		"preview",
+		"hooks",
+		"components",
+		"architecture",
+		"extensibility",
+		"patterns"
+	]
+}

@@ -1,0 +1,362 @@
+---
+title: Media Fields
+description: upload, uploadMany, and assetPreview field types
+---
+
+# Media Fields
+
+Media fields handle file uploads and asset management.
+
+## upload
+
+Single file upload with preview.
+
+```typescript
+avatar: r.upload({
+  label: "Profile Photo",
+  accept: ["image/*"],
+})
+```
+
+### Options
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `label` | `string \| I18nText` | - | Display label |
+| `description` | `string \| I18nText` | - | Help text |
+| `accept` | `string[]` | `["*/*"]` | Accepted MIME types |
+| `maxSize` | `number` | - | Max file size in bytes |
+| `required` | `boolean \| fn` | `false` | Required validation |
+| `readOnly` | `boolean \| fn` | `false` | Disable editing |
+| `visible` | `fn` | - | Conditional visibility |
+| `previewVariant` | `"default" \| "compact" \| "card"` | `"default"` | Preview style |
+
+### Accept Patterns
+
+```typescript
+// Images only
+avatar: r.upload({
+  label: "Photo",
+  accept: ["image/*"],
+})
+
+// Specific image types
+logo: r.upload({
+  label: "Logo",
+  accept: ["image/png", "image/svg+xml"],
+})
+
+// Documents
+resume: r.upload({
+  label: "Resume",
+  accept: ["application/pdf", ".doc", ".docx"],
+})
+
+// Videos
+video: r.upload({
+  label: "Video",
+  accept: ["video/*"],
+})
+
+// Multiple types
+attachment: r.upload({
+  label: "Attachment",
+  accept: ["image/*", "application/pdf", ".doc", ".docx"],
+})
+```
+
+### Size Limits
+
+```typescript
+// 5MB limit
+avatar: r.upload({
+  label: "Avatar",
+  accept: ["image/*"],
+  maxSize: 5_000_000,  // 5MB in bytes
+})
+
+// 50MB video limit
+video: r.upload({
+  label: "Video",
+  accept: ["video/*"],
+  maxSize: 50_000_000,  // 50MB
+})
+```
+
+### Preview Variants
+
+```typescript
+// Default - standard preview with filename
+avatar: r.upload({
+  label: "Avatar",
+  previewVariant: "default",
+})
+
+// Compact - smaller preview for sidebars
+avatar: r.upload({
+  label: "Avatar",
+  previewVariant: "compact",
+})
+
+// Card - larger preview with metadata
+featuredImage: r.upload({
+  label: "Featured Image",
+  previewVariant: "card",
+})
+```
+
+### Examples
+
+```typescript
+// Profile avatar
+avatar: r.upload({
+  label: { en: "Profile Photo", sk: "Profilova fotka" },
+  accept: ["image/*"],
+  maxSize: 5_000_000,
+  previewVariant: "compact",
+})
+
+// Featured image
+featuredImage: r.upload({
+  label: "Featured Image",
+  accept: ["image/jpeg", "image/png", "image/webp"],
+  maxSize: 10_000_000,
+  description: "Recommended size: 1200x630px",
+})
+
+// PDF document
+contract: r.upload({
+  label: "Contract",
+  accept: ["application/pdf"],
+  maxSize: 20_000_000,
+})
+
+// Background image (for blocks)
+backgroundImage: r.upload({
+  label: "Background Image",
+  accept: ["image/*"],
+  description: "Large image for hero section background",
+})
+```
+
+## uploadMany
+
+Multiple file uploads.
+
+```typescript
+gallery: r.uploadMany({
+  label: "Gallery",
+  accept: ["image/*"],
+  maxFiles: 10,
+})
+```
+
+### Options
+
+Same as `upload`, plus:
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `maxFiles` | `number` | - | Maximum number of files |
+| `orderable` | `boolean` | `true` | Allow reordering |
+
+### Examples
+
+```typescript
+// Image gallery
+gallery: r.uploadMany({
+  label: "Gallery",
+  accept: ["image/*"],
+  maxFiles: 20,
+  orderable: true,
+})
+
+// Document attachments
+attachments: r.uploadMany({
+  label: "Attachments",
+  accept: ["application/pdf", ".doc", ".docx"],
+  maxFiles: 5,
+  maxSize: 10_000_000,
+})
+
+// Portfolio images
+portfolioImages: r.uploadMany({
+  label: "Portfolio",
+  accept: ["image/jpeg", "image/png"],
+  maxFiles: 50,
+  orderable: true,
+  description: "Drag to reorder images",
+})
+```
+
+## assetPreview
+
+Read-only display of an asset (used for computed/referenced assets).
+
+```typescript
+thumbnail: r.assetPreview({
+  label: "Generated Thumbnail",
+})
+```
+
+### Options
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `label` | `string \| I18nText` | - | Display label |
+| `description` | `string \| I18nText` | - | Help text |
+| `variant` | `"image" \| "file" \| "auto"` | `"auto"` | Display variant |
+
+### Examples
+
+```typescript
+// Show generated thumbnail
+thumbnail: r.assetPreview({
+  label: "Thumbnail",
+  variant: "image",
+})
+
+// Show linked asset
+linkedAsset: r.assetPreview({
+  label: "Source File",
+  variant: "auto",
+})
+```
+
+## Table Display
+
+### Upload in Tables
+
+Shows thumbnail for images, icon for other files:
+
+```typescript
+.list(({ v, f }) => v.table({
+  columns: [
+    f.name,
+    f.avatar,  // Shows thumbnail
+  ],
+}))
+```
+
+### Upload Many in Tables
+
+Shows count or grid of thumbnails:
+
+```typescript
+.list(({ v, f }) => v.table({
+  columns: [
+    f.name,
+    f.gallery,  // Shows "5 images" or thumbnail grid
+  ],
+}))
+```
+
+## Form Layout
+
+Position upload fields effectively:
+
+```typescript
+.form(({ v, f }) => v.form({
+  sidebar: {
+    position: "right",
+    fields: [
+      f.avatar,      // Avatar in sidebar
+      f.status,
+    ],
+  },
+  sections: [
+    {
+      title: "Content",
+      fields: [f.title, f.description],
+    },
+    {
+      title: "Gallery",
+      fields: [f.gallery],  // Full-width gallery
+    },
+  ],
+}))
+```
+
+## Complete Example
+
+```typescript
+export const barbersAdmin = builder
+  .collection("barbers")
+  .fields(({ r }) => ({
+    name: r.text({ label: "Name", required: true }),
+    email: r.email({ label: "Email" }),
+
+    // Single avatar upload
+    avatar: r.upload({
+      label: { en: "Profile Photo", sk: "Profilova fotka" },
+      accept: ["image/*"],
+      maxSize: 5_000_000,
+      previewVariant: "compact",
+    }),
+
+    // Portfolio gallery
+    portfolioImages: r.uploadMany({
+      label: { en: "Portfolio", sk: "Portfolio" },
+      accept: ["image/*"],
+      maxFiles: 20,
+      orderable: true,
+      description: {
+        en: "Upload photos of your work",
+        sk: "Nahrajte fotky vasej prace",
+      },
+    }),
+
+    // Certificates/documents
+    certificates: r.uploadMany({
+      label: { en: "Certificates", sk: "Certifikaty" },
+      accept: ["application/pdf", "image/*"],
+      maxFiles: 5,
+      maxSize: 10_000_000,
+    }),
+
+    isActive: r.switch({ label: "Active" }),
+  }))
+  .list(({ v, f }) => v.table({
+    columns: [f.avatar, f.name, f.email, f.isActive],
+  }))
+  .form(({ v, f }) => v.form({
+    sidebar: {
+      position: "right",
+      fields: [f.isActive, f.avatar],
+    },
+    sections: [
+      {
+        title: "Profile",
+        fields: [f.name, f.email],
+      },
+      {
+        title: "Portfolio",
+        fields: [f.portfolioImages],
+      },
+      {
+        title: "Documents",
+        fields: [f.certificates],
+      },
+    ],
+  }));
+```
+
+## Storage Configuration
+
+File uploads are handled by the backend storage adapter. Configure it in your CMS setup:
+
+```typescript
+// server/cms.ts
+const cms = q()
+  .collections({...})
+  .build({
+    storage: {
+      location: "./uploads",           // Local storage
+      // Or cloud storage:
+      // driver: new S3Driver({...}),
+      // driver: new R2Driver({...}),
+    },
+  });
+```
+
+See [Storage Adapter](/docs/backend/adapters/storage) for details.

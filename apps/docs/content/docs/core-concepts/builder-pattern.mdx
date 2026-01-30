@@ -1,0 +1,318 @@
+---
+title: Builder Pattern
+description: Understanding the q() and qa() builder APIs
+---
+
+# Builder Pattern
+
+QUESTPIE uses a fluent builder pattern for both backend and admin configuration. This provides a type-safe, composable way to define your CMS.
+
+## Two Builders, Different Purposes
+
+### Backend Builder (`q`)
+
+The `q()` builder creates your CMS backend:
+
+```typescript
+import { q, text, boolean } from "questpie";
+
+const cms = q({ name: "my-cms" })
+  .collections({
+    posts: q.collection("posts")
+      .fields({
+        title: text("title").notNull(),
+        published: boolean("published").default(false),
+      }),
+  })
+  .auth({
+    emailAndPassword: { enabled: true },
+  })
+  .build({
+    db: { url: process.env.DATABASE_URL },
+  });
+```
+
+**Key characteristic**: Ends with `.build()` to create runtime instances.
+
+What `.build()` does:
+- Creates Drizzle ORM tables
+- Sets up CRUD operations
+- Configures authentication
+- Initializes services (storage, queue, search)
+- Returns an immutable `Questpie` instance
+
+### Admin Builder (`qa`)
+
+The `qa()` builder configures your admin UI:
+
+```typescript
+import { qa, adminModule } from "@questpie/admin/client";
+
+const admin = qa()
+  .use(adminModule)
+  .collections({
+    posts: qa.collection("posts")
+      .fields(({ r }) => ({
+        title: r.text({ label: "Title" }),
+        published: r.switch({ label: "Published" }),
+      })),
+  })
+  .sidebar(
+    qa.sidebar()
+      .section("content", (s) =>
+        s.title("Content").items([
+          { type: "collection", collection: "posts" },
+        ])
+      )
+  );
+```
+
+**Key characteristic**: NO `.build()` - the state IS the configuration.
+
+Why no `.build()`:
+- Admin config is pure data, no runtime setup needed
+- Components read from state directly
+- Enables tree-shaking and code splitting
+
+## Method Chaining
+
+Both builders support fluent method chaining:
+
+```typescript
+const posts = q.collection("posts")
+  .fields({...})          // Returns CollectionBuilder
+  .relations(({...}))     // Returns CollectionBuilder
+  .validation({...})      // Returns CollectionBuilder
+  .hooks({...})           // Returns CollectionBuilder
+  .access({...})          // Returns CollectionBuilder
+  .options({...})         // Returns CollectionBuilder
+  .localized([...])       // Returns CollectionBuilder
+  .title(({...}));        // Returns CollectionBuilder
+```
+
+Each method returns a new builder with updated state, preserving immutability.
+
+## Module Composition
+
+Use `.use()` to compose modules:
+
+```typescript
+// Backend
+const cms = q({ name: "my-cms" })
+  .use(starterModule)      // Add auth, assets
+  .use(blogModule)         // Add blog collections
+  .use(ecommerceModule)    // Add store collections
+  .collections({
+    pages: pagesCollection,  // Add more
+  })
+  .build({...});
+
+// Admin
+const admin = qa()
+  .use(adminModule)        // Add field types, views
+  .collections({
+    posts: postsAdmin,
+  });
+```
+
+Modules are merged in order. Later definitions override earlier ones.
+
+## Scoped Helpers with Builder Pattern
+
+For admin configuration, use `qa<AppCMS>().use(adminModule)` to get typed field helpers:
+
+```typescript
+import { qa, adminModule } from "@questpie/admin/client";
+import type { AppCMS } from "./server/cms";
+
+// Create scoped builder with admin module's field types
+const builder = qa<AppCMS>().use(adminModule);
+
+const postsAdmin = builder.collection("posts")
+  .fields(({ r }) => ({
+    // r has all field types from adminModule
+    title: r.text({ label: "Title" }),
+    content: r.richText({ label: "Content" }),
+    cover: r.upload({ label: "Cover Image", accept: ["image/*"] }),
+    status: r.select({ label: "Status", options: [...] }),
+  }));
+```
+
+## Proxy Pattern for Autocomplete
+
+The builders use proxies for excellent autocomplete:
+
+```typescript
+// Field proxy in admin
+.fields(({ r }) => ({
+  title: r.text(),    // r. shows all available field types
+  author: r.relation({
+    targetCollection: "users",  // Autocomplete collection names
+  }),
+}))
+
+// View proxy
+.list(({ v, f }) => v.table({
+  columns: [f.title, f.author],  // f. shows all field names
+}))
+```
+
+## Type Inference
+
+Types flow through the builder chain:
+
+```typescript
+// Backend types
+const cms = q({ name: "my-cms" })
+  .collections({
+    posts: q.collection("posts")
+      .fields({
+        title: text("title").notNull(),
+        views: integer("views").default(0),
+      }),
+  })
+  .build({...});
+
+// Type is inferred
+type Post = typeof cms.collections.posts.$infer.select;
+// { id: string, title: string, views: number, ... }
+
+// Export for admin
+export type AppCMS = typeof cms;
+```
+
+```typescript
+// Admin uses backend types
+import type { AppCMS } from "./cms";
+
+const admin = qa<AppCMS>()
+  .collections({
+    // TypeScript knows "posts" exists and its fields
+    posts: qa.collection("posts")
+      .fields(({ r }) => ({
+        title: r.text(),  // Matches backend field
+      })),
+  });
+```
+
+## Configuration vs Runtime
+
+Understanding when code runs:
+
+```typescript
+// CONFIGURATION TIME (during import)
+const posts = q.collection("posts")
+  .fields({
+    title: text("title"),  // Just defines schema
+  })
+  .hooks({
+    // Hook function stored, not executed yet
+    beforeCreate: async ({ data }) => {...},
+  });
+
+// BUILD TIME (cms = q({...}).build())
+const cms = q({ name: "my-cms" })
+  .collections({ posts })
+  .build({
+    db: { url: "..." },  // NOW tables are created
+  });
+
+// RUNTIME (during requests)
+await cms.api.collections.posts.create({
+  title: "Hello",  // NOW hook executes
+});
+```
+
+## Common Patterns
+
+### Separate Collection Definitions
+
+```typescript
+// collections/posts.ts
+export const postsCollection = q.collection("posts")
+  .fields({...})
+  .hooks({...});
+
+// cms.ts
+import { postsCollection } from "./collections/posts";
+
+const cms = q({ name: "my-cms" })
+  .collections({
+    posts: postsCollection,
+  })
+  .build({...});
+```
+
+### Conditional Configuration
+
+```typescript
+const cms = q({ name: "my-cms" })
+  .collections({
+    posts: postsCollection,
+    ...(process.env.ENABLE_SHOP ? { products: productsCollection } : {}),
+  })
+  .build({...});
+```
+
+### Environment-Based Config
+
+```typescript
+const cms = q({ name: "my-cms" })
+  .collections({...})
+  .build({
+    db: {
+      url: process.env.NODE_ENV === "production"
+        ? process.env.DATABASE_URL
+        : "postgres://localhost/dev",
+    },
+    storage: process.env.NODE_ENV === "production"
+      ? { driver: "s3", bucket: "prod-bucket" }
+      : { driver: "fs", root: "./uploads" },
+  });
+```
+
+## Anti-Patterns
+
+### Don't call `.build()` on admin
+
+```typescript
+// WRONG
+const admin = qa().collections({...}).build();
+
+// CORRECT
+const admin = qa().collections({...});
+// admin.state has the config
+```
+
+### Don't use string icons
+
+```typescript
+// WRONG
+.meta({ icon: "Users" })
+
+// CORRECT
+import { Users } from "lucide-react";
+.meta({ icon: Users })
+```
+
+### Don't mix backend and admin definitions
+
+```typescript
+// WRONG - importing backend into admin
+import { postsCollection } from "./cms";
+const admin = qa().collections({
+  posts: postsCollection,  // This is a backend collection!
+});
+
+// CORRECT - separate admin config
+const postsAdmin = qa.collection("posts")
+  .fields(({ r }) => ({...}));
+```
+
+## Next Steps
+
+<Cards>
+  <Card href="/docs/backend/builder-api" title="Backend Builder API" description="Complete q() reference" />
+  <Card href="/docs/admin/builder-api" title="Admin Builder API" description="Complete qa() reference" />
+  <Card href="/docs/backend/modules" title="Modules" description="Module composition" />
+</Cards>

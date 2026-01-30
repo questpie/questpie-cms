@@ -1,0 +1,79 @@
+/**
+ * Globals Routes
+ *
+ * Global settings route handlers.
+ */
+
+import type { Questpie } from "../../config/cms.js";
+import type { QuestpieConfig } from "../../config/types.js";
+import { ApiError } from "../../errors/index.js";
+import type { AdapterConfig, AdapterContext } from "../types.js";
+import { handleError, smartResponse } from "../utils/response.js";
+import { parseRpcBody } from "../utils/request.js";
+import {
+  parseGlobalGetOptions,
+  parseGlobalUpdateOptions,
+} from "../utils/parsers.js";
+import { resolveContext } from "../utils/context.js";
+
+export const createGlobalRoutes = <
+  TConfig extends QuestpieConfig = QuestpieConfig,
+>(
+  cms: Questpie<TConfig>,
+  config: AdapterConfig<TConfig> = {},
+) => {
+  const errorResponse = (
+    error: unknown,
+    request: Request,
+    locale?: string,
+  ): Response => {
+    return handleError(error, { request, cms, locale });
+  };
+
+  return {
+    get: async (
+      request: Request,
+      params: { global: string },
+      context?: AdapterContext,
+    ): Promise<Response> => {
+      const resolved = await resolveContext(cms, request, config, context);
+
+      try {
+        const options = parseGlobalGetOptions(new URL(request.url));
+        const globalInstance = cms.getGlobalConfig(params.global as any);
+        const crud = globalInstance.generateCRUD(resolved.cmsContext.db, cms);
+        const result = await crud.get(options, resolved.cmsContext);
+        return smartResponse(result, request);
+      } catch (error) {
+        return errorResponse(error, request, resolved.cmsContext.locale);
+      }
+    },
+
+    update: async (
+      request: Request,
+      params: { global: string },
+      context?: AdapterContext,
+      input?: unknown,
+    ): Promise<Response> => {
+      const resolved = await resolveContext(cms, request, config, context);
+      const body = input !== undefined ? input : await parseRpcBody(request);
+      if (body === null) {
+        return errorResponse(
+          ApiError.badRequest("Invalid JSON body"),
+          request,
+          resolved.cmsContext.locale,
+        );
+      }
+
+      try {
+        const options = parseGlobalUpdateOptions(new URL(request.url));
+        const globalInstance = cms.getGlobalConfig(params.global as any);
+        const crud = globalInstance.generateCRUD(resolved.cmsContext.db, cms);
+        const result = await crud.update(body, resolved.cmsContext, options);
+        return smartResponse(result, request);
+      } catch (error) {
+        return errorResponse(error, request, resolved.cmsContext.locale);
+      }
+    },
+  };
+};

@@ -1,0 +1,185 @@
+---
+title: Nested Data Fields
+description: Working with object and array fields for structured data
+---
+
+# Nested Data Fields
+
+The `object` and `array` fields allow you to create complex nested structures within a single document, stored as JSON in your database.
+
+## object
+
+Create structured nested objects with typed fields:
+
+```typescript
+address: r.object({
+  label: "Address",
+  fields: ({ r }) => ({
+    street: r.text({ label: "Street" }),
+    city: r.text({ label: "City" }),
+    zip: r.text({ label: "ZIP Code" }),
+    country: r.select({
+      label: "Country",
+      options: [
+        { label: "USA", value: "us" },
+        { label: "UK", value: "uk" },
+      ],
+    }),
+  }),
+})
+```
+
+### Options
+
+| Option | Type | Description |
+|--------|------|-------------|
+| `label` | `string \| I18nText` | Display label |
+| `description` | `string \| I18nText` | Help text |
+| `fields` | `(ctx) => Record` | Nested field definitions |
+| `required` | `boolean` | Required validation |
+| `readOnly` | `boolean` | Disable editing |
+| `visible` | `fn` | Conditional visibility |
+| `localized` | `boolean` | Store per-locale values |
+
+### Deeply Nested Objects
+
+Objects can be nested to any depth:
+
+```typescript
+workingHours: r.object({
+  label: "Working Hours",
+  fields: ({ r }) => ({
+    monday: r.object({
+      fields: ({ r }) => ({
+        isOpen: r.switch({ label: "Open" }),
+        start: r.time({ label: "Start" }),
+        end: r.time({ label: "End" }),
+      }),
+    }),
+    tuesday: r.object({
+      fields: ({ r }) => ({
+        isOpen: r.switch({ label: "Open" }),
+        start: r.time({ label: "Start" }),
+        end: r.time({ label: "End" }),
+      }),
+    }),
+    // ... more days
+  }),
+})
+```
+
+## array
+
+Create repeatable lists of structured items:
+
+```typescript
+socialLinks: r.array({
+  label: "Social Links",
+  item: ({ r }) => ({
+    platform: r.select({
+      label: "Platform",
+      options: [
+        { label: "Facebook", value: "facebook" },
+        { label: "Instagram", value: "instagram" },
+        { label: "Twitter", value: "twitter" },
+      ],
+    }),
+    url: r.text({ label: "URL" }),
+  }),
+  minItems: 0,
+  maxItems: 5,
+})
+```
+
+### Options
+
+| Option | Type | Description |
+|--------|------|-------------|
+| `label` | `string \| I18nText` | Display label |
+| `description` | `string \| I18nText` | Help text |
+| `item` | `(ctx) => Record` | Item field definitions |
+| `minItems` | `number` | Minimum items required |
+| `maxItems` | `number` | Maximum items allowed |
+| `orderable` | `boolean` | Allow reordering items |
+| `required` | `boolean` | Required validation |
+| `readOnly` | `boolean` | Disable editing |
+
+### Primitive Arrays
+
+For simple arrays of strings or numbers:
+
+```typescript
+tags: r.array({
+  label: "Tags",
+  itemType: "text",
+  maxItems: 10,
+})
+
+ratings: r.array({
+  label: "Ratings",
+  itemType: "number",
+  minItems: 1,
+})
+```
+
+## Complete Example
+
+```typescript
+export const companiesAdmin = builder
+  .collection("companies")
+  .fields(({ r }) => ({
+    name: r.text({ label: "Company Name", required: true }),
+
+    // Nested object for address
+    headquarters: r.object({
+      label: "Headquarters",
+      fields: ({ r }) => ({
+        street: r.text({ label: "Street Address" }),
+        city: r.text({ label: "City" }),
+        state: r.text({ label: "State/Province" }),
+        country: r.select({
+          label: "Country",
+          options: [...],
+        }),
+        postalCode: r.text({ label: "Postal Code" }),
+      }),
+    }),
+
+    // Array of contacts
+    contacts: r.array({
+      label: "Contacts",
+      item: ({ r }) => ({
+        name: r.text({ label: "Name", required: true }),
+        role: r.text({ label: "Role" }),
+        email: r.email({ label: "Email" }),
+        phone: r.text({ label: "Phone" }),
+      }),
+      maxItems: 10,
+      orderable: true,
+    }),
+
+    // Simple tag array
+    tags: r.array({
+      label: "Tags",
+      itemType: "text",
+      maxItems: 20,
+    }),
+  }));
+```
+
+## When to Use
+
+**Use `object` when:**
+- You need a fixed structure with known fields
+- Data is always a single instance (not a list)
+- Example: address, settings, metadata
+
+**Use `array` when:**
+- You need multiple items of the same structure
+- The number of items varies
+- Example: phone numbers, tags, line items
+
+**Use `relation` instead when:**
+- Data is shared across multiple documents
+- You need referential integrity
+- Data should update automatically when source changes

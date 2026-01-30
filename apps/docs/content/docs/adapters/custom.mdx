@@ -1,0 +1,301 @@
+---
+title: Creating Custom Adapters
+description: Build adapters for any web framework
+---
+
+# Creating Custom Adapters
+
+Create an adapter for any framework that supports the Web standard `Request`/`Response` API.
+
+## Basic Adapter
+
+QUESTPIE provides a core request handler that works with standard Web APIs:
+
+```typescript
+import { createRequestHandler } from "questpie";
+import { cms } from "./cms";
+
+// Create the handler
+const handler = createRequestHandler(cms, {
+  basePath: "/api/cms",
+});
+
+// Use with any framework that supports Request/Response
+export async function handleRequest(request: Request): Promise<Response> {
+  return handler(request);
+}
+```
+
+## Adapter Structure
+
+A typical adapter:
+
+1. Receives framework-specific request
+2. Converts to standard `Request` object
+3. Calls QUESTPIE handler
+4. Converts response back to framework format
+
+```typescript
+// Generic adapter pattern
+export function createMyFrameworkAdapter(cms, options = {}) {
+  const handler = createRequestHandler(cms, options);
+
+  // Return framework-specific handler
+  return async (frameworkRequest) => {
+    // 1. Convert to standard Request
+    const request = convertToStandardRequest(frameworkRequest);
+
+    // 2. Call QUESTPIE handler
+    const response = await handler(request);
+
+    // 3. Convert to framework response
+    return convertToFrameworkResponse(response);
+  };
+}
+```
+
+## Example: Express Adapter
+
+```typescript
+// express-adapter.ts
+import { createRequestHandler, type QCMS } from "questpie";
+import type { Request as ExpressRequest, Response as ExpressResponse, Router } from "express";
+
+export function createExpressAdapter(
+  cms: QCMS,
+  options: { basePath?: string } = {}
+) {
+  const basePath = options.basePath || "/api/cms";
+  const handler = createRequestHandler(cms, { basePath });
+
+  return async (req: ExpressRequest, res: ExpressResponse) => {
+    // Convert Express request to standard Request
+    const url = new URL(req.url, `http://${req.headers.host}`);
+    const headers = new Headers();
+
+    for (const [key, value] of Object.entries(req.headers)) {
+      if (value) {
+        headers.set(key, Array.isArray(value) ? value.join(", ") : value);
+      }
+    }
+
+    const request = new Request(url, {
+      method: req.method,
+      headers,
+      body: ["GET", "HEAD"].includes(req.method) ? undefined : req.body,
+    });
+
+    // Call handler
+    const response = await handler(request);
+
+    // Send response
+    res.status(response.status);
+
+    response.headers.forEach((value, key) => {
+      res.setHeader(key, value);
+    });
+
+    const body = await response.arrayBuffer();
+    res.send(Buffer.from(body));
+  };
+}
+
+// Usage
+import express from "express";
+import { cms } from "./cms";
+
+const app = express();
+app.use("/api/cms/*", createExpressAdapter(cms, { basePath: "/api/cms" }));
+```
+
+## Example: Fastify Adapter
+
+```typescript
+// fastify-adapter.ts
+import { createRequestHandler, type QCMS } from "questpie";
+import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
+
+export function createFastifyAdapter(
+  cms: QCMS,
+  options: { basePath?: string } = {}
+) {
+  const basePath = options.basePath || "/api/cms";
+  const handler = createRequestHandler(cms, { basePath });
+
+  return async (fastify: FastifyInstance) => {
+    fastify.all(`${basePath}/*`, async (req: FastifyRequest, reply: FastifyReply) => {
+      // Build URL
+      const url = new URL(req.url, `http://${req.hostname}`);
+
+      // Build headers
+      const headers = new Headers();
+      for (const [key, value] of Object.entries(req.headers)) {
+        if (value) {
+          headers.set(key, Array.isArray(value) ? value.join(", ") : String(value));
+        }
+      }
+
+      // Build request body
+      let body: BodyInit | undefined;
+      if (req.body && !["GET", "HEAD"].includes(req.method)) {
+        body = JSON.stringify(req.body);
+        headers.set("Content-Type", "application/json");
+      }
+
+      const request = new Request(url, {
+        method: req.method,
+        headers,
+        body,
+      });
+
+      // Call handler
+      const response = await handler(request);
+
+      // Send response
+      reply.status(response.status);
+
+      response.headers.forEach((value, key) => {
+        reply.header(key, value);
+      });
+
+      const responseBody = await response.text();
+      reply.send(responseBody);
+    });
+  };
+}
+
+// Usage
+import Fastify from "fastify";
+import { cms } from "./cms";
+
+const fastify = Fastify();
+fastify.register(createFastifyAdapter(cms, { basePath: "/api/cms" }));
+```
+
+## Handling File Uploads
+
+For file uploads, ensure the request body is correctly streamed:
+
+```typescript
+async function handleMultipart(frameworkRequest) {
+  // If framework already parsed multipart, reconstruct FormData
+  if (frameworkRequest.files) {
+    const formData = new FormData();
+
+    for (const [key, file] of Object.entries(frameworkRequest.files)) {
+      formData.append(key, new Blob([file.buffer]), file.originalname);
+    }
+
+    for (const [key, value] of Object.entries(frameworkRequest.body)) {
+      formData.append(key, value);
+    }
+
+    return new Request(url, {
+      method: "POST",
+      body: formData,
+    });
+  }
+
+  // Otherwise, pass raw body stream
+  return new Request(url, {
+    method: "POST",
+    body: frameworkRequest.body,
+    headers: frameworkRequest.headers,
+  });
+}
+```
+
+## Handling SSE (Server-Sent Events)
+
+For real-time subscriptions, handle streaming responses:
+
+```typescript
+async function handleSSE(response: Response, frameworkResponse) {
+  if (response.headers.get("Content-Type")?.includes("text/event-stream")) {
+    frameworkResponse.setHeader("Content-Type", "text/event-stream");
+    frameworkResponse.setHeader("Cache-Control", "no-cache");
+    frameworkResponse.setHeader("Connection", "keep-alive");
+
+    const reader = response.body?.getReader();
+    if (reader) {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        frameworkResponse.write(value);
+      }
+    }
+
+    frameworkResponse.end();
+  }
+}
+```
+
+## Configuration Options
+
+The `createRequestHandler` accepts these options:
+
+```typescript
+interface RequestHandlerOptions {
+  // Base path for CMS routes
+  basePath?: string;
+
+  // Access mode
+  accessMode?: "user" | "admin";
+
+  // Custom error handler
+  onError?: (error: Error) => Response;
+
+  // Request transformers
+  transformRequest?: (request: Request) => Request;
+
+  // Response transformers
+  transformResponse?: (response: Response) => Response;
+}
+```
+
+## Testing Your Adapter
+
+```typescript
+import { describe, it, expect } from "bun:test";
+import { createMyAdapter } from "./my-adapter";
+import { cms } from "./test-cms";
+
+describe("My Adapter", () => {
+  const adapter = createMyAdapter(cms);
+
+  it("handles GET requests", async () => {
+    const request = new Request("http://localhost/api/cms/collections/posts");
+    const response = await adapter(request);
+
+    expect(response.status).toBe(200);
+  });
+
+  it("handles POST requests", async () => {
+    const request = new Request("http://localhost/api/cms/collections/posts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title: "Test" }),
+    });
+    const response = await adapter(request);
+
+    expect(response.status).toBe(201);
+  });
+});
+```
+
+## Publishing Your Adapter
+
+If you create an adapter for a popular framework:
+
+1. Create a separate package (e.g., `questpie-express`)
+2. Follow the naming convention
+3. Include TypeScript types
+4. Add documentation and examples
+5. Submit a PR to list it in the official docs
+
+## Next Steps
+
+<Cards>
+  <Card href="/docs/adapters" title="Framework Adapters" description="See all available adapters" />
+  <Card href="/docs/backend" title="Backend API" description="CMS API reference" />
+</Cards>

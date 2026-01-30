@@ -1,0 +1,275 @@
+---
+title: Date & Time Fields
+description: date, datetime, and time field types
+---
+
+# Date & Time Fields
+
+Date and time fields provide pickers for temporal data.
+
+## date
+
+Date picker for selecting a date without time.
+
+```typescript
+birthDate: r.date({
+  label: "Birth Date",
+})
+```
+
+### Options
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `label` | `string \| I18nText` | - | Display label |
+| `description` | `string \| I18nText` | - | Help text |
+| `placeholder` | `string \| I18nText` | - | Placeholder text |
+| `required` | `boolean \| fn` | `false` | Required validation |
+| `readOnly` | `boolean \| fn` | `false` | Disable editing |
+| `visible` | `fn` | - | Conditional visibility |
+| `defaultValue` | `string \| Date` | - | Default value |
+| `minDate` | `string \| Date \| fn` | - | Minimum selectable date |
+| `maxDate` | `string \| Date \| fn` | - | Maximum selectable date |
+| `disabledDates` | `fn` | - | Function to disable specific dates |
+
+### Examples
+
+```typescript
+// Basic date
+birthDate: r.date({
+  label: "Birth Date",
+})
+
+// With min/max
+eventDate: r.date({
+  label: "Event Date",
+  minDate: new Date(),  // No past dates
+})
+
+// Future dates only
+startDate: r.date({
+  label: "Start Date",
+  minDate: new Date(),
+  description: "Must be a future date",
+})
+
+// Date range (end must be after start)
+startDate: r.date({
+  label: "Start Date",
+}),
+endDate: r.date({
+  label: "End Date",
+  minDate: (values) => values.startDate || new Date(),
+}),
+
+// Disable weekends
+appointmentDate: r.date({
+  label: "Appointment Date",
+  disabledDates: (date) => {
+    const day = date.getDay();
+    return day === 0 || day === 6;  // Sunday or Saturday
+  },
+})
+```
+
+## datetime
+
+Combined date and time picker.
+
+```typescript
+scheduledAt: r.datetime({
+  label: "Scheduled At",
+})
+```
+
+### Options
+
+Same as `date`, plus:
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `timeStep` | `number` | `15` | Minutes between time options |
+| `showTimezone` | `boolean` | `false` | Display timezone |
+| `timezone` | `string` | - | Force specific timezone |
+
+### Examples
+
+```typescript
+// Basic datetime
+scheduledAt: r.datetime({
+  label: "Scheduled At",
+  required: true,
+})
+
+// With time step
+appointmentTime: r.datetime({
+  label: "Appointment Time",
+  timeStep: 30,  // 30-minute slots
+  minDate: new Date(),
+})
+
+// Publish date (conditional)
+publishedAt: r.datetime({
+  label: "Publish Date",
+  visible: (values) => values.status === "published",
+  required: (values) => values.status === "published",
+})
+
+// With timezone display
+meetingTime: r.datetime({
+  label: "Meeting Time",
+  showTimezone: true,
+})
+
+// Default to now
+createdAt: r.datetime({
+  label: "Created At",
+  defaultValue: new Date(),
+  readOnly: true,
+})
+```
+
+## time
+
+Time picker without date.
+
+```typescript
+openTime: r.time({
+  label: "Opening Time",
+})
+```
+
+### Options
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `label` | `string \| I18nText` | - | Display label |
+| `description` | `string \| I18nText` | - | Help text |
+| `required` | `boolean \| fn` | `false` | Required validation |
+| `readOnly` | `boolean \| fn` | `false` | Disable editing |
+| `visible` | `fn` | - | Conditional visibility |
+| `defaultValue` | `string` | - | Default value (HH:mm format) |
+| `step` | `number` | `15` | Minutes between options |
+| `minTime` | `string` | - | Minimum time (HH:mm) |
+| `maxTime` | `string` | - | Maximum time (HH:mm) |
+
+### Examples
+
+```typescript
+// Basic time
+openTime: r.time({
+  label: "Opening Time",
+  defaultValue: "09:00",
+})
+
+// Business hours only
+appointmentTime: r.time({
+  label: "Appointment Time",
+  minTime: "09:00",
+  maxTime: "17:00",
+  step: 30,
+})
+
+// Working hours object
+workingHours: r.object({
+  label: "Working Hours",
+  fields: ({ r }) => ({
+    isOpen: r.switch({ label: "Open" }),
+    start: r.time({
+      label: "Start",
+      visible: (values) => values.isOpen,
+    }),
+    end: r.time({
+      label: "End",
+      visible: (values) => values.isOpen,
+    }),
+  }),
+})
+```
+
+## Working with Dates
+
+### Storing Dates
+
+Dates are typically stored as ISO 8601 strings in the database:
+
+- `date` -> `"2024-01-15"`
+- `datetime` -> `"2024-01-15T09:30:00.000Z"`
+- `time` -> `"09:30"`
+
+### Table Display
+
+Dates are formatted based on the admin locale:
+
+```typescript
+.list(({ v, f }) => v.table({
+  columns: [
+    f.title,
+    f.publishedAt,  // Formatted date/time
+  ],
+}))
+```
+
+### Sorting by Date
+
+```typescript
+.list(({ v, f }) => v.table({
+  columns: [f.title, f.createdAt],
+  defaultSort: {
+    field: "createdAt",
+    direction: "desc",  // Newest first
+  },
+}))
+```
+
+## Complete Example: Appointment Booking
+
+```typescript
+export const appointmentsAdmin = builder
+  .collection("appointments")
+  .fields(({ r }) => ({
+    customerName: r.text({
+      label: "Customer Name",
+      required: true,
+    }),
+
+    scheduledAt: r.datetime({
+      label: "Appointment Time",
+      required: true,
+      minDate: new Date(),
+      timeStep: 30,
+      description: "Select date and time for the appointment",
+    }),
+
+    duration: r.number({
+      label: "Duration",
+      min: 15,
+      max: 180,
+      step: 15,
+      suffix: "min",
+      defaultValue: 30,
+    }),
+
+    reminderTime: r.datetime({
+      label: "Reminder",
+      description: "When to send reminder notification",
+      visible: (values) => !!values.scheduledAt,
+      maxDate: (values) => values.scheduledAt,
+    }),
+
+    status: r.select({
+      label: "Status",
+      options: [
+        { label: "Pending", value: "pending", color: "yellow" },
+        { label: "Confirmed", value: "confirmed", color: "blue" },
+        { label: "Completed", value: "completed", color: "green" },
+        { label: "Cancelled", value: "cancelled", color: "red" },
+      ],
+      defaultValue: "pending",
+    }),
+  }))
+  .list(({ v, f }) => v.table({
+    columns: [f.customerName, f.scheduledAt, f.duration, f.status],
+    defaultSort: { field: "scheduledAt", direction: "asc" },
+  }));
+```

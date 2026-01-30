@@ -1,0 +1,389 @@
+---
+title: Rich Content Fields
+description: richText and blocks field types for complex content
+---
+
+# Rich Content Fields
+
+Rich content fields enable sophisticated content editing with WYSIWYG editors and visual page builders.
+
+## richText
+
+WYSIWYG rich text editor powered by Tiptap.
+
+```typescript
+content: r.richText({
+  label: "Content",
+})
+```
+
+### Options
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `label` | `string \| I18nText` | - | Display label |
+| `description` | `string \| I18nText` | - | Help text |
+| `placeholder` | `string \| I18nText` | - | Placeholder text |
+| `required` | `boolean \| fn` | `false` | Required validation |
+| `readOnly` | `boolean \| fn` | `false` | Disable editing |
+| `visible` | `fn` | - | Conditional visibility |
+| `localized` | `boolean` | `false` | Store per-locale content |
+| `toolbar` | `ToolbarConfig` | - | Customize toolbar |
+| `minHeight` | `string` | `"200px"` | Minimum editor height |
+| `maxHeight` | `string` | - | Maximum editor height |
+
+### Toolbar Configuration
+
+```typescript
+content: r.richText({
+  label: "Content",
+  toolbar: {
+    // Available groups: "formatting", "headings", "lists", "links", "media", "blocks"
+    groups: ["formatting", "headings", "lists", "links"],
+
+    // Or detailed config
+    formatting: ["bold", "italic", "underline", "strike", "code"],
+    headings: ["h1", "h2", "h3"],
+    lists: ["bullet", "ordered", "task"],
+    links: ["link"],
+    media: ["image", "video"],
+    blocks: ["blockquote", "codeBlock", "horizontalRule"],
+  },
+})
+```
+
+### Examples
+
+```typescript
+// Basic rich text
+content: r.richText({
+  label: "Content",
+})
+
+// Minimal editor (no headings/media)
+description: r.richText({
+  label: "Description",
+  toolbar: {
+    groups: ["formatting", "lists", "links"],
+  },
+  minHeight: "100px",
+})
+
+// Full-featured editor
+article: r.richText({
+  label: "Article",
+  toolbar: {
+    groups: ["formatting", "headings", "lists", "links", "media", "blocks"],
+  },
+  minHeight: "400px",
+})
+
+// Localized content
+bio: r.richText({
+  label: { en: "Biography", sk: "Zivotopis" },
+  localized: true,
+  description: {
+    en: "A short description about the barber",
+    sk: "Kratky popis o barberovi",
+  },
+})
+```
+
+### Output Format
+
+Rich text is stored as Tiptap JSON (ProseMirror format):
+
+```json
+{
+  "type": "doc",
+  "content": [
+    {
+      "type": "paragraph",
+      "content": [
+        { "type": "text", "text": "Hello " },
+        { "type": "text", "marks": [{ "type": "bold" }], "text": "world" }
+      ]
+    }
+  ]
+}
+```
+
+### Rendering on Frontend
+
+Use `@tiptap/react` or a custom renderer to display rich text:
+
+```tsx
+import { generateHTML } from "@tiptap/html";
+import StarterKit from "@tiptap/starter-kit";
+
+function RichTextContent({ content }) {
+  const html = generateHTML(content, [StarterKit]);
+  return <div dangerouslySetInnerHTML={{ __html: html }} />;
+}
+```
+
+## blocks
+
+Visual page builder using configurable blocks. This is the most powerful content field for building landing pages, articles with sections, and complex layouts.
+
+```typescript
+pageContent: r.blocks({
+  label: "Page Content",
+  allowedBlocks: ["hero", "text", "gallery", "cta"],
+})
+```
+
+### Options
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `label` | `string \| I18nText` | - | Display label |
+| `description` | `string \| I18nText` | - | Help text |
+| `allowedBlocks` | `string[]` | all | Which blocks can be added |
+| `required` | `boolean \| fn` | `false` | Required validation |
+| `readOnly` | `boolean \| fn` | `false` | Disable editing |
+| `visible` | `fn` | - | Conditional visibility |
+| `maxBlocks` | `number` | - | Maximum number of blocks |
+
+### Defining Blocks
+
+Blocks are defined separately and registered with the admin:
+
+```typescript
+// admin/blocks/hero.tsx
+import { builder } from "../builder";
+
+export const heroBlock = builder
+  .block("hero")
+  .label({ en: "Hero", sk: "Hero" })
+  .description({ en: "Full-width banner", sk: "Banner na celu sirku" })
+  .icon("Image")
+  .category("sections")
+  .fields(({ r }) => ({
+    title: r.text({
+      label: "Title",
+      localized: true,
+      required: true,
+    }),
+    subtitle: r.textarea({
+      label: "Subtitle",
+      localized: true,
+    }),
+    backgroundImage: r.upload({
+      label: "Background",
+      accept: ["image/*"],
+    }),
+    ctaText: r.text({
+      label: "Button Text",
+      localized: true,
+    }),
+    ctaLink: r.text({
+      label: "Button Link",
+      defaultValue: "/contact",
+    }),
+  }))
+  .renderer(HeroRenderer)
+  .build();
+
+// React component for rendering
+function HeroRenderer({ values, data }) {
+  return (
+    <section style={{ backgroundImage: `url(${data.backgroundImageUrl})` }}>
+      <h1>{values.title}</h1>
+      <p>{values.subtitle}</p>
+      {values.ctaText && (
+        <a href={values.ctaLink}>{values.ctaText}</a>
+      )}
+    </section>
+  );
+}
+```
+
+See [Block System](/docs/admin/blocks) for complete documentation.
+
+### Using Blocks Field
+
+```typescript
+// Collection with blocks
+export const pagesAdmin = builder
+  .collection("pages")
+  .fields(({ r }) => ({
+    title: r.text({ label: "Title", required: true }),
+    slug: r.text({ label: "Slug", required: true }),
+
+    // Page builder content
+    content: r.blocks({
+      label: "Page Content",
+      allowedBlocks: [
+        // Sections
+        "hero",
+        "services",
+        "team",
+        "cta",
+        // Content
+        "text",
+        "heading",
+        "gallery",
+        // Layout
+        "columns",
+        "spacer",
+      ],
+    }),
+
+    status: r.select({
+      label: "Status",
+      options: [
+        { label: "Draft", value: "draft" },
+        { label: "Published", value: "published" },
+      ],
+    }),
+  }))
+  .form(({ v, f }) => v.form({
+    sidebar: {
+      position: "right",
+      fields: [f.status, f.slug],
+    },
+    sections: [
+      {
+        title: "Page",
+        fields: [f.title],
+      },
+      {
+        title: "Content",
+        fields: [f.content],  // Full-width block editor
+      },
+    ],
+  }));
+```
+
+### Registering Blocks with Admin
+
+```typescript
+// admin/blocks/index.ts
+import { heroBlock } from "./hero";
+import { textBlock } from "./text";
+import { galleryBlock } from "./gallery";
+
+export const blocks = {
+  hero: heroBlock,
+  text: textBlock,
+  gallery: galleryBlock,
+  // ... more blocks
+};
+
+// admin/admin.ts
+import blocks from "./blocks";
+
+export const admin = qa()
+  .use(adminModule)
+  .blocks(blocks)
+  .collections({...});
+```
+
+## Table Display
+
+### Rich Text in Tables
+
+Shows truncated plain text preview:
+
+```typescript
+.list(({ v, f }) => v.table({
+  columns: [
+    f.title,
+    f.content,  // Shows "Lorem ipsum dolor sit..."
+  ],
+}))
+```
+
+### Blocks in Tables
+
+Shows block count:
+
+```typescript
+.list(({ v, f }) => v.table({
+  columns: [
+    f.title,
+    f.content,  // Shows "5 blocks"
+  ],
+}))
+```
+
+## Complete Example: Blog Post
+
+```typescript
+export const postsAdmin = builder
+  .collection("posts")
+  .fields(({ r }) => ({
+    title: r.text({
+      label: "Title",
+      required: true,
+      localized: true,
+    }),
+    slug: r.text({
+      label: "Slug",
+      required: true,
+    }),
+    excerpt: r.textarea({
+      label: "Excerpt",
+      rows: 3,
+      localized: true,
+    }),
+    featuredImage: r.upload({
+      label: "Featured Image",
+      accept: ["image/*"],
+    }),
+
+    // Rich text for simple content
+    content: r.richText({
+      label: "Content",
+      localized: true,
+      toolbar: {
+        groups: ["formatting", "headings", "lists", "links", "media"],
+      },
+      minHeight: "400px",
+    }),
+
+    // Or blocks for complex layouts
+    // content: r.blocks({
+    //   label: "Content",
+    //   allowedBlocks: ["text", "heading", "image", "gallery", "code"],
+    // }),
+
+    author: r.relation({
+      label: "Author",
+      targetCollection: "users",
+    }),
+    publishedAt: r.datetime({
+      label: "Published",
+    }),
+    status: r.select({
+      label: "Status",
+      options: [
+        { label: "Draft", value: "draft" },
+        { label: "Published", value: "published" },
+      ],
+    }),
+  }))
+  .list(({ v, f }) => v.table({
+    columns: [f.featuredImage, f.title, f.author, f.status, f.publishedAt],
+  }))
+  .form(({ v, f }) => v.form({
+    sidebar: {
+      position: "right",
+      fields: [f.status, f.publishedAt, f.author, f.featuredImage],
+    },
+    sections: [
+      {
+        title: "Content",
+        fields: [f.title, f.slug, f.excerpt, f.content],
+      },
+    ],
+  }));
+```
+
+## Next Steps
+
+<Cards>
+  <Card href="/docs/admin/blocks" title="Block System" description="Create custom blocks for page builders" />
+  <Card href="/docs/admin/blocks/creating-blocks" title="Creating Blocks" description="Step-by-step block creation guide" />
+</Cards>

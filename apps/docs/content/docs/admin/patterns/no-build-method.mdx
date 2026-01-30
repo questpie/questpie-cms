@@ -1,0 +1,213 @@
+---
+title: No .build() Method
+description: Understanding why admin configuration doesn't use .build()
+---
+
+# No .build() Method
+
+One of the key differences between the backend CMS (`q`) and the admin UI (`qa`) is that **admin has no `.build()` method**. This is by design.
+
+## Backend vs Admin
+
+### Backend CMS (q) - HAS .build()
+
+```typescript
+import { q } from "questpie";
+
+const cms = q({ name: "my-cms" })
+  .collections({
+    posts: q.collection("posts")
+      .fields({ title: text("title") })
+  })
+  .build({  // ← .build() creates runtime
+    db: { url: process.env.DATABASE_URL },
+    storage: { ... },
+  });
+
+// After .build(), cms has runtime instances
+cms.collections.posts.table;  // Drizzle table
+cms.collections.posts.crud;   // CRUD operations
+```
+
+**Why .build()?**
+- Creates database tables (Drizzle)
+- Sets up CRUD operations
+- Initializes storage, email, queue adapters
+- Executes migrations
+- Returns immutable `Collection` and `Global` classes
+
+### Admin UI (qa) - NO .build()
+
+```typescript
+import { qa, adminModule } from "@questpie/admin/client";
+
+const admin = qa()
+  .use(adminModule)
+  .collections({
+    posts: postsAdmin,
+  });
+
+// NO .build() needed!
+// State IS the config
+admin.state.collections.posts;  // Direct access
+admin.state.sidebar;
+admin.state.dashboard;
+```
+
+**Why no .build()?**
+- Pure configuration (no runtime logic)
+- State IS the final config
+- No database operations
+- No side effects
+- Used directly by React components
+
+## The State IS the Config
+
+Admin configuration is declarative. You describe what the UI should look like, and React components read this configuration directly:
+
+```typescript
+// Define config
+const admin = qa()
+  .use(adminModule)
+  .collections({ posts: postsAdmin })
+  .sidebar(sidebarConfig);
+
+// Access config directly
+admin.state.collections;  // { posts: { ... } }
+admin.state.sidebar;      // Sidebar configuration
+admin.state.fields;       // Available field types
+admin.state.views;        // Available view types
+```
+
+## How Components Use Config
+
+Admin components receive the configuration and render accordingly:
+
+```tsx
+// Simplified internal implementation
+function CollectionList({ collectionName }) {
+  const admin = useAdminStore(s => s.admin);
+  const config = admin.state.collections[collectionName];
+
+  // Config drives the UI
+  const listView = config.list;
+  const columns = listView.columns;
+
+  return (
+    <Table>
+      {columns.map(col => (
+        <TableColumn key={col.name} config={col} />
+      ))}
+    </Table>
+  );
+}
+```
+
+## Builder Pattern Without Build
+
+The admin uses a fluent builder pattern for ergonomics, but the result is a plain configuration object:
+
+```typescript
+const postsAdmin = qab.collection("posts")
+  .meta({ label: "Posts" })
+  .fields(({ r }) => ({
+    title: r.text({ label: "Title" }),
+  }))
+  .list(({ v, f }) => v.table({
+    columns: [f.title],
+  }));
+
+// postsAdmin is a configuration object, not a class instance
+// It can be serialized, merged, transformed
+```
+
+## Benefits
+
+### 1. Simplicity
+
+No build step means simpler mental model:
+
+```typescript
+// What you write IS what you get
+const admin = qa().collections({ posts: postsAdmin });
+```
+
+### 2. Composability
+
+Configurations can be easily merged and composed:
+
+```typescript
+const admin = qa()
+  .use(coreModule)      // Adds fields, views
+  .use(blogModule)      // Adds blog collections
+  .use(ecommerceModule) // Adds ecommerce collections
+```
+
+### 3. Type Safety
+
+Full TypeScript inference without class instantiation:
+
+```typescript
+admin.state.collections.posts;  // Fully typed
+admin.state.sidebar;            // Fully typed
+```
+
+### 4. Server Components Compatible
+
+Pure config works with React Server Components:
+
+```tsx
+// Can pass config to server components
+<AdminProvider config={admin.state}>
+  {children}
+</AdminProvider>
+```
+
+## Common Mistakes
+
+### ❌ Trying to call .build()
+
+```typescript
+// This will error - .build() doesn't exist!
+const admin = qa().collections({...}).build();
+```
+
+### ❌ Expecting runtime behavior
+
+```typescript
+// Admin doesn't execute anything
+const admin = qa().collections({...});
+admin.createPost({ title: "Hello" }); // ❌ Not a thing!
+
+// For operations, use hooks in components
+const create = useCollectionCreate("posts");
+create.mutate({ title: "Hello" }); // ✅
+```
+
+### ❌ Looking for database tables
+
+```typescript
+// Admin has no database access
+admin.collections.posts.table; // ❌ Doesn't exist
+
+// Tables are on the backend CMS
+cms.collections.posts.table; // ✅ Drizzle table
+```
+
+## Summary
+
+| Aspect | Backend (q) | Admin (qa) |
+|--------|-------------|------------|
+| `.build()` | Required | Not available |
+| Output | Runtime instances | Configuration object |
+| Database | Creates tables | No database access |
+| CRUD | Provides operations | Uses hooks in React |
+| State | Immutable classes | Plain objects |
+| Usage | Server-side | Client-side React |
+
+## Next Steps
+
+<Cards>
+  <Card href="/docs/admin/builder-api" title="Builder API" description="Complete qa() builder reference" />
+  <Card href="/docs/admin/patterns/best-practices" title="Best Practices" description="Production recommendations" />
+</Cards>

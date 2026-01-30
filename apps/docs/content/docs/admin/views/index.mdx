@@ -1,0 +1,216 @@
+---
+title: Views Overview
+description: Configure list and form views for collections
+---
+
+# Views Overview
+
+Views define how collection data is displayed in the admin interface. There are two main view types:
+
+- **Table View** - List/grid display for browsing items
+- **Form View** - Create and edit forms
+
+## Using Views
+
+Configure views using the `.list()` and `.form()` methods:
+
+```typescript
+const postsAdmin = builder
+  .collection("posts")
+  .fields(({ r }) => ({...}))
+  .list(({ v, f }) => v.table({...}))  // List view
+  .form(({ v, f }) => v.form({...}));  // Form view
+```
+
+## The View Proxy
+
+The `v` parameter provides access to registered views:
+
+```typescript
+.list(({ v, f }) => v.table({
+  // v = ViewRegistryProxy - autocomplete for registered views
+  // f = FieldProxy - autocomplete for defined fields
+  columns: [f.title, f.status],  // f.title, f.author, etc.
+}))
+```
+
+## Table View
+
+The table view displays collections as a sortable, filterable list:
+
+```typescript
+.list(({ v, f }) => v.table({
+  // Columns to display
+  columns: [f.title, f.status, f.author, f.createdAt],
+
+  // Default sorting
+  defaultSort: { field: "createdAt", direction: "desc" },
+
+  // Enable full-text search
+  searchable: true,
+
+  // Filterable fields
+  filters: [f.status, f.author],
+
+  // Items per page
+  pageSize: 25,
+
+  // Bulk actions
+  bulkActions: ["delete"],
+
+  // Row click behavior
+  rowAction: "edit",
+}))
+```
+
+### Empty Config
+
+Pass an empty config to show all fields with defaults:
+
+```typescript
+.list(({ v }) => v.table({}))
+```
+
+[Full Table View Reference](/docs/admin/views/table-view)
+
+## Form View
+
+The form view provides create and edit interfaces:
+
+```typescript
+.form(({ v, f }) => v.form({
+  // Simple field list
+  fields: [f.title, f.content, f.status],
+
+  // Or organized in sections
+  sections: [
+    {
+      title: "Content",
+      fields: [f.title, f.slug, f.content],
+    },
+    {
+      title: "Publishing",
+      fields: [f.status, f.publishedAt],
+    },
+  ],
+}))
+```
+
+### Sidebar Layout
+
+Add a sidebar for secondary fields:
+
+```typescript
+.form(({ v, f }) => v.form({
+  sidebar: {
+    position: "right",
+    width: "300px",
+    fields: [f.status, f.publishedAt, f.author],
+  },
+  sections: [
+    {
+      title: "Content",
+      fields: [f.title, f.content],
+    },
+  ],
+}))
+```
+
+### Tabs
+
+Organize fields in tabs:
+
+```typescript
+.form(({ v, f }) => v.form({
+  tabs: [
+    {
+      id: "content",
+      label: "Content",
+      fields: [f.title, f.content],
+    },
+    {
+      id: "seo",
+      label: "SEO",
+      fields: [f.metaTitle, f.metaDescription],
+    },
+  ],
+}))
+```
+
+[Full Form View Reference](/docs/admin/views/form-view)
+
+## Form Layouts
+
+Sections support various layouts:
+
+### Columns Layout
+
+```typescript
+{
+  title: "Contact",
+  layout: "columns",
+  columns: 2,
+  fields: [f.firstName, f.lastName, f.email, f.phone],
+}
+```
+
+### Grid Layout
+
+```typescript
+{
+  layout: "grid",
+  grid: { columns: 4, gap: 4 },
+  fields: [
+    { field: f.title, span: 4 },    // Full width
+    { field: f.price, span: 1 },    // 1/4
+    { field: f.currency, span: 1 }, // 1/4
+    { field: f.stock, span: 2 },    // 2/4
+  ],
+}
+```
+
+### Collapsible Sections
+
+```typescript
+{
+  title: "Advanced Settings",
+  collapsible: true,
+  defaultOpen: false,
+  fields: [f.metaData, f.customCss],
+}
+```
+
+[Full Form Layouts Reference](/docs/admin/views/form-layouts)
+
+## View Registry
+
+The admin module registers default views. You can extend with custom views:
+
+```typescript
+// Create a custom view
+const kanbanView = view("kanban", {
+  component: KanbanView,
+  config: {} as KanbanConfig,
+});
+
+// Register in admin
+const admin = qa()
+  .use(adminModule)
+  .views({
+    kanban: kanbanView,
+  });
+
+// Use in collection
+.list(({ v }) => v.kanban({
+  columns: ["todo", "in-progress", "done"],
+  cardFields: ["title", "assignee"],
+}))
+```
+
+## Next Steps
+
+<Cards>
+  <Card href="/docs/admin/views/table-view" title="Table View" description="Configure list pages" />
+  <Card href="/docs/admin/views/form-view" title="Form View" description="Configure edit forms" />
+  <Card href="/docs/admin/views/form-layouts" title="Form Layouts" description="Sections, tabs, columns, grids" />
+</Cards>

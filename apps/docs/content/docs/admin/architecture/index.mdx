@@ -1,0 +1,209 @@
+---
+title: Architecture
+description: Understanding QUESTPIE Admin's internal architecture
+---
+
+# Architecture Overview
+
+QUESTPIE Admin is built on a registry-based architecture that enables type-safe, extensible configuration.
+
+## Core Concepts
+
+### 1. Registry Pattern
+
+Everything in QUESTPIE Admin is registered in typed registries:
+
+- **Field Registry**: All available field types (text, select, relation, etc.)
+- **View Registry**: All available view types (table, form, etc.)
+- **Widget Registry**: All available dashboard widgets
+- **Block Registry**: All available content blocks
+
+```typescript
+// Fields are registered
+const adminModule = qa()
+  .fields({
+    text: textField,
+    select: selectField,
+    relation: relationField,
+  })
+  .views({
+    table: tableView,
+    form: formView,
+  })
+  .widgets({
+    stats: statsWidget,
+    chart: chartWidget,
+  });
+```
+
+### 2. Module Composition
+
+Admin configuration is built by composing modules:
+
+```typescript
+const admin = qa()
+  .use(adminModule)        // Core fields, views, widgets
+  .use(blogModule)         // Blog-specific extensions
+  .use(ecommerceModule);   // E-commerce extensions
+```
+
+Modules are merged using these strategies:
+
+| Property | Merge Strategy |
+|----------|----------------|
+| `fields` | Spread (later wins) |
+| `views` | Spread (later wins) |
+| `widgets` | Spread (later wins) |
+| `collections` | Spread (later wins) |
+| `sidebar` | Concatenate sections |
+| `translations` | Deep merge |
+
+### 3. Proxy Pattern
+
+The proxy pattern provides type-safe autocomplete:
+
+```typescript
+.fields(({ r }) => ({
+  // r is a FieldRegistryProxy
+  // It provides autocomplete for all registered fields
+  title: r.text({ maxLength: 200 }),
+  status: r.select({ options: [...] }),
+}))
+
+.list(({ v, f }) => v.table({
+  // v is ViewRegistryProxy
+  // f is FieldProxy (your defined fields)
+  columns: [f.title, f.status],  // Autocomplete!
+}))
+```
+
+### 4. State-Based Config
+
+Unlike the backend CMS, admin uses state as configuration:
+
+```typescript
+const admin = qa()
+  .use(adminModule)
+  .collections({ posts: postsAdmin });
+
+// NO .build() - state IS the config
+admin.state.fields;       // Available field types
+admin.state.collections;  // Collection configs
+admin.state.sidebar;      // Navigation config
+```
+
+## Architecture Diagram
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                         qa() Builder                            │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐          │
+│  │ Field        │  │ View         │  │ Widget       │          │
+│  │ Registry     │  │ Registry     │  │ Registry     │          │
+│  │              │  │              │  │              │          │
+│  │ - text       │  │ - table      │  │ - stats      │          │
+│  │ - select     │  │ - form       │  │ - chart      │          │
+│  │ - relation   │  │              │  │ - table      │          │
+│  │ - richText   │  │              │  │              │          │
+│  │ - ...        │  │              │  │              │          │
+│  └──────────────┘  └──────────────┘  └──────────────┘          │
+│                                                                 │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  ┌──────────────────────────────────────────────────────────┐  │
+│  │                    Collection Configs                     │  │
+│  │                                                           │  │
+│  │  posts: { fields, list, form, meta, preview }            │  │
+│  │  users: { fields, list, form, meta }                     │  │
+│  │  pages: { fields, list, form, meta, blocks }             │  │
+│  └──────────────────────────────────────────────────────────┘  │
+│                                                                 │
+│  ┌──────────────────────────────────────────────────────────┐  │
+│  │                    Sidebar Config                         │  │
+│  │                                                           │  │
+│  │  [link, section, collection, global, divider]            │  │
+│  └──────────────────────────────────────────────────────────┘  │
+│                                                                 │
+│  ┌──────────────────────────────────────────────────────────┐  │
+│  │                    Dashboard Config                       │  │
+│  │                                                           │  │
+│  │  { widgets: [...], layout: [...] }                       │  │
+│  └──────────────────────────────────────────────────────────┘  │
+│                                                                 │
+├─────────────────────────────────────────────────────────────────┤
+│                        admin.state                              │
+│                                                                 │
+│  React components read from this state directly                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+## Data Flow
+
+```
+1. Configuration Phase
+   ─────────────────────
+   qa() → .use(modules) → .collections() → .sidebar() → admin.state
+
+2. Runtime Phase
+   ─────────────────────
+   admin.state → AdminProvider → React Components → UI
+
+3. Data Operations
+   ─────────────────────
+   User Action → React Hook → API Call → Backend CMS → Database
+```
+
+## Component Architecture
+
+Admin UI components read configuration and render accordingly:
+
+```tsx
+// Simplified internal architecture
+function CollectionListPage({ collectionName }) {
+  // Get config from state
+  const admin = useAdminStore(s => s.admin);
+  const config = admin.state.collections[collectionName];
+
+  // Get data via hooks
+  const { data } = useCollectionList(collectionName, config.list.query);
+
+  // Render based on config
+  return (
+    <ListView
+      columns={config.list.columns}
+      data={data}
+      filters={config.list.filters}
+    />
+  );
+}
+```
+
+## Type System
+
+QUESTPIE Admin uses advanced TypeScript for type safety:
+
+```typescript
+// Types are inferred from config
+const admin = qa()
+  .use(adminModule)
+  .collections({
+    posts: postsAdmin,
+    users: usersAdmin,
+  });
+
+// CollectionNames is inferred as "posts" | "users"
+type Names = CollectionNames<typeof admin>;
+
+// Field types are inferred
+type PostFields = FieldNames<typeof postsAdmin>;
+```
+
+## Next Steps
+
+<Cards>
+  <Card href="/docs/admin/architecture/registry-pattern" title="Registry Pattern" description="Deep dive into registries" />
+  <Card href="/docs/admin/architecture/module-composition" title="Module Composition" description="How modules merge" />
+  <Card href="/docs/admin/architecture/type-inference" title="Type Inference" description="TypeScript magic" />
+</Cards>

@@ -1,0 +1,504 @@
+---
+title: Validation
+description: Zod-based schema validation for collections
+---
+
+# Validation
+
+QUESTPIE uses Zod for type-safe validation of collection data. Validation schemas are automatically generated from your Drizzle field definitions and can be customized with refinements.
+
+## Basic Usage
+
+Add validation to a collection using the `.validation()` method:
+
+```typescript
+import { q, text, integer, boolean } from "questpie";
+
+const posts = q.collection("posts")
+  .fields({
+    title: text("title").notNull(),
+    slug: text("slug").notNull(),
+    content: text("content"),
+    viewCount: integer("viewCount").default(0),
+  })
+  .validation({
+    exclude: { id: true, createdAt: true, updatedAt: true },
+    refine: {
+      title: (s) => s.min(1, "Title is required").max(200, "Title too long"),
+      slug: (s) => s.regex(/^[a-z0-9-]+$/, "Slug must be lowercase with dashes"),
+      content: (s) => s.max(50000, "Content too long"),
+    },
+  });
+```
+
+## Validation Options
+
+The `.validation()` method accepts an options object:
+
+```typescript
+.validation({
+  exclude: { fieldName: true },  // Fields to skip validation
+  refine: {
+    fieldName: (schema) => schema.min(1),  // Custom refinements
+  },
+})
+```
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `exclude` | `Record<string, true>` | Fields to exclude from validation |
+| `refine` | `Record<string, (schema) => ZodTypeAny>` | Custom refinements per field |
+
+## Auto-Generated Schema
+
+QUESTPIE automatically generates Zod schemas from your Drizzle field definitions:
+
+| Drizzle Field | Generated Zod Schema |
+|---------------|---------------------|
+| `text("field")` | `z.string()` |
+| `text("field").notNull()` | `z.string()` (required) |
+| `integer("field")` | `z.number().int()` |
+| `boolean("field")` | `z.boolean()` |
+| `datetime("field")` | `z.date()` or `z.string().datetime()` |
+| `jsonb("field")` | `z.unknown()` |
+| `text("field").default("x")` | `z.string().default("x")` |
+
+## Custom Refinements
+
+Override the auto-generated schema for specific fields:
+
+```typescript
+.validation(({ z }) => ({
+  // Override the email field with custom validation
+  email: z.string().email("Invalid email address"),
+
+  // Add length constraints
+  username: z.string()
+    .min(3, "Username must be at least 3 characters")
+    .max(30, "Username must be at most 30 characters")
+    .regex(/^[a-zA-Z0-9_]+$/, "Only letters, numbers, and underscores"),
+
+  // Complex validation with refine
+  password: z.string()
+    .min(8, "Password must be at least 8 characters")
+    .refine(
+      (val) => /[A-Z]/.test(val),
+      "Password must contain an uppercase letter"
+    )
+    .refine(
+      (val) => /[0-9]/.test(val),
+      "Password must contain a number"
+    ),
+}))
+```
+
+## Validation Options
+
+### Exclude Fields
+
+Skip validation for specific fields:
+
+```typescript
+.validation({
+  exclude: {
+    id: true,           // Skip ID validation
+    createdAt: true,    // Skip timestamp
+    updatedAt: true,    // Skip timestamp
+    internalField: true,
+  },
+  refine: ({ z }) => ({
+    title: z.string().min(1),
+  }),
+})
+```
+
+Alternatively, use the shorthand:
+
+```typescript
+.validation(({ z }) => ({
+  title: z.string().min(1),
+  // Fields not listed use auto-generated validation
+}), {
+  exclude: ["id", "createdAt", "updatedAt"],
+})
+```
+
+### Full Schema Override
+
+Replace the entire schema:
+
+```typescript
+.validation(({ z, schema }) => {
+  // Start with auto-generated schema and extend
+  return schema.extend({
+    title: z.string().min(1).max(200),
+  }).refine(
+    (data) => data.publishedAt ? data.published : true,
+    "Published date requires published to be true"
+  );
+})
+```
+
+## Insert vs Update Schemas
+
+QUESTPIE generates two schemas:
+
+- **Insert Schema**: Used for `create()` operations - all required fields must be provided
+- **Update Schema**: Used for `update()` operations - all fields are optional (partial updates)
+
+```typescript
+// The collection generates:
+// - insertSchema: z.object({ title: z.string(), ... })
+// - updateSchema: z.object({ title: z.string().optional(), ... })
+
+// Create requires title
+await cms.api.collections.posts.create({
+  title: "Hello",  // Required
+});
+
+// Update allows partial data
+await cms.api.collections.posts.update(id, {
+  title: "New Title",  // Optional
+});
+```
+
+## Common Validation Patterns
+
+### Email Validation
+
+```typescript
+.validation(({ z }) => ({
+  email: z.string()
+    .email("Please enter a valid email")
+    .toLowerCase()
+    .trim(),
+}))
+```
+
+### URL Validation
+
+```typescript
+.validation(({ z }) => ({
+  website: z.string()
+    .url("Please enter a valid URL")
+    .optional(),
+
+  // Or more flexible
+  link: z.string()
+    .refine(
+      (val) => !val || val.startsWith("http"),
+      "URL must start with http:// or https://"
+    )
+    .optional(),
+}))
+```
+
+### Phone Number
+
+```typescript
+.validation(({ z }) => ({
+  phone: z.string()
+    .regex(
+      /^\+?[1-9]\d{1,14}$/,
+      "Please enter a valid phone number"
+    )
+    .optional(),
+}))
+```
+
+### Slug Validation
+
+```typescript
+.validation(({ z }) => ({
+  slug: z.string()
+    .min(1, "Slug is required")
+    .max(100, "Slug too long")
+    .regex(
+      /^[a-z0-9]+(?:-[a-z0-9]+)*$/,
+      "Slug must be lowercase with hyphens"
+    )
+    .transform((val) => val.toLowerCase()),
+}))
+```
+
+### Enum Validation
+
+```typescript
+.validation(({ z }) => ({
+  status: z.enum(["draft", "published", "archived"], {
+    errorMap: () => ({ message: "Invalid status" }),
+  }),
+
+  priority: z.union([
+    z.literal("low"),
+    z.literal("medium"),
+    z.literal("high"),
+  ]),
+}))
+```
+
+### Number Ranges
+
+```typescript
+.validation(({ z }) => ({
+  price: z.number()
+    .min(0, "Price cannot be negative")
+    .max(999999, "Price too high")
+    .multipleOf(0.01, "Price must have at most 2 decimal places"),
+
+  quantity: z.number()
+    .int("Quantity must be a whole number")
+    .min(1, "Minimum quantity is 1")
+    .max(100, "Maximum quantity is 100"),
+
+  rating: z.number()
+    .min(1)
+    .max(5)
+    .step(0.5),
+}))
+```
+
+### Date Validation
+
+```typescript
+.validation(({ z }) => ({
+  birthDate: z.date()
+    .max(new Date(), "Birth date cannot be in the future"),
+
+  eventDate: z.date()
+    .min(new Date(), "Event date must be in the future"),
+
+  // String date format
+  dateString: z.string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "Use YYYY-MM-DD format"),
+}))
+```
+
+### Array Validation
+
+```typescript
+.validation(({ z }) => ({
+  tags: z.array(z.string())
+    .min(1, "At least one tag required")
+    .max(10, "Maximum 10 tags"),
+
+  items: z.array(z.object({
+    name: z.string(),
+    quantity: z.number().int().positive(),
+  })).nonempty(),
+}))
+```
+
+### Conditional Validation
+
+```typescript
+.validation(({ z }) => ({
+  // Using refine for cross-field validation
+  password: z.string().min(8),
+  confirmPassword: z.string(),
+}))
+// Then add cross-field validation with superRefine
+```
+
+For complex cross-field validation, use a custom refine:
+
+```typescript
+.validation(({ z, schema }) =>
+  schema.refine(
+    (data) => data.password === data.confirmPassword,
+    {
+      message: "Passwords don't match",
+      path: ["confirmPassword"],
+    }
+  )
+)
+```
+
+### JSON Schema Validation
+
+```typescript
+.validation(({ z }) => ({
+  settings: z.object({
+    theme: z.enum(["light", "dark"]).default("light"),
+    notifications: z.object({
+      email: z.boolean().default(true),
+      push: z.boolean().default(false),
+    }),
+    language: z.string().default("en"),
+  }),
+
+  metadata: z.record(z.string(), z.unknown()),
+}))
+```
+
+## Error Messages
+
+### Custom Error Messages
+
+```typescript
+.validation(({ z }) => ({
+  title: z.string({
+    required_error: "Title is required",
+    invalid_type_error: "Title must be a string",
+  }).min(1, { message: "Title cannot be empty" }),
+}))
+```
+
+### Localized Error Messages
+
+Error messages can be translated using the backend i18n system:
+
+```typescript
+// In cms.ts
+const cms = q({ name: "my-cms" })
+  .messages({
+    en: {
+      "validation.title.required": "Title is required",
+      "validation.title.tooLong": "Title must be {{ max }} characters or less",
+    },
+    sk: {
+      "validation.title.required": "Názov je povinný",
+      "validation.title.tooLong": "Názov musí mať najviac {{ max }} znakov",
+    },
+  });
+```
+
+Then reference in validation:
+
+```typescript
+.validation(({ z }) => ({
+  title: z.string()
+    .min(1, "validation.title.required")
+    .max(200, "validation.title.tooLong"),
+}))
+```
+
+The CMS will translate these keys at runtime based on the request locale.
+
+## Accessing Schemas
+
+Access the generated schemas from the collection:
+
+```typescript
+const cms = q({ name: "my-cms" })
+  .collections({
+    posts: postsCollection,
+  })
+  .build({...});
+
+// Access schemas
+const insertSchema = cms.collections.posts.insertSchema;
+const updateSchema = cms.collections.posts.updateSchema;
+
+// Use for external validation
+const result = insertSchema.safeParse(inputData);
+if (!result.success) {
+  console.log(result.error.flatten());
+}
+```
+
+## Validation Errors
+
+When validation fails, the API returns structured errors:
+
+```typescript
+// API response for validation error
+{
+  "code": "VALIDATION_ERROR",
+  "message": "Validation failed",
+  "fieldErrors": {
+    "title": ["Title is required"],
+    "email": ["Please enter a valid email"],
+    "password": [
+      "Password must be at least 8 characters",
+      "Password must contain an uppercase letter"
+    ]
+  }
+}
+```
+
+Handle in client code:
+
+```typescript
+import { QuestpieClientError } from "questpie/client";
+
+try {
+  await cmsClient.collections.posts.create(data);
+} catch (error) {
+  if (error instanceof QuestpieClientError && error.code === "VALIDATION_ERROR") {
+    // Display field errors
+    Object.entries(error.fieldErrors || {}).forEach(([field, errors]) => {
+      setFieldError(field, errors[0]);
+    });
+  }
+}
+```
+
+## Async Validation
+
+For validation that requires database lookups:
+
+```typescript
+// Use hooks instead of schema validation for async checks
+const posts = q.collection("posts")
+  .fields({
+    slug: text("slug").notNull().unique(),
+  })
+  .validation(({ z }) => ({
+    slug: z.string().regex(/^[a-z0-9-]+$/),
+  }))
+  .hooks({
+    beforeCreate: async ({ data, ctx }) => {
+      // Check for duplicate slug
+      const existing = await ctx.db
+        .select()
+        .from(posts.table)
+        .where(eq(posts.table.slug, data.slug))
+        .limit(1);
+
+      if (existing.length > 0) {
+        throw new ValidationError({
+          fieldErrors: {
+            slug: ["This slug is already taken"],
+          },
+        });
+      }
+
+      return data;
+    },
+  });
+```
+
+## Transform and Preprocess
+
+Transform input data before validation:
+
+```typescript
+.validation(({ z }) => ({
+  email: z.string()
+    .email()
+    .toLowerCase()    // Transform to lowercase
+    .trim(),          // Remove whitespace
+
+  slug: z.string()
+    .transform((val) => val
+      .toLowerCase()
+      .replace(/\s+/g, "-")
+      .replace(/[^a-z0-9-]/g, "")
+    ),
+
+  // Preprocess: convert string to number
+  price: z.preprocess(
+    (val) => typeof val === "string" ? parseFloat(val) : val,
+    z.number().positive()
+  ),
+}))
+```
+
+## Next Steps
+
+<Cards>
+  <Card href="/docs/backend/hooks" title="Hooks" description="Lifecycle hooks" />
+  <Card href="/docs/backend/crud-operations" title="CRUD Operations" description="Query and mutate data" />
+  <Card href="/docs/backend/access-control" title="Access Control" description="Permission rules" />
+</Cards>

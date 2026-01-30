@@ -1,0 +1,309 @@
+---
+title: React Hooks
+description: Hooks for accessing admin data and functionality
+---
+
+# React Hooks
+
+QUESTPIE Admin provides React hooks for accessing collections, globals, authentication, and navigation.
+
+## Data Hooks
+
+### useCollectionList
+
+Fetch paginated collection items:
+
+```typescript
+import { useCollectionList } from "@questpie/admin/client";
+
+function PostsList() {
+  const {
+    data,
+    isLoading,
+    error,
+    fetchNextPage,
+    hasNextPage,
+  } = useCollectionList("posts", {
+    limit: 25,
+    where: { status: "published" },
+    orderBy: { createdAt: "desc" },
+  });
+
+  if (isLoading) return <Loading />;
+  if (error) return <Error error={error} />;
+
+  return (
+    <ul>
+      {data.docs.map((post) => (
+        <li key={post.id}>{post.title}</li>
+      ))}
+    </ul>
+  );
+}
+```
+
+### useCollectionItem
+
+Fetch a single collection item:
+
+```typescript
+import { useCollectionItem } from "@questpie/admin/client";
+
+function PostDetail({ id }: { id: string }) {
+  const { data: post, isLoading } = useCollectionItem("posts", id);
+
+  if (isLoading) return <Loading />;
+
+  return <article>{post.title}</article>;
+}
+```
+
+### useCollectionCreate
+
+Create new items:
+
+```typescript
+import { useCollectionCreate } from "@questpie/admin/client";
+
+function CreatePost() {
+  const createPost = useCollectionCreate("posts");
+
+  const handleSubmit = async (data) => {
+    const post = await createPost.mutateAsync(data);
+    console.log("Created:", post.id);
+  };
+
+  return <form onSubmit={handleSubmit}>...</form>;
+}
+```
+
+### useCollectionUpdate
+
+Update existing items:
+
+```typescript
+import { useCollectionUpdate } from "@questpie/admin/client";
+
+function EditPost({ id }: { id: string }) {
+  const updatePost = useCollectionUpdate("posts");
+
+  const handleSubmit = async (data) => {
+    await updatePost.mutateAsync({ id, data });
+  };
+
+  return <form onSubmit={handleSubmit}>...</form>;
+}
+```
+
+### useCollectionDelete
+
+Delete items:
+
+```typescript
+import { useCollectionDelete } from "@questpie/admin/client";
+
+function DeleteButton({ id }: { id: string }) {
+  const deletePost = useCollectionDelete("posts");
+
+  return (
+    <button
+      onClick={() => deletePost.mutate(id)}
+      disabled={deletePost.isPending}
+    >
+      Delete
+    </button>
+  );
+}
+```
+
+### useGlobal
+
+Fetch global data:
+
+```typescript
+import { useGlobal } from "@questpie/admin/client";
+
+function SiteSettings() {
+  const { data: settings, isLoading } = useGlobal("siteSettings");
+
+  if (isLoading) return <Loading />;
+
+  return <div>Site: {settings.siteName}</div>;
+}
+```
+
+### useGlobalUpdate
+
+Update global data:
+
+```typescript
+import { useGlobal, useGlobalUpdate } from "@questpie/admin/client";
+
+function SettingsForm() {
+  const { data: settings } = useGlobal("siteSettings");
+  const updateSettings = useGlobalUpdate("siteSettings");
+
+  const handleSubmit = async (data) => {
+    await updateSettings.mutateAsync(data);
+  };
+
+  return <form onSubmit={handleSubmit}>...</form>;
+}
+```
+
+## Navigation Hooks
+
+### useAdminRoutes
+
+Access admin route helpers:
+
+```typescript
+import { useAdminRoutes } from "@questpie/admin/client";
+
+function Navigation() {
+  const { routes, navigate } = useAdminRoutes();
+
+  return (
+    <nav>
+      <button onClick={() => navigate.dashboard()}>
+        Dashboard
+      </button>
+      <button onClick={() => navigate.collection("posts")}>
+        Posts
+      </button>
+      <button onClick={() => navigate.collectionCreate("posts")}>
+        New Post
+      </button>
+    </nav>
+  );
+}
+```
+
+### Route Helpers
+
+```typescript
+const { navigate } = useAdminRoutes();
+
+// Navigate to dashboard
+navigate.dashboard();
+
+// Navigate to collection list
+navigate.collection("posts");
+
+// Navigate to create form
+navigate.collectionCreate("posts");
+
+// Navigate to edit form
+navigate.collectionEdit("posts", "post-id");
+
+// Navigate to global
+navigate.global("siteSettings");
+```
+
+## Store Hooks
+
+### useAdminStore
+
+Access the admin store:
+
+```typescript
+import { useAdminStore } from "@questpie/admin/client";
+
+function AdminInfo() {
+  const { admin, client, basePath } = useAdminStore((s) => ({
+    admin: s.admin,
+    client: s.client,
+    basePath: s.basePath,
+  }));
+
+  return <div>Base path: {basePath}</div>;
+}
+```
+
+### useAdminContext
+
+Access admin context in any component:
+
+```typescript
+import { useAdminContext } from "@questpie/admin/client";
+
+function MyComponent() {
+  const { admin, collections, globals } = useAdminContext();
+
+  return (
+    <div>
+      Collections: {Object.keys(collections).join(", ")}
+    </div>
+  );
+}
+```
+
+## Auth Hooks
+
+### useAuthClient
+
+Access the Better Auth client:
+
+```typescript
+import { useAuthClient } from "@questpie/admin/client";
+
+function UserMenu() {
+  const authClient = useAuthClient();
+  const session = authClient.useSession();
+
+  if (!session.data) {
+    return <LoginButton />;
+  }
+
+  return (
+    <div>
+      {session.data.user.email}
+      <button onClick={() => authClient.signOut()}>
+        Sign Out
+      </button>
+    </div>
+  );
+}
+```
+
+### useCurrentUser
+
+Get the current user:
+
+```typescript
+import { useCurrentUser } from "@questpie/admin/client";
+
+function Greeting() {
+  const user = useCurrentUser();
+
+  if (!user) return null;
+
+  return <div>Hello, {user.name || user.email}</div>;
+}
+```
+
+### useHasRole
+
+Check user roles:
+
+```typescript
+import { useHasRole } from "@questpie/admin/client";
+
+function AdminOnly({ children }) {
+  const isAdmin = useHasRole("admin");
+
+  if (!isAdmin) {
+    return <div>Access denied</div>;
+  }
+
+  return children;
+}
+```
+
+## Next Steps
+
+<Cards>
+  <Card href="/docs/admin/hooks/data-hooks" title="Data Hooks" description="Collection and global data" />
+  <Card href="/docs/admin/hooks/navigation-hooks" title="Navigation" description="Routing helpers" />
+  <Card href="/docs/admin/hooks/auth-hooks" title="Authentication" description="User and session hooks" />
+</Cards>

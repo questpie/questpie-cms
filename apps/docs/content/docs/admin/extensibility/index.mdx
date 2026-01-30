@@ -1,0 +1,263 @@
+---
+title: Extensibility
+description: Creating custom fields, views, widgets, and modules
+---
+
+# Extensibility
+
+QUESTPIE Admin is designed to be extended at every level. Create custom fields, views, widgets, and modules to fit your specific needs.
+
+## Extension Points
+
+| Extension | Purpose | Complexity |
+|-----------|---------|------------|
+| Custom Fields | New input types | Medium |
+| Custom Views | New list/form layouts | Medium |
+| Custom Widgets | Dashboard components | Easy |
+| Custom Blocks | Page builder blocks | Medium |
+| Custom Modules | Reusable packages | Advanced |
+
+## Quick Examples
+
+### Custom Field
+
+```typescript
+import { field } from "@questpie/admin/builder";
+
+const colorField = field("color", {
+  component: ColorPickerField,
+  cell: ColorCell,
+  config: {} as { label?: string; format?: "hex" | "rgb" },
+  createZod: () => z.string().regex(/^#[0-9A-F]{6}$/i),
+});
+
+// Register
+const admin = qa()
+  .use(adminModule)
+  .fields({ color: colorField });
+
+// Use
+.fields(({ r }) => ({
+  primaryColor: r.color({ label: "Primary Color" }),
+}))
+```
+
+### Custom Widget
+
+```typescript
+import { widget } from "@questpie/admin/builder";
+
+const weatherWidget = widget("weather", {
+  component: WeatherWidgetComponent,
+  config: {} as { city: string },
+});
+
+// Register and use
+const admin = qa()
+  .use(adminModule)
+  .widgets({ weather: weatherWidget })
+  .dashboard(({ w }) => ({
+    widgets: [
+      w.weather({ city: "New York" }),
+    ],
+  }));
+```
+
+### Custom Module
+
+```typescript
+const myModule = qa()
+  .fields({
+    color: colorField,
+    rating: ratingField,
+  })
+  .widgets({
+    weather: weatherWidget,
+  });
+
+// Use in any admin
+const admin = qa()
+  .use(adminModule)
+  .use(myModule);
+```
+
+## Field Extension
+
+Fields are the most common extension point. A field needs:
+
+1. **Component**: React component for editing
+2. **Cell** (optional): React component for table display
+3. **Config**: TypeScript type for configuration
+4. **Zod Schema** (optional): Validation generator
+
+```typescript
+const ratingField = field("rating", {
+  component: RatingFieldComponent,
+  cell: RatingCellComponent,
+  config: {} as {
+    label?: string;
+    max?: number;
+    allowHalf?: boolean;
+  },
+  defaultConfig: {
+    max: 5,
+    allowHalf: false,
+  },
+  createZod: (config) =>
+    z.number().min(0).max(config.max ?? 5),
+});
+```
+
+[Learn more about custom fields →](/docs/admin/extensibility/custom-fields)
+
+## View Extension
+
+Views control how collections are displayed:
+
+```typescript
+const kanbanView = view("kanban", {
+  kind: "list",  // or "edit"
+  component: KanbanViewComponent,
+  config: {} as {
+    columns: { status: string; label: string }[];
+    cardTitle: string;
+  },
+});
+```
+
+[Learn more about custom views →](/docs/admin/extensibility/custom-views)
+
+## Widget Extension
+
+Widgets appear on the dashboard:
+
+```typescript
+const analyticsWidget = widget("analytics", {
+  component: AnalyticsComponent,
+  config: {} as {
+    metric: "pageViews" | "users" | "revenue";
+    period: "day" | "week" | "month";
+  },
+});
+```
+
+[Learn more about custom widgets →](/docs/admin/extensibility/custom-widgets)
+
+## Module Extension
+
+Package multiple extensions together:
+
+```typescript
+const analyticsModule = qa()
+  .widgets({
+    pageViews: pageViewsWidget,
+    topPages: topPagesWidget,
+    userFlow: userFlowWidget,
+  })
+  .dashboard(({ w }) => ({
+    widgets: [
+      w.pageViews({ period: "7d" }),
+      w.topPages({ limit: 10 }),
+    ],
+  }));
+```
+
+[Learn more about custom modules →](/docs/admin/extensibility/custom-modules)
+
+## Best Practices
+
+### 1. Type Everything
+
+```typescript
+// Define explicit config types
+interface ColorFieldConfig {
+  label?: string;
+  format?: "hex" | "rgb" | "hsl";
+  showAlpha?: boolean;
+}
+
+const colorField = field("color", {
+  config: {} as ColorFieldConfig,
+  // ...
+});
+```
+
+### 2. Provide Defaults
+
+```typescript
+const ratingField = field("rating", {
+  config: {} as RatingConfig,
+  defaultConfig: {
+    max: 5,
+    allowHalf: false,
+    size: "md",
+  },
+  // ...
+});
+```
+
+### 3. Handle Edge Cases
+
+```typescript
+function RatingFieldComponent({ value, onChange, config }) {
+  // Handle undefined/null
+  const rating = value ?? 0;
+
+  // Validate against config
+  const max = config.max ?? 5;
+  const clampedRating = Math.min(Math.max(0, rating), max);
+
+  return <RatingInput value={clampedRating} onChange={onChange} />;
+}
+```
+
+### 4. Follow Naming Conventions
+
+```typescript
+// Field: descriptive name
+const colorPickerField = field("colorPicker", ...);
+
+// Widget: noun describing what it shows
+const revenueChartWidget = widget("revenueChart", ...);
+
+// View: describes the layout
+const kanbanBoardView = view("kanbanBoard", ...);
+```
+
+### 5. Document Your Extensions
+
+```typescript
+/**
+ * Color picker field with support for multiple formats.
+ *
+ * @example
+ * .fields(({ r }) => ({
+ *   brandColor: r.colorPicker({
+ *     label: "Brand Color",
+ *     format: "hex",
+ *   }),
+ * }))
+ */
+const colorPickerField = field("colorPicker", ...);
+```
+
+## Extension Checklist
+
+Before publishing an extension:
+
+- [ ] Types are fully defined
+- [ ] Default config is provided
+- [ ] Edge cases are handled (null, undefined)
+- [ ] Component is accessible (keyboard, screen readers)
+- [ ] Works on mobile devices
+- [ ] Documentation and examples exist
+- [ ] Tests cover main use cases
+
+## Next Steps
+
+<Cards>
+  <Card href="/docs/admin/extensibility/custom-fields" title="Custom Fields" description="Create new field types" />
+  <Card href="/docs/admin/extensibility/custom-views" title="Custom Views" description="Create new view types" />
+  <Card href="/docs/admin/extensibility/custom-widgets" title="Custom Widgets" description="Create dashboard widgets" />
+  <Card href="/docs/admin/extensibility/custom-modules" title="Custom Modules" description="Package extensions" />
+</Cards>

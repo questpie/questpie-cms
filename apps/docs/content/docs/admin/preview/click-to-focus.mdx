@@ -1,0 +1,270 @@
+---
+title: Click-to-Focus
+description: Click on preview elements to focus the corresponding form field
+---
+
+# Click-to-Focus
+
+Click-to-focus allows editors to click on elements in the preview panel to automatically focus and highlight the corresponding field in the form.
+
+## How It Works
+
+1. Add data attributes to your preview components
+2. Click on an element in the preview
+3. Admin receives the click and focuses the field
+4. Field scrolls into view and highlights
+
+## Adding Click Targets
+
+Mark clickable elements with `data-questpie-field`:
+
+```tsx
+function HeroRenderer({ values }) {
+  return (
+    <section className="hero">
+      {/* Click on title to focus title field */}
+      <h1
+        data-questpie-field="title"
+        className="editable"
+      >
+        {values.title || "Click to add title"}
+      </h1>
+
+      {/* Click on subtitle to focus subtitle field */}
+      <p
+        data-questpie-field="subtitle"
+        className="editable"
+      >
+        {values.subtitle || "Click to add subtitle"}
+      </p>
+
+      {/* Click on button to focus ctaText field */}
+      <button
+        data-questpie-field="ctaText"
+        className="editable"
+      >
+        {values.ctaText || "Add button text"}
+      </button>
+    </section>
+  );
+}
+```
+
+## Nested Field Paths
+
+For nested fields (objects, arrays), use dot notation:
+
+```tsx
+function ContactRenderer({ values }) {
+  return (
+    <div>
+      {/* Nested object field */}
+      <div data-questpie-field="address.street">
+        {values.address?.street}
+      </div>
+      <div data-questpie-field="address.city">
+        {values.address?.city}
+      </div>
+
+      {/* Array item fields */}
+      {values.socialLinks?.map((link, index) => (
+        <a
+          key={index}
+          data-questpie-field={`socialLinks.${index}.url`}
+          href={link.url}
+        >
+          {link.platform}
+        </a>
+      ))}
+    </div>
+  );
+}
+```
+
+## Block Field Paths
+
+For blocks, include the block index:
+
+```tsx
+function BlockRenderer({ block, index }) {
+  return (
+    <section data-questpie-block={index}>
+      <h2 data-questpie-field={`content.${index}.values.title`}>
+        {block.values.title}
+      </h2>
+    </section>
+  );
+}
+```
+
+## Visual Feedback
+
+Add hover styles to indicate clickable areas:
+
+```css
+/* In your preview styles */
+[data-questpie-field] {
+  cursor: pointer;
+  transition: outline 0.15s ease;
+}
+
+[data-questpie-field]:hover {
+  outline: 2px dashed var(--color-primary);
+  outline-offset: 4px;
+}
+
+/* Optional: Show edit icon on hover */
+[data-questpie-field]:hover::after {
+  content: "✏️";
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  font-size: 12px;
+}
+```
+
+## Empty State Placeholders
+
+Show placeholders for empty fields:
+
+```tsx
+function TextBlock({ values }) {
+  return (
+    <div data-questpie-field="content">
+      {values.content ? (
+        <div dangerouslySetInnerHTML={{ __html: values.content }} />
+      ) : (
+        <p className="placeholder text-gray-400 italic">
+          Click to add content...
+        </p>
+      )}
+    </div>
+  );
+}
+```
+
+## Implementation Details
+
+The click-to-focus system works via postMessage:
+
+```tsx
+// In your preview page
+useEffect(() => {
+  const handleClick = (event: MouseEvent) => {
+    const target = event.target as HTMLElement;
+    const field = target.closest("[data-questpie-field]");
+
+    if (field) {
+      const fieldPath = field.getAttribute("data-questpie-field");
+
+      // Notify admin to focus the field
+      window.parent.postMessage({
+        type: "questpie:preview:focus",
+        field: fieldPath,
+      }, "*");
+
+      event.preventDefault();
+    }
+  };
+
+  document.addEventListener("click", handleClick);
+  return () => document.removeEventListener("click", handleClick);
+}, []);
+```
+
+<Callout type="info">
+This is handled automatically by the preview system. You only need to add the `data-questpie-field` attributes.
+</Callout>
+
+## Complete Example
+
+```tsx
+// blocks/hero.tsx
+function HeroRenderer({ values, data }: BlockRendererProps<HeroValues>) {
+  return (
+    <section
+      className="hero relative"
+      style={{ backgroundImage: `url(${data.backgroundImageUrl})` }}
+    >
+      {/* Background image - click to change */}
+      <div
+        data-questpie-field="backgroundImage"
+        className="absolute inset-0 bg-cover bg-center"
+      />
+
+      {/* Overlay */}
+      <div className="absolute inset-0 bg-black/50" />
+
+      {/* Content */}
+      <div className="relative z-10 container py-20">
+        {/* Title - clickable */}
+        <h1
+          data-questpie-field="title"
+          className="text-5xl font-bold text-white mb-4 editable"
+        >
+          {values.title || (
+            <span className="text-white/50 italic">Add title...</span>
+          )}
+        </h1>
+
+        {/* Subtitle - clickable */}
+        <p
+          data-questpie-field="subtitle"
+          className="text-xl text-white/80 mb-8 editable"
+        >
+          {values.subtitle || (
+            <span className="text-white/50 italic">Add subtitle...</span>
+          )}
+        </p>
+
+        {/* CTA Button - clickable */}
+        {(values.ctaText || true) && (
+          <a
+            data-questpie-field="ctaText"
+            href={values.ctaLink || "#"}
+            className="inline-block px-8 py-3 bg-primary text-white rounded editable"
+          >
+            {values.ctaText || (
+              <span className="opacity-50">Add button text...</span>
+            )}
+          </a>
+        )}
+      </div>
+
+      {/* Settings panel - click to open config */}
+      <button
+        data-questpie-field="height"
+        className="absolute bottom-4 right-4 bg-white/10 p-2 rounded"
+        title="Click to adjust height"
+      >
+        ⚙️
+      </button>
+    </section>
+  );
+}
+```
+
+## Best Practices
+
+1. **Mark all editable areas** - Every field should have a click target
+2. **Use visual cues** - Hover effects help editors discover clickable areas
+3. **Handle empty states** - Show placeholders for empty fields
+4. **Keep it accessible** - Ensure click targets are keyboard accessible
+5. **Test thoroughly** - Verify all field paths map correctly
+
+## Disabling Click-to-Focus
+
+If needed, disable click-to-focus for specific elements:
+
+```tsx
+<div data-questpie-field-disabled>
+  {/* This area won't trigger field focus */}
+</div>
+```
+
+## Next Steps
+
+<Cards>
+  <Card href="/docs/admin/preview" title="Preview Overview" description="Preview system documentation" />
+  <Card href="/docs/admin/blocks" title="Block System" description="Create page builder blocks" />
+</Cards>

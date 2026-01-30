@@ -1,0 +1,158 @@
+---
+title: Numeric Fields
+description: number field type for numeric input
+---
+
+# Numeric Fields
+
+Numeric fields handle number input with validation and formatting.
+
+## number
+
+Numeric input with optional min/max bounds and step values.
+
+```typescript
+price: r.number({
+  label: "Price",
+  min: 0,
+  max: 10000,
+  step: 0.01,
+})
+```
+
+### Options
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `label` | `string \| I18nText` | - | Display label |
+| `description` | `string \| I18nText` | - | Help text |
+| `placeholder` | `string \| I18nText` | - | Placeholder text |
+| `min` | `number` | - | Minimum value |
+| `max` | `number` | - | Maximum value |
+| `step` | `number` | `1` | Step increment |
+| `integer` | `boolean` | `false` | Only allow integers |
+| `required` | `boolean \| fn` | `false` | Required validation |
+| `readOnly` | `boolean \| fn` | `false` | Disable editing |
+| `visible` | `fn` | - | Conditional visibility |
+| `defaultValue` | `number` | - | Default value |
+| `prefix` | `string` | - | Prefix text (e.g., "$") |
+| `suffix` | `string` | - | Suffix text (e.g., "kg") |
+| `locale` | `string` | - | Number format locale |
+
+### Examples
+
+```typescript
+// Price with decimals
+price: r.number({
+  label: "Price",
+  min: 0,
+  step: 0.01,
+  prefix: "$",
+})
+
+// Integer quantity
+quantity: r.number({
+  label: "Quantity",
+  min: 0,
+  integer: true,
+})
+
+// Rating (1-5)
+rating: r.number({
+  label: "Rating",
+  min: 1,
+  max: 5,
+  integer: true,
+})
+
+// Percentage
+discount: r.number({
+  label: "Discount",
+  min: 0,
+  max: 100,
+  suffix: "%",
+})
+
+// Weight with decimals
+weight: r.number({
+  label: "Weight",
+  min: 0,
+  step: 0.1,
+  suffix: "kg",
+})
+
+// Duration in minutes
+duration: r.number({
+  label: "Duration",
+  min: 15,
+  max: 180,
+  step: 15,
+  suffix: "min",
+  defaultValue: 30,
+})
+
+// Price in cents (stored as integer)
+priceInCents: r.number({
+  label: "Price (cents)",
+  min: 0,
+  integer: true,
+  description: "Enter price in cents (e.g., 1999 = $19.99)",
+})
+```
+
+## Conditional Validation
+
+```typescript
+discountType: r.select({
+  label: "Discount Type",
+  options: [
+    { label: "Percentage", value: "percentage" },
+    { label: "Fixed Amount", value: "fixed" },
+  ],
+}),
+
+discountValue: r.number({
+  label: "Discount Value",
+  min: 0,
+  // Max depends on type
+  max: (values) => values.discountType === "percentage" ? 100 : undefined,
+  suffix: (values) => values.discountType === "percentage" ? "%" : "$",
+  required: true,
+}),
+```
+
+## Table Display
+
+Numbers are right-aligned in tables by default. You can format the display:
+
+```typescript
+.list(({ v, f }) => v.table({
+  columns: [
+    f.name,
+    {
+      field: f.price,
+      format: (value) => `$${(value / 100).toFixed(2)}`,  // Format cents
+    },
+    f.quantity,
+  ],
+}))
+```
+
+## Validation
+
+Number fields automatically validate:
+
+- Value is a valid number
+- Value is within min/max bounds
+- Value matches step increment
+- Value is an integer (if `integer: true`)
+
+```typescript
+// This will only accept multiples of 5 between 0 and 100
+progress: r.number({
+  label: "Progress",
+  min: 0,
+  max: 100,
+  step: 5,
+})
+```

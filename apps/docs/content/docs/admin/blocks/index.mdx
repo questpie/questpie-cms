@@ -1,0 +1,268 @@
+---
+title: Block System Overview
+description: Visual page builder with configurable content blocks
+---
+
+# Block System Overview
+
+The block system enables visual page building with reusable, configurable content blocks. Create landing pages, articles, and complex layouts without writing code for each page.
+
+## Key Features
+
+- **Visual Editor** - Drag-and-drop block arrangement
+- **Type-Safe Blocks** - Full TypeScript support for block definitions
+- **Data Prefetching** - Server-side data loading for blocks
+- **Live Preview** - Real-time preview as you edit
+- **Categories** - Organize blocks by type (sections, content, layout)
+- **Localization** - Per-locale block content
+
+## Architecture
+
+```
+Block Definition
+├── Fields (admin form)
+├── Renderer (React component)
+├── Prefetch (optional data loading)
+└── Metadata (label, icon, category)
+```
+
+### Block Storage
+
+Blocks are stored as JSON in a collection field:
+
+```json
+{
+  "content": [
+    {
+      "id": "block-1",
+      "type": "hero",
+      "values": {
+        "title": "Welcome",
+        "subtitle": "Start here",
+        "backgroundImage": "asset-id"
+      }
+    },
+    {
+      "id": "block-2",
+      "type": "text",
+      "values": {
+        "content": "<p>...</p>"
+      }
+    }
+  ]
+}
+```
+
+## Creating a Block
+
+```typescript
+// admin/blocks/hero.tsx
+import { builder } from "../builder";
+
+export const heroBlock = builder
+  .block("hero")
+  .label({ en: "Hero", sk: "Hero" })
+  .description({ en: "Full-width banner", sk: "Banner na celu sirku" })
+  .icon("Image")
+  .category("sections")
+  .fields(({ r }) => ({
+    title: r.text({
+      label: "Title",
+      localized: true,
+      required: true,
+    }),
+    subtitle: r.textarea({
+      label: "Subtitle",
+      localized: true,
+    }),
+    backgroundImage: r.upload({
+      label: "Background",
+      accept: ["image/*"],
+    }),
+    ctaText: r.text({
+      label: "Button Text",
+      localized: true,
+    }),
+    ctaLink: r.text({
+      label: "Button Link",
+      defaultValue: "/contact",
+    }),
+  }))
+  .renderer(HeroRenderer)
+  .build();
+
+function HeroRenderer({ values, data }) {
+  return (
+    <section
+      className="hero"
+      style={{ backgroundImage: `url(${data.backgroundImageUrl})` }}
+    >
+      <h1>{values.title}</h1>
+      <p>{values.subtitle}</p>
+      {values.ctaText && (
+        <a href={values.ctaLink}>{values.ctaText}</a>
+      )}
+    </section>
+  );
+}
+```
+
+## Block Categories
+
+Organize blocks into categories:
+
+| Category | Purpose | Examples |
+|----------|---------|----------|
+| `sections` | Full-width page sections | Hero, CTA, Team |
+| `content` | Content-focused blocks | Text, Heading, Gallery |
+| `layout` | Structural blocks | Columns, Spacer, Divider |
+| `dynamic` | Data-driven blocks | Featured Posts, Reviews |
+
+## Using Blocks in Collections
+
+Add a blocks field to your collection:
+
+```typescript
+// admin/collections/pages.ts
+export const pagesAdmin = builder
+  .collection("pages")
+  .fields(({ r }) => ({
+    title: r.text({ label: "Title", required: true }),
+    slug: r.text({ label: "Slug", required: true }),
+
+    content: r.blocks({
+      label: "Page Content",
+      allowedBlocks: [
+        "hero",
+        "text",
+        "gallery",
+        "services",
+        "team",
+        "cta",
+      ],
+    }),
+
+    status: r.select({
+      label: "Status",
+      options: [
+        { label: "Draft", value: "draft" },
+        { label: "Published", value: "published" },
+      ],
+    }),
+  }));
+```
+
+## Registering Blocks
+
+Register all blocks with the admin:
+
+```typescript
+// admin/blocks/index.ts
+export const blocks = {
+  hero: heroBlock,
+  text: textBlock,
+  gallery: galleryBlock,
+  services: servicesBlock,
+  team: teamBlock,
+  cta: ctaBlock,
+} as const;
+
+// admin/admin.ts
+import blocks from "./blocks";
+
+export const admin = qa()
+  .use(adminModule)
+  .blocks(blocks)
+  .collections({
+    pages: pagesAdmin,
+  });
+```
+
+## Rendering Blocks on Frontend
+
+Use the `BlockRenderer` component to render block content:
+
+```tsx
+// app/pages/[slug].tsx
+import { BlockRenderer } from "@questpie/admin/client";
+import { blocks } from "@/questpie/admin/blocks";
+
+export default function Page({ page }) {
+  return (
+    <main>
+      <BlockRenderer
+        blocks={page.content}
+        registry={blocks}
+      />
+    </main>
+  );
+}
+```
+
+## Data Prefetching
+
+Blocks can prefetch data on the server:
+
+```typescript
+export const heroBlock = builder
+  .block("hero")
+  .fields(({ r }) => ({
+    backgroundImage: r.upload({...}),
+  }))
+  .prefetch(async ({ values }) => {
+    if (!values.backgroundImage) return {};
+
+    const asset = await client.collections.assets.findOne({
+      where: { id: values.backgroundImage },
+    });
+
+    return {
+      backgroundImageUrl: asset?.url || null,
+    };
+  })
+  .renderer(HeroRenderer)
+  .build();
+```
+
+The prefetched data is available in the renderer as `data`:
+
+```tsx
+function HeroRenderer({ values, data }) {
+  // data.backgroundImageUrl is available here
+  return <section style={{ backgroundImage: `url(${data.backgroundImageUrl})` }}>...
+}
+```
+
+## Built-in Block Categories (Barbershop Example)
+
+The tanstack-barbershop example includes 18 blocks:
+
+### Section Blocks
+- `hero` - Full-width banner with background
+- `services` - Service cards grid
+- `team` - Team member showcase
+- `reviews` - Customer testimonials
+- `cta` - Call-to-action section
+- `booking-cta` - Booking prompt
+
+### Content Blocks
+- `text` - Rich text content
+- `heading` - Section headings
+- `image-text` - Image with text layout
+- `gallery` - Image gallery
+- `stats` - Statistics display
+- `hours` - Business hours
+- `contact-info` - Contact information
+
+### Layout Blocks
+- `columns` - Multi-column layout
+- `spacer` - Vertical spacing
+- `divider` - Visual separator
+
+## Next Steps
+
+<Cards>
+  <Card href="/docs/admin/blocks/creating-blocks" title="Creating Blocks" description="Step-by-step block creation guide" />
+  <Card href="/docs/admin/blocks/block-renderer" title="Block Renderer" description="Rendering blocks on your frontend" />
+  <Card href="/docs/admin/blocks/block-examples" title="Examples" description="Real-world block implementations" />
+</Cards>

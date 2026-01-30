@@ -1,0 +1,144 @@
+---
+title: Realtime Subscriptions
+---
+
+This guide shows how to enable realtime updates from QUESTPIE and consume them over SSE.
+
+The realtime layer is built on an outbox table (`questpie_realtime_log`) and re-runs your query when any related data changes. The payload is a fresh snapshot (not a diff).
+
+## Enable Realtime
+
+Realtime is **automatically enabled** when you use a PostgreSQL connection string:
+
+```ts
+import { q } from "questpie";
+
+const app = q({ name: "app" })
+  // ...collections, globals, auth, etc
+  .build({
+    app: { url: process.env.APP_URL! },
+    db: { url: process.env.DATABASE_URL! }, // Auto-enables pg-notify adapter
+  });
+```
+
+The CMS automatically creates a `pg-notify` adapter for real-time updates using PostgreSQL's LISTEN/NOTIFY.
+
+### Custom Configuration
+
+You can override the default behavior:
+
+```ts
+import { q, redisStreamsAdapter } from "questpie";
+
+const app = q({ name: "app" })
+  .build({
+    app: { url: process.env.APP_URL! },
+    db: { url: process.env.DATABASE_URL! },
+    realtime: {
+      adapter: redisStreamsAdapter({ client: redisClient }), // Custom adapter
+      // Or disable adapter for polling mode:
+      // adapter: undefined,
+      // pollIntervalMs: 2000,
+      // batchSize: 500,
+    },
+  });
+```
+
+Notes:
+- PostgreSQL setup automatically uses `pg-notify` (requires `pg` package: `bun add pg`)
+- PGlite setup uses polling mode (no LISTEN/NOTIFY support)
+- Custom adapters override the default behavior
+
+## Subscribe to a Collection (SSE)
+
+Endpoint:
+
+```
+GET /cms/realtime/:collection
+```
+
+Query parameters are the same as `find` (including `where`, `orderBy`, `limit`, `with`).
+
+Example:
+
+```ts
+const url = new URL("https://example.com/cms/realtime/posts");
+url.searchParams.set("with[author]", "true");
+
+const source = new EventSource(url);
+
+source.addEventListener("snapshot", (event) => {
+  const { seq, data } = JSON.parse(event.data);
+  // data == result of find(): { docs, totalDocs, ... }
+  render(data.docs);
+});
+
+source.addEventListener("error", (event) => {
+  console.error("Realtime error", event);
+});
+```
+
+Events:
+- `snapshot`: full query snapshot
+- `ping`: keep-alive
+- `error`: server-side error
+
+## Subscribe to a Global (SSE)
+
+Endpoint:
+
+```
+GET /cms/realtime/globals/:global
+```
+
+Example:
+
+```ts
+const source = new EventSource(
+  "https://example.com/cms/realtime/globals/settings",
+);
+
+source.addEventListener("snapshot", (event) => {
+  const { seq, data } = JSON.parse(event.data);
+  // data == result of globals.get()
+  updateSettingsUI(data);
+});
+```
+
+You can also pass `with` for related data:
+
+```
+GET /cms/realtime/globals/settings?with[owner]=true
+```
+
+## How Updates Are Triggered
+
+- Any create/update/delete on the base collection triggers a requery.
+- Changes in collections referenced via `with` also trigger a requery.
+- For globals, changes to the global itself or related collections trigger a requery.
+
+The server always sends a full snapshot of the query result.
+
+## Using with TanStack DB
+
+TanStack DB works best with normalized collections. Use realtime without `with` and run separate collection queries on the client. The SSE snapshots can be fed into your collections directly.
+
+Example sketch:
+
+```ts
+const source = new EventSource("/cms/realtime/posts");
+
+source.addEventListener("snapshot", (event) => {
+  const { data } = JSON.parse(event.data);
+  // upsert into TanStack DB collection
+  postsCollection.replaceAll(data.docs);
+});
+```
+
+## Cleanup Strategy
+
+The outbox table grows over time. A simple cleanup strategy is:
+- Track the minimum consumed seq across subscribers.
+- Delete rows older than that (plus a safety window).
+
+You can use your queue system (pg-boss) to schedule cleanup jobs.

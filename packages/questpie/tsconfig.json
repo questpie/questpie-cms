@@ -1,0 +1,9 @@
+{
+	"extends": "@questpie/typescript-config/bun.json",
+	"compilerOptions": {
+		"paths": {
+			"#questpie/*": ["./src/*"]
+		}
+	},
+	"exclude": ["node_modules", "dist"]
+}

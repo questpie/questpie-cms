@@ -1,0 +1,21 @@
+services:
+  # PostgreSQL - The ONLY external dependency!
+  postgres:
+    image: postgres:17
+    container_name: barbershop-postgres
+    environment:
+      POSTGRES_DB: barbershop
+      POSTGRES_USER: barbershop
+      POSTGRES_PASSWORD: barbershop_dev_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U barbershop"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:

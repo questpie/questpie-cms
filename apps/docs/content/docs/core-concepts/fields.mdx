@@ -1,0 +1,335 @@
+---
+title: Fields
+description: Field types overview for backend and admin
+---
+
+# Fields
+
+QUESTPIE uses different field systems for backend (database schema) and admin (UI configuration).
+
+## Backend Fields (Drizzle)
+
+Backend fields define your database schema using Drizzle ORM column builders:
+
+```typescript
+import { q, text, varchar, integer, boolean, timestamp, jsonb } from "questpie";
+
+const posts = q.collection("posts")
+  .fields({
+    title: text("title").notNull(),
+    slug: varchar("slug", { length: 200 }).notNull().unique(),
+    content: text("content"),
+    views: integer("views").default(0),
+    published: boolean("published").default(false),
+    publishedAt: timestamp("publishedAt"),
+    metadata: jsonb("metadata"),
+  });
+```
+
+### Text Fields
+
+| Field | Description | Example |
+|-------|-------------|---------|
+| `text(name)` | Unlimited text | `text("content")` |
+| `varchar(name, { length })` | Limited length | `varchar("title", { length: 255 })` |
+
+```typescript
+text("bio")
+text("bio").notNull()
+varchar("email", { length: 255 }).unique()
+```
+
+### Numeric Fields
+
+| Field | Description | Example |
+|-------|-------------|---------|
+| `integer(name)` | Whole numbers | `integer("count")` |
+| `bigint(name)` | Large integers | `bigint("views")` |
+| `numeric(name, { precision, scale })` | Decimal numbers | `numeric("price", { precision: 10, scale: 2 })` |
+| `real(name)` | Floating point | `real("rating")` |
+
+```typescript
+integer("quantity").default(0)
+numeric("price", { precision: 10, scale: 2 }).notNull()
+```
+
+### Boolean Fields
+
+```typescript
+boolean("active").default(true)
+boolean("verified").notNull()
+```
+
+### Date/Time Fields
+
+| Field | Description | Example |
+|-------|-------------|---------|
+| `timestamp(name)` | Date and time | `timestamp("createdAt")` |
+| `date(name)` | Date only | `date("birthDate")` |
+| `time(name)` | Time only | `time("startTime")` |
+
+```typescript
+timestamp("createdAt").defaultNow()
+timestamp("publishedAt", { mode: "date" })
+date("birthday")
+```
+
+### JSON Fields
+
+```typescript
+jsonb("settings")
+jsonb("metadata").$type<{ tags: string[] }>()
+```
+
+### UUID Fields
+
+```typescript
+uuid("id").defaultRandom().primaryKey()
+```
+
+## Admin Fields (UI)
+
+Admin fields configure how data is displayed and edited in the admin interface:
+
+```typescript
+import { qa, adminModule } from "@questpie/admin/client";
+import type { AppCMS } from "./server/cms";
+
+const builder = qa<AppCMS>().use(adminModule);
+
+const postsAdmin = builder.collection("posts")
+  .fields(({ r }) => ({
+    title: r.text({ label: "Title", required: true }),
+    slug: r.text({ label: "Slug" }),
+    content: r.richText({ label: "Content" }),
+    views: r.number({ label: "Views", readOnly: true }),
+    published: r.switch({ label: "Published" }),
+    publishedAt: r.datetime({ label: "Publish Date" }),
+    metadata: r.json({ label: "Metadata" }),
+  }));
+```
+
+### Text Fields
+
+| Field | Description | Options |
+|-------|-------------|---------|
+| `r.text()` | Single line text | `maxLength`, `placeholder` |
+| `r.textarea()` | Multi-line text | `rows`, `maxLength` |
+| `r.richText()` | Rich text editor | `outputFormat` |
+| `r.email()` | Email input | Validates email format |
+| `r.password()` | Password input | Hidden characters |
+
+```typescript
+r.text({ label: "Title", maxLength: 200, placeholder: "Enter title..." })
+r.textarea({ label: "Description", rows: 4 })
+r.richText({ label: "Content" })
+r.email({ label: "Email", required: true })
+```
+
+### Numeric Fields
+
+| Field | Description | Options |
+|-------|-------------|---------|
+| `r.number()` | Number input | `min`, `max`, `step` |
+
+```typescript
+r.number({ label: "Price", min: 0 })
+r.number({ label: "Quantity", min: 0, max: 100 })
+```
+
+### Boolean Fields
+
+| Field | Description | Options |
+|-------|-------------|---------|
+| `r.checkbox()` | Checkbox | - |
+| `r.switch()` | Toggle switch | - |
+
+```typescript
+r.checkbox({ label: "Accept terms" })
+r.switch({ label: "Published" })
+```
+
+### Selection Fields
+
+| Field | Description | Options |
+|-------|-------------|---------|
+| `r.select()` | Dropdown select | `options`, `searchable` |
+| `r.radio()` | Radio buttons | `options`, `layout` |
+| `r.multiSelect()` | Multiple select | `options`, `max` |
+| `r.checkboxGroup()` | Checkbox group | `options`, `layout` |
+
+```typescript
+r.select({
+  label: "Status",
+  options: [
+    { value: "draft", label: "Draft" },
+    { value: "published", label: "Published" },
+    { value: "archived", label: "Archived" },
+  ],
+})
+
+r.radio({
+  label: "Priority",
+  options: [
+    { value: "low", label: "Low" },
+    { value: "medium", label: "Medium" },
+    { value: "high", label: "High" },
+  ],
+  layout: "horizontal",
+})
+
+r.multiSelect({
+  label: "Categories",
+  options: [...],
+  max: 3,
+})
+```
+
+### Date/Time Fields
+
+| Field | Description | Options |
+|-------|-------------|---------|
+| `r.date()` | Date picker | `min`, `max`, `format` |
+| `r.datetime()` | Date and time | `min`, `max`, `format` |
+| `r.time()` | Time picker | `format` |
+| `r.dateRange()` | Date range | `min`, `max` |
+
+```typescript
+r.date({ label: "Birth Date" })
+r.datetime({ label: "Event Start", min: new Date() })
+r.time({ label: "Opening Time" })
+r.dateRange({ label: "Booking Period" })
+```
+
+### Relation Fields
+
+| Field | Description | Options |
+|-------|-------------|---------|
+| `r.relation()` | Link to other collection | `targetCollection`, `multiple`, `searchable` |
+
+```typescript
+r.relation({
+  label: "Author",
+  targetCollection: "user",
+})
+
+r.relation({
+  label: "Tags",
+  targetCollection: "tags",
+  multiple: true,
+  searchable: true,
+})
+```
+
+### File Fields
+
+| Field | Description | Options |
+|-------|-------------|---------|
+| `r.file()` | File upload | `accept`, `maxSize` |
+| `r.image()` | Image upload | `accept`, `maxSize`, `aspectRatio` |
+| `r.fileList()` | Multiple files | `accept`, `maxSize`, `max` |
+
+```typescript
+r.file({ label: "Document", accept: ".pdf,.doc,.docx" })
+r.image({ label: "Cover", aspectRatio: 16/9 })
+r.fileList({ label: "Gallery", accept: "image/*", max: 10 })
+```
+
+### JSON Fields
+
+| Field | Description | Options |
+|-------|-------------|---------|
+| `r.json()` | JSON editor | `schema` |
+| `r.array()` | Array of items | `itemField`, `max` |
+| `r.object()` | Nested object | `fields` |
+| `r.blocks()` | Block editor | `blocks` |
+
+```typescript
+r.json({ label: "Metadata" })
+
+r.array({
+  label: "Links",
+  itemField: r.object({
+    fields: {
+      title: r.text({ label: "Title" }),
+      url: r.url({ label: "URL" }),
+    },
+  }),
+})
+
+r.blocks({
+  label: "Content",
+  blocks: [heroBlock, textBlock, imageBlock],
+})
+```
+
+## Common Options
+
+Most admin fields support these options:
+
+| Option | Type | Description |
+|--------|------|-------------|
+| `label` | `string` | Display label |
+| `description` | `string` | Help text |
+| `required` | `boolean` | Mark as required |
+| `disabled` | `boolean` | Disable editing |
+| `hidden` | `boolean` | Hide from form |
+| `placeholder` | `string` | Placeholder text |
+| `defaultValue` | `any` | Default value |
+| `localized` | `boolean` | Enable per-locale values |
+
+```typescript
+r.text({
+  label: "Title",
+  description: "The main heading for this post",
+  required: true,
+  placeholder: "Enter a catchy title...",
+  localized: true,
+})
+```
+
+## Field Mapping
+
+How backend fields map to admin fields:
+
+| Backend (Drizzle) | Admin (Recommended) |
+|-------------------|---------------------|
+| `text()` | `r.text()`, `r.textarea()`, `r.richText()` |
+| `varchar()` | `r.text()`, `r.email()`, `r.url()`, `r.slug()` |
+| `integer()` | `r.number()`, `r.slider()` |
+| `boolean()` | `r.checkbox()`, `r.switch()` |
+| `timestamp()` | `r.datetime()` |
+| `date()` | `r.date()` |
+| `jsonb()` | `r.json()`, `r.array()`, `r.blocks()` |
+| `.relations()` | `r.relation()` |
+
+## Localized Fields
+
+Enable per-locale content:
+
+```typescript
+// Backend
+const posts = q.collection("posts")
+  .fields({
+    title: text("title"),
+    content: text("content"),
+    slug: text("slug"),  // Not localized
+  })
+  .localized(["title", "content"]);
+
+// Admin
+const postsAdmin = qab.collection("posts")
+  .fields(({ r }) => ({
+    title: r.text({ label: "Title", localized: true }),
+    content: r.richText({ label: "Content", localized: true }),
+    slug: r.slug({ label: "Slug" }),  // Not localized
+  }));
+```
+
+## Next Steps
+
+<Cards>
+  <Card href="/docs/backend/fields" title="Backend Fields" description="Full Drizzle field reference" />
+  <Card href="/docs/admin/fields" title="Admin Fields" description="Full admin field reference" />
+  <Card href="/docs/backend/validation" title="Validation" description="Field validation" />
+</Cards>

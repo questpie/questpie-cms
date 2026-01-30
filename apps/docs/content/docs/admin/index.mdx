@@ -1,0 +1,167 @@
+---
+title: Admin UI Overview
+description: Config-driven, type-safe admin interface for QUESTPIE CMS
+---
+
+# Admin UI Overview
+
+The `@questpie/admin` package provides a beautiful, config-driven admin interface for QUESTPIE CMS. Instead of writing custom React components for every form, you define your admin UI using the `qa()` builder pattern and let the framework generate everything for you.
+
+## Key Features
+
+- **Builder Pattern** - Type-safe `qa()` builder with full autocomplete
+- **Config-Driven** - UI automatically generated from configuration
+- **22+ Field Types** - Text, relations, uploads, rich text, JSON, and more
+- **Form Layouts** - Sections, tabs, columns, grids, sidebars
+- **Dashboard Widgets** - Stats, charts, tables, timelines
+- **Block System** - Visual page builder with custom blocks
+- **Live Preview** - Real-time preview with click-to-focus
+- **i18n Ready** - Full localization support
+
+## Architecture: Backend vs Admin
+
+QUESTPIE separates backend (data) from admin (UI) configuration:
+
+| Backend (`q`) | Admin (`qa`) |
+|---------------|--------------|
+| Defines database schema | Defines UI presentation |
+| Creates Drizzle tables | Configures form fields |
+| Handles CRUD operations | Configures list/table views |
+| Runs on server | Runs in browser |
+| **Has `.build()` method** | **NO `.build()` method** |
+
+This separation allows you to:
+- Have different UI for the same data
+- Reuse backend across multiple admin interfaces
+- Deploy backend and admin independently
+
+## The `qa()` Builder
+
+The admin builder creates configuration objects (not runtime instances):
+
+```typescript
+import { qa, adminModule } from "@questpie/admin/client";
+import type { AppCMS } from "./server/cms";
+
+// Create admin configuration
+const admin = qa<AppCMS>()
+  .use(adminModule)           // Include built-in fields/views
+  .branding({
+    name: "My Admin",
+    logo: LogoComponent,
+  })
+  .collections({
+    posts: postsAdmin,        // Collection UI configs
+    users: usersAdmin,
+  })
+  .globals({
+    settings: settingsAdmin,  // Global UI configs
+  })
+  .sidebar(sidebarConfig)     // Navigation
+  .dashboard(dashboardConfig) // Dashboard widgets
+  .locale({
+    default: "en",
+    supported: ["en", "sk"],
+  });
+```
+
+<Callout type="warning">
+**Important:** The admin builder does NOT have a `.build()` method. The configuration state IS the final config - it's used directly by React components.
+</Callout>
+
+## Quick Example
+
+Here's a complete collection admin configuration:
+
+```typescript
+// admin/collections/posts.ts
+import { builder } from "../builder";
+import { FileTextIcon } from "@phosphor-icons/react";
+
+export const postsAdmin = builder
+  .collection("posts")
+  .meta({
+    label: "Blog Posts",
+    icon: FileTextIcon,
+  })
+  .fields(({ r }) => ({
+    title: r.text({
+      label: "Title",
+      maxLength: 200,
+    }),
+    content: r.richText({
+      label: "Content",
+    }),
+    status: r.select({
+      label: "Status",
+      options: [
+        { label: "Draft", value: "draft" },
+        { label: "Published", value: "published" },
+      ],
+    }),
+    author: r.relation({
+      label: "Author",
+      targetCollection: "users",
+    }),
+  }))
+  .list(({ v, f }) => v.table({
+    columns: [f.title, f.status, f.author],
+  }))
+  .form(({ v, f }) => v.form({
+    sections: [
+      {
+        title: "Content",
+        fields: [f.title, f.content],
+      },
+      {
+        title: "Publishing",
+        fields: [f.status, f.author],
+      },
+    ],
+  }));
+```
+
+## The Proxy Pattern
+
+Notice the `({ r })` and `({ v, f })` callbacks? These provide type-safe proxies:
+
+- **`r`** (Registry Proxy) - Autocomplete for all registered field types
+- **`v`** (View Proxy) - Autocomplete for all registered views
+- **`f`** (Field Proxy) - Autocomplete for fields defined in the collection
+
+```typescript
+.fields(({ r }) => ({
+  title: r.text(),      // r.text, r.email, r.select, etc.
+  author: r.relation({
+    targetCollection: "users",  // Autocomplete backend collections!
+  }),
+}))
+
+.list(({ v, f }) => v.table({
+  columns: [f.title, f.author],  // f.title, f.author autocomplete!
+}))
+```
+
+## Built-in Field Types
+
+The `adminModule` provides 22+ field types:
+
+| Category | Fields |
+|----------|--------|
+| Text | `text`, `email`, `password`, `textarea` |
+| Numbers | `number` |
+| Selection | `select`, `checkbox`, `switch` |
+| Date/Time | `date`, `datetime`, `time` |
+| Relations | `relation`, `reverseRelation` |
+| JSON | `json`, `object`, `array` |
+| Media | `upload`, `uploadMany`, `assetPreview` |
+| Rich Content | `richText`, `blocks` |
+
+## Next Steps
+
+<Cards>
+  <Card href="/docs/admin/getting-started" title="Getting Started" description="Set up your first admin interface" />
+  <Card href="/docs/admin/builder-api" title="Builder API" description="Complete qa() builder reference" />
+  <Card href="/docs/admin/fields" title="Field Types" description="All 22+ field types explained" />
+  <Card href="/docs/admin/views" title="Views" description="Table and form view configuration" />
+</Cards>

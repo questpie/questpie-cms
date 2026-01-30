@@ -1,0 +1,506 @@
+---
+title: Block Examples
+description: Real-world block implementations from the barbershop example
+---
+
+# Block Examples
+
+These examples are from the tanstack-barbershop project, demonstrating real-world block implementations.
+
+## Hero Block
+
+Full-width banner with background image, title, and call-to-action.
+
+```typescript
+// admin/blocks/hero.tsx
+import type { BlockRendererProps } from "@questpie/admin/client";
+import { builder } from "../builder";
+
+type HeroValues = {
+  title: string;
+  subtitle: string;
+  backgroundImage: string;
+  overlayOpacity: number;
+  alignment: "left" | "center" | "right";
+  ctaText: string;
+  ctaLink: string;
+  height: "small" | "medium" | "large" | "full";
+};
+
+function HeroRenderer({ values, data }: BlockRendererProps<HeroValues>) {
+  const bgImageUrl = data?.backgroundImageUrl || values.backgroundImage;
+
+  const heightClass = {
+    small: "min-h-[50vh]",
+    medium: "min-h-[70vh]",
+    large: "min-h-[85vh]",
+    full: "min-h-screen",
+  }[values.height || "medium"];
+
+  const alignClass = {
+    left: "text-left items-start",
+    center: "text-center items-center",
+    right: "text-right items-end",
+  }[values.alignment || "center"];
+
+  return (
+    <section
+      className={`relative flex items-center bg-cover bg-center ${heightClass}`}
+      style={{ backgroundImage: bgImageUrl ? `url(${bgImageUrl})` : undefined }}
+    >
+      {/* Overlay */}
+      <div
+        className="absolute inset-0 bg-gradient-to-b from-black/60 to-black/70"
+        style={{ opacity: (values.overlayOpacity ?? 60) / 100 }}
+      />
+
+      {/* Content */}
+      <div className={`relative z-10 container px-6 py-20 flex flex-col gap-6 ${alignClass}`}>
+        <h1 className="text-5xl md:text-7xl font-bold text-white">
+          {values.title}
+        </h1>
+
+        {values.subtitle && (
+          <p className="text-xl text-white/85 max-w-2xl">
+            {values.subtitle}
+          </p>
+        )}
+
+        {values.ctaText && (
+          <a
+            href={values.ctaLink || "/booking"}
+            className="mt-4 px-8 py-3 bg-primary text-white rounded-lg"
+          >
+            {values.ctaText}
+          </a>
+        )}
+      </div>
+    </section>
+  );
+}
+
+export const heroBlock = builder
+  .block("hero")
+  .label({ en: "Hero", sk: "Hero" })
+  .description({ en: "Full-width banner", sk: "Banner na celu sirku" })
+  .icon("Image")
+  .category("sections")
+  .fields(({ r }) => ({
+    title: r.text({
+      label: { en: "Title", sk: "Titulok" },
+      localized: true,
+      required: true,
+    }),
+    subtitle: r.textarea({
+      label: { en: "Subtitle", sk: "Podtitulok" },
+      localized: true,
+    }),
+    backgroundImage: r.upload({
+      label: { en: "Background", sk: "Pozadie" },
+      accept: ["image/*"],
+    }),
+    overlayOpacity: r.number({
+      label: { en: "Overlay (%)", sk: "Prekrytie (%)" },
+      defaultValue: 60,
+      min: 0,
+      max: 100,
+    }),
+    height: r.select({
+      label: { en: "Height", sk: "Vyska" },
+      options: [
+        { value: "small", label: "Small (50vh)" },
+        { value: "medium", label: "Medium (70vh)" },
+        { value: "large", label: "Large (85vh)" },
+        { value: "full", label: "Full Screen" },
+      ],
+      defaultValue: "medium",
+    }),
+    alignment: r.select({
+      label: { en: "Alignment", sk: "Zarovnanie" },
+      options: [
+        { value: "left", label: "Left" },
+        { value: "center", label: "Center" },
+        { value: "right", label: "Right" },
+      ],
+      defaultValue: "center",
+    }),
+    ctaText: r.text({
+      label: { en: "Button Text", sk: "Text tlacidla" },
+      localized: true,
+    }),
+    ctaLink: r.text({
+      label: { en: "Button Link", sk: "Odkaz" },
+      defaultValue: "/booking",
+    }),
+  }))
+  .prefetch(async ({ values }) => {
+    if (!values.backgroundImage) return {};
+    const asset = await client.collections.assets.findOne({
+      where: { id: values.backgroundImage },
+    });
+    return { backgroundImageUrl: asset?.url || null };
+  })
+  .renderer(HeroRenderer)
+  .build();
+```
+
+## Services Block
+
+Dynamic grid of services fetched from the database.
+
+```typescript
+// admin/blocks/services.tsx
+type ServicesValues = {
+  title: string;
+  subtitle: string;
+  columns: 2 | 3 | 4;
+  showPrices: boolean;
+  maxItems: number;
+};
+
+type ServicesData = {
+  services: Array<{
+    id: string;
+    name: string;
+    description: string;
+    price: number;
+    duration: number;
+  }>;
+};
+
+function ServicesRenderer({ values, data }: BlockRendererProps<ServicesValues, ServicesData>) {
+  const services = data?.services || [];
+
+  return (
+    <section className="py-20 bg-gray-50">
+      <div className="container">
+        {values.title && (
+          <h2 className="text-4xl font-bold text-center mb-4">
+            {values.title}
+          </h2>
+        )}
+        {values.subtitle && (
+          <p className="text-lg text-gray-600 text-center mb-12 max-w-2xl mx-auto">
+            {values.subtitle}
+          </p>
+        )}
+
+        <div className={`grid gap-6 grid-cols-1 md:grid-cols-${values.columns}`}>
+          {services.slice(0, values.maxItems).map((service) => (
+            <div key={service.id} className="bg-white p-6 rounded-lg shadow">
+              <h3 className="text-xl font-semibold mb-2">{service.name}</h3>
+              <p className="text-gray-600 mb-4">{service.description}</p>
+              <div className="flex justify-between items-center">
+                {values.showPrices && (
+                  <span className="text-2xl font-bold">
+                    ${(service.price / 100).toFixed(2)}
+                  </span>
+                )}
+                <span className="text-gray-500">
+                  {service.duration} min
+                </span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+export const servicesBlock = builder
+  .block("services")
+  .label({ en: "Services", sk: "Sluzby" })
+  .icon("ListChecks")
+  .category("sections")
+  .fields(({ r }) => ({
+    title: r.text({ label: "Title", localized: true }),
+    subtitle: r.textarea({ label: "Subtitle", localized: true }),
+    columns: r.select({
+      label: "Columns",
+      options: [
+        { value: 2, label: "2 Columns" },
+        { value: 3, label: "3 Columns" },
+        { value: 4, label: "4 Columns" },
+      ],
+      defaultValue: 3,
+    }),
+    showPrices: r.switch({ label: "Show Prices", defaultValue: true }),
+    maxItems: r.number({ label: "Max Items", min: 1, max: 20, defaultValue: 6 }),
+  }))
+  .prefetch(async ({ values }) => {
+    const services = await client.collections.services.find({
+      limit: values.maxItems || 6,
+      where: { isActive: true },
+    });
+    return { services: services.docs };
+  })
+  .renderer(ServicesRenderer)
+  .build();
+```
+
+## Text Block
+
+Simple rich text content block.
+
+```typescript
+// admin/blocks/text.tsx
+type TextValues = {
+  content: string;
+  maxWidth: "sm" | "md" | "lg" | "full";
+  alignment: "left" | "center" | "right";
+};
+
+function TextRenderer({ values }: BlockRendererProps<TextValues>) {
+  const maxWidthClass = {
+    sm: "max-w-xl",
+    md: "max-w-2xl",
+    lg: "max-w-4xl",
+    full: "max-w-none",
+  }[values.maxWidth || "md"];
+
+  return (
+    <section className="py-12">
+      <div className={`container ${maxWidthClass} mx-auto text-${values.alignment}`}>
+        <div
+          className="prose prose-lg"
+          dangerouslySetInnerHTML={{ __html: values.content }}
+        />
+      </div>
+    </section>
+  );
+}
+
+export const textBlock = builder
+  .block("text")
+  .label({ en: "Text", sk: "Text" })
+  .icon("TextT")
+  .category("content")
+  .fields(({ r }) => ({
+    content: r.richText({
+      label: { en: "Content", sk: "Obsah" },
+      localized: true,
+    }),
+    maxWidth: r.select({
+      label: "Max Width",
+      options: [
+        { value: "sm", label: "Small" },
+        { value: "md", label: "Medium" },
+        { value: "lg", label: "Large" },
+        { value: "full", label: "Full Width" },
+      ],
+      defaultValue: "md",
+    }),
+    alignment: r.select({
+      label: "Alignment",
+      options: [
+        { value: "left", label: "Left" },
+        { value: "center", label: "Center" },
+        { value: "right", label: "Right" },
+      ],
+      defaultValue: "left",
+    }),
+  }))
+  .renderer(TextRenderer)
+  .build();
+```
+
+## Gallery Block
+
+Image gallery with lightbox.
+
+```typescript
+// admin/blocks/gallery.tsx
+type GalleryValues = {
+  title: string;
+  images: string[];
+  columns: 2 | 3 | 4;
+  gap: "sm" | "md" | "lg";
+};
+
+type GalleryData = {
+  imageUrls: Array<{ id: string; url: string; alt?: string }>;
+};
+
+function GalleryRenderer({ values, data }: BlockRendererProps<GalleryValues, GalleryData>) {
+  const images = data?.imageUrls || [];
+
+  const gapClass = {
+    sm: "gap-2",
+    md: "gap-4",
+    lg: "gap-6",
+  }[values.gap];
+
+  return (
+    <section className="py-12">
+      <div className="container">
+        {values.title && (
+          <h2 className="text-3xl font-bold mb-8">{values.title}</h2>
+        )}
+        <div className={`grid grid-cols-${values.columns} ${gapClass}`}>
+          {images.map((image) => (
+            <div key={image.id} className="aspect-square overflow-hidden rounded-lg">
+              <img
+                src={image.url}
+                alt={image.alt || ""}
+                className="w-full h-full object-cover hover:scale-105 transition"
+              />
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+export const galleryBlock = builder
+  .block("gallery")
+  .label({ en: "Gallery", sk: "Galeria" })
+  .icon("Images")
+  .category("content")
+  .fields(({ r }) => ({
+    title: r.text({ label: "Title", localized: true }),
+    images: r.uploadMany({
+      label: "Images",
+      accept: ["image/*"],
+      maxFiles: 20,
+    }),
+    columns: r.select({
+      label: "Columns",
+      options: [
+        { value: 2, label: "2" },
+        { value: 3, label: "3" },
+        { value: 4, label: "4" },
+      ],
+      defaultValue: 3,
+    }),
+    gap: r.select({
+      label: "Gap",
+      options: [
+        { value: "sm", label: "Small" },
+        { value: "md", label: "Medium" },
+        { value: "lg", label: "Large" },
+      ],
+      defaultValue: "md",
+    }),
+  }))
+  .prefetch(async ({ values }) => {
+    if (!values.images?.length) return { imageUrls: [] };
+
+    const assets = await client.collections.assets.find({
+      where: { id: { in: values.images } },
+    });
+
+    return {
+      imageUrls: assets.docs.map((a) => ({
+        id: a.id,
+        url: a.url,
+        alt: a.alt,
+      })),
+    };
+  })
+  .renderer(GalleryRenderer)
+  .build();
+```
+
+## CTA Block
+
+Call-to-action section.
+
+```typescript
+// admin/blocks/cta.tsx
+export const ctaBlock = builder
+  .block("cta")
+  .label({ en: "Call to Action", sk: "Vyzva k akcii" })
+  .icon("Megaphone")
+  .category("sections")
+  .fields(({ r }) => ({
+    title: r.text({ label: "Title", localized: true, required: true }),
+    description: r.textarea({ label: "Description", localized: true }),
+    buttonText: r.text({ label: "Button Text", localized: true, required: true }),
+    buttonLink: r.text({ label: "Button Link", required: true }),
+    variant: r.select({
+      label: "Style",
+      options: [
+        { value: "primary", label: "Primary" },
+        { value: "secondary", label: "Secondary" },
+        { value: "gradient", label: "Gradient" },
+      ],
+      defaultValue: "primary",
+    }),
+  }))
+  .renderer(({ values }) => (
+    <section className={`py-20 ${variantStyles[values.variant]}`}>
+      <div className="container text-center">
+        <h2 className="text-4xl font-bold mb-4">{values.title}</h2>
+        {values.description && (
+          <p className="text-lg mb-8 max-w-2xl mx-auto">{values.description}</p>
+        )}
+        <a href={values.buttonLink} className="btn btn-lg">
+          {values.buttonText}
+        </a>
+      </div>
+    </section>
+  ))
+  .build();
+```
+
+## Layout: Spacer
+
+Simple vertical spacing.
+
+```typescript
+export const spacerBlock = builder
+  .block("spacer")
+  .label("Spacer")
+  .icon("ArrowsOutCardinal")
+  .category("layout")
+  .fields(({ r }) => ({
+    size: r.select({
+      label: "Size",
+      options: [
+        { value: "sm", label: "Small (2rem)" },
+        { value: "md", label: "Medium (4rem)" },
+        { value: "lg", label: "Large (6rem)" },
+        { value: "xl", label: "Extra Large (8rem)" },
+      ],
+      defaultValue: "md",
+    }),
+  }))
+  .renderer(({ values }) => {
+    const heights = { sm: "2rem", md: "4rem", lg: "6rem", xl: "8rem" };
+    return <div style={{ height: heights[values.size] }} aria-hidden />;
+  })
+  .build();
+```
+
+## Complete Block Index
+
+```typescript
+// admin/blocks/index.ts
+import { heroBlock } from "./hero";
+import { servicesBlock } from "./services";
+import { textBlock } from "./text";
+import { galleryBlock } from "./gallery";
+import { ctaBlock } from "./cta";
+import { spacerBlock } from "./spacer";
+// ... more blocks
+
+export const blocks = {
+  hero: heroBlock,
+  services: servicesBlock,
+  text: textBlock,
+  gallery: galleryBlock,
+  cta: ctaBlock,
+  spacer: spacerBlock,
+} as const;
+
+export default blocks;
+```
+
+## Next Steps
+
+<Cards>
+  <Card href="/docs/examples/barbershop" title="Barbershop Example" description="See all blocks in context" />
+  <Card href="/docs/admin/preview" title="Preview System" description="Live preview while editing" />
+</Cards>

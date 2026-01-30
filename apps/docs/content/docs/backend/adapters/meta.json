@@ -1,0 +1,4 @@
+{
+	"title": "Adapters",
+	"pages": ["index", "storage", "queue", "email", "search", "realtime", "kv", "logger"]
+}

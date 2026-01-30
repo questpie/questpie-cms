@@ -1,0 +1,4 @@
+{
+	"title": "Framework Adapters",
+	"pages": ["index", "tanstack-start", "hono", "elysia", "nextjs", "custom"]
+}

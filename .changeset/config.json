@@ -1,0 +1,28 @@
+{
+	"$schema": "https://unpkg.com/@changesets/config@3.1.2/schema.json",
+	"changelog": [
+		"@changesets/changelog-github",
+		{ "repo": "questpie/questpie-cms" }
+	],
+	"commit": false,
+	"fixed": [
+		[
+			"questpie",
+			"@questpie/admin",
+			"@questpie/elysia",
+			"@questpie/hono",
+			"@questpie/next",
+			"@questpie/tanstack-start",
+			"@questpie/tanstack-query"
+		]
+	],
+	"linked": [],
+	"access": "public",
+	"baseBranch": "main",
+	"updateInternalDependencies": "patch",
+	"ignore": [
+		"elysia-barbershop-example",
+		"portfolio-hono-example",
+		"tanstack-barbershop-example"
+	]
+}

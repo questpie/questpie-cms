@@ -1,0 +1,102 @@
+---
+title: Examples
+description: Example projects built with QUESTPIE CMS
+---
+
+# Example Projects
+
+Learn from real-world QUESTPIE CMS implementations.
+
+## Official Examples
+
+### TanStack Barbershop
+
+A complete barbershop booking system demonstrating all major QUESTPIE features.
+
+**Features:**
+- 6 collections (barbers, services, appointments, reviews, pages, assets)
+- 18 page builder blocks
+- Dashboard with analytics widgets
+- Live preview with click-to-focus
+- i18n support (English, Slovak)
+- Background jobs for email notifications
+- Custom functions for booking logic
+
+**Stack:**
+- TanStack Start (full-stack React)
+- PostgreSQL
+- Drizzle ORM
+- Tailwind CSS v4
+
+[View Barbershop Example →](/docs/examples/barbershop)
+
+## Running Examples
+
+Clone the repository and run an example:
+
+```bash
+# Clone the repo
+git clone https://github.com/questpie/questpie-cms
+cd questpie-cms
+
+# Install dependencies
+bun install
+
+# Navigate to example
+cd examples/tanstack-barbershop
+
+# Set up environment
+cp .env.example .env
+# Edit .env with your database URL
+
+# Run migrations
+bun run db:migrate
+
+# Start development server
+bun run dev
+```
+
+## Example Structure
+
+All examples follow the [recommended project structure](/docs/getting-started/project-structure):
+
+```
+example/
+├── src/
+│   ├── questpie/
+│   │   ├── server/     # Backend CMS
+│   │   └── admin/      # Admin UI
+│   ├── routes/         # App routes
+│   └── components/     # UI components
+├── migrations/         # Database migrations
+└── drizzle.config.ts
+```
+
+## Creating Your Own
+
+Use an example as a starting point:
+
+```bash
+# Copy an example
+cp -r examples/tanstack-barbershop my-project
+cd my-project
+
+# Update package.json name
+# Update environment variables
+# Customize collections and admin config
+```
+
+## Contributing Examples
+
+We welcome community examples. To contribute:
+
+1. Fork the repository
+2. Create your example in `examples/`
+3. Add documentation in `apps/docs/content/docs/examples/`
+4. Submit a pull request
+
+Requirements:
+- Follow the recommended project structure
+- Include a README with setup instructions
+- Include example environment variables
+- Ensure all features work

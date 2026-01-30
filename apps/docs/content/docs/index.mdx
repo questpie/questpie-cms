@@ -1,0 +1,159 @@
+---
+title: QUESTPIE CMS Documentation
+description: Headless, extensible CMS framework for TypeScript
+---
+
+# QUESTPIE CMS
+
+**Headless, extensible CMS framework for TypeScript**
+
+QUESTPIE CMS provides a type-safe backend with a beautiful, config-driven admin interface. Build content management systems without writing boilerplate.
+
+## Key Features
+
+- **Type-Safe Builder Pattern** - Full TypeScript inference from schema to API
+- **Config-Driven Admin** - Beautiful UI generated from configuration
+- **22+ Field Types** - Text, relations, uploads, rich text, blocks, and more
+- **Page Builder** - Visual content editing with custom blocks
+- **Framework Agnostic** - Works with Hono, Elysia, Next.js, TanStack Start
+- **i18n Ready** - Built-in localization for content and UI
+
+## Choose Your Path
+
+<Cards>
+  <Card href="/docs/getting-started" title="New to QUESTPIE?" description="Start here for installation and your first CMS" />
+  <Card href="/docs/core-concepts" title="Core Concepts" description="Understand the key patterns and architecture" />
+  <Card href="/docs/examples/barbershop" title="See it in Action" description="Explore a complete example project" />
+</Cards>
+
+## Quick Start
+
+```bash
+bun add questpie @questpie/admin @questpie/tanstack-start
+```
+
+```typescript
+// Backend - Define your data
+import { q, text, boolean } from "questpie";
+import { starterModule } from "questpie/server";
+
+const cms = q({ name: "my-cms" })
+  .use(starterModule)
+  .collections({
+    posts: q.collection("posts")
+      .fields({
+        title: text("title").notNull(),
+        content: text("content"),
+        published: boolean("published").default(false),
+      }),
+  })
+  .build({ db: { url: process.env.DATABASE_URL } });
+
+export type AppCMS = typeof cms;
+```
+
+```typescript
+// Admin UI - Configure the interface
+import { qa, adminModule } from "@questpie/admin/client";
+import type { AppCMS } from "./cms";
+
+const admin = qa<AppCMS>()
+  .use(adminModule)
+  .collections({
+    posts: qa.collection("posts")
+      .fields(({ r }) => ({
+        title: r.text({ label: "Title" }),
+        content: r.richText({ label: "Content" }),
+        published: r.switch({ label: "Published" }),
+      })),
+  });
+```
+
+## Documentation Sections
+
+### Getting Started
+<Cards>
+  <Card href="/docs/getting-started" title="Quick Start" description="Installation and first steps" />
+  <Card href="/docs/getting-started/your-first-cms" title="Your First CMS" description="Build a complete CMS step-by-step" />
+  <Card href="/docs/getting-started/project-structure" title="Project Structure" description="Recommended organization" />
+</Cards>
+
+### Learn the Concepts
+<Cards>
+  <Card href="/docs/core-concepts/builder-pattern" title="Builder Pattern" description="Understanding q() and qa()" />
+  <Card href="/docs/core-concepts/collections" title="Collections" description="Data models in depth" />
+  <Card href="/docs/core-concepts/fields" title="Fields" description="Field types overview" />
+  <Card href="/docs/core-concepts/authentication" title="Authentication" description="Auth integration" />
+</Cards>
+
+### Backend Development
+<Cards>
+  <Card href="/docs/backend/builder-api" title="Builder API" description="Complete q() reference" />
+  <Card href="/docs/backend/crud-operations" title="CRUD Operations" description="Query and mutate data" />
+  <Card href="/docs/backend/client-sdk" title="Client SDK" description="Type-safe API client" />
+  <Card href="/docs/backend/validation" title="Validation" description="Zod schema validation" />
+</Cards>
+
+### Admin UI
+<Cards>
+  <Card href="/docs/admin" title="Admin Overview" description="qa() builder and UI config" />
+  <Card href="/docs/admin/fields" title="Field Types" description="22+ admin field types" />
+  <Card href="/docs/admin/views" title="Views" description="Table and form views" />
+  <Card href="/docs/admin/blocks" title="Blocks" description="Page builder blocks" />
+</Cards>
+
+### Integration
+<Cards>
+  <Card href="/docs/adapters" title="Framework Adapters" description="Hono, Elysia, Next.js, TanStack" />
+  <Card href="/docs/guides" title="Guides" description="Auth, storage, jobs, search" />
+  <Card href="/docs/examples" title="Examples" description="Complete example projects" />
+</Cards>
+
+## Architecture
+
+QUESTPIE separates **backend** (data) from **admin** (UI):
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                      Your Application                        │
+├─────────────────────────────────────────────────────────────┤
+│                                                              │
+│  ┌─────────────────────┐     ┌─────────────────────┐       │
+│  │   Backend (q)       │     │   Admin UI (qa)     │       │
+│  │   questpie          │     │   @questpie/admin   │       │
+│  ├─────────────────────┤     ├─────────────────────┤       │
+│  │ • Collections       │────>│ • Field configs     │       │
+│  │ • Validation        │     │ • Table views       │       │
+│  │ • Hooks             │     │ • Form views        │       │
+│  │ • Access control    │     │ • Dashboard         │       │
+│  │ • Authentication    │     │ • Sidebar           │       │
+│  └─────────────────────┘     └─────────────────────┘       │
+│           │                                                  │
+│           │                                                  │
+│  ┌─────────────────────────────────────────────────┐       │
+│  │              Database (PostgreSQL)               │       │
+│  └─────────────────────────────────────────────────┘       │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Backend (`questpie`)**: Handles data, validation, business logic, and authentication. Runs on the server.
+
+**Admin UI (`@questpie/admin`)**: Provides the user interface for content management. Configures how data is displayed and edited.
+
+Types flow from backend to admin, ensuring end-to-end type safety.
+
+## Example Project
+
+The [Barbershop Example](/docs/examples/barbershop) demonstrates all major features:
+
+- 6 collections with relations
+- 18 page builder blocks
+- Dashboard with analytics
+- Live preview
+- i18n (EN/SK)
+- Background jobs
+
+## Community
+
+- [GitHub Repository](https://github.com/questpie/questpie-cms)
+- [Report Issues](https://github.com/questpie/questpie-cms/issues)

@@ -1,0 +1,350 @@
+---
+title: Custom Fields
+description: Creating custom field types for QUESTPIE Admin
+---
+
+# Custom Fields
+
+Create custom field types to handle specialized input needs beyond the built-in fields.
+
+## Field Structure
+
+A field definition consists of:
+
+```typescript
+import { field } from "@questpie/admin/builder";
+
+const myField = field("myField", {
+  // Required: React component for form editing
+  component: MyFieldComponent,
+
+  // Optional: React component for table cell display
+  cell: MyFieldCell,
+
+  // Required: TypeScript config type
+  config: {} as MyFieldConfig,
+
+  // Optional: Default configuration values
+  defaultConfig: { ... },
+
+  // Optional: Zod schema generator for validation
+  createZod: (config) => z.string(),
+});
+```
+
+## Step-by-Step Example: Color Picker
+
+### 1. Define Config Type
+
+```typescript
+interface ColorFieldConfig {
+  label?: string;
+  description?: string;
+  format?: "hex" | "rgb" | "hsl";
+  showAlpha?: boolean;
+  presetColors?: string[];
+}
+```
+
+### 2. Create Field Component
+
+```tsx
+import { useController } from "react-hook-form";
+
+interface ColorFieldProps {
+  name: string;
+  config: ColorFieldConfig;
+  control: any;
+}
+
+function ColorFieldComponent({ name, config, control }: ColorFieldProps) {
+  const { field, fieldState } = useController({ name, control });
+
+  return (
+    <div className="space-y-2">
+      {config.label && (
+        <label className="text-sm font-medium">{config.label}</label>
+      )}
+
+      <div className="flex gap-2">
+        <input
+          type="color"
+          value={field.value || "#000000"}
+          onChange={(e) => field.onChange(e.target.value)}
+          className="h-10 w-10 rounded border"
+        />
+        <input
+          type="text"
+          value={field.value || ""}
+          onChange={(e) => field.onChange(e.target.value)}
+          placeholder="#000000"
+          className="flex-1 rounded border px-3"
+        />
+      </div>
+
+      {config.presetColors && (
+        <div className="flex gap-1">
+          {config.presetColors.map((color) => (
+            <button
+              key={color}
+              type="button"
+              onClick={() => field.onChange(color)}
+              className="h-6 w-6 rounded border"
+              style={{ backgroundColor: color }}
+            />
+          ))}
+        </div>
+      )}
+
+      {config.description && (
+        <p className="text-sm text-muted-foreground">{config.description}</p>
+      )}
+
+      {fieldState.error && (
+        <p className="text-sm text-destructive">{fieldState.error.message}</p>
+      )}
+    </div>
+  );
+}
+```
+
+### 3. Create Cell Component
+
+```tsx
+interface ColorCellProps {
+  value: string | null;
+  config: ColorFieldConfig;
+}
+
+function ColorFieldCell({ value, config }: ColorCellProps) {
+  if (!value) return <span className="text-muted-foreground">—</span>;
+
+  return (
+    <div className="flex items-center gap-2">
+      <div
+        className="h-4 w-4 rounded border"
+        style={{ backgroundColor: value }}
+      />
+      <span className="font-mono text-sm">{value}</span>
+    </div>
+  );
+}
+```
+
+### 4. Create Field Definition
+
+```typescript
+import { field } from "@questpie/admin/builder";
+import { z } from "zod";
+
+export const colorField = field("color", {
+  component: ColorFieldComponent,
+  cell: ColorFieldCell,
+  config: {} as ColorFieldConfig,
+  defaultConfig: {
+    format: "hex",
+    showAlpha: false,
+  },
+  createZod: (config) => {
+    if (config.format === "hex") {
+      return z.string().regex(/^#[0-9A-Fa-f]{6}$/, "Invalid hex color");
+    }
+    return z.string();
+  },
+});
+```
+
+### 5. Register and Use
+
+```typescript
+// Create builder with custom field
+const builder = qa<AppCMS>()
+  .use(adminModule)
+  .fields({ color: colorField });
+
+// Use in collection - builder now has r.color() available
+const brandsAdmin = builder.collection("brands")
+  .fields(({ r }) => ({
+    name: r.text({ label: "Name" }),
+    primaryColor: r.color({
+      label: "Primary Color",
+      presetColors: ["#FF0000", "#00FF00", "#0000FF"],
+    }),
+    secondaryColor: r.color({
+      label: "Secondary Color",
+    }),
+  }));
+```
+
+## Advanced Field: Rating Stars
+
+```typescript
+interface RatingFieldConfig {
+  label?: string;
+  max?: number;
+  allowHalf?: boolean;
+  size?: "sm" | "md" | "lg";
+  activeColor?: string;
+}
+
+function RatingFieldComponent({ name, config, control }) {
+  const { field } = useController({ name, control });
+  const max = config.max ?? 5;
+  const value = field.value ?? 0;
+
+  const handleClick = (star: number) => {
+    if (config.allowHalf) {
+      // Toggle between full and half
+      const newValue = value === star ? star - 0.5 : star;
+      field.onChange(newValue);
+    } else {
+      field.onChange(star);
+    }
+  };
+
+  return (
+    <div className="space-y-2">
+      {config.label && <label>{config.label}</label>}
+      <div className="flex gap-1">
+        {Array.from({ length: max }, (_, i) => (
+          <button
+            key={i}
+            type="button"
+            onClick={() => handleClick(i + 1)}
+            className={cn(
+              "text-2xl",
+              i + 1 <= value ? "text-yellow-400" : "text-gray-300"
+            )}
+          >
+            {i + 0.5 === value ? "★" : i + 1 <= value ? "★" : "☆"}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function RatingCellComponent({ value, config }) {
+  const max = config.max ?? 5;
+  return (
+    <span>
+      {"★".repeat(Math.floor(value || 0))}
+      {"☆".repeat(max - Math.floor(value || 0))}
+    </span>
+  );
+}
+
+export const ratingField = field("rating", {
+  component: RatingFieldComponent,
+  cell: RatingCellComponent,
+  config: {} as RatingFieldConfig,
+  defaultConfig: {
+    max: 5,
+    allowHalf: false,
+    size: "md",
+  },
+  createZod: (config) =>
+    z.number().min(0).max(config.max ?? 5),
+});
+```
+
+## Field Props Reference
+
+### Component Props
+
+```typescript
+interface FieldComponentProps<TConfig> {
+  name: string;           // Field name in form
+  config: TConfig;        // Field configuration
+  control: any;           // react-hook-form control
+  disabled?: boolean;     // Whether field is disabled
+  readOnly?: boolean;     // Whether field is read-only
+}
+```
+
+### Cell Props
+
+```typescript
+interface CellProps<TValue, TConfig> {
+  value: TValue | null;   // Field value
+  config: TConfig;        // Field configuration
+  row: Record<string, any>; // Full row data
+}
+```
+
+## Best Practices
+
+### 1. Handle Null/Undefined
+
+```typescript
+function MyFieldComponent({ name, control }) {
+  const { field } = useController({ name, control });
+
+  // Always handle null/undefined
+  const value = field.value ?? defaultValue;
+
+  return <input value={value} onChange={...} />;
+}
+```
+
+### 2. Accessibility
+
+```typescript
+function MyFieldComponent({ name, config, control }) {
+  const id = useId();
+
+  return (
+    <div>
+      <label htmlFor={id}>{config.label}</label>
+      <input
+        id={id}
+        aria-describedby={config.description ? `${id}-desc` : undefined}
+        aria-invalid={!!fieldState.error}
+      />
+      {config.description && (
+        <p id={`${id}-desc`}>{config.description}</p>
+      )}
+    </div>
+  );
+}
+```
+
+### 3. Error Display
+
+```typescript
+function MyFieldComponent({ name, control }) {
+  const { field, fieldState } = useController({ name, control });
+
+  return (
+    <div>
+      <input {...field} />
+      {fieldState.error && (
+        <p className="text-destructive" role="alert">
+          {fieldState.error.message}
+        </p>
+      )}
+    </div>
+  );
+}
+```
+
+### 4. Performance
+
+```typescript
+// Memoize expensive computations
+const MyFieldComponent = memo(function MyFieldComponent({ name, config }) {
+  const expensiveOptions = useMemo(
+    () => computeOptions(config),
+    [config]
+  );
+
+  return <Select options={expensiveOptions} />;
+});
+```
+
+## Next Steps
+
+<Cards>
+  <Card href="/docs/admin/extensibility/custom-views" title="Custom Views" description="Create custom view types" />
+  <Card href="/docs/admin/architecture/registry-pattern" title="Registry Pattern" description="How fields are registered" />
+</Cards>

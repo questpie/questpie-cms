@@ -1,0 +1,263 @@
+---
+title: Project Structure
+description: Recommended organization for QUESTPIE CMS projects
+---
+
+# Project Structure
+
+A well-organized project structure makes your QUESTPIE CMS easier to maintain and scale.
+
+## Recommended Structure
+
+```
+my-project/
+├── src/
+│   ├── questpie/                # All QUESTPIE configuration
+│   │   ├── server/              # Backend CMS (q builder)
+│   │   │   ├── cms.ts           # Main CMS instance
+│   │   │   ├── collections/     # Collection definitions
+│   │   │   │   ├── posts.ts
+│   │   │   │   ├── users.ts
+│   │   │   │   └── index.ts
+│   │   │   ├── globals/         # Global definitions
+│   │   │   │   ├── settings.ts
+│   │   │   │   └── index.ts
+│   │   │   ├── jobs/            # Background jobs
+│   │   │   │   └── index.ts
+│   │   │   └── functions/       # Custom functions
+│   │   │       └── index.ts
+│   │   │
+│   │   └── admin/               # Admin UI (qa builder)
+│   │       ├── admin.ts         # Main admin config
+│   │       ├── builder.ts       # Shared builder instance
+│   │       ├── collections/     # Collection UI configs
+│   │       │   ├── posts.ts
+│   │       │   ├── users.ts
+│   │       │   └── index.ts
+│   │       ├── globals/         # Global UI configs
+│   │       │   └── settings.ts
+│   │       ├── blocks/          # Page builder blocks
+│   │       │   ├── hero.tsx
+│   │       │   ├── text.tsx
+│   │       │   └── index.ts
+│   │       ├── sidebar.ts       # Navigation config
+│   │       └── dashboard.ts     # Dashboard widgets
+│   │
+│   ├── routes/                  # App routes
+│   │   ├── api/
+│   │   │   └── cms.ts           # CMS API endpoint
+│   │   ├── admin.tsx            # Admin UI route
+│   │   └── index.tsx            # Home page
+│   │
+│   ├── lib/                     # Shared utilities
+│   │   ├── cms-client.ts        # CMS client instance
+│   │   └── utils.ts
+│   │
+│   └── components/              # React components
+│       └── ...
+│
+├── migrations/                  # Database migrations
+│   └── ...
+│
+├── drizzle.config.ts           # Drizzle configuration
+├── package.json
+├── tsconfig.json
+└── .env
+```
+
+## Why This Structure?
+
+### 1. Clear Separation
+
+Backend (`server/`) and admin (`admin/`) are separate:
+
+- **server/** - Runs on the server, handles data
+- **admin/** - Runs in browser, handles UI
+
+This makes it clear what code runs where.
+
+### 2. Mirrored Organization
+
+Collections are mirrored between server and admin:
+
+```
+server/collections/posts.ts  →  admin/collections/posts.ts
+```
+
+Easy to find the admin config for any collection.
+
+### 3. Scalable
+
+As your project grows, add more files:
+
+```
+server/collections/
+├── posts.ts
+├── users.ts
+├── orders.ts        # New collection
+├── products.ts      # New collection
+└── index.ts         # Re-exports all
+```
+
+### 4. Type Safety
+
+Types flow from server to admin:
+
+```typescript
+// server/cms.ts
+export type AppCMS = typeof cms;
+
+// admin/builder.ts
+export const builder = qa<AppCMS>().use(adminModule);
+// Now builder has autocomplete for all collections!
+```
+
+## File Responsibilities
+
+### `server/cms.ts`
+
+Main CMS instance. Imports and combines everything:
+
+```typescript
+import { q } from "questpie";
+import { adminModule } from "@questpie/admin/server";
+import * as collections from "./collections";
+import * as globals from "./globals";
+import * as jobs from "./jobs";
+
+export const cms = q({ name: "my-cms" })
+  .use(adminModule)
+  .collections(collections)
+  .globals(globals)
+  .jobs(jobs)
+  .build({ db: { url: process.env.DATABASE_URL } });
+
+export type AppCMS = typeof cms;
+```
+
+### `server/collections/index.ts`
+
+Re-exports all collections:
+
+```typescript
+export { posts } from "./posts";
+export { users } from "./users";
+export { orders } from "./orders";
+```
+
+### `admin/builder.ts`
+
+Shared builder with type context:
+
+```typescript
+import { qa, adminModule } from "@questpie/admin/client";
+import type { AppCMS } from "../server/cms";
+
+export const builder = qa<AppCMS>().use(adminModule);
+```
+
+### `admin/admin.ts`
+
+Main admin config. Imports and combines everything:
+
+```typescript
+import { qa, adminModule } from "@questpie/admin/client";
+import * as collections from "./collections";
+import * as globals from "./globals";
+import blocks from "./blocks";
+import { sidebarConfig } from "./sidebar";
+import { dashboard } from "./dashboard";
+
+export const admin = qa()
+  .use(adminModule)
+  .collections(collections)
+  .globals(globals)
+  .blocks(blocks)
+  .sidebar(sidebarConfig)
+  .dashboard(dashboard);
+```
+
+### `admin/collections/index.ts`
+
+Re-exports all collection configs:
+
+```typescript
+export { postsAdmin as posts } from "./posts";
+export { usersAdmin as users } from "./users";
+```
+
+## Alternative Structures
+
+### Flat Structure (Small Projects)
+
+For small projects, you can use a flatter structure:
+
+```
+src/
+├── cms/
+│   ├── server.ts       # All backend in one file
+│   └── admin.ts        # All admin in one file
+├── routes/
+└── lib/
+```
+
+### Feature-Based (Large Projects)
+
+For large projects, organize by feature:
+
+```
+src/
+├── features/
+│   ├── blog/
+│   │   ├── server/
+│   │   │   ├── posts.ts
+│   │   │   └── categories.ts
+│   │   └── admin/
+│   │       ├── posts.ts
+│   │       └── categories.ts
+│   │
+│   ├── ecommerce/
+│   │   ├── server/
+│   │   │   ├── products.ts
+│   │   │   └── orders.ts
+│   │   └── admin/
+│   │       ├── products.ts
+│   │       └── orders.ts
+│   │
+│   └── ...
+│
+├── questpie/
+│   ├── server/cms.ts    # Combines all features
+│   └── admin/admin.ts   # Combines all features
+```
+
+## Import Aliases
+
+Use path aliases for cleaner imports:
+
+```json
+// tsconfig.json
+{
+  "compilerOptions": {
+    "paths": {
+      "@/*": ["./src/*"],
+      "@/questpie/*": ["./src/questpie/*"]
+    }
+  }
+}
+```
+
+Then import:
+
+```typescript
+import { cms } from "@/questpie/server/cms";
+import { admin } from "@/questpie/admin/admin";
+```
+
+## Next Steps
+
+<Cards>
+  <Card href="/docs/backend" title="Backend" description="Learn the q() builder" />
+  <Card href="/docs/admin" title="Admin UI" description="Configure the admin interface" />
+  <Card href="/docs/examples/barbershop" title="Example" description="See a real project structure" />
+</Cards>

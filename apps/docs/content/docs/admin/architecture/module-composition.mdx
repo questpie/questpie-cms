@@ -1,0 +1,308 @@
+---
+title: Module Composition
+description: How modules are composed and merged in QUESTPIE Admin
+---
+
+# Module Composition
+
+QUESTPIE Admin uses module composition to build extensible configurations. The `.use()` method merges modules together.
+
+## The .use() Method
+
+```typescript
+const admin = qa()
+  .use(coreModule)       // Add core functionality
+  .use(blogModule)       // Add blog features
+  .use(ecommerceModule); // Add e-commerce features
+```
+
+Each `.use()` call merges the module's state into the current builder.
+
+## Merge Strategies
+
+Different properties use different merge strategies:
+
+### Spread Merge (Last Wins)
+
+For registries and collections, later definitions override earlier ones:
+
+```typescript
+const moduleA = qa().fields({
+  text: textFieldV1,
+  email: emailField,
+});
+
+const moduleB = qa().fields({
+  text: textFieldV2,  // Overrides
+  custom: customField,
+});
+
+const admin = qa().use(moduleA).use(moduleB);
+
+// Result: { text: textFieldV2, email, custom }
+```
+
+### Concatenate
+
+For sidebar items, arrays are concatenated:
+
+```typescript
+const moduleA = qa().sidebar(({ s }) => [
+  s.link({ label: "Dashboard", href: "/" }),
+]);
+
+const moduleB = qa().sidebar(({ s }) => [
+  s.collection({ collection: "posts" }),
+]);
+
+const admin = qa().use(moduleA).use(moduleB);
+
+// Result: [Dashboard link, posts collection]
+```
+
+### Deep Merge
+
+For translations, objects are deeply merged:
+
+```typescript
+const moduleA = qa().locale({
+  translations: {
+    en: { posts: { title: "Posts" } },
+  },
+});
+
+const moduleB = qa().locale({
+  translations: {
+    en: { users: { title: "Users" } },
+    sk: { posts: { title: "Príspevky" } },
+  },
+});
+
+// Result:
+// {
+//   en: { posts: { title: "Posts" }, users: { title: "Users" } },
+//   sk: { posts: { title: "Príspevky" } }
+// }
+```
+
+## Merge Strategy Summary
+
+| Property | Strategy | Description |
+|----------|----------|-------------|
+| `fields` | Spread | Later fields override |
+| `views` | Spread | Later views override |
+| `widgets` | Spread | Later widgets override |
+| `blocks` | Spread | Later blocks override |
+| `collections` | Spread | Later collections override |
+| `globals` | Spread | Later globals override |
+| `sidebar` | Concatenate | Arrays are joined |
+| `translations` | Deep merge | Objects are merged deeply |
+| `branding` | Replace | Later branding replaces |
+
+## Creating Reusable Modules
+
+### Basic Module
+
+```typescript
+// modules/seo-module.ts
+export const seoModule = qa()
+  .fields({
+    seoTitle: field("seoTitle", {
+      component: SeoTitleField,
+      config: {} as SeoTitleConfig,
+    }),
+    seoDescription: field("seoDescription", {
+      component: SeoDescriptionField,
+      config: {} as SeoDescConfig,
+    }),
+  });
+
+// Usage
+const admin = qa()
+  .use(adminModule)
+  .use(seoModule);  // Adds SEO fields
+```
+
+### Module with Collections
+
+```typescript
+// modules/blog-module.ts
+import { qa, adminModule } from "@questpie/admin/client";
+import type { AppCMS } from "./server/cms";
+
+const builder = qa<AppCMS>().use(adminModule);
+
+export const blogModule = qa()
+  .collections({
+    posts: builder.collection("posts")
+      .fields(({ r }) => ({
+        title: r.text({ label: "Title" }),
+        content: r.richText({ label: "Content" }),
+      })),
+    categories: builder.collection("categories")
+      .fields(({ r }) => ({
+        name: r.text({ label: "Name" }),
+      })),
+  })
+  .sidebar(({ s }) => [
+    s.section({
+      label: "Blog",
+      items: [
+        s.collection({ collection: "posts" }),
+        s.collection({ collection: "categories" }),
+      ],
+    }),
+  ]);
+
+// Usage
+const admin = qa()
+  .use(adminModule)
+  .use(blogModule);
+```
+
+### Module with Widgets
+
+```typescript
+// modules/analytics-module.ts
+export const analyticsModule = qa()
+  .widgets({
+    pageViews: widget("pageViews", {
+      component: PageViewsWidget,
+      config: {} as PageViewsConfig,
+    }),
+    topPages: widget("topPages", {
+      component: TopPagesWidget,
+      config: {} as TopPagesConfig,
+    }),
+  })
+  .dashboard(({ w }) => ({
+    widgets: [
+      w.pageViews({ period: "7d" }),
+      w.topPages({ limit: 10 }),
+    ],
+  }));
+```
+
+## Module Dependencies
+
+Modules can depend on other modules:
+
+```typescript
+// blog-module depends on adminModule
+const builder = qa<AppCMS>().use(adminModule);
+
+export const blogModule = qa()
+  .collections({
+    posts: builder.collection("posts")
+      .fields(({ r }) => ({
+        // r has access to adminModule's fields
+        title: r.text(),
+        content: r.richText(),
+      })),
+  });
+
+// User must include adminModule before blogModule
+const admin = qa()
+  .use(adminModule)    // ← Required first
+  .use(blogModule);    // ← Depends on adminModule
+```
+
+## Override Module Defaults
+
+Override specific parts of a module:
+
+```typescript
+const admin = qa()
+  .use(adminModule)
+  .use(blogModule)
+  // Override blog's posts collection
+  .collections({
+    posts: qab.collection("posts")
+      .fields(({ r }) => ({
+        title: r.text({ label: "Custom Title" }),
+        // Different fields...
+      })),
+  });
+```
+
+## Module Patterns
+
+### Feature Flags
+
+```typescript
+export function createBlogModule(options: { enableComments?: boolean }) {
+  const collections: Record<string, any> = {
+    posts: postsAdmin,
+  };
+
+  if (options.enableComments) {
+    collections.comments = commentsAdmin;
+  }
+
+  return qa().collections(collections);
+}
+
+// Usage
+const admin = qa()
+  .use(adminModule)
+  .use(createBlogModule({ enableComments: true }));
+```
+
+### Environment-Specific Modules
+
+```typescript
+const devModule = qa()
+  .sidebar(({ s }) => [
+    s.link({ label: "Debug", href: "/admin/debug" }),
+  ]);
+
+const admin = qa()
+  .use(adminModule)
+  .use(process.env.NODE_ENV === "development" ? devModule : qa());
+```
+
+### Plugin Architecture
+
+```typescript
+interface AdminPlugin {
+  name: string;
+  module: ReturnType<typeof qa>;
+}
+
+function createAdmin(plugins: AdminPlugin[]) {
+  let builder = qa().use(adminModule);
+
+  for (const plugin of plugins) {
+    builder = builder.use(plugin.module);
+  }
+
+  return builder;
+}
+
+// Usage
+const admin = createAdmin([
+  { name: "blog", module: blogModule },
+  { name: "ecommerce", module: ecommerceModule },
+]);
+```
+
+## Debugging Merges
+
+Check what's in the final state:
+
+```typescript
+const admin = qa()
+  .use(moduleA)
+  .use(moduleB);
+
+console.log("Fields:", Object.keys(admin.state.fields));
+console.log("Collections:", Object.keys(admin.state.collections));
+console.log("Sidebar items:", admin.state.sidebar.length);
+```
+
+## Next Steps
+
+<Cards>
+  <Card href="/docs/admin/architecture/type-inference" title="Type Inference" description="How TypeScript types flow" />
+  <Card href="/docs/admin/extensibility" title="Extensibility" description="Create custom extensions" />
+</Cards>

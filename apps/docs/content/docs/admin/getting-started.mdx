@@ -1,0 +1,293 @@
+---
+title: Getting Started with Admin UI
+description: Set up a beautiful admin interface for your QUESTPIE CMS
+---
+
+# Getting Started with Admin UI
+
+This guide walks you through setting up the `@questpie/admin` package for your QUESTPIE CMS project.
+
+## Prerequisites
+
+You need a working QUESTPIE CMS backend. If you haven't set that up yet, see the [Backend Getting Started](/docs/getting-started) guide first.
+
+## Installation
+
+```bash
+bun add @questpie/admin @questpie/tanstack-query @tanstack/react-query
+```
+
+## Project Structure
+
+We recommend organizing your QUESTPIE configuration like this:
+
+```
+src/
+└── questpie/
+    ├── server/              # Backend CMS (q builder)
+    │   ├── cms.ts           # Main CMS instance
+    │   └── collections/     # Collection definitions
+    │
+    └── admin/               # Admin UI (qa builder)
+        ├── admin.ts         # Main admin config
+        ├── builder.ts       # Shared builder instance
+        ├── collections/     # Collection UI configs
+        ├── globals/         # Global UI configs
+        ├── sidebar.ts       # Navigation
+        └── dashboard.ts     # Dashboard widgets
+```
+
+## Step 1: Create the Builder
+
+The builder is a typed instance that provides autocomplete for your backend collections:
+
+```typescript
+// src/questpie/admin/builder.ts
+import { qa, adminModule } from "@questpie/admin/client";
+import type { AppCMS } from "@/questpie/server/cms";
+
+/**
+ * Admin builder with type-safe access to backend collections.
+ *
+ * Usage:
+ * ```ts
+ * import { builder } from "./builder";
+ *
+ * const posts = builder.collection("posts")  // ← Autocomplete!
+ *   .fields(({ r }) => ({
+ *     title: r.text(),  // ← Autocomplete!
+ *   }))
+ * ```
+ */
+export const builder = qa<AppCMS>().use(adminModule);
+```
+
+## Step 2: Define Collection UI
+
+Create admin configurations for your collections:
+
+```typescript
+// src/questpie/admin/collections/posts.ts
+import { FileTextIcon } from "@phosphor-icons/react";
+import { builder } from "../builder";
+
+export const postsAdmin = builder
+  .collection("posts")
+  .meta({
+    label: "Blog Posts",
+    icon: FileTextIcon,
+  })
+  .fields(({ r }) => ({
+    title: r.text({
+      label: "Title",
+      placeholder: "Enter post title...",
+      maxLength: 200,
+    }),
+    slug: r.text({
+      label: "Slug",
+      description: "URL-friendly identifier",
+    }),
+    content: r.richText({
+      label: "Content",
+    }),
+    status: r.select({
+      label: "Status",
+      options: [
+        { label: "Draft", value: "draft" },
+        { label: "Published", value: "published" },
+      ],
+    }),
+    publishedAt: r.datetime({
+      label: "Publish Date",
+    }),
+    author: r.relation({
+      label: "Author",
+      targetCollection: "users",
+    }),
+  }))
+  .list(({ v, f }) => v.table({
+    columns: [f.title, f.status, f.author, f.publishedAt],
+  }))
+  .form(({ v, f }) => v.form({
+    sidebar: {
+      position: "right",
+      fields: [f.status, f.publishedAt],
+    },
+    sections: [
+      {
+        title: "Content",
+        fields: [f.title, f.slug, f.content],
+      },
+      {
+        title: "Author",
+        fields: [f.author],
+      },
+    ],
+  }));
+```
+
+## Step 3: Configure Sidebar
+
+Define the navigation structure:
+
+```typescript
+// src/questpie/admin/sidebar.ts
+import { qa } from "@questpie/admin/client";
+import {
+  HouseIcon,
+  FileTextIcon,
+  UsersIcon,
+  GearIcon,
+} from "@phosphor-icons/react";
+import type { AppCMS } from "../server/cms";
+
+export const sidebarConfig = qa
+  .sidebar<AppCMS>()
+  .section("main", (s) =>
+    s.items([
+      { type: "link", label: "Dashboard", href: "/admin", icon: HouseIcon },
+    ])
+  )
+  .section("content", (s) =>
+    s
+      .title("Content")
+      .icon(FileTextIcon)
+      .items([
+        { type: "collection", collection: "posts", icon: FileTextIcon },
+        { type: "collection", collection: "pages", icon: FileTextIcon },
+      ])
+  )
+  .section("users", (s) =>
+    s
+      .title("Users")
+      .icon(UsersIcon)
+      .items([
+        { type: "collection", collection: "users", icon: UsersIcon },
+      ])
+  )
+  .section("settings", (s) =>
+    s
+      .title("Settings")
+      .icon(GearIcon)
+      .items([
+        { type: "global", global: "siteSettings", icon: GearIcon },
+      ])
+  );
+```
+
+## Step 4: Build Admin Configuration
+
+Combine everything into the main admin config:
+
+```typescript
+// src/questpie/admin/admin.ts
+import { qa, adminModule } from "@questpie/admin/client";
+import type { AppCMS } from "../server/cms";
+
+import { postsAdmin } from "./collections/posts";
+import { usersAdmin } from "./collections/users";
+import { siteSettingsAdmin } from "./globals/site-settings";
+import { sidebarConfig } from "./sidebar";
+
+export const admin = qa<AppCMS>()
+  .use(adminModule)
+  .branding({
+    name: "My CMS",
+  })
+  .locale({
+    default: "en",
+    supported: ["en"],
+  })
+  .collections({
+    posts: postsAdmin,
+    users: usersAdmin,
+  })
+  .globals({
+    siteSettings: siteSettingsAdmin,
+  })
+  .sidebar(sidebarConfig);
+
+// Type registry for global type inference
+declare module "@questpie/admin/client" {
+  interface AdminTypeRegistry {
+    cms: AppCMS;
+    admin: typeof admin;
+  }
+}
+```
+
+## Step 5: Setup Styles
+
+Import admin styles in your CSS:
+
+```css
+/* src/styles.css */
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+@import "@questpie/admin/styles/index.css";
+
+/* IMPORTANT: Tell Tailwind to scan admin package */
+@source "../node_modules/@questpie/admin/dist";
+
+/* Your theme variables... */
+```
+
+## Step 6: Mount in React
+
+Create the admin route (example with TanStack Router):
+
+```tsx
+// routes/admin.tsx
+import { AdminLayoutProvider } from "@questpie/admin/client";
+import { Link, Outlet, useLocation } from "@tanstack/react-router";
+import { admin } from "@/questpie/admin/admin";
+import { cmsClient } from "@/lib/cms-client";
+import { queryClient } from "@/lib/query-client";
+
+export function AdminLayout() {
+  const location = useLocation();
+
+  return (
+    <AdminLayoutProvider
+      admin={admin}  // Pass the builder directly
+      client={cmsClient}
+      queryClient={queryClient}
+      LinkComponent={Link}
+      activeRoute={location.pathname}
+      basePath="/admin"
+    >
+      <Outlet />
+    </AdminLayoutProvider>
+  );
+}
+```
+
+## Step 7: Create the CMS Client
+
+```typescript
+// src/lib/cms-client.ts
+import { createClient } from "questpie/client";
+import type { AppCMS } from "@/questpie/server/cms";
+
+export const cmsClient = createClient<AppCMS>({
+  baseUrl: "/api/cms",
+});
+```
+
+## Verifying the Setup
+
+Start your development server and navigate to `/admin`. You should see:
+
+1. The sidebar with your configured sections
+2. Collection list pages with tables
+3. Create/edit forms with your field configurations
+
+## Next Steps
+
+<Cards>
+  <Card href="/docs/admin/builder-api" title="Builder API" description="Deep dive into the qa() builder" />
+  <Card href="/docs/admin/fields" title="Field Types" description="Configure all 22+ field types" />
+  <Card href="/docs/admin/dashboard" title="Dashboard" description="Add widgets and analytics" />
+  <Card href="/docs/examples/barbershop" title="Full Example" description="See a complete implementation" />
+</Cards>
