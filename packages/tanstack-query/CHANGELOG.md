@@ -1,5 +1,12 @@
 # @questpie/tanstack-query
 
+## 1.0.4
+
+### Patch Changes
+
+- Updated dependencies [[`01562df`](https://github.com/questpie/questpie-cms/commit/01562dfb6771a47eddcb797f36f951ae434f29c8)]:
+  - questpie@1.0.4
+
 ## 1.0.3
 
 ### Patch Changes
