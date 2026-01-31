@@ -103,6 +103,8 @@ const MIME_TYPE_FILTERS = [
 	{ value: "documents", label: "Documents", mimePattern: "application/pdf" },
 ];
 
+const emptyAssets = [] as Asset[];
+
 // ============================================================================
 // Component
 // ============================================================================
@@ -180,13 +182,16 @@ export function MediaPickerDialog({
 		},
 	);
 
-	const assets = (data?.docs || []) as Asset[];
+	const assets = React.useMemo(
+		() => (data?.docs || emptyAssets) as Asset[],
+		[data?.docs],
+	);
 	const previewAsset = React.useMemo(
 		() => assets.find((asset) => asset.id === previewAssetId) ?? null,
 		[assets, previewAssetId],
 	);
 
-	// Reset state when dialog closes
+	// Reset state when dialog closes, auto-select preview when assets load
 	React.useEffect(() => {
 		if (!open) {
 			setSelectedIds(new Set());
