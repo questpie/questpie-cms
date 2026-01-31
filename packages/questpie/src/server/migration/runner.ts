@@ -21,7 +21,7 @@ export type MigrationRunnerOptions = {
 export class MigrationRunner {
 	private db: MigrationDb;
 	private tableName = "questpie_migrations";
-	private readonly silent: boolean;
+	readonly silent: boolean;
 
 	constructor(db: MigrationDb, options: MigrationRunnerOptions = {}) {
 		this.db = db;

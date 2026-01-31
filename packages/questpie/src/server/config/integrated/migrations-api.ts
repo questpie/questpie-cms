@@ -81,13 +81,13 @@ export class QuestpieMigrationsAPI<
 	async up(options: RunMigrationsOptions = {}): Promise<void> {
 		// 1. Ensure search extensions are created first (idempotent)
 		const extResult = await this.ensureExtensions();
-		if (extResult.applied.length > 0) {
+		if (extResult.applied.length > 0 && !this.runner.silent) {
 			console.log(`🔌 Created extensions: ${extResult.applied.length}`);
 			for (const ext of extResult.applied) {
 				console.log(`   ✅ ${ext}`);
 			}
 		}
-		if (extResult.skipped.length > 0) {
+		if (extResult.skipped.length > 0 && !this.runner.silent) {
 			console.log(`⏭️  Extensions already exist: ${extResult.skipped.length}`);
 		}
 
