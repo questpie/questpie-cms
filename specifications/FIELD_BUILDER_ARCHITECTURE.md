@@ -8471,6 +8471,664 @@ const admin = qa<AppCMS>()
 
 ---
 
+# Migration Guide
+
+> **Goal:** Systematicky migrovať existujúce kolekcie z raw Drizzle na Field Builder
+> bez prerušenia funkcionality a s postupným prechodom.
+
+## Migračná stratégia
+
+### Princípy
+
+1. **Backward compatible** - Field builder generuje rovnaké Drizzle columns
+2. **Incremental migration** - kolekcie sa môžu migrovať postupne
+3. **No schema changes** - DB schéma zostáva identická
+4. **Tests must pass** - každá migrácia musí zachovať existujúce testy
+
+### Fázy migrácie
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│  Phase 1: Infrastructure (1 week)                                        │
+│  - Implement core field system                                           │
+│  - Both syntaxes work simultaneously                                     │
+├─────────────────────────────────────────────────────────────────────────┤
+│  Phase 2: Pilot Migration (1 collection)                                 │
+│  - Pick simple collection (e.g., tags, categories)                       │
+│  - Migrate + verify all tests pass                                       │
+│  - Document issues and patterns                                          │
+├─────────────────────────────────────────────────────────────────────────┤
+│  Phase 3: Bulk Migration (remaining collections)                         │
+│  - Migrate collection by collection                                      │
+│  - Run full test suite after each                                        │
+├─────────────────────────────────────────────────────────────────────────┤
+│  Phase 4: Admin Migration                                                │
+│  - Enable auto-registration                                              │
+│  - Remove redundant admin field definitions                              │
+├─────────────────────────────────────────────────────────────────────────┤
+│  Phase 5: Cleanup                                                        │
+│  - Remove old syntax support (optional)                                  │
+│  - Update documentation                                                  │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+## Collection Migration Checklist
+
+Pre každú kolekciu:
+
+```markdown
+## Collection: [name]
+
+### Pre-migration
+
+- [ ] List all existing tests for this collection
+- [ ] Document current Drizzle schema
+- [ ] Note any custom query patterns
+
+### Migration
+
+- [ ] Convert `.fields({...})` to `.fields((f) => ({...}))`
+- [ ] Convert each column to field builder equivalent
+- [ ] Move `.relations()` into inline `f.relation()`
+- [ ] Add labels/descriptions where missing
+
+### Verification
+
+- [ ] Run unit tests for this collection
+- [ ] Run integration tests
+- [ ] Verify generated Drizzle schema matches original
+- [ ] Test CRUD operations manually
+- [ ] Verify admin UI still works
+
+### Post-migration
+
+- [ ] Update admin config to use auto-generated fields
+- [ ] Remove redundant admin field definitions
+```
+
+## Column to Field Mapping
+
+| Drizzle Column                            | Field Builder                                     | Notes                |
+| ----------------------------------------- | ------------------------------------------------- | -------------------- |
+| `varchar(name, { length: N })`            | `f.text({ maxLength: N })`                        |                      |
+| `varchar(name, { length: N }).notNull()`  | `f.text({ maxLength: N, required: true })`        |                      |
+| `text(name)`                              | `f.text({ mode: "text" })`                        | Unlimited length     |
+| `integer(name)`                           | `f.number()`                                      | Default mode         |
+| `bigint(name, { mode: "number" })`        | `f.number({ mode: "bigint" })`                    |                      |
+| `real(name)`                              | `f.number({ mode: "real" })`                      |                      |
+| `numeric(name, { precision, scale })`     | `f.number({ mode: "decimal", precision, scale })` |                      |
+| `boolean(name)`                           | `f.boolean()`                                     |                      |
+| `timestamp(name)`                         | `f.datetime()`                                    |                      |
+| `timestamp(name, { withTimezone: true })` | `f.datetime({ withTimezone: true })`              |                      |
+| `date(name)`                              | `f.date()`                                        |                      |
+| `time(name)`                              | `f.time()`                                        |                      |
+| `jsonb(name)`                             | `f.json()` or `f.object({...})`                   | Use object for typed |
+| `varchar(name).array()`                   | `f.select({ multiple: true })` or `f.array()`     |                      |
+
+## Relation Migration
+
+```typescript
+// BEFORE: Separate .relations()
+const posts = q
+  .collection("posts")
+  .fields({
+    title: varchar("title", { length: 255 }).notNull(),
+    authorId: uuid("author_id").notNull(),
+  })
+  .relations(({ one, manyToMany, table }) => ({
+    author: one("users", {
+      fields: [table.authorId],
+      references: ["id"],
+    }),
+    tags: manyToMany("tags", {
+      through: "postTags",
+      fields: [table.id],
+      references: ["postId"],
+      targetFields: ["tagId"],
+      targetReferences: ["id"],
+    }),
+  }));
+
+// AFTER: Inline f.relation()
+const posts = q.collection("posts").fields((f) => ({
+  title: f.text({
+    label: "Title",
+    required: true,
+    maxLength: 255,
+  }),
+  // authorId column is auto-created by belongsTo
+  author: f.relation("users", {
+    type: "belongsTo",
+    label: "Author",
+    required: true,
+    // foreignKey defaults to "authorId"
+  }),
+  tags: f.relation("tags", {
+    type: "manyToMany",
+    through: "postTags",
+    label: "Tags",
+  }),
+}));
+```
+
+## Handling Edge Cases
+
+### Custom column names
+
+```typescript
+// BEFORE
+const posts = q
+  .collection("posts")
+  .fields({
+    created_by: uuid("created_by").notNull(),
+  })
+  .relations(({ one, table }) => ({
+    creator: one("users", {
+      fields: [table.created_by],
+      references: ["id"],
+    }),
+  }));
+
+// AFTER
+const posts = q.collection("posts").fields((f) => ({
+  creator: f.relation("users", {
+    type: "belongsTo",
+    foreignKey: "created_by", // Explicit FK column name
+    required: true,
+  }),
+}));
+```
+
+### Computed/virtual columns
+
+```typescript
+// BEFORE: Generated column in Drizzle
+const posts = q.collection("posts").fields({
+  title: varchar("title", { length: 255 }).notNull(),
+  // Manual subquery in select
+});
+
+// AFTER: Virtual field
+const posts = q.collection("posts").fields((f) => ({
+  title: f.text({ required: true, maxLength: 255 }),
+  commentCount: f.number({
+    virtual: sql<number>`(
+      SELECT COUNT(*)::int FROM comments
+      WHERE comments.post_id = posts.id
+    )`,
+  }),
+}));
+```
+
+### Enum columns
+
+```typescript
+// BEFORE
+const statusEnum = pgEnum("post_status", ["draft", "published", "archived"]);
+const posts = q.collection("posts").fields({
+  status: statusEnum("status").default("draft"),
+});
+
+// AFTER
+const posts = q.collection("posts").fields((f) => ({
+  status: f.select({
+    options: [
+      { value: "draft", label: "Draft" },
+      { value: "published", label: "Published" },
+      { value: "archived", label: "Archived" },
+    ],
+    default: "draft",
+    enumType: true,
+    enumName: "post_status", // Must match existing enum!
+  }),
+}));
+```
+
+## Verification Script
+
+```typescript
+// scripts/verify-migration.ts
+import { sql } from "drizzle-orm";
+
+/**
+ * Verify that migrated collection produces identical schema.
+ */
+async function verifyCollectionMigration(
+  collectionName: string,
+  oldSchema: string,
+  newSchema: string,
+) {
+  // Compare column definitions
+  const oldColumns = parseSchema(oldSchema);
+  const newColumns = parseSchema(newSchema);
+
+  const differences: string[] = [];
+
+  for (const [name, oldDef] of Object.entries(oldColumns)) {
+    const newDef = newColumns[name];
+    if (!newDef) {
+      differences.push(`Missing column: ${name}`);
+      continue;
+    }
+    if (oldDef.type !== newDef.type) {
+      differences.push(
+        `Type mismatch for ${name}: ${oldDef.type} → ${newDef.type}`,
+      );
+    }
+    if (oldDef.nullable !== newDef.nullable) {
+      differences.push(
+        `Nullable mismatch for ${name}: ${oldDef.nullable} → ${newDef.nullable}`,
+      );
+    }
+  }
+
+  if (differences.length > 0) {
+    console.error(`❌ ${collectionName} has schema differences:`);
+    differences.forEach((d) => console.error(`   - ${d}`));
+    return false;
+  }
+
+  console.log(`✅ ${collectionName} schema matches`);
+  return true;
+}
+```
+
+---
+
+# Testing Strategy
+
+> **Goal:** Zabezpečiť, že všetky existujúce testy fungujú počas a po migrácii.
+
+## Princípy testovania
+
+1. **Testy sa nemenia** - existujúce testy by mali prejsť bez úprav
+2. **Pridávame nové testy** - pre field builder špecifickú funkcionalitu
+3. **Schema parity** - generovaná schéma musí byť identická
+4. **Runtime parity** - CRUD operácie musia fungovať rovnako
+
+## Testovacia pyramída
+
+```
+                    ┌─────────────┐
+                    │   E2E Tests │  ← Admin UI, API flows
+                    │   (existujú)│
+                   ─┴─────────────┴─
+                  ┌─────────────────┐
+                  │ Integration     │  ← Collection CRUD, relations
+                  │ Tests (existujú)│
+                 ─┴─────────────────┴─
+                ┌───────────────────────┐
+                │ Unit Tests            │  ← Field builders, operators
+                │ (nové + existujúce)   │
+               ─┴───────────────────────┴─
+              ┌─────────────────────────────┐
+              │ Schema Parity Tests (nové)  │  ← Verify identical schema
+              └─────────────────────────────┘
+```
+
+## Nové test suites
+
+### 1. Schema Parity Tests
+
+```typescript
+// packages/questpie/src/server/fields/__tests__/schema-parity.test.ts
+import { describe, test, expect } from "bun:test";
+import { drizzle } from "drizzle-orm/node-postgres";
+
+describe("Schema Parity", () => {
+  describe("text field", () => {
+    test("f.text() produces same schema as varchar()", () => {
+      // Old way
+      const oldColumn = varchar("title", { length: 255 }).notNull();
+
+      // New way
+      const field = f.text({ required: true, maxLength: 255 });
+      const newColumn = field.toColumn("title");
+
+      // Compare
+      expect(getColumnDef(newColumn)).toEqual(getColumnDef(oldColumn));
+    });
+
+    test("f.text({ mode: 'text' }) produces same schema as text()", () => {
+      const oldColumn = text("content");
+      const field = f.text({ mode: "text" });
+      const newColumn = field.toColumn("content");
+
+      expect(getColumnDef(newColumn)).toEqual(getColumnDef(oldColumn));
+    });
+  });
+
+  describe("number field", () => {
+    test("f.number() produces same schema as integer()", () => {
+      const oldColumn = integer("count").notNull();
+      const field = f.number({ required: true });
+      const newColumn = field.toColumn("count");
+
+      expect(getColumnDef(newColumn)).toEqual(getColumnDef(oldColumn));
+    });
+
+    test("f.number({ mode: 'bigint' }) produces same schema as bigint()", () => {
+      const oldColumn = bigint("id", { mode: "number" });
+      const field = f.number({ mode: "bigint" });
+      const newColumn = field.toColumn("id");
+
+      expect(getColumnDef(newColumn)).toEqual(getColumnDef(oldColumn));
+    });
+  });
+
+  describe("relation field", () => {
+    test("belongsTo creates same FK column as manual uuid()", () => {
+      const oldColumn = uuid("author_id").notNull();
+      const field = f.relation("users", { type: "belongsTo", required: true });
+      const newColumn = field.toColumn("author");
+
+      // Should create authorId column
+      expect(newColumn?.name).toBe("author_id");
+      expect(getColumnDef(newColumn)).toEqual(getColumnDef(oldColumn));
+    });
+  });
+});
+
+// Helper to extract column definition for comparison
+function getColumnDef(column: AnyPgColumn) {
+  return {
+    dataType: column.dataType,
+    notNull: column.notNull,
+    hasDefault: column.hasDefault,
+    // ... other relevant properties
+  };
+}
+```
+
+### 2. Operator Tests
+
+```typescript
+// packages/questpie/src/server/fields/__tests__/operators.test.ts
+import { describe, test, expect } from "bun:test";
+
+describe("Field Operators", () => {
+  describe("text field operators", () => {
+    const field = f.text({ required: true });
+    const operators = field.getOperators(field.config);
+
+    test("eq generates correct SQL", () => {
+      const sql = operators.column.eq(mockColumn, "test", mockCtx);
+      expect(sql.toString()).toContain("= 'test'");
+    });
+
+    test("contains generates ILIKE SQL", () => {
+      const sql = operators.column.contains(mockColumn, "search", mockCtx);
+      expect(sql.toString()).toContain("ILIKE '%search%'");
+    });
+
+    test("jsonb.eq generates correct path query", () => {
+      const ctx = { ...mockCtx, jsonbPath: ["data", "title"] };
+      const sql = operators.jsonb.eq(mockColumn, "test", ctx);
+      expect(sql.toString()).toContain("#>>'{data,title}'");
+    });
+  });
+
+  describe("number field operators", () => {
+    const field = f.number({ required: true });
+    const operators = field.getOperators(field.config);
+
+    test("between generates correct SQL", () => {
+      const sql = operators.column.between(mockColumn, [10, 20], mockCtx);
+      expect(sql.toString()).toContain("BETWEEN 10 AND 20");
+    });
+
+    test("jsonb.gt casts to numeric", () => {
+      const ctx = { ...mockCtx, jsonbPath: ["stats", "count"] };
+      const sql = operators.jsonb.gt(mockColumn, 100, ctx);
+      expect(sql.toString()).toContain("::numeric >");
+    });
+  });
+});
+```
+
+### 3. Validation Tests
+
+```typescript
+// packages/questpie/src/server/fields/__tests__/validation.test.ts
+import { describe, test, expect } from "bun:test";
+
+describe("Field Validation", () => {
+  describe("text field", () => {
+    test("required field rejects null", () => {
+      const field = f.text({ required: true });
+      const schema = field.toZodSchema();
+
+      expect(() => schema.parse(null)).toThrow();
+      expect(() => schema.parse(undefined)).toThrow();
+      expect(schema.parse("valid")).toBe("valid");
+    });
+
+    test("maxLength is enforced", () => {
+      const field = f.text({ maxLength: 5 });
+      const schema = field.toZodSchema();
+
+      expect(() => schema.parse("too long")).toThrow();
+      expect(schema.parse("ok")).toBe("ok");
+    });
+
+    test("pattern validation works", () => {
+      const field = f.text({ pattern: /^[A-Z]+$/ });
+      const schema = field.toZodSchema();
+
+      expect(() => schema.parse("lowercase")).toThrow();
+      expect(schema.parse("VALID")).toBe("VALID");
+    });
+  });
+
+  describe("email field", () => {
+    test("validates email format", () => {
+      const field = f.email({ required: true });
+      const schema = field.toZodSchema();
+
+      expect(() => schema.parse("invalid")).toThrow();
+      expect(schema.parse("test@example.com")).toBe("test@example.com");
+    });
+  });
+});
+```
+
+### 4. Collection Integration Tests
+
+```typescript
+// packages/questpie/src/server/fields/__tests__/collection-integration.test.ts
+import { describe, test, expect, beforeAll, afterAll } from "bun:test";
+
+describe("Collection Integration", () => {
+  let db: DrizzleClient;
+
+  beforeAll(async () => {
+    db = await createTestDb();
+  });
+
+  afterAll(async () => {
+    await db.close();
+  });
+
+  describe("posts collection (migrated)", () => {
+    const posts = q.collection("posts").fields((f) => ({
+      title: f.text({ required: true, maxLength: 255 }),
+      content: f.text({ mode: "text" }),
+      published: f.boolean({ default: false }),
+      author: f.relation("users", { type: "belongsTo", required: true }),
+    }));
+
+    test("create works", async () => {
+      const post = await posts.create({
+        title: "Test Post",
+        content: "Content here",
+        authorId: testUserId,
+      });
+
+      expect(post.id).toBeDefined();
+      expect(post.title).toBe("Test Post");
+      expect(post.published).toBe(false); // default
+    });
+
+    test("find with where works", async () => {
+      const results = await posts.find({
+        where: {
+          title: { contains: "Test" },
+          published: { eq: false },
+        },
+      });
+
+      expect(results.data.length).toBeGreaterThan(0);
+    });
+
+    test("find with relation filter works", async () => {
+      const results = await posts.find({
+        where: {
+          author: { is: { role: "admin" } },
+        },
+      });
+
+      expect(results.data).toBeDefined();
+    });
+
+    test("update works", async () => {
+      const updated = await posts.update(testPostId, {
+        published: true,
+      });
+
+      expect(updated.published).toBe(true);
+    });
+
+    test("delete works", async () => {
+      await posts.delete(testPostId);
+
+      const found = await posts.findById(testPostId);
+      expect(found).toBeNull();
+    });
+  });
+});
+```
+
+## Existujúce testy - čo sa mení
+
+### Testy ktoré sa NEMENIA
+
+```typescript
+// Tieto testy by mali prejsť bez úprav:
+
+// ✅ API endpoint testy
+test("GET /api/posts returns posts", async () => {
+  const res = await fetch("/api/posts");
+  expect(res.status).toBe(200);
+});
+
+// ✅ CRUD operation testy
+test("can create post", async () => {
+  const post = await cms.collections.posts.create({...});
+  expect(post.id).toBeDefined();
+});
+
+// ✅ Relation loading testy
+test("can load post with author", async () => {
+  const post = await cms.collections.posts.findById(id, {
+    with: { author: true },
+  });
+  expect(post.author).toBeDefined();
+});
+
+// ✅ Where clause testy
+test("can filter posts", async () => {
+  const posts = await cms.collections.posts.find({
+    where: { status: "published" },
+  });
+  expect(posts.data.length).toBeGreaterThan(0);
+});
+```
+
+### Testy ktoré sa MÔŽU zmeniť
+
+```typescript
+// ⚠️ Testy ktoré priamo referencujú Drizzle columns
+// (môžu potrebovať update ak sa mení internal API)
+
+// Pred migráciou
+test("direct column access", () => {
+  const col = posts.table.title;
+  expect(col.name).toBe("title");
+});
+
+// Po migrácii - rovnaké, ale column je generovaný
+test("direct column access", () => {
+  const col = posts.table.title; // Stále funguje
+  expect(col.name).toBe("title");
+});
+```
+
+## CI/CD integrácia
+
+```yaml
+# .github/workflows/test.yml
+name: Tests
+
+on: [push, pull_request]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Run schema parity tests
+        run: bun test packages/questpie/src/server/fields/__tests__/schema-parity
+
+      - name: Run field unit tests
+        run: bun test packages/questpie/src/server/fields/__tests__
+
+      - name: Run collection integration tests
+        run: bun test packages/questpie/src/server/collection/__tests__
+
+      - name: Run existing test suite
+        run: bun test
+
+      - name: Verify no schema changes
+        run: bun run verify-schema
+```
+
+## Checklist pre PR review
+
+```markdown
+## Migration PR Checklist
+
+### Schema
+
+- [ ] `bun run verify-schema` passes
+- [ ] No new migrations needed (schema unchanged)
+
+### Tests
+
+- [ ] All existing tests pass
+- [ ] New schema parity tests added
+- [ ] New operator tests added (if new field type)
+
+### Functionality
+
+- [ ] CRUD operations work in admin UI
+- [ ] All existing API endpoints work
+- [ ] Relations load correctly
+
+### Performance
+
+- [ ] No new N+1 queries introduced
+- [ ] Query performance unchanged (check slow query log)
+```
+
+---
+
 # Summary
 
 ## Čo sa mení
