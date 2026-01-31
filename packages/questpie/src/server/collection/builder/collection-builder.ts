@@ -27,6 +27,11 @@ import {
 	type ValidationSchemas,
 } from "#questpie/server/collection/builder/validation-helpers.js";
 import type { StorageVisibility } from "#questpie/server/config/types.js";
+import type {
+	FieldBuilderProxy,
+	DefaultFieldTypeMap,
+} from "#questpie/server/fields/builder.js";
+import type { FieldDefinition } from "#questpie/server/fields/types.js";
 import type { SearchableConfig } from "#questpie/server/integrated/search/index.js";
 import type {
 	TypeMerge,
@@ -34,6 +39,18 @@ import type {
 	UnsetProperty,
 } from "#questpie/shared/type-utils.js";
 import type { Prettify } from "better-auth";
+
+/**
+ * Extract Drizzle column types from field definitions.
+ * Maps each field definition to its column type.
+ */
+type ExtractColumnsFromFieldDefinitions<
+	TFields extends Record<string, FieldDefinition>,
+> = {
+	[K in keyof TFields]: TFields[K]["$types"]["column"] extends null
+		? never
+		: TFields[K]["$types"]["column"];
+};
 
 /**
  * Main collection builder class
@@ -53,7 +70,7 @@ export class CollectionBuilder<TState extends CollectionBuilderState> {
 	}
 
 	/**
-	 * Define fields using Drizzle column definitions
+	 * Define fields using Drizzle column definitions (backward compatible)
 	 * This carries forward the exact Drizzle types for full type safety
 	 * Accepts column builders - Drizzle will convert them when creating the table
 	 */
@@ -61,17 +78,105 @@ export class CollectionBuilder<TState extends CollectionBuilderState> {
 		fields: TNewFields,
 	): CollectionBuilder<
 		TypeMerge<
-			UnsetProperty<TState, "fields" | "localized">,
+			UnsetProperty<TState, "fields" | "localized" | "fieldDefinitions">,
 			{
 				fields: TNewFields;
 				localized: []; // Reset localized when fields change
+				fieldDefinitions: undefined;
 			}
 		>
-	> {
+	>;
+
+	/**
+	 * Define fields using Field Builder (recommended)
+	 * Provides type-safe field definitions with validation, metadata, and operators.
+	 *
+	 * @example
+	 * ```ts
+	 * collection("posts").fields((f) => ({
+	 *   title: f.text({ required: true, maxLength: 255 }),
+	 *   content: f.textarea({ required: true }),
+	 *   status: f.select({
+	 *     options: [
+	 *       { value: "draft", label: "Draft" },
+	 *       { value: "published", label: "Published" },
+	 *     ],
+	 *     default: "draft",
+	 *   }),
+	 * }))
+	 * ```
+	 */
+	fields<TNewFields extends Record<string, FieldDefinition>>(
+		factory: (f: FieldBuilderProxy<DefaultFieldTypeMap>) => TNewFields,
+	): CollectionBuilder<
+		TypeMerge<
+			UnsetProperty<TState, "fields" | "localized" | "fieldDefinitions">,
+			{
+				fields: ExtractColumnsFromFieldDefinitions<TNewFields>;
+				localized: []; // Reset localized when fields change
+				fieldDefinitions: TNewFields;
+			}
+		>
+	>;
+
+	// Implementation
+	fields<TNewFields extends Record<string, any>>(
+		fieldsOrFactory:
+			| TNewFields
+			| ((f: FieldBuilderProxy<DefaultFieldTypeMap>) => TNewFields),
+	): CollectionBuilder<any> {
+		let columns: Record<string, any>;
+		let fieldDefinitions: Record<string, FieldDefinition> | undefined;
+
+		if (typeof fieldsOrFactory === "function") {
+			// Field Builder pattern - factory function
+			// We need to create a lazy proxy that will resolve field types at runtime
+			// For now, we use a simple object that throws if accessed before built-in fields are registered
+			const builderProxy = new Proxy(
+				{} as FieldBuilderProxy<DefaultFieldTypeMap>,
+				{
+					get(_target, prop: string) {
+						// This proxy will be replaced with actual field builder in phase 2
+						// For now, throw an error indicating fields aren't registered yet
+						throw new Error(
+							`Field type "${prop}" is not available. ` +
+								`Make sure to import and register built-in fields.`,
+						);
+					},
+				},
+			);
+
+			const fieldDefs = fieldsOrFactory(builderProxy);
+			fieldDefinitions = fieldDefs;
+
+			// Extract Drizzle columns from field definitions
+			columns = {};
+			for (const [name, fieldDef] of Object.entries(fieldDefs)) {
+				const column = fieldDef.toColumn(name);
+				if (column !== null) {
+					if (Array.isArray(column)) {
+						// Multiple columns (e.g., polymorphic relation)
+						for (const col of column) {
+							const colName =
+								(col as { name?: string }).name ?? `${name}_${columns.length}`;
+							columns[colName] = col;
+						}
+					} else {
+						columns[name] = column;
+					}
+				}
+			}
+		} else {
+			// Raw Drizzle columns (backward compatible)
+			columns = fieldsOrFactory;
+			fieldDefinitions = undefined;
+		}
+
 		const newState = {
 			...this.state,
-			fields,
+			fields: columns,
 			localized: [] as any,
+			fieldDefinitions,
 		} as any;
 
 		const newBuilder = new CollectionBuilder(newState);
@@ -673,6 +778,13 @@ export class CollectionBuilder<TState extends CollectionBuilderState> {
 				...other.state.functions,
 			},
 			searchable: other.state.searchable ?? this.state.searchable,
+			fieldDefinitions:
+				this.state.fieldDefinitions || other.state.fieldDefinitions
+					? {
+							...(this.state.fieldDefinitions || {}),
+							...(other.state.fieldDefinitions || {}),
+						}
+					: undefined,
 		} as any;
 
 		const newBuilder = new CollectionBuilder(mergedState);
@@ -777,5 +889,6 @@ export function collection<TName extends string>(
 		validation: undefined,
 		output: undefined,
 		upload: undefined,
+		fieldDefinitions: undefined,
 	}) as any;
 }

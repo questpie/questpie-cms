@@ -771,6 +771,12 @@ export interface CollectionBuilderState {
 	 * for this collection including CRUD methods and HTTP routes.
 	 */
 	upload: UploadOptions | undefined;
+	/**
+	 * Field definitions for introspection (when using Field Builder).
+	 * Stores the FieldDefinition objects for admin introspection.
+	 * undefined when using raw Drizzle columns.
+	 */
+	fieldDefinitions: Record<string, any> | undefined;
 }
 
 /**
@@ -818,6 +824,7 @@ export type EmptyCollectionState<TName extends string> =
 		validation: undefined;
 		output: undefined;
 		upload: undefined;
+		fieldDefinitions: undefined;
 	};
 
 /**
