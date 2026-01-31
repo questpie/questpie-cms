@@ -46,6 +46,7 @@ export type {
 } from "./config/context.js";
 export * from "./config/context.js";
 export * from "./config/types.js";
+export * from "./fields/index.js";
 export * from "./functions/index.js";
 export * from "./global/builder/index.js";
 export * from "./global/crud/index.js";
