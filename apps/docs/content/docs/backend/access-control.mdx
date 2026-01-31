@@ -61,7 +61,8 @@ Access control is defined using the `.access()` method on collections:
 import { q } from "questpie";
 import { varchar, uuid, boolean } from "drizzle-orm/pg-core";
 
-export const posts = q.collection("posts")
+export const posts = q
+  .collection("posts")
   .fields({
     title: varchar("title", { length: 255 }),
     content: text("content"),
@@ -141,6 +142,85 @@ Return database filters that are applied automatically:
 - **Type-safe** - TypeScript knows your field names and types
 - **Database-enforced** - Applied directly in the SQL WHERE clause
 - **Automatic** - No need to manually add to every query
+
+## Default Access Control
+
+Set global access defaults for all collections and globals in your CMS config:
+
+```typescript
+const cms = q({ name: "app" }).build({
+  defaultAccess: {
+    // Require authentication for all operations by default
+    read: ({ session }) => !!session,
+    create: ({ session }) => !!session,
+    update: ({ session }) => !!session,
+    delete: ({ session }) => !!session,
+  },
+});
+```
+
+### How It Works
+
+- Collections and globals **without** explicit `.access()` rules inherit from `defaultAccess`
+- Collections and globals **with** explicit `.access()` rules override the defaults
+- Use `defaultAccess` to set a baseline security policy (e.g., "require auth everywhere")
+- Override per-collection for specific requirements
+
+### Example: Admin-Only by Default
+
+```typescript
+const cms = q({ name: "app" })
+  .build({
+    defaultAccess: {
+      // Only admins can access by default
+      read: ({ session }) => session?.user?.role === "admin",
+      create: ({ session }) => session?.user?.role === "admin",
+      update: ({ session }) => session?.user?.role === "admin",
+      delete: ({ session }) => session?.user?.role === "admin",
+    },
+  });
+
+// Public collection - overrides default
+const posts = q.collection("posts")
+  .fields({ ... })
+  .access({
+    read: true, // Everyone can read
+    create: ({ session }) => !!session, // Only logged-in users
+  });
+
+// Admin-only collection - uses default (no .access() needed)
+const internalNotes = q.collection("internal_notes")
+  .fields({ ... });
+  // Inherits defaultAccess (admin-only)
+```
+
+### Field-Level Defaults
+
+You can also set default field-level access:
+
+```typescript
+const cms = q({ name: "app" }).build({
+  defaultAccess: {
+    read: ({ session }) => !!session,
+    fields: {
+      // All collections get these field-level defaults
+      internalNotes: {
+        read: ({ session }) => session?.user?.role === "admin",
+      },
+    },
+  },
+});
+```
+
+### System Mode Bypasses Defaults
+
+System access mode bypasses all access control, including `defaultAccess`:
+
+```typescript
+// System context has full access regardless of defaultAccess
+const systemCtx = await cms.createContext({ accessMode: "system" });
+await cms.api.collections.posts.find({}, systemCtx); // Bypasses all checks
+```
 
 ## Operation-Level Access
 
@@ -313,7 +393,8 @@ Control access to individual fields:
 Restrict data by organization:
 
 ```typescript
-export const projects = q.collection("projects")
+export const projects = q
+  .collection("projects")
   .fields({
     name: varchar("name", { length: 255 }),
     organizationId: uuid("organization_id").notNull(),
@@ -388,7 +469,8 @@ export const projects = q.collection("projects")
 ### Ownership + Sharing
 
 ```typescript
-export const documents = q.collection("documents")
+export const documents = q
+  .collection("documents")
   .fields({
     title: varchar("title", { length: 255 }),
     ownerId: uuid("owner_id").notNull(),
@@ -490,7 +572,8 @@ Use these utilities in your access rules:
 ```typescript
 import { isAdmin, isAuthenticated, isOwnerOrAdmin } from "./utils/access";
 
-export const posts = q.collection("posts")
+export const posts = q
+  .collection("posts")
   .fields({
     /* ... */
   })

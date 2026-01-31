@@ -15,6 +15,10 @@ import { alias, type PgTable } from "drizzle-orm/pg-core";
 import type { RelationConfig } from "#questpie/server/collection/builder/types.js";
 import { buildWhereClause } from "#questpie/server/collection/crud/query-builders/index.js";
 import {
+	processNestedRelations,
+	separateNestedRelations,
+} from "#questpie/server/collection/crud/relation-mutations/nested-operations.js";
+import {
 	resolveBelongsToRelation,
 	resolveHasManyRelation,
 	resolveHasManyWithAggregation,
@@ -30,6 +34,7 @@ import {
 	normalizeContext,
 	notifyRealtimeChange,
 	splitLocalizedFields,
+	withTransaction,
 } from "#questpie/server/collection/crud/shared/index.js";
 import type {
 	Columns,
@@ -273,7 +278,7 @@ export class GlobalCRUDGenerator<TState extends GlobalBuilderState> {
 			let row = rows[0] || null;
 
 			if (!row) {
-				row = await db.transaction(async (tx: any) => {
+				row = await withTransaction(db, async (tx: any) => {
 					const [inserted] = await tx.insert(this.table).values({}).returning();
 					if (!inserted) {
 						throw ApiError.internal("Failed to auto-create global record");
@@ -327,6 +332,43 @@ export class GlobalCRUDGenerator<TState extends GlobalBuilderState> {
 		};
 	}
 
+	/**
+	 * Separate nested relation operations from regular fields
+	 * Delegates to extracted separateNestedRelations utility
+	 */
+	private separateNestedRelationsInternal(input: any): {
+		regularFields: any;
+		nestedRelations: Record<string, any>;
+	} {
+		const relationNames = this.state.relations
+			? new Set(Object.keys(this.state.relations))
+			: new Set<string>();
+		return separateNestedRelations(input, relationNames);
+	}
+
+	/**
+	 * Process nested relation operations (create, connect, connectOrCreate)
+	 * Delegates to extracted processNestedRelations utility
+	 */
+	private async processNestedRelationsInternal(
+		parentRecord: any,
+		nestedRelations: Record<string, any>,
+		context: CRUDContext,
+		tx: any,
+	): Promise<void> {
+		if (!this.cms || !this.state.relations) return;
+		await processNestedRelations({
+			parentRecord,
+			nestedRelations,
+			relations: this.state.relations,
+			cms: this.cms,
+			context,
+			tx,
+			resolveFieldKey: (state, column, table) =>
+				this.resolveFieldKey(state as any, column, table),
+		});
+	}
+
 	private createUpdate() {
 		return async (
 			data: any,
@@ -373,9 +415,14 @@ export class GlobalCRUDGenerator<TState extends GlobalBuilderState> {
 			// Validate field-level write access
 			await this.validateFieldWriteAccess(data, normalized, existing);
 
+			// Separate nested relation operations from regular fields
+			const { regularFields, nestedRelations } =
+				this.separateNestedRelationsInternal(data);
+
 			let changeEvent: any = null;
-			const updatedRecord = await db.transaction(async (tx: any) => {
-				const { localized, nonLocalized } = this.splitLocalizedFields(data);
+			const updatedRecord = await withTransaction(db, async (tx: any) => {
+				const { localized, nonLocalized } =
+					this.splitLocalizedFields(regularFields);
 
 				let updatedId = existing?.id;
 
@@ -456,6 +503,16 @@ export class GlobalCRUDGenerator<TState extends GlobalBuilderState> {
 
 				if (!baseRecord) {
 					throw ApiError.internal("Global record not found after update");
+				}
+
+				// Process nested relation operations (create, connect, connectOrCreate)
+				if (Object.keys(nestedRelations).length > 0) {
+					await this.processNestedRelationsInternal(
+						baseRecord,
+						nestedRelations,
+						normalized,
+						tx,
+					);
 				}
 
 				await this.createVersion(
@@ -674,7 +731,7 @@ export class GlobalCRUDGenerator<TState extends GlobalBuilderState> {
 				}),
 			);
 
-			return db.transaction(async (tx: any) => {
+			return withTransaction(db, async (tx: any) => {
 				if (Object.keys(nonLocalized).length > 0) {
 					await tx
 						.update(this.table)
@@ -831,7 +888,8 @@ export class GlobalCRUDGenerator<TState extends GlobalBuilderState> {
 				const i18nCurrentTbl = i18nCurrentTable as any;
 
 				// Check if column exists in ORIGINAL i18n table (aliased tables don't support property checks)
-				const columnExistsInI18n = i18nCurrentTable && (i18nCurrentTable as any)[name];
+				const columnExistsInI18n =
+					i18nCurrentTable && (i18nCurrentTable as any)[name];
 
 				if (columnExistsInI18n) {
 					// Current locale value (prefixed)
@@ -973,6 +1031,7 @@ export class GlobalCRUDGenerator<TState extends GlobalBuilderState> {
 	/**
 	 * Enforce access control
 	 * Delegates to extracted executeAccessRule utility
+	 * Falls back to CMS defaultAccess if global doesn't define its own rules
 	 * Note: Globals only return boolean (no AccessWhere support)
 	 */
 	private async enforceAccessControl(
@@ -986,7 +1045,13 @@ export class GlobalCRUDGenerator<TState extends GlobalBuilderState> {
 
 		if (normalized.accessMode === "system") return true;
 
-		const accessRule = this.state.access?.[operation];
+		// Map global operation names to collection access names
+		const accessOperation = operation === "update" ? "update" : "read";
+
+		// Use global's access rule, or fall back to CMS defaultAccess
+		const accessRule =
+			this.state.access?.[operation] ??
+			this.cms?.defaultAccess?.[accessOperation];
 		const result = await executeAccessRule(accessRule, {
 			cms: this.cms,
 			db,

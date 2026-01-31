@@ -1247,7 +1247,7 @@ describe("collection relations", () => {
 		it("prevents delete when related records exist (onDelete: restrict)", async () => {
 			const ctx = createTestContext();
 			const categoriesCrud = cms.api.collections.restrictedCategories;
-			const productsCrud = cms.api.collections.restricted_products;
+			const productsCrud = cms.api.collections.restrictedProducts;
 
 			const category = await categoriesCrud.create(
 				{ id: crypto.randomUUID(), name: "Protected Category" },
@@ -2035,6 +2035,251 @@ describe("collection relations", () => {
 
 			expect(filteredServices.docs).toHaveLength(1);
 			expect(filteredServices.docs[0].id).toBe(svgService.id);
+		});
+	});
+
+	// ==========================================================================
+	// 17. DISCONNECT OPERATIONS
+	// ==========================================================================
+
+	describe("partial update operations", () => {
+		it("should update specific records while keeping others via set", async () => {
+			const ctx = createTestContext();
+			const articlesCrud = cms.api.collections.articles;
+			const tagsCrud = cms.api.collections.articleTags;
+
+			// Create tags
+			const tag1 = await tagsCrud.create(
+				{ id: crypto.randomUUID(), name: "Partial-Tag1" },
+				ctx,
+			);
+			const tag2 = await tagsCrud.create(
+				{ id: crypto.randomUUID(), name: "Partial-Tag2" },
+				ctx,
+			);
+			const tag3 = await tagsCrud.create(
+				{ id: crypto.randomUUID(), name: "Partial-Tag3" },
+				ctx,
+			);
+
+			// Create article with all 3 tags
+			const article = await articlesCrud.create(
+				{
+					id: crypto.randomUUID(),
+					title: "Article with 3 tags",
+					tags: [tag1.id, tag2.id, tag3.id],
+				} as any,
+				ctx,
+			);
+
+			// Verify all tags are connected
+			const articleWithTags = await articlesCrud.findOne(
+				{ where: { id: article.id }, with: { tags: true } },
+				ctx,
+			);
+			expect(articleWithTags?.tags).toHaveLength(3);
+
+			// Use set to keep only tag1 and tag3 (effectively removing tag2)
+			await articlesCrud.updateById(
+				{
+					id: article.id,
+					data: {
+						tags: { set: [{ id: tag1.id }, { id: tag3.id }] },
+					} as any,
+				},
+				ctx,
+			);
+
+			// Verify only tag1 and tag3 remain
+			const updatedArticle = await articlesCrud.findOne(
+				{ where: { id: article.id }, with: { tags: true } },
+				ctx,
+			);
+			expect(updatedArticle?.tags).toHaveLength(2);
+			const remainingTagIds = (updatedArticle?.tags as any[])
+				.map((t) => t.id)
+				.sort();
+			expect(remainingTagIds).toEqual([tag1.id, tag3.id].sort());
+		});
+	});
+
+	// ==========================================================================
+	// 18. JUNCTION TABLE EXTRA FIELDS
+	// ==========================================================================
+
+	describe("junction table extra fields", () => {
+		it("should preserve extra fields in junction table", async () => {
+			const ctx = createTestContext();
+			const articlesCrud = cms.api.collections.articles;
+			const tagsCrud = cms.api.collections.articleTags;
+			const junctionCrud = cms.api.collections.articleTagJunction;
+
+			// Create tag
+			const tag = await tagsCrud.create(
+				{ id: crypto.randomUUID(), name: "ExtraFields-Tag" },
+				ctx,
+			);
+
+			// Create article with tag
+			const article = await articlesCrud.create(
+				{
+					id: crypto.randomUUID(),
+					title: "Article with extra fields",
+					tags: [tag.id],
+				} as any,
+				ctx,
+			);
+
+			// Manually update junction record with extra data
+			await junctionCrud.update(
+				{
+					where: {
+						AND: [{ articleId: article.id }, { tagId: tag.id }],
+					},
+					data: {
+						order: 5,
+					},
+				},
+				ctx,
+			);
+
+			// Query junction table to verify extra fields are preserved
+			const junctionRecords = await junctionCrud.find(
+				{
+					where: { articleId: article.id },
+				},
+				ctx,
+			);
+
+			expect(junctionRecords.docs).toHaveLength(1);
+			expect((junctionRecords.docs[0] as any).order).toBe(5);
+			expect((junctionRecords.docs[0] as any).tagId).toBe(tag.id);
+		});
+	});
+
+	// ==========================================================================
+	// 19. EMPTY RELATIONS HANDLING
+	// ==========================================================================
+
+	describe("empty relations handling", () => {
+		it("should handle setting many-to-many to empty array", async () => {
+			const ctx = createTestContext();
+			const articlesCrud = cms.api.collections.articles;
+			const tagsCrud = cms.api.collections.articleTags;
+
+			// Create tags
+			const tag1 = await tagsCrud.create(
+				{ id: crypto.randomUUID(), name: "Empty-Tag1" },
+				ctx,
+			);
+			const tag2 = await tagsCrud.create(
+				{ id: crypto.randomUUID(), name: "Empty-Tag2" },
+				ctx,
+			);
+
+			// Create article with tags
+			const article = await articlesCrud.create(
+				{
+					id: crypto.randomUUID(),
+					title: "Article to empty",
+					tags: [tag1.id, tag2.id],
+				} as any,
+				ctx,
+			);
+
+			// Verify tags exist
+			const articleWithTags = await articlesCrud.findOne(
+				{ where: { id: article.id }, with: { tags: true } },
+				ctx,
+			);
+			expect(articleWithTags?.tags).toHaveLength(2);
+
+			// Update with empty array (using set)
+			await articlesCrud.updateById(
+				{
+					id: article.id,
+					data: {
+						tags: { set: [] },
+					} as any,
+				},
+				ctx,
+			);
+
+			// Verify no tags remain
+			const emptiedArticle = await articlesCrud.findOne(
+				{ where: { id: article.id }, with: { tags: true } },
+				ctx,
+			);
+			expect(emptiedArticle?.tags).toHaveLength(0);
+		});
+	});
+
+	// ==========================================================================
+	// 20. CASCADE DELETE WITH MANY-TO-MANY
+	// ==========================================================================
+
+	describe("cascade delete with many-to-many", () => {
+		it("should clean up junction records when parent is deleted", async () => {
+			const ctx = createTestContext();
+			const articlesCrud = cms.api.collections.articles;
+			const tagsCrud = cms.api.collections.articleTags;
+			const junctionCrud = cms.api.collections.articleTagJunction;
+
+			// Create tags
+			const tag1 = await tagsCrud.create(
+				{ id: crypto.randomUUID(), name: "Cascade-Tag1" },
+				ctx,
+			);
+			const tag2 = await tagsCrud.create(
+				{ id: crypto.randomUUID(), name: "Cascade-Tag2" },
+				ctx,
+			);
+
+			// Create article with tags
+			const article = await articlesCrud.create(
+				{
+					id: crypto.randomUUID(),
+					title: "Article to delete",
+					tags: [tag1.id, tag2.id],
+				} as any,
+				ctx,
+			);
+
+			// Verify junction records exist
+			const junctionsBefore = await junctionCrud.find(
+				{ where: { articleId: article.id } },
+				ctx,
+			);
+			expect(junctionsBefore.docs).toHaveLength(2);
+
+			// Delete article
+			await articlesCrud.deleteById({ id: article.id }, ctx);
+
+			// Verify article is deleted
+			const deletedArticle = await articlesCrud.findOne(
+				{ where: { id: article.id } },
+				ctx,
+			);
+			expect(deletedArticle).toBeNull();
+
+			// Verify junction records are cleaned up
+			const junctionsAfter = await junctionCrud.find(
+				{ where: { articleId: article.id } },
+				ctx,
+			);
+			expect(junctionsAfter.docs).toHaveLength(0);
+
+			// Verify tags still exist (not cascaded)
+			const existingTag1 = await tagsCrud.findOne(
+				{ where: { id: tag1.id } },
+				ctx,
+			);
+			const existingTag2 = await tagsCrud.findOne(
+				{ where: { id: tag2.id } },
+				ctx,
+			);
+			expect(existingTag1).not.toBeNull();
+			expect(existingTag2).not.toBeNull();
 		});
 	});
 });

@@ -72,7 +72,8 @@ export const homepage = q.global("homepage").fields({
 Support multiple languages for global content:
 
 ```typescript
-export const siteConfig = q.global("site_config")
+export const siteConfig = q
+  .global("site_config")
   .fields({
     siteName: varchar("site_name", { length: 100 }),
     tagline: varchar("tagline", { length: 255 }),
@@ -88,7 +89,8 @@ Add computed fields:
 ```typescript
 import { sql } from "drizzle-orm";
 
-export const siteConfig = q.global("site_config")
+export const siteConfig = q
+  .global("site_config")
   .fields({
     firstName: varchar("first_name", { length: 100 }),
     lastName: varchar("last_name", { length: 100 }),
@@ -103,7 +105,8 @@ export const siteConfig = q.global("site_config")
 Link to collections or other globals:
 
 ```typescript
-export const homepage = q.global("homepage")
+export const homepage = q
+  .global("homepage")
   .fields({
     featuredPostId: uuid("featured_post_id"),
     featuredProductId: uuid("featured_product_id"),
@@ -120,12 +123,115 @@ export const homepage = q.global("homepage")
   }));
 ```
 
+#### Many-to-Many Relations
+
+Globals support many-to-many relations just like collections. This is perfect for scenarios where your global needs to reference multiple records from another collection.
+
+**Example: Featured Services**
+
+Define a global that highlights multiple services on your homepage:
+
+```typescript
+const services = collection("services").fields({
+  name: varchar("name", { length: 255 }).notNull(),
+  description: text("description"),
+  price: integer("price"),
+});
+
+// Junction table linking homepage to services
+const homepageServices = collection("homepage_services").fields({
+  homepageId: varchar("homepage_id", { length: 36 }).notNull(),
+  serviceId: varchar("service_id", { length: 36 }).notNull(),
+  order: integer("order").default(0), // For manual sorting
+  highlighted: boolean("highlighted").default(false),
+});
+
+// Global with many-to-many relation
+export const homepage = global("homepage")
+  .fields({
+    heroTitle: varchar("hero_title", { length: 255 }),
+    heroDescription: text("hero_description"),
+  })
+  .relations(({ manyToMany }) => ({
+    featuredServices: manyToMany("services", {
+      through: "homepage_services",
+      sourceField: "homepageId",
+      targetField: "serviceId",
+    }),
+  }));
+```
+
+**CRUD Operations:**
+
+Connect existing services:
+
+```typescript
+await cms.api.globals.homepage.update(
+  {
+    heroTitle: "Our Premium Services",
+    featuredServices: { connect: [{ id: service1.id }, { id: service2.id }] },
+  },
+  ctx,
+);
+```
+
+Create new services and link them:
+
+```typescript
+await cms.api.globals.homepage.update(
+  {
+    featuredServices: {
+      create: [
+        { name: "Consulting", description: "Expert advice", price: 100 },
+        { name: "Support", description: "24/7 help", price: 50 },
+      ],
+    },
+  },
+  ctx,
+);
+```
+
+Replace entire selection (set):
+
+```typescript
+await cms.api.globals.homepage.update(
+  {
+    featuredServices: { set: [{ id: newService.id }] },
+  },
+  ctx,
+);
+```
+
+Plain array of IDs (admin forms):
+
+```typescript
+await cms.api.globals.homepage.update(
+  {
+    featuredServices: [serviceId1, serviceId2, serviceId3],
+  },
+  ctx,
+);
+```
+
+Query with relations:
+
+```typescript
+const homepage = await cms.api.globals.homepage.get(
+  {
+    with: { featuredServices: true },
+  },
+  ctx,
+);
+// Result: { heroTitle: "...", featuredServices: [{ name: "...", price: ... }] }
+```
+
 ### `.options()`
 
 Configure global behavior:
 
 ```typescript
-export const siteConfig = q.global("site_config")
+export const siteConfig = q
+  .global("site_config")
   .fields({
     /* ... */
   })
@@ -141,7 +247,8 @@ export const siteConfig = q.global("site_config")
 Add lifecycle hooks:
 
 ```typescript
-export const siteConfig = q.global("site_config")
+export const siteConfig = q
+  .global("site_config")
   .fields({
     maintenanceMode: boolean("maintenance_mode"),
   })
@@ -169,7 +276,8 @@ export const siteConfig = q.global("site_config")
 Control who can view/modify:
 
 ```typescript
-export const siteConfig = q.global("site_config")
+export const siteConfig = q
+  .global("site_config")
   .fields({
     /* ... */
   })
@@ -299,7 +407,8 @@ await app.api.globals.siteConfig.revertToVersion(
 ### Site Settings
 
 ```typescript
-export const siteSettings = q.global("site_settings")
+export const siteSettings = q
+  .global("site_settings")
   .fields({
     siteName: varchar("site_name", { length: 100 }).notNull(),
     description: text("description"),
@@ -328,7 +437,8 @@ export const siteSettings = q.global("site_settings")
 ### Homepage Content
 
 ```typescript
-export const homepage = q.global("homepage")
+export const homepage = q
+  .global("homepage")
   .fields({
     heroTitle: varchar("hero_title", { length: 255 }),
     heroSubtitle: text("hero_subtitle"),
@@ -367,7 +477,8 @@ export const homepage = q.global("homepage")
 ### SEO Defaults
 
 ```typescript
-export const seoDefaults = q.global("seo_defaults")
+export const seoDefaults = q
+  .global("seo_defaults")
   .fields({
     defaultTitle: varchar("default_title", { length: 60 }),
     defaultDescription: text("default_description"),
@@ -393,7 +504,8 @@ export const seoDefaults = q.global("seo_defaults")
 ### Feature Flags
 
 ```typescript
-export const featureFlags = q.global("feature_flags")
+export const featureFlags = q
+  .global("feature_flags")
   .fields({
     enableBetaFeatures: boolean("enable_beta_features").default(false),
     enableNewEditor: boolean("enable_new_editor").default(false),
@@ -440,7 +552,8 @@ type MenuItem = {
   children?: MenuItem[];
 };
 
-export const navigation = q.global("navigation")
+export const navigation = q
+  .global("navigation")
   .fields({
     headerMenu: jsonb("header_menu").$type<MenuItem[]>().default([]),
     footerMenu: jsonb("footer_menu").$type<MenuItem[]>().default([]),

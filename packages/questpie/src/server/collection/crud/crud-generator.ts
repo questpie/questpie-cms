@@ -56,8 +56,10 @@ import {
 	mergeI18nRows,
 	normalizeContext,
 	notifyRealtimeChange,
+	onAfterCommit,
 	resolveFieldKey,
 	splitLocalizedFields,
+	withTransaction,
 } from "#questpie/server/collection/crud/shared/index.js";
 import type {
 	Columns,
@@ -80,6 +82,7 @@ import type {
 } from "#questpie/server/collection/crud/types.js";
 import { createVersionRecord } from "#questpie/server/collection/crud/versioning/index.js";
 import type { Questpie } from "#questpie/server/config/cms.js";
+import { runWithContext } from "#questpie/server/config/context.js";
 import type { StorageVisibility } from "#questpie/server/config/types.js";
 import { ApiError, parseDatabaseError } from "#questpie/server/errors/index.js";
 
@@ -209,6 +212,15 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 			null,
 			options,
 		);
+
+		// Access explicitly denied
+		if (accessWhere === false) {
+			throw ApiError.forbidden({
+				operation: "read",
+				resource: this.state.name,
+				reason: "User does not have permission to read records",
+			});
+		}
 
 		// Execute beforeRead hooks (read doesn't modify data)
 		if (this.state.hooks?.beforeRead) {
@@ -608,6 +620,16 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 				null,
 				options,
 			);
+
+			// Access explicitly denied
+			if (accessWhere === false) {
+				throw ApiError.forbidden({
+					operation: "read",
+					resource: this.state.name,
+					reason: "User does not have permission to read records",
+				});
+			}
+
 			const mergedWhere = this.mergeWhere(options.where, accessWhere);
 
 			// Build WHERE clause (with soft delete filter)
@@ -756,237 +778,258 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 			const normalized = this.normalizeContext(context);
 			const db = this.getDb(normalized);
 
-			// Execute beforeOperation hook
-			await this.executeHooks(
-				this.state.hooks?.beforeOperation,
-				this.createHookContext({
-					data: input,
-					operation: "create",
-					context: normalized,
+			// Run entire operation within request-scoped context
+			// This enables implicit getContext<TApp>() calls in hooks/access control
+			return runWithContext(
+				{
+					app: this.cms,
+					session: normalized.session,
 					db,
-				}),
-			);
+					locale: normalized.locale,
+					accessMode: normalized.accessMode,
+				},
+				async () => {
+					// Execute beforeOperation hook
+					await this.executeHooks(
+						this.state.hooks?.beforeOperation,
+						this.createHookContext({
+							data: input,
+							operation: "create",
+							context: normalized,
+							db,
+						}),
+					);
 
-			// Enforce access control
-			const canCreate = await this.enforceAccessControl(
-				"create",
-				normalized,
-				null,
-				input,
-			);
-			if (canCreate === false) {
-				throw ApiError.forbidden({
-					operation: "create",
-					resource: this.state.name,
-					reason: "User does not have permission to create records",
-				});
-			}
-
-			// Execute beforeValidate hook (transform input before validation)
-			await this.executeHooks(
-				this.state.hooks?.beforeValidate as any,
-				this.createHookContext({
-					data: input,
-					operation: "create",
-					context: normalized,
-					db,
-				}),
-			);
-
-			// Separate nested relation operations from regular fields BEFORE validation
-			// This prevents the validation schema from stripping relation fields
-			let { regularFields, nestedRelations } =
-				this.separateNestedRelationsInternal(input);
-
-			// Pre-apply connect operations to extract FK values before validation
-			// This allows validation to pass when FK fields are provided via nested relation syntax
-			({ regularFields, nestedRelations } = this.preApplyConnectOperations(
-				regularFields,
-				nestedRelations,
-			));
-
-			// Validate field-level write access (on regular fields only)
-			await this.validateFieldWriteAccess(regularFields, normalized);
-
-			// Runtime validation (if schemas are configured)
-			if (this.state.validation?.insertSchema) {
-				try {
-					// Validate and potentially transform the regular fields only
-					regularFields =
-						this.state.validation.insertSchema.parse(regularFields);
-				} catch (error: any) {
-					throw ApiError.fromZodError(error);
-				}
-			}
-
-			// Execute beforeChange hooks (after validation)
-			await this.executeHooks(
-				this.state.hooks?.beforeChange as any,
-				this.createHookContext({
-					data: regularFields,
-					operation: "create",
-					context,
-					db,
-				}),
-			);
-
-			let changeEvent: any = null;
-			let record: any;
-			try {
-				record = await db.transaction(async (tx: any) => {
-					({ regularFields, nestedRelations } =
-						await this.applyBelongsToRelationsInternal(
-							regularFields,
-							nestedRelations,
-							context,
-							tx,
-						));
-
-					// Split localized vs non-localized fields
-					// Auto-detects { $i18n: value } wrappers in JSONB fields
-					const { localized, nonLocalized, nestedLocalized } =
-						this.splitLocalizedFields(regularFields);
-
-					// Insert main record
-					const [insertedRecord] = await tx
-						.insert(this.table)
-						.values(nonLocalized)
-						.returning();
-
-					// Insert localized fields if any (flat fields + nested localized in _localized column)
-					const hasLocalizedData =
-						Object.keys(localized).length > 0 || nestedLocalized != null;
-					if (this.i18nTable && context.locale && hasLocalizedData) {
-						await tx.insert(this.i18nTable).values({
-							parentId: insertedRecord.id,
-							locale: context.locale,
-							...localized,
-							...(nestedLocalized != null
-								? { _localized: nestedLocalized }
-								: {}),
+					// Enforce access control
+					const canCreate = await this.enforceAccessControl(
+						"create",
+						normalized,
+						null,
+						input,
+					);
+					if (canCreate === false) {
+						throw ApiError.forbidden({
+							operation: "create",
+							resource: this.state.name,
+							reason: "User does not have permission to create records",
 						});
 					}
 
-					// Process nested relation operations (create, connect, connectOrCreate)
-					await this.processNestedRelationsInternal(
-						insertedRecord,
+					// Execute beforeValidate hook (transform input before validation)
+					await this.executeHooks(
+						this.state.hooks?.beforeValidate as any,
+						this.createHookContext({
+							data: input,
+							operation: "create",
+							context: normalized,
+							db,
+						}),
+					);
+
+					// Separate nested relation operations from regular fields BEFORE validation
+					// This prevents the validation schema from stripping relation fields
+					let { regularFields, nestedRelations } =
+						this.separateNestedRelationsInternal(input);
+
+					// Pre-apply connect operations to extract FK values before validation
+					// This allows validation to pass when FK fields are provided via nested relation syntax
+					({ regularFields, nestedRelations } = this.preApplyConnectOperations(
+						regularFields,
 						nestedRelations,
-						context,
-						tx,
-					);
+					));
 
-					// Create version
-					await this.createVersion(tx, insertedRecord, "create", context);
+					// Validate field-level write access (on regular fields only)
+					await this.validateFieldWriteAccess(regularFields, normalized);
 
-					// Re-fetch record with all computed fields (including _title)
-					// If i18n table exists, we MUST use i18n queries to properly fetch localized fields
-					const useI18n = !!this.i18nTable;
-					const needsFallback =
-						useI18n &&
-						normalized.localeFallback !== false &&
-						normalized.locale !== normalized.defaultLocale;
-					const i18nCurrentTable = useI18n
-						? alias(this.i18nTable!, "i18n_current")
-						: null;
-					const i18nFallbackTable = needsFallback
-						? alias(this.i18nTable!, "i18n_fallback")
-						: null;
-
-					const selectObj = this.buildSelectObject(
-						undefined,
-						undefined,
-						context,
-						i18nCurrentTable,
-						i18nFallbackTable,
-					);
-					let query = tx.select(selectObj).from(this.table);
-
-					if (useI18n && i18nCurrentTable) {
-						query = query.leftJoin(
-							i18nCurrentTable,
-							and(
-								eq((i18nCurrentTable as any).parentId, (this.table as any).id),
-								eq((i18nCurrentTable as any).locale, context.locale!),
-							),
-						);
-
-						if (needsFallback && i18nFallbackTable) {
-							query = query.leftJoin(
-								i18nFallbackTable,
-								and(
-									eq(
-										(i18nFallbackTable as any).parentId,
-										(this.table as any).id,
-									),
-									eq((i18nFallbackTable as any).locale, context.defaultLocale!),
-								),
-							);
+					// Runtime validation (if schemas are configured)
+					if (this.state.validation?.insertSchema) {
+						try {
+							// Validate and potentially transform the regular fields only
+							regularFields =
+								this.state.validation.insertSchema.parse(regularFields);
+						} catch (error: any) {
+							throw ApiError.fromZodError(error);
 						}
 					}
 
-					let [record] = await query.where(
-						eq((this.table as any).id, insertedRecord.id),
+					// Execute beforeChange hooks (after validation)
+					await this.executeHooks(
+						this.state.hooks?.beforeChange as any,
+						this.createHookContext({
+							data: regularFields,
+							operation: "create",
+							context,
+							db,
+						}),
 					);
 
-					// Application-side i18n merge
-					// Handles both flat localized fields and nested localized JSONB fields (via _localized column)
-					const hasLocalizedFieldsCreate = this.state.localized.length > 0;
-					if (useI18n && record && hasLocalizedFieldsCreate) {
-						[record] = mergeI18nRows([record], {
-							localizedFields: this.state.localized,
-							hasFallback: needsFallback,
+					let changeEvent: any = null;
+					let record: any;
+					try {
+						record = await withTransaction(db, async (tx: any) => {
+							({ regularFields, nestedRelations } =
+								await this.applyBelongsToRelationsInternal(
+									regularFields,
+									nestedRelations,
+									context,
+									tx,
+								));
+
+							// Split localized vs non-localized fields
+							// Auto-detects { $i18n: value } wrappers in JSONB fields
+							const { localized, nonLocalized, nestedLocalized } =
+								this.splitLocalizedFields(regularFields);
+
+							// Insert main record
+							const [insertedRecord] = await tx
+								.insert(this.table)
+								.values(nonLocalized)
+								.returning();
+
+							// Insert localized fields if any (flat fields + nested localized in _localized column)
+							const hasLocalizedData =
+								Object.keys(localized).length > 0 || nestedLocalized != null;
+							if (this.i18nTable && context.locale && hasLocalizedData) {
+								await tx.insert(this.i18nTable).values({
+									parentId: insertedRecord.id,
+									locale: context.locale,
+									...localized,
+									...(nestedLocalized != null
+										? { _localized: nestedLocalized }
+										: {}),
+								});
+							}
+
+							// Process nested relation operations (create, connect, connectOrCreate)
+							await this.processNestedRelationsInternal(
+								insertedRecord,
+								nestedRelations,
+								context,
+								tx,
+							);
+
+							// Create version
+							await this.createVersion(tx, insertedRecord, "create", context);
+
+							// Re-fetch record with all computed fields (including _title)
+							// If i18n table exists, we MUST use i18n queries to properly fetch localized fields
+							const useI18n = !!this.i18nTable;
+							const needsFallback =
+								useI18n &&
+								normalized.localeFallback !== false &&
+								normalized.locale !== normalized.defaultLocale;
+							const i18nCurrentTable = useI18n
+								? alias(this.i18nTable!, "i18n_current")
+								: null;
+							const i18nFallbackTable = needsFallback
+								? alias(this.i18nTable!, "i18n_fallback")
+								: null;
+
+							const selectObj = this.buildSelectObject(
+								undefined,
+								undefined,
+								context,
+								i18nCurrentTable,
+								i18nFallbackTable,
+							);
+							let query = tx.select(selectObj).from(this.table);
+
+							if (useI18n && i18nCurrentTable) {
+								query = query.leftJoin(
+									i18nCurrentTable,
+									and(
+										eq(
+											(i18nCurrentTable as any).parentId,
+											(this.table as any).id,
+										),
+										eq((i18nCurrentTable as any).locale, context.locale!),
+									),
+								);
+
+								if (needsFallback && i18nFallbackTable) {
+									query = query.leftJoin(
+										i18nFallbackTable,
+										and(
+											eq(
+												(i18nFallbackTable as any).parentId,
+												(this.table as any).id,
+											),
+											eq(
+												(i18nFallbackTable as any).locale,
+												context.defaultLocale!,
+											),
+										),
+									);
+								}
+							}
+
+							let [createdRecord] = await query.where(
+								eq((this.table as any).id, insertedRecord.id),
+							);
+
+							// Application-side i18n merge
+							// Handles both flat localized fields and nested localized JSONB fields (via _localized column)
+							const hasLocalizedFieldsCreate = this.state.localized.length > 0;
+							if (useI18n && createdRecord && hasLocalizedFieldsCreate) {
+								[createdRecord] = mergeI18nRows([createdRecord], {
+									localizedFields: this.state.localized,
+									hasFallback: needsFallback,
+								});
+							}
+
+							// Execute afterChange hooks
+							await this.executeHooks(
+								this.state.hooks?.afterChange as any,
+								this.createHookContext({
+									data: createdRecord,
+									operation: "create",
+									context,
+									db: tx,
+								}),
+							);
+
+							changeEvent = await this.appendRealtimeChange(
+								{
+									operation: "create",
+									recordId: createdRecord.id,
+									payload: createdRecord as Record<string, unknown>,
+								},
+								context,
+								tx,
+							);
+
+							// Queue search indexing to run after transaction commits
+							onAfterCommit(async () => {
+								await this.indexToSearch(createdRecord, context);
+							});
+
+							return createdRecord;
 						});
+					} catch (error: unknown) {
+						// Check if it's a database constraint violation
+						const dbError = parseDatabaseError(error);
+						if (dbError) {
+							throw dbError;
+						}
+						// Re-throw if not a known database error
+						throw error;
 					}
 
-					// Execute afterChange hooks
+					// Execute afterRead hook (transform output)
 					await this.executeHooks(
-						this.state.hooks?.afterChange as any,
+						this.state.hooks?.afterRead,
 						this.createHookContext({
 							data: record,
 							operation: "create",
 							context,
-							db: tx,
+							db,
 						}),
 					);
 
-					// Index to search (outside transaction)
-					await this.indexToSearch(record, context);
-
-					changeEvent = await this.appendRealtimeChange(
-						{
-							operation: "create",
-							recordId: record.id,
-							payload: record as Record<string, unknown>,
-						},
-						context,
-						tx,
-					);
-
+					await this.notifyRealtimeChange(changeEvent);
 					return record;
-				});
-			} catch (error: unknown) {
-				// Check if it's a database constraint violation
-				const dbError = parseDatabaseError(error);
-				if (dbError) {
-					throw dbError;
-				}
-				// Re-throw if not a known database error
-				throw error;
-			}
-
-			// Execute afterRead hook (transform output)
-			await this.executeHooks(
-				this.state.hooks?.afterRead,
-				this.createHookContext({
-					data: record,
-					operation: "create",
-					context,
-					db,
-				}),
+				},
 			);
-
-			await this.notifyRealtimeChange(changeEvent);
-			return record;
 		};
 	}
 
@@ -1117,7 +1160,7 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 		let updatedRecords: any[];
 
 		try {
-			updatedRecords = await db.transaction(async (tx: any) => {
+			updatedRecords = await withTransaction(db, async (tx: any) => {
 				const txContext = { ...normalized, db: tx };
 
 				// Apply belongsTo relations
@@ -1212,9 +1255,6 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 							db: tx,
 						}),
 					);
-
-					// Index to search
-					await this.indexToSearch(updated, txContext);
 				}
 
 				// Realtime change
@@ -1229,6 +1269,13 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 					txContext,
 					tx,
 				);
+
+				// Queue search indexing to run after transaction commits
+				for (const updated of refetchedRecords) {
+					onAfterCommit(async () => {
+						await this.indexToSearch(updated, normalized);
+					});
+				}
 
 				return refetchedRecords;
 			});
@@ -1346,7 +1393,7 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 
 			let changeEvent: any = null;
 			// Use transaction for delete + version
-			await db.transaction(async (tx: any) => {
+			await withTransaction(db, async (tx: any) => {
 				// Create version BEFORE delete
 				await this.createVersion(tx, existing, "delete", context);
 
@@ -1368,6 +1415,11 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 					context,
 					tx,
 				);
+
+				// Queue search index removal to run after transaction commits
+				onAfterCommit(async () => {
+					await this.removeFromSearch(id, context);
+				});
 			});
 
 			// Execute afterDelete hooks
@@ -1381,9 +1433,6 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 					db,
 				}),
 			);
-
-			// Remove from search index
-			await this.removeFromSearch(id, context);
 
 			await this.notifyRealtimeChange(changeEvent);
 
@@ -1549,7 +1598,7 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 
 			let changeEvent: any = null;
 			// 3. Batched DELETE query
-			await db.transaction(async (tx: any) => {
+			await withTransaction(db, async (tx: any) => {
 				const recordIds = records.map((r: any) => r.id);
 
 				// Create versions BEFORE delete
@@ -1577,6 +1626,13 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 					context,
 					tx,
 				);
+
+				// Queue search index removal to run after transaction commits
+				for (const record of records) {
+					onAfterCommit(async () => {
+						await this.removeFromSearch(record.id, context);
+					});
+				}
 			});
 
 			// 4. Loop through afterDelete hooks
@@ -1592,9 +1648,6 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 						db,
 					}),
 				);
-
-				// Remove from search index
-				await this.removeFromSearch(record.id, context);
 			}
 
 			await this.notifyRealtimeChange(changeEvent);
@@ -1846,7 +1899,7 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 				}),
 			);
 
-			return db.transaction(async (tx: any) => {
+			const updated = await withTransaction(db, async (tx: any) => {
 				if (Object.keys(nonLocalized).length > 0) {
 					await tx
 						.update(this.table)
@@ -1902,14 +1955,14 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 					.from(this.table)
 					.where(eq((this.table as any).id, options.id))
 					.limit(1);
-				const updated = updatedRows[0];
+				const result = updatedRows[0];
 
-				await this.createVersion(tx, updated, "update", normalized);
+				await this.createVersion(tx, result, "update", normalized);
 
 				await this.executeHooks(
 					this.state.hooks?.afterChange as any,
 					this.createHookContext({
-						data: updated,
+						data: result,
 						original: existing,
 						operation: "update",
 						context: normalized,
@@ -1917,10 +1970,17 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 					}),
 				);
 
-				await this.indexToSearch(updated, normalized);
+				// Queue search indexing to run after transaction commits
+				if (result) {
+					onAfterCommit(async () => {
+						await this.indexToSearch(result, normalized);
+					});
+				}
 
-				return updated;
+				return result;
 			});
+
+			return updated;
 		};
 	}
 
@@ -1978,6 +2038,7 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 	/**
 	 * Enforce access control
 	 * Delegates to extracted executeAccessRule utility
+	 * Falls back to CMS defaultAccess if collection doesn't define its own rules
 	 */
 	private async enforceAccessControl(
 		operation: "read" | "create" | "update" | "delete",
@@ -1991,7 +2052,9 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 		// System mode bypasses all access control
 		if (normalized.accessMode === "system") return true;
 
-		const accessRule = this.state.access?.[operation];
+		// Use collection's access rule, or fall back to CMS defaultAccess
+		const accessRule =
+			this.state.access?.[operation] ?? this.cms?.defaultAccess?.[operation];
 		return executeAccessRule(accessRule, {
 			cms: this.cms,
 			db,
@@ -2016,6 +2079,7 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 	/**
 	 * Filter fields from result based on field-level read access
 	 * Delegates to extracted getRestrictedReadFields utility
+	 * Merges collection field access with CMS defaultAccess.fields
 	 */
 	private async filterFieldsForRead(
 		result: any,
@@ -2024,10 +2088,17 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 		if (!result) return;
 
 		const db = this.getDb(context);
+
+		// Merge collection field access with defaultAccess.fields (collection takes precedence)
+		const mergedFieldAccess = {
+			...this.cms?.defaultAccess?.fields,
+			...this.state.access?.fields,
+		};
+
 		const fieldsToRemove = await getRestrictedReadFields(result, context, {
 			cms: this.cms,
 			db,
-			fieldAccess: this.state.access?.fields,
+			fieldAccess: mergedFieldAccess,
 		});
 
 		// Remove restricted fields
@@ -2039,6 +2110,7 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 	/**
 	 * Validate write access for all fields in input data
 	 * Delegates to extracted validateFieldsWriteAccess utility
+	 * Merges collection field access with CMS defaultAccess.fields
 	 */
 	private async validateFieldWriteAccess(
 		data: any,
@@ -2046,9 +2118,16 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 		existing?: any,
 	): Promise<void> {
 		const db = this.getDb(context);
+
+		// Merge collection field access with defaultAccess.fields (collection takes precedence)
+		const mergedFieldAccess = {
+			...this.cms?.defaultAccess?.fields,
+			...this.state.access?.fields,
+		};
+
 		await validateFieldsWriteAccess(
 			data,
-			this.state.access?.fields,
+			mergedFieldAccess,
 			context,
 			{ cms: this.cms, db },
 			this.state.name,

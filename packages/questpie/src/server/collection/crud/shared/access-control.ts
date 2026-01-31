@@ -6,26 +6,25 @@
  */
 
 import type {
-  AccessContext,
-  AccessWhere,
-  CollectionAccess,
-  FieldAccess,
+	AccessContext,
+	AccessWhere,
+	CollectionAccess,
+	FieldAccess,
 } from "#questpie/server/collection/builder/types.js";
-import type { Questpie } from "#questpie/server/config/cms.js";
 import type { CRUDContext } from "#questpie/server/collection/crud/types.js";
-import { normalizeContext } from "./context.js";
-import { getDb } from "./context.js";
+import type { Questpie } from "#questpie/server/config/cms.js";
+import { getDb, normalizeContext } from "./context.js";
 
 /**
  * Context for access rule evaluation
  */
 export interface AccessRuleEvaluationContext {
-  cms?: Questpie<any>;
-  db: any;
-  session?: CRUDContext["session"];
-  locale?: string;
-  row?: any;
-  input?: any;
+	cms?: Questpie<any>;
+	db: any;
+	session?: CRUDContext["session"];
+	locale?: string;
+	row?: any;
+	input?: any;
 }
 
 /**
@@ -36,43 +35,43 @@ export interface AccessRuleEvaluationContext {
  * @returns true (allow), false (deny), or AccessWhere (conditional access)
  */
 export async function executeAccessRule(
-  rule:
-    | boolean
-    | string
-    | ((
-        ctx: AccessContext,
-      ) => boolean | AccessWhere | Promise<boolean | AccessWhere>)
-    | undefined,
-  context: AccessRuleEvaluationContext,
+	rule:
+		| boolean
+		| string
+		| ((
+				ctx: AccessContext,
+		  ) => boolean | AccessWhere | Promise<boolean | AccessWhere>)
+		| undefined,
+	context: AccessRuleEvaluationContext,
 ): Promise<boolean | AccessWhere> {
-  // No rule = allow
-  if (rule === undefined) return true;
+	// No rule = allow
+	if (rule === undefined) return true;
 
-  // Boolean rule
-  if (typeof rule === "boolean") {
-    return rule;
-  }
+	// Boolean rule
+	if (typeof rule === "boolean") {
+		return rule;
+	}
 
-  // Role string rule
-  if (typeof rule === "string") {
-    return (context.session?.user as any)?.role === rule;
-  }
+	// Role string rule
+	if (typeof rule === "string") {
+		return (context.session?.user as any)?.role === rule;
+	}
 
-  // Function rule
-  if (typeof rule === "function") {
-    const result = await rule({
-      app: context.cms as any,
-      session: context.session,
-      data: context.row,
-      input: context.input,
-      db: context.db,
-      locale: context.locale,
-    });
+	// Function rule
+	if (typeof rule === "function") {
+		const result = await rule({
+			app: context.cms as any,
+			session: context.session,
+			data: context.row,
+			input: context.input,
+			db: context.db,
+			locale: context.locale,
+		});
 
-    return result;
-  }
+		return result;
+	}
 
-  return true;
+	return true;
 }
 
 /**
@@ -83,50 +82,50 @@ export async function executeAccessRule(
  * @returns true if row matches conditions
  */
 export async function matchesAccessConditions(
-  conditions: AccessWhere,
-  row: Record<string, any>,
+	conditions: AccessWhere,
+	row: Record<string, any>,
 ): Promise<boolean> {
-  for (const [key, value] of Object.entries(conditions)) {
-    if (key === "AND") {
-      // All conditions must match
-      for (const cond of value as AccessWhere[]) {
-        if (!(await matchesAccessConditions(cond, row))) {
-          return false;
-        }
-      }
-    } else if (key === "OR") {
-      // At least one condition must match
-      let anyMatch = false;
-      for (const cond of value as AccessWhere[]) {
-        if (await matchesAccessConditions(cond, row)) {
-          anyMatch = true;
-          break;
-        }
-      }
-      if (!anyMatch) return false;
-    } else if (key === "NOT") {
-      // Condition must NOT match
-      if (await matchesAccessConditions(value as AccessWhere, row)) {
-        return false;
-      }
-    } else {
-      // Simple field equality check
-      if (row[key] !== value) {
-        return false;
-      }
-    }
-  }
+	for (const [key, value] of Object.entries(conditions)) {
+		if (key === "AND") {
+			// All conditions must match
+			for (const cond of value as AccessWhere[]) {
+				if (!(await matchesAccessConditions(cond, row))) {
+					return false;
+				}
+			}
+		} else if (key === "OR") {
+			// At least one condition must match
+			let anyMatch = false;
+			for (const cond of value as AccessWhere[]) {
+				if (await matchesAccessConditions(cond, row)) {
+					anyMatch = true;
+					break;
+				}
+			}
+			if (!anyMatch) return false;
+		} else if (key === "NOT") {
+			// Condition must NOT match
+			if (await matchesAccessConditions(value as AccessWhere, row)) {
+				return false;
+			}
+		} else {
+			// Simple field equality check
+			if (row[key] !== value) {
+				return false;
+			}
+		}
+	}
 
-  return true;
+	return true;
 }
 
 /**
  * Options for filtering fields based on read access
  */
 export interface FilterFieldsForReadOptions {
-  cms?: Questpie<any>;
-  db: any;
-  fieldAccess?: Record<string, FieldAccess>;
+	cms?: Questpie<any>;
+	db: any;
+	fieldAccess?: Record<string, FieldAccess>;
 }
 
 /**
@@ -138,55 +137,55 @@ export interface FilterFieldsForReadOptions {
  * @returns Array of field names to remove
  */
 export async function getRestrictedReadFields(
-  result: Record<string, any>,
-  context: CRUDContext,
-  options: FilterFieldsForReadOptions,
+	result: Record<string, any>,
+	context: CRUDContext,
+	options: FilterFieldsForReadOptions,
 ): Promise<string[]> {
-  if (!result) return [];
+	if (!result) return [];
 
-  const normalized = normalizeContext(context);
+	const normalized = normalizeContext(context);
 
-  // System mode bypasses field access control
-  if (normalized.accessMode === "system") return [];
+	// System mode bypasses field access control
+	if (normalized.accessMode === "system") return [];
 
-  const fieldAccess = options.fieldAccess;
-  if (!fieldAccess) return [];
+	const fieldAccess = options.fieldAccess;
+	if (!fieldAccess) return [];
 
-  const fieldsToRemove: string[] = [];
+	const fieldsToRemove: string[] = [];
 
-  for (const fieldName of Object.keys(result)) {
-    // Skip meta fields
-    if (
-      fieldName === "id" ||
-      fieldName === "_title" ||
-      fieldName === "createdAt" ||
-      fieldName === "updatedAt" ||
-      fieldName === "deletedAt"
-    ) {
-      continue;
-    }
+	for (const fieldName of Object.keys(result)) {
+		// Skip meta fields
+		if (
+			fieldName === "id" ||
+			fieldName === "_title" ||
+			fieldName === "createdAt" ||
+			fieldName === "updatedAt" ||
+			fieldName === "deletedAt"
+		) {
+			continue;
+		}
 
-    const access = fieldAccess[fieldName];
-    if (!access || access.read === undefined) {
-      // No access rule for this field - allow read
-      continue;
-    }
+		const access = fieldAccess[fieldName];
+		if (!access || access.read === undefined) {
+			// No access rule for this field - allow read
+			continue;
+		}
 
-    const canRead = await executeAccessRule(access.read, {
-      cms: options.cms,
-      db: options.db,
-      session: normalized.session,
-      locale: normalized.locale,
-      row: result,
-    });
+		const canRead = await executeAccessRule(access.read, {
+			cms: options.cms,
+			db: options.db,
+			session: normalized.session,
+			locale: normalized.locale,
+			row: result,
+		});
 
-    // Field-level access should return boolean (not AccessWhere)
-    if (canRead !== true) {
-      fieldsToRemove.push(fieldName);
-    }
-  }
+		// Field-level access should return boolean (not AccessWhere)
+		if (canRead !== true) {
+			fieldsToRemove.push(fieldName);
+		}
+	}
 
-  return fieldsToRemove;
+	return fieldsToRemove;
 }
 
 /**
@@ -200,36 +199,36 @@ export async function getRestrictedReadFields(
  * @returns true if user can write to field
  */
 export async function checkFieldWriteAccess(
-  fieldName: string,
-  fieldAccess: Record<string, FieldAccess> | undefined,
-  context: CRUDContext,
-  options: { cms?: Questpie<any>; db: any },
-  existingRow?: any,
+	fieldName: string,
+	fieldAccess: Record<string, FieldAccess> | undefined,
+	context: CRUDContext,
+	options: { cms?: Questpie<any>; db: any },
+	existingRow?: any,
 ): Promise<boolean> {
-  const normalized = normalizeContext(context);
+	const normalized = normalizeContext(context);
 
-  // System mode can write all fields
-  if (normalized.accessMode === "system") return true;
+	// System mode can write all fields
+	if (normalized.accessMode === "system") return true;
 
-  if (!fieldAccess) return true;
+	if (!fieldAccess) return true;
 
-  const access = fieldAccess[fieldName];
-  if (!access || access.write === undefined) {
-    // No access rule for this field - allow write
-    return true;
-  }
+	const access = fieldAccess[fieldName];
+	if (!access || access.write === undefined) {
+		// No access rule for this field - allow write
+		return true;
+	}
 
-  const result = await executeAccessRule(access.write, {
-    cms: options.cms,
-    db: options.db,
-    session: normalized.session,
-    locale: normalized.locale,
-    row: existingRow,
-  });
+	const result = await executeAccessRule(access.write, {
+		cms: options.cms,
+		db: options.db,
+		session: normalized.session,
+		locale: normalized.locale,
+		row: existingRow,
+	});
 
-  // Field-level access: only boolean true allows write
-  // AccessWhere is treated as deny (it's for record-level filtering)
-  return result === true;
+	// Field-level access: only boolean true allows write
+	// AccessWhere is treated as deny (it's for record-level filtering)
+	return result === true;
 }
 
 /**
@@ -244,51 +243,51 @@ export async function checkFieldWriteAccess(
  * @param collectionName - Collection name for error message
  */
 export async function validateFieldsWriteAccess(
-  data: Record<string, any>,
-  fieldAccess: Record<string, FieldAccess> | undefined,
-  context: CRUDContext,
-  options: { cms?: Questpie<any>; db: any },
-  collectionName: string,
-  existingRow?: any,
+	data: Record<string, any>,
+	fieldAccess: Record<string, FieldAccess> | undefined,
+	context: CRUDContext,
+	options: { cms?: Questpie<any>; db: any },
+	collectionName: string,
+	existingRow?: any,
 ): Promise<void> {
-  // Lazy import to avoid circular dependency
-  const { ApiError } = await import("#questpie/server/errors/index.js");
+	// Lazy import to avoid circular dependency
+	const { ApiError } = await import("#questpie/server/errors/index.js");
 
-  const normalized = normalizeContext(context);
+	const normalized = normalizeContext(context);
 
-  // System mode bypasses field access control
-  if (normalized.accessMode === "system") return;
+	// System mode bypasses field access control
+	if (normalized.accessMode === "system") return;
 
-  if (!fieldAccess) return;
+	if (!fieldAccess) return;
 
-  for (const fieldName of Object.keys(data)) {
-    // Skip meta fields
-    if (
-      fieldName === "id" ||
-      fieldName === "createdAt" ||
-      fieldName === "updatedAt" ||
-      fieldName === "deletedAt"
-    ) {
-      continue;
-    }
+	for (const fieldName of Object.keys(data)) {
+		// Skip meta fields
+		if (
+			fieldName === "id" ||
+			fieldName === "createdAt" ||
+			fieldName === "updatedAt" ||
+			fieldName === "deletedAt"
+		) {
+			continue;
+		}
 
-    const canWrite = await checkFieldWriteAccess(
-      fieldName,
-      fieldAccess,
-      context,
-      options,
-      existingRow,
-    );
+		const canWrite = await checkFieldWriteAccess(
+			fieldName,
+			fieldAccess,
+			context,
+			options,
+			existingRow,
+		);
 
-    if (!canWrite) {
-      throw ApiError.forbidden({
-        operation: "update",
-        resource: collectionName,
-        reason: `Cannot write field '${fieldName}': access denied`,
-        fieldPath: fieldName,
-      });
-    }
-  }
+		if (!canWrite) {
+			throw ApiError.forbidden({
+				operation: "update",
+				resource: collectionName,
+				reason: `Cannot write field '${fieldName}': access denied`,
+				fieldPath: fieldName,
+			});
+		}
+	}
 }
 
 /**
@@ -299,20 +298,31 @@ export async function validateFieldsWriteAccess(
  * @returns Merged WHERE clause
  */
 export function mergeWhereWithAccess<TWhere = any>(
-  userWhere?: TWhere,
-  accessWhere?: boolean | AccessWhere,
+	userWhere?: TWhere,
+	accessWhere?: boolean | AccessWhere,
 ): TWhere | undefined {
-  if (accessWhere === true || accessWhere === false || !accessWhere) {
-    return userWhere;
-  }
+	// Access explicitly denied - caller should handle this and throw forbidden
+	// This function should not be called with accessWhere === false
+	// The CRUD layer checks for false before calling this function
+	if (accessWhere === false) {
+		throw new Error(
+			"mergeWhereWithAccess called with accessWhere === false. " +
+				"This should be handled at the CRUD level by throwing a forbidden error.",
+		);
+	}
 
-  // Merge access conditions with user conditions
-  if (!userWhere) {
-    return accessWhere as TWhere;
-  }
+	// Access explicitly allowed or no access rule - use user WHERE only
+	if (accessWhere === true || !accessWhere) {
+		return userWhere;
+	}
 
-  // Combine with AND
-  return {
-    AND: [userWhere, accessWhere],
-  } as TWhere;
+	// Merge access conditions with user conditions
+	if (!userWhere) {
+		return accessWhere as TWhere;
+	}
+
+	// Combine with AND
+	return {
+		AND: [userWhere, accessWhere],
+	} as TWhere;
 }

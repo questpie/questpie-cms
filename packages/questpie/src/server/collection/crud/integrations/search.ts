@@ -20,10 +20,10 @@
  * If no queue is configured, indexing falls back to synchronous mode.
  */
 
-import type { SQL, Column } from "drizzle-orm";
+import type { Column, SQL } from "drizzle-orm";
 import type { CollectionBuilderState } from "#questpie/server/collection/builder/types.js";
-import type { CRUDContext } from "#questpie/server/collection/crud/types.js";
 import { normalizeContext } from "#questpie/server/collection/crud/shared/index.js";
+import type { CRUDContext } from "#questpie/server/collection/crud/types.js";
 import type { Questpie } from "#questpie/server/config/cms.js";
 
 /** Title expression for SQL queries - resolved column or SQL expression */

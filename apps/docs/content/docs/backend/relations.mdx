@@ -37,7 +37,8 @@ A "belongs to" relationship where each record references a single related record
 import { q } from "questpie";
 import { varchar, uuid } from "drizzle-orm/pg-core";
 
-export const posts = q.collection("posts")
+export const posts = q
+  .collection("posts")
   .fields({
     title: varchar("title", { length: 255 }),
     authorId: uuid("author_id").notNull(), // Foreign key
@@ -60,7 +61,8 @@ export const posts = q.collection("posts")
 ### With Custom Reference
 
 ```typescript
-export const posts = q.collection("posts")
+export const posts = q
+  .collection("posts")
   .fields({
     title: varchar("title", { length: 255 }),
     categorySlug: varchar("category_slug", { length: 255 }), // Reference by slug
@@ -76,7 +78,8 @@ export const posts = q.collection("posts")
 ### Multiple One Relations
 
 ```typescript
-export const appointments = q.collection("appointments")
+export const appointments = q
+  .collection("appointments")
   .fields({
     customerId: uuid("customer_id").notNull(),
     barberId: uuid("barber_id").notNull(),
@@ -106,7 +109,8 @@ The inverse of a Many-to-One relation. A record has many related records.
 ### Basic Example
 
 ```typescript
-export const users = q.collection("users")
+export const users = q
+  .collection("users")
   .fields({
     name: varchar("name", { length: 255 }),
     email: varchar("email", { length: 255 }),
@@ -118,7 +122,8 @@ export const users = q.collection("users")
   }));
 
 // The corresponding "one" side
-export const posts = q.collection("posts")
+export const posts = q
+  .collection("posts")
   .fields({
     title: varchar("title", { length: 255 }),
     authorId: uuid("author_id").notNull(),
@@ -142,7 +147,8 @@ export const posts = q.collection("posts")
 ### With Cascade Delete
 
 ```typescript
-export const users = q.collection("users")
+export const users = q
+  .collection("users")
   .fields({
     /* ... */
   })
@@ -171,7 +177,8 @@ Blog posts with multiple tags:
 
 ```typescript
 // 1. Define the junction collection
-export const postTags = q.collection("post_tags")
+export const postTags = q
+  .collection("post_tags")
   .fields({
     postId: uuid("post_id")
       .notNull()
@@ -186,7 +193,8 @@ export const postTags = q.collection("post_tags")
   ]);
 
 // 2. Define the relation on both sides
-export const posts = q.collection("posts")
+export const posts = q
+  .collection("posts")
   .fields({
     title: varchar("title", { length: 255 }),
   })
@@ -198,7 +206,8 @@ export const posts = q.collection("posts")
     }),
   }));
 
-export const tags = q.collection("tags")
+export const tags = q
+  .collection("tags")
   .fields({
     name: varchar("name", { length: 100 }),
   })
@@ -224,7 +233,8 @@ export const orderItems = q.collection("order_items").fields({
   priceAtTime: integer("price_at_time").notNull(), // Store price snapshot
 });
 
-export const orders = q.collection("orders")
+export const orders = q
+  .collection("orders")
   .fields({
     orderNumber: varchar("order_number", { length: 50 }),
     customerId: uuid("customer_id"),
@@ -252,7 +262,8 @@ export const postImages = q.collection("post_images").fields({
   caption: text("caption"),
 });
 
-export const posts = q.collection("posts")
+export const posts = q
+  .collection("posts")
   .fields({
     /* ... */
   })
@@ -264,6 +275,11 @@ export const posts = q.collection("posts")
     }),
   }));
 ```
+
+<Callout type="info">
+  Many-to-many relations work with both Collections and Globals. Use the same
+  API in globals for managing relations.
+</Callout>
 
 ## Querying Relations
 
@@ -378,7 +394,8 @@ const comments = await app.api.collections.comments.find({
 Access table references in your fields:
 
 ```typescript
-export const posts = q.collection("posts")
+export const posts = q
+  .collection("posts")
   .fields({
     // Use table reference for foreign key
     authorId: uuid("author_id")
@@ -403,7 +420,8 @@ export const posts = q.collection("posts")
 ```typescript
 // Many-to-one: Post → Category
 // Many-to-many: Post ↔ Tags
-export const posts = q.collection("posts")
+export const posts = q
+  .collection("posts")
   .fields({
     title: varchar("title", { length: 255 }),
     categoryId: uuid("category_id"),
@@ -426,7 +444,8 @@ export const posts = q.collection("posts")
 ```typescript
 // Order → Customer (many-to-one)
 // Order ↔ Products (many-to-many with quantities)
-export const orders = q.collection("orders")
+export const orders = q
+  .collection("orders")
   .fields({
     customerId: uuid("customer_id").notNull(),
     orderNumber: varchar("order_number", { length: 50 }),
@@ -448,7 +467,8 @@ export const orders = q.collection("orders")
 ### Hierarchical Data (Self-Referencing)
 
 ```typescript
-export const categories = q.collection("categories")
+export const categories = q
+  .collection("categories")
   .fields({
     name: varchar("name", { length: 255 }),
     parentId: uuid("parent_id"), // Self-reference
@@ -481,7 +501,8 @@ const categories = await app.api.collections.categories.find({
 
 ```typescript
 // One-to-one: User ↔ Profile
-export const users = q.collection("users")
+export const users = q
+  .collection("users")
   .fields({
     email: varchar("email", { length: 255 }),
   })
@@ -492,7 +513,8 @@ export const users = q.collection("users")
     }),
   }));
 
-export const profiles = q.collection("profiles")
+export const profiles = q
+  .collection("profiles")
   .fields({
     userId: uuid("user_id").notNull().unique(), // Unique enforces one-to-one
     bio: text("bio"),

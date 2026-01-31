@@ -66,3 +66,14 @@ export {
 	appendRealtimeChange,
 	notifyRealtimeChange,
 } from "./realtime.js";
+
+// Transaction utilities with AsyncLocalStorage
+export {
+	getCurrentTransaction,
+	getTransactionContext,
+	isInTransaction,
+	onAfterCommit,
+	type TransactionContext,
+	withTransaction,
+	withTransactionOrExisting,
+} from "./transaction.js";

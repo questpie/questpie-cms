@@ -1,9 +1,9 @@
 ---
 title: Context
-description: Understanding request context and how to access app services.
+description: Understanding request context and how to access typed app services.
 ---
 
-QUESTPIE uses **AsyncLocalStorage** (from Node.js `node:async_hooks`) to provide request-scoped context throughout your application. This allows you to access the app instance and request information from anywhere in your code without explicitly passing it through every function call.
+QUESTPIE provides typed context access through the `getContext<TApp>()` helper. This allows you to access the app instance, session, database, and other request information with full TypeScript support.
 
 ## Why Context Matters
 
@@ -12,126 +12,194 @@ In a typical request flow, you might need to:
 - Access the current user in a hook
 - Send an email from a job handler
 - Query another collection from within a function
+- Access the database client for custom queries
 
-Instead of passing the app instance and user through every function, QUESTPIE automatically sets up context that you can access anywhere.
+Instead of passing the app instance through every function, QUESTPIE provides `getContext<TApp>()` that gives you fully typed access to everything.
 
-## Accessing Context
+## The `getContext<TApp>()` Helper
 
-### `getAppFromContext()`
-
-Returns the app instance with full type-safe access to all services:
+The new `getContext<TApp>()` helper provides fully typed access to your app, session, database, and more:
 
 ```typescript
-import { getAppFromContext } from "questpie";
+import { getContext } from "questpie";
+import type { AppCMS } from "./app";
 
-// In a hook, function, or job handler
-const app = getAppFromContext();
+// In hooks, access control, or functions
+const { app, session, db, locale, accessMode } = getContext<AppCMS>(ctx);
 
-// Now you have access to everything:
+// Now you have full type-safe access:
 await app.api.collections.posts.find();
-await app.email.send({
-  to: "user@example.com",
-  subject: "Hello",
-  html: "<p>Hi</p>",
-});
 await app.queue.sendNotification.publish({ userId: "123" });
 app.logger.info("Something happened");
+
+// Database is fully typed with Drizzle
+const result = await db.query.users.findMany();
 ```
 
-### `getRequestContext()`
-
-Returns the current request context with user, locale, and other request-specific data:
+### What's Available in Context
 
 ```typescript
-import { getRequestContext } from "questpie";
-
-const ctx = getRequestContext();
-
-// Access request-specific data
-console.log(ctx?.user); // Current authenticated user
-console.log(ctx?.locale); // Current locale (e.g., "en", "sk")
-console.log(ctx?.accessMode); // "user" or "system"
-console.log(ctx?.session); // Current session
-```
-
-## RequestContext Interface
-
-```typescript
-interface RequestContext {
-  /** Current authenticated user (from Better Auth) */
-  user?: User & { role?: string };
-
-  /** Current request session */
-  session?: Session;
-
-  /** Current locale for this request */
-  locale?: string;
-
-  /** Default locale (fallback) */
-  defaultLocale?: string;
-
-  /** Access mode - 'system' bypasses access control, 'user' enforces it */
-  accessMode?: "user" | "system";
-
-  /** Database client (for transactions) */
-  db?: any;
-
-  /** Custom extensions */
-  [key: string]: any;
+interface ContextReturn<TApp> {
+  app: TApp; // Your typed CMS instance
+  session: InferSessionFromApp<TApp>; // Better Auth session (or null/undefined)
+  db: InferDbFromApp<TApp>; // Drizzle client
+  locale: string | undefined; // Current locale
+  accessMode: "user" | "system"; // Access mode
 }
+```
+
+## Usage Patterns
+
+### 1. Explicit Pattern (Recommended)
+
+Pass the context object directly - this is the clearest and most explicit approach:
+
+```typescript
+import { getContext } from "questpie";
+import type { AppCMS } from "./app";
+
+// In access control
+q.collection("posts")
+  .access({
+    read: (ctx) => {
+      const { session, app } = getContext<AppCMS>(ctx);
+
+      // Check user role
+      if (session?.user.role === "admin") return true;
+
+      // Check ownership
+      return ctx.row.authorId === session?.user.id;
+    },
+  });
+
+// In hooks
+q.collection("posts").hooks({
+  afterChange: async (ctx) => {
+    const { app, session, db } = getContext<AppCMS>(ctx);
+
+    // Access queue
+    await app.queue.notify.publish({ postId: ctx.data.id });
+
+    // Access database
+    await db.insert(auditLog).values({ ... });
+  },
+});
+```
+
+### 2. Implicit Pattern (Via AsyncLocalStorage)
+
+For reusable functions, you can call `getContext()` without parameters to retrieve from AsyncLocalStorage:
+
+```typescript
+// Reusable helper - no context parameter needed!
+async function logActivity(message: string) {
+  const { db, session, app } = getContext<AppCMS>();
+
+  await db.insert(activityLog).values({
+    message,
+    userId: session?.user.id,
+    timestamp: new Date(),
+  });
+}
+
+// Use in hooks - context flows automatically
+q.collection("posts").hooks({
+  afterChange: async ({ data }) => {
+    await logActivity(`Post ${data.id} created`);
+  },
+});
+```
+
+**Important:** The implicit pattern only works when called within a CRUD operation, hook, or `runWithContext()` scope. If called outside, it throws an error.
+
+### 3. `runWithContext()` for Manual Scoping
+
+For advanced use cases, you can manually run code within a request-scoped context:
+
+```typescript
+import { runWithContext, getContext } from "questpie";
+import type { AppCMS } from "./app";
+
+// Create your own context scope
+await runWithContext(
+  {
+    app: cms,
+    session: { user: { id: "123", role: "admin" } },
+    db: cms.db,
+    locale: "en",
+    accessMode: "system",
+  },
+  async () => {
+    // Inside here, getContext<AppCMS>() works without parameters
+    const { app, session } = getContext<AppCMS>();
+
+    await app.api.collections.posts.find();
+    console.log(session?.user.id);
+  },
+);
+```
+
+## Smart Type Inference
+
+`getContext()` returns only what you pass to it - enabling smart type inference:
+
+```typescript
+// If you only pass session:
+const { session } = getContext<AppCMS>({ session: ctx.session });
+// session is typed, but app and db are `never` (can't access what you didn't provide)
+
+// Full context:
+const { app, session, db, locale, accessMode } = getContext<AppCMS>(ctx);
+// Everything is typed
+
+// Implicit (from AsyncLocalStorage) - gives you everything:
+const { app, session, db, locale, accessMode } = getContext<AppCMS>();
 ```
 
 ## Where Context is Available
 
 Context is automatically set up in these scenarios:
 
-### 1. HTTP Requests
+### HTTP Requests
 
 When a request comes through the adapter, context is automatically created:
 
 ```typescript
 // In Hono
-server.use(questpieMiddleware(app)); // Sets up context
+server.use(questpieMiddleware(app));
 
 server.get("/api/custom", async (c) => {
-  // Context is available here
-  const app = getAppFromContext();
-  const ctx = getRequestContext();
+  // Inside handlers, CRUD operations automatically set up context
+  const posts = await app.api.collections.posts.find();
+  // Hooks called during find() can use getContext()
 });
 ```
 
-### 2. Collection Hooks
+### Collection Hooks
 
-All hooks run within context:
+All hooks run within `runWithContext` scope:
 
 ```typescript
 q.collection("posts").hooks({
-  afterChange: async ({ data, operation }) => {
-    // Context is available
-    const app = getAppFromContext();
-    const ctx = getRequestContext();
+  afterChange: async (ctx) => {
+    const { app, session, db } = getContext<AppCMS>(ctx);
 
-    if (operation === "create") {
-      await app.queue.postCreated.publish({ postId: data.id });
-    }
+    await app.queue.postCreated.publish({ postId: ctx.data.id });
   },
 });
 ```
 
-### 3. Custom Functions
+### Custom Functions
 
 Functions execute within context:
 
 ```typescript
 q.fn({
   schema: z.object({ postId: z.string() }),
-  handler: async (input) => {
-    // Context is available
-    const app = getAppFromContext();
-    const ctx = getRequestContext();
+  handler: async (input, ctx) => {
+    const { app, session, db } = getContext<AppCMS>(ctx);
 
-    // Access current user
-    if (!ctx?.user) {
+    if (!session) {
       throw new Error("Must be authenticated");
     }
 
@@ -140,7 +208,7 @@ q.fn({
 });
 ```
 
-### 4. Job Handlers
+### Job Handlers
 
 Jobs run with a fresh context:
 
@@ -148,9 +216,8 @@ Jobs run with a fresh context:
 q.job({
   name: "send-email",
   schema: z.object({ to: z.string(), subject: z.string() }),
-  handler: async (payload) => {
-    // Context is available
-    const app = getAppFromContext();
+  handler: async (payload, ctx) => {
+    const { app } = getContext<AppCMS>(ctx);
 
     await app.email.send({
       to: payload.to,
@@ -161,110 +228,97 @@ q.job({
 });
 ```
 
-## Running Code Within Context
+## Migration from Old API
 
-For advanced use cases, you can manually run code within a context:
+If you're using the old `getAppFromContext()` and `getRequestContext()` functions:
+
+**Before (deprecated):**
 
 ```typescript
-import { runWithAppContext } from "questpie";
+import { getAppFromContext, getRequestContext } from "questpie";
 
-// Create a context
-const context = await app.createContext({
-  user: someUser,
-  locale: "en",
-  accessMode: "system",
-});
+const app = getAppFromContext();
+const ctx = getRequestContext();
+```
 
-// Run code within that context
-await runWithAppContext(app, context, async () => {
-  // getAppFromContext() and getRequestContext() work here
-  const app = getAppFromContext();
-  await app.api.collections.posts.find();
-});
+**After (new):**
+
+```typescript
+import { getContext } from "questpie";
+import type { AppCMS } from "./app";
+
+// Explicit - pass context
+const { app, session, db, locale, accessMode } = getContext<AppCMS>(ctx);
+
+// Or implicit - from AsyncLocalStorage
+const { app, session, db, locale, accessMode } = getContext<AppCMS>();
 ```
 
 ## Access Modes
 
 The `accessMode` in context controls how access control is applied:
 
-### `"user"` Mode (Default for HTTP requests)
+### `"user"` Mode
 
 Access control rules are enforced based on the current user:
 
 ```typescript
-const context = await app.createContext({
-  user: currentUser,
-  accessMode: "user", // Access control is enforced
-});
+const { accessMode } = getContext<AppCMS>(ctx);
+// accessMode === "user" means access control is enforced
 ```
 
-### `"system"` Mode (Default for jobs and internal operations)
+### `"system"` Mode
 
 Access control is bypassed - full access to all data:
 
 ```typescript
-const context = await app.createContext({
-  accessMode: "system", // Full access, no restrictions
-});
+const { accessMode } = getContext<AppCMS>(ctx);
+// accessMode === "system" means full access, no restrictions
 ```
 
 ## Best Practices
 
-### 1. Always Use `getAppFromContext()` in Hooks and Functions
+### 1. Always Pass Context Explicitly in Access Control
 
 ```typescript
-// Good - uses context
-afterChange: async ({ data }) => {
-  const app = getAppFromContext();
-  await app.queue.notify.publish({ id: data.id });
-};
-
-// Bad - imports global instance
-import { app } from "./app";
-afterChange: async ({ data }) => {
-  await app.queue.notify.publish({ id: data.id }); // Don't do this
-};
+// Good - explicit, type-safe
+.access({
+  read: (ctx) => {
+    const { session } = getContext<AppCMS>(ctx);
+    return session?.user.role === "admin";
+  },
+});
 ```
 
-### 2. Check for User When Needed
+### 2. Use Implicit Pattern Only in Reusable Helpers
 
 ```typescript
-handler: async (input) => {
-  const ctx = getRequestContext();
+// Good - helper doesn't need context parameter
+async function logActivity(message: string) {
+  const { db, session } = getContext<AppCMS>();
+  // ...
+}
 
-  if (!ctx?.user) {
+// Bad - requiring context parameter is verbose
+async function logActivity(ctx: any, message: string) {
+  const { db, session } = getContext<AppCMS>(ctx);
+  // ...
+}
+```
+
+### 3. Handle Missing Session
+
+```typescript
+handler: async (input, ctx) => {
+  const { session } = getContext<AppCMS>(ctx);
+
+  if (!session) {
     throw new Error("Authentication required");
   }
 
-  // Now TypeScript knows ctx.user exists
-  console.log(ctx.user.id);
+  // Now TypeScript knows session is defined
+  console.log(session.user.id);
 };
-```
-
-### 3. Use Type Parameter for Full Type Safety
-
-```typescript
-import type { MyApp } from "./app";
-
-const app = getAppFromContext<MyApp>();
-// Now app.api.collections.yourCollection is fully typed
-```
-
-## How It Works (Technical)
-
-Under the hood, QUESTPIE uses Node.js `AsyncLocalStorage`:
-
-1. When a request arrives, `createAdapterContext()` creates context from the request
-2. The handler runs inside `runWithAppContext()` which stores context in AsyncLocalStorage
-3. Any code that calls `getAppFromContext()` or `getRequestContext()` retrieves from AsyncLocalStorage
-4. When the request completes, context is automatically cleaned up
-
-This pattern allows context to "flow" through async operations without explicit passing:
-
-```
-Request → Middleware → Handler → Hook → Job trigger
-                ↓           ↓        ↓
-           [Context flows through AsyncLocalStorage]
 ```
 
 ## Related
@@ -272,3 +326,4 @@ Request → Middleware → Handler → Hook → Job trigger
 - [Hooks](/docs/backend/hooks) - Add business logic
 - [Access Control](/docs/backend/access-control) - Secure operations
 - [Queue Jobs](/docs/guides/queue-jobs) - Background processing
+- [Default Access](/docs/backend/access-control#default-access) - Global access defaults

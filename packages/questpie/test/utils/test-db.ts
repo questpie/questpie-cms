@@ -1,6 +1,7 @@
 import path, { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { PGlite } from "@electric-sql/pglite";
+import { pg_trgm } from "@electric-sql/pglite/contrib/pg_trgm";
 import { sql } from "drizzle-orm";
 import type { drizzle } from "drizzle-orm/pglite";
 import type { Questpie } from "../../src/server/index.js";
@@ -14,8 +15,10 @@ const dirname = path.dirname(filename);
 export const testMigrationDir = join(dirname, "test-migrations-generate");
 
 export const createTestDb = async () => {
-	// No need for pg_uuidv7 extension anymore - we use gen_random_uuid() which is built-in
-	const client = await PGlite.create();
+	// Create PGlite with pg_trgm extension for trigram search support
+	const client = await PGlite.create({
+		extensions: { pg_trgm },
+	});
 
 	return client;
 };
@@ -71,4 +74,7 @@ export const runTestDbMigrations = async (
 
 	// Run migrations
 	await app.migrations.up();
+
+	// Ensure search service is initialized (in case fire-and-forget init hasn't completed)
+	await app.search?.initialize?.();
 };

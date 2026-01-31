@@ -207,7 +207,12 @@ export class QuestpieMigrationsAPI<
 
 		for (const migration of migrations) {
 			try {
-				await this.cms.db.execute(sql.raw(migration.up));
+				// Split SQL into individual statements to support PGLite
+				// which doesn't allow multiple commands in a prepared statement
+				const statements = this.splitSqlStatements(migration.up);
+				for (const statement of statements) {
+					await this.cms.db.execute(sql.raw(statement));
+				}
 				applied.push(migration.name);
 			} catch (error: any) {
 				// Handle "already exists" gracefully - these are idempotent
@@ -257,7 +262,11 @@ export class QuestpieMigrationsAPI<
 		for (let i = migrations.length - 1; i >= 0; i--) {
 			const migration = migrations[i];
 			try {
-				await this.cms.db.execute(sql.raw(migration.down));
+				// Split SQL into individual statements to support PGLite
+				const statements = this.splitSqlStatements(migration.down);
+				for (const statement of statements) {
+					await this.cms.db.execute(sql.raw(statement));
+				}
 				applied.push(migration.name);
 			} catch (error: any) {
 				// Ignore "does not exist" errors
@@ -330,5 +339,16 @@ export class QuestpieMigrationsAPI<
 			arr[Math.floor(Math.random() * arr.length)]!;
 
 		return `${randomItem(adjectives)}_${randomItem(colors)}_${randomItem(animals)}`;
+	}
+
+	/**
+	 * Split SQL string into individual statements.
+	 * This is needed because PGLite doesn't allow multiple commands in a prepared statement.
+	 */
+	private splitSqlStatements(sqlString: string): string[] {
+		return sqlString
+			.split(";")
+			.map((s) => s.trim())
+			.filter((s) => s.length > 0);
 	}
 }

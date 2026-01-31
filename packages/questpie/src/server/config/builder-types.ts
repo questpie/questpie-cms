@@ -1,4 +1,5 @@
 import type { BetterAuthOptions } from "better-auth";
+import type { CollectionAccess } from "#questpie/server/collection/builder/types.js";
 import type {
 	AnyCollectionOrBuilder,
 	AnyGlobalOrBuilder,
@@ -131,6 +132,12 @@ export interface QuestpieRuntimeConfig<TDbConfig extends DbConfig = DbConfig> {
 	 * KV adapter configuration
 	 */
 	kv?: KVConfig;
+
+	/**
+	 * Default access control for all collections and globals
+	 * Applied when collection/global doesn't define its own access rules
+	 */
+	defaultAccess?: CollectionAccess;
 }
 
 /**

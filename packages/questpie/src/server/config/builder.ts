@@ -1,4 +1,5 @@
 import type { BetterAuthOptions } from "better-auth";
+import type { MailAdapter, QueueAdapter } from "#questpie/exports/index.js";
 import type {
 	BuilderCollectionsMap,
 	BuilderEmailTemplatesMap,
@@ -28,18 +29,26 @@ import {
 	mergeAuthOptions,
 } from "#questpie/server/integrated/auth/config.js";
 import type { Migration } from "#questpie/server/migration/types.js";
-import type { MailAdapter, QueueAdapter } from "#questpie/exports/index.js";
 import type {
+	PrettifiedAnyCollectionOrBuilder,
+	PrettifiedAnyGlobalOrBuilder,
+	Prettify,
 	SetProperty,
 	TypeMerge,
 	UnsetProperty,
-	Prettify,
-	PrettifiedAnyCollectionOrBuilder,
-	PrettifiedAnyGlobalOrBuilder,
 } from "#questpie/shared/type-utils.js";
 
 type QuestpieFromState<
-	TState extends QuestpieBuilderState<string, any, any, any, any, any, any, any>,
+	TState extends QuestpieBuilderState<
+		string,
+		any,
+		any,
+		any,
+		any,
+		any,
+		any,
+		any
+	>,
 > = Questpie<
 	Prettify<
 		TypeMerge<
@@ -647,6 +656,7 @@ export class QuestpieBuilder<
 				migrations: this.state.migrations,
 			},
 			translations: this.state.translations,
+			defaultAccess: runtimeConfig.defaultAccess,
 		};
 
 		return new Questpie(cmsConfig) as any;

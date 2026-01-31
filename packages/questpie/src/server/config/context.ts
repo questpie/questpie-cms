@@ -1,49 +1,9 @@
+import { AsyncLocalStorage } from "node:async_hooks";
 import type { Session, User } from "better-auth/types";
 import type { AccessMode } from "./types.js";
 
 // ============================================================================
-// Type Inference Utilities (Deprecated - Use Explicit Helpers Instead)
-// ============================================================================
-
-/**
- * @deprecated Use InferSessionFromApp<TApp> and getSession<TApp>() instead.
- *
- * Base session type from Better Auth.
- * The session object contains both `user` and `session` from Better Auth.
- *
- * @example
- * ```ts
- * // OLD (deprecated):
- * const session: InferSession = ctx.session;
- *
- * // NEW (recommended):
- * import { getSession } from "questpie";
- * import type { AppCMS } from "./cms";
- *
- * const session = getSession<AppCMS>(ctx.session);
- * ```
- */
-export type InferSession = { user: User; session: Session };
-
-/**
- * @deprecated Use InferDbFromApp<TApp> and getDb<TApp>() instead.
- *
- * @example
- * ```ts
- * // OLD (deprecated):
- * const db: InferDb = ctx.db;
- *
- * // NEW (recommended):
- * import { getDb } from "questpie";
- * import type { AppCMS } from "./cms";
- *
- * const db = getDb<AppCMS>(ctx.db);
- * ```
- */
-export type InferDb = any;
-
-// ============================================================================
-// Explicit Type Helpers (Recommended Pattern)
+// Type Inference Utilities
 // ============================================================================
 
 /**
@@ -176,6 +136,179 @@ export function getSession<TApp>(
 	return session as InferSessionFromApp<TApp> | null | undefined;
 }
 
+/**
+ * Infer the app/CMS type from a CMS app instance.
+ *
+ * @example
+ * ```ts
+ * type MyApp = InferAppFromApp<typeof cms>;
+ * ```
+ */
+export type InferAppFromApp<TApp> = TApp;
+
+/**
+ * Fully typed context helper - casts all context properties to their proper types.
+ *
+ * Use this in hooks and access control functions to get fully typed access to:
+ * - `ctx.app` - your specific CMS instance with queues, email, etc.
+ * - `ctx.session` - typed session from Better Auth
+ * - `ctx.db` - typed Drizzle client with your schema
+ *
+ * @template TApp - Your CMS type (e.g., `typeof cms` or `AppCMS`)
+ *
+ * @example
+ * ```ts
+ * import { getContext } from "questpie";
+ * import type { AppCMS } from "./cms";
+ *
+ * .access({
+ *   read: (ctx) => {
+ *     const { session, app, db } = getContext<AppCMS>(ctx);
+ *
+ *     // ✅ session.user is fully typed
+ *     if (session?.user.role !== "admin") return false;
+ *
+ *     // ✅ app has your specific queues, collections, etc.
+ *     await app.queue.notifications.publish({ ... });
+ *
+ *     // ✅ db is typed with your schema
+ *     const logs = await db.query.auditLogs.findMany({ ... });
+ *
+ *     return true;
+ *   }
+ * })
+ * ```
+ */
+
+// ============================================================================
+// AsyncLocalStorage for Implicit Context
+// ============================================================================
+
+/**
+ * Internal AsyncLocalStorage for request-scoped context.
+ * Used when getContext() is called without explicit context parameter.
+ */
+const cmsContextStorage = new AsyncLocalStorage<{
+	app: unknown;
+	session?: unknown | null;
+	db?: unknown;
+	locale?: string;
+	accessMode?: string;
+}>();
+
+/**
+ * Run code within a request context scope.
+ * Context set here can be retrieved via getContext<TApp>() without parameters.
+ *
+ * @example
+ * ```ts
+ * await runWithContext({ app: cms, session, db }, async () => {
+ *   // Inside here, getContext<AppCMS>() works without parameters
+ *   const { session } = getContext<AppCMS>();
+ * });
+ * ```
+ */
+export function runWithContext<T>(
+	ctx: {
+		app: unknown;
+		session?: unknown | null;
+		db?: unknown;
+		locale?: string;
+		accessMode?: string;
+	},
+	fn: () => T | Promise<T>,
+): Promise<T> {
+	return cmsContextStorage.run(ctx, fn) as Promise<T>;
+}
+
+/**
+ * Get typed context - supports both explicit and implicit patterns.
+ *
+ * **Explicit pattern** (recommended for hooks/access control):
+ * Pass context object directly from handler parameters.
+ * ```ts
+ * .access({
+ *   read: (ctx) => {
+ *     const { session, app, db } = getContext<AppCMS>(ctx);
+ *     return session?.user.role === "admin";
+ *   }
+ * })
+ * ```
+ *
+ * **Implicit pattern** (useful in reusable functions):
+ * Call without parameters to get context from AsyncLocalStorage.
+ * Must be called within runWithContext() scope.
+ * ```ts
+ * async function reusableHelper() {
+ *   const { db, session } = getContext<AppCMS>();
+ *   // db and session are typed
+ * }
+ *
+ * // Usage
+ * await runWithContext({ app: cms, session, db }, async () => {
+ *   await reusableHelper(); // Works without passing context
+ * });
+ * ```
+ */
+
+// Type helpers for smart return type based on input
+type GetContextReturn<TApp, TCtx> = {
+	app: TCtx extends { app: unknown } ? InferAppFromApp<TApp> : never;
+	session: TCtx extends { session: infer S }
+		? S
+		: InferSessionFromApp<TApp> | null | undefined;
+	db: TCtx extends { db: unknown } ? InferDbFromApp<TApp> : never;
+	locale: TCtx extends { locale: infer L } ? L : string | undefined;
+	accessMode: TCtx extends { accessMode: infer A } ? A : string | undefined;
+};
+
+// Overload: No context provided - gets everything from AsyncLocalStorage
+export function getContext<TApp>(): {
+	app: InferAppFromApp<TApp>;
+	session: InferSessionFromApp<TApp> | null | undefined;
+	db: InferDbFromApp<TApp>;
+	locale: string | undefined;
+	accessMode: string | undefined;
+};
+
+// Overload: With context object - smart return type based on what you pass
+export function getContext<
+	TApp,
+	TCtx extends {
+		app?: unknown;
+		session?: unknown | null;
+		db?: unknown;
+		locale?: string;
+		accessMode?: string;
+	},
+>(ctx: TCtx): GetContextReturn<TApp, TCtx>;
+
+// Implementation
+export function getContext<TApp>(ctx?: {
+	app?: unknown;
+	session?: unknown | null;
+	db?: unknown;
+	locale?: string;
+	accessMode?: string;
+	[key: string]: any;
+}): any {
+	// If explicit context provided, use it
+	if (ctx) {
+		return ctx;
+	}
+
+	// Otherwise, try to get from AsyncLocalStorage
+	const stored = cmsContextStorage.getStore();
+	if (!stored) {
+		throw new Error(
+			"getContext() called without explicit context and no request scope available. " +
+				"Either pass context as parameter or call within runWithContext() scope.",
+		);
+	}
+
+	return stored;
+}
+
 // ============================================================================
 // Request Context
 // ============================================================================
@@ -207,7 +340,7 @@ export interface RequestContext {
 	 * const expiresAt = ctx.session.session.expiresAt;
 	 * ```
 	 */
-	session?: InferSession | null;
+	session?: { user: User; session: Session } | null;
 
 	/**
 	 * Current locale for this request
@@ -246,7 +379,7 @@ export interface RequestContext {
 	 * }
 	 * ```
 	 */
-	db?: InferDb;
+	db?: any;
 
 	/**
 	 * Allow extensions for custom context properties.

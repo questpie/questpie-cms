@@ -1,4 +1,5 @@
 import type {
+	CollectionAccess,
 	InferTableWithColumns,
 	LocalizedFields,
 	NonLocalizedFields,
@@ -402,6 +403,35 @@ export interface QuestpieConfig {
 		 */
 		migrations?: Migration[];
 	};
+
+	/**
+	 * Default access control for all collections and globals.
+	 * Applied when collection/global doesn't define its own access rules.
+	 *
+	 * @example
+	 * ```ts
+	 * // Require authentication for all collections by default
+	 * questpie({
+	 *   defaultAccess: {
+	 *     read: ({ session }) => !!session,
+	 *     create: ({ session }) => !!session,
+	 *     update: ({ session }) => !!session,
+	 *     delete: ({ session }) => !!session,
+	 *   }
+	 * })
+	 *
+	 * // Admin-only by default
+	 * questpie({
+	 *   defaultAccess: {
+	 *     read: ({ session }) => (session?.user as any)?.role === "admin",
+	 *     create: ({ session }) => (session?.user as any)?.role === "admin",
+	 *     update: ({ session }) => (session?.user as any)?.role === "admin",
+	 *     delete: ({ session }) => (session?.user as any)?.role === "admin",
+	 *   }
+	 * })
+	 * ```
+	 */
+	defaultAccess?: CollectionAccess;
 
 	/**
 	 * I18n translations configuration for backend error messages

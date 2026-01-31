@@ -69,6 +69,12 @@ export class Questpie<TConfig extends QuestpieConfig = QuestpieConfig> {
 	private pgConnectionString?: string;
 
 	/**
+	 * Default access control for all collections and globals.
+	 * Applied when collection/global doesn't define its own access rules.
+	 */
+	public readonly defaultAccess: TConfig["defaultAccess"];
+
+	/**
 	 * Backend translator function for i18n
 	 * Translates error messages and system messages
 	 *
@@ -120,6 +126,7 @@ export class Questpie<TConfig extends QuestpieConfig = QuestpieConfig> {
 
 	constructor(config: TConfig) {
 		this.config = config;
+		this.defaultAccess = config.defaultAccess;
 
 		// Initialize translator
 		this.t = createTranslator(config.translations);
@@ -187,20 +194,6 @@ export class Questpie<TConfig extends QuestpieConfig = QuestpieConfig> {
 			},
 		});
 
-		const jobRunsContext = (() => {
-			try {
-				const collection = (this as Questpie<any>).getCollectionConfig(
-					"job_run",
-				);
-				return {
-					db: this.db,
-					table: collection.table,
-				};
-			} catch {
-				return null;
-			}
-		})();
-
 		// Initialize queue if configured
 		if (config.queue) {
 			if (!config.queue.adapter) {
@@ -211,7 +204,6 @@ export class Questpie<TConfig extends QuestpieConfig = QuestpieConfig> {
 			this.queue = createQueueClient(
 				config.queue.jobs,
 				config.queue.adapter,
-				jobRunsContext,
 			) as any;
 		} else {
 			this.queue = {} as any; // Empty queue client if no jobs defined
