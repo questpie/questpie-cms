@@ -3,6 +3,7 @@ import type { MailAdapter, QueueAdapter } from "#questpie/exports/index.js";
 import type {
 	BuilderCollectionsMap,
 	BuilderEmailTemplatesMap,
+	BuilderFieldsMap,
 	BuilderFunctionsMap,
 	BuilderGlobalsMap,
 	BuilderJobsMap,
@@ -41,6 +42,7 @@ import type {
 type QuestpieFromState<
 	TState extends QuestpieBuilderState<
 		string,
+		any,
 		any,
 		any,
 		any,
@@ -109,6 +111,7 @@ export class QuestpieBuilder<
 		any,
 		any,
 		any,
+		any,
 		any
 	> = QuestpieBuilderState,
 > {
@@ -127,6 +130,7 @@ export class QuestpieBuilder<
 			jobs: {},
 			emailTemplates: {},
 			functions: {},
+			fields: {},
 			auth: {},
 			locale: undefined,
 			migrations: undefined,
@@ -313,6 +317,51 @@ export class QuestpieBuilder<
 	}
 
 	/**
+	 * Register field types for the Field Builder system.
+	 * Fields are available when defining collections with `.fields((f) => ({ ... }))`.
+	 *
+	 * @example
+	 * ```ts
+	 * import { textField, numberField } from "@questpie/server/fields";
+	 *
+	 * const q = questpie({ name: "app" })
+	 *   .fields({
+	 *     text: textField,
+	 *     number: numberField,
+	 *   });
+	 *
+	 * // Now available in collections:
+	 * const posts = collection("posts")
+	 *   .fields((f) => ({
+	 *     title: f.text({ required: true }),
+	 *     views: f.number({ min: 0 }),
+	 *   }));
+	 * ```
+	 */
+	fields<TNewFields extends BuilderFieldsMap>(
+		fields: TNewFields,
+	): QuestpieBuilder<
+		SetProperty<
+			TState,
+			"fields",
+			Prettify<
+				TypeMerge<
+					UnsetProperty<TState["fields"], keyof TNewFields>,
+					TNewFields
+				>
+			>
+		>
+	> {
+		return new QuestpieBuilder({
+			...this.state,
+			fields: {
+				...this.state.fields,
+				...fields,
+			},
+		} as any);
+	}
+
+	/**
 	 * Configure authentication (Better Auth)
 	 * Type-inferrable - affects auth instance type
 	 * Override strategy: Last wins
@@ -360,7 +409,9 @@ export class QuestpieBuilder<
 				TState["jobs"],
 				TState["emailTemplates"],
 				TState["functions"],
-				MergeAuthOptions<TState["auth"], TNewAuth>
+				MergeAuthOptions<TState["auth"], TNewAuth>,
+				TState["~messageKeys"],
+				TState["fields"]
 			>
 		>
 	> {
@@ -518,6 +569,7 @@ export class QuestpieBuilder<
 		TOtherFunctions extends BuilderFunctionsMap,
 		TOtherAuth extends BetterAuthOptions | Record<never, never>,
 		TOtherMessageKeys extends string,
+		TOtherFields extends BuilderFieldsMap,
 	>(
 		other: QuestpieBuilder<
 			QuestpieBuilderState<
@@ -528,7 +580,8 @@ export class QuestpieBuilder<
 				TOtherEmailTemplates,
 				TOtherFunctions,
 				TOtherAuth,
-				TOtherMessageKeys
+				TOtherMessageKeys,
+				TOtherFields
 			>
 		>,
 	): QuestpieBuilder<
@@ -554,7 +607,11 @@ export class QuestpieBuilder<
 				>,
 				MergeAuthOptions<TState["auth"], TOtherAuth>,
 				| Extract<TState["~messageKeys"], string>
-				| Extract<TOtherMessageKeys, string>
+				| Extract<TOtherMessageKeys, string>,
+				TypeMerge<
+					UnsetProperty<TState["fields"], keyof TOtherFields>,
+					TOtherFields
+				>
 			>
 		>
 	> {
@@ -566,7 +623,8 @@ export class QuestpieBuilder<
 			TOtherEmailTemplates,
 			TOtherFunctions,
 			TOtherAuth,
-			TOtherMessageKeys
+			TOtherMessageKeys,
+			TOtherFields
 		>;
 
 		return new QuestpieBuilder({
@@ -590,6 +648,10 @@ export class QuestpieBuilder<
 			functions: {
 				...this.state.functions,
 				...otherState.functions,
+			},
+			fields: {
+				...this.state.fields,
+				...otherState.fields,
 			},
 			auth: mergeAuthOptions(this.state.auth, otherState.auth),
 

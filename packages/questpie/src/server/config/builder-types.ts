@@ -31,6 +31,7 @@ export type BuilderEmailTemplatesMap = Record<
 	EmailTemplateDefinition<any, any>
 >;
 export type BuilderFunctionsMap = Record<string, FunctionDefinition>;
+export type BuilderFieldsMap = Record<string, any>; // Field factory functions
 export type BuilderMapValues<TMap extends Record<PropertyKey, any>> =
 	TMap[keyof TMap];
 export type EmptyBuilderMap = Record<never, never>;
@@ -48,6 +49,7 @@ export interface QuestpieBuilderState<
 	TFunctions extends BuilderFunctionsMap = BuilderFunctionsMap,
 	TAuth extends BetterAuthOptions | Record<never, never> = Record<never, never>,
 	TMessageKeys extends string = never,
+	TFields extends BuilderFieldsMap = BuilderFieldsMap,
 > {
 	name: TName;
 	collections: TCollections;
@@ -55,6 +57,12 @@ export interface QuestpieBuilderState<
 	jobs: TJobs;
 	emailTemplates: TEmailTemplates;
 	functions: TFunctions;
+
+	/**
+	 * Registered field types for the Field Builder system.
+	 * Used when defining collections with `.fields((f) => ({ ... }))`.
+	 */
+	fields: TFields;
 
 	// Type-inferrable configurations (affect types)
 	auth: TAuth;
@@ -152,12 +160,14 @@ export type EmptyNamedBuilderState<TName extends string> = QuestpieBuilderState<
 	EmptyBuilderMap,
 	EmptyBuilderMap,
 	Record<never, never>,
-	never // No message keys initially
+	never, // No message keys initially
+	EmptyBuilderMap // No fields initially
 > & {
 	auth: {};
 	locale: undefined;
 	migrations: undefined;
 	"~messageKeys": never;
+	fields: {};
 };
 
 export type EmptyBuilderState = EmptyNamedBuilderState<"">;

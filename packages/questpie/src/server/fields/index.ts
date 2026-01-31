@@ -38,7 +38,7 @@ export type {
 	FieldDefinition,
 	AnyFieldDefinition,
 	BaseFieldConfig,
-	FieldAccess,
+	FieldDefinitionAccess,
 	FieldHooks,
 	FieldHookContext,
 	FieldAccessContext,

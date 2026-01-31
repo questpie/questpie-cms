@@ -177,7 +177,7 @@ export interface BaseFieldConfig {
 	 * Field-level access control.
 	 * If access has functions (not just `true`), output type becomes optional.
 	 */
-	access?: FieldAccess;
+	access?: FieldDefinitionAccess;
 
 	/**
 	 * Virtual field - no DB column.
@@ -214,7 +214,7 @@ export interface FieldAccessContext {
 }
 
 /**
- * Field-level access control.
+ * Field-level access control for field definitions.
  * Evaluated at runtime to determine if user can access field.
  *
  * Type implications:
@@ -224,7 +224,7 @@ export interface FieldAccessContext {
  * - `false` = never allowed (same as input: false / output: false)
  * - Function = runtime check, output becomes TOutput | undefined
  */
-export interface FieldAccess {
+export interface FieldDefinitionAccess {
 	/**
 	 * Can read this field?
 	 * If function returns false, field is omitted from response.
