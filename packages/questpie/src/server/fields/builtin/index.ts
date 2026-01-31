@@ -28,6 +28,19 @@ export { selectField, type SelectFieldConfig, type SelectOption } from "./select
 // Upload field
 export { uploadField, type UploadFieldConfig } from "./upload.js";
 
+// Relation fields
+export {
+	relationField,
+	type RelationFieldConfig,
+	type RelationType,
+	type ReferentialAction,
+} from "./relation.js";
+export {
+	polymorphicRelationField,
+	type PolymorphicRelationConfig,
+	type PolymorphicReference,
+} from "./polymorphic-relation.js";
+
 /**
  * Default field factories map.
  * Use this with QuestpieBuilder.fields() to register all built-in fields.

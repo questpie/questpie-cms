@@ -15,6 +15,8 @@ import { datetimeField } from "./datetime.js";
 import { timeField } from "./time.js";
 import { selectField } from "./select.js";
 import { uploadField } from "./upload.js";
+import { relationField } from "./relation.js";
+import { polymorphicRelationField } from "./polymorphic-relation.js";
 
 /**
  * Default field factories map.
@@ -61,6 +63,10 @@ export const defaultFields = {
 
 	// Upload
 	upload: uploadField,
+
+	// Relations
+	relation: relationField,
+	polymorphicRelation: polymorphicRelationField,
 } as const;
 
 /**
