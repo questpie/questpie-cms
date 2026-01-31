@@ -21,3 +21,12 @@ export {
 	type ZodErrorMapFn,
 	type ZodIssue,
 } from "./zod-error-map.js";
+
+export {
+	isI18nLocaleMap,
+	isI18nTranslationKey,
+	resolveI18nText,
+	type I18nLocaleMap,
+	type I18nText,
+	type I18nTranslationKey,
+} from "./types.js";
