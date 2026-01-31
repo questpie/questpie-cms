@@ -84,5 +84,8 @@ export {
 // Define field helper
 export { defineField, type FieldImplementation } from "./define-field.js";
 
+// Built-in field types
+export * from "./builtin/index.js";
+
 // Utilities
 export * from "./utils/index.js";
