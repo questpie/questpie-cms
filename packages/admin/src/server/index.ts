@@ -29,8 +29,11 @@ export * from "./adapters/index.js";
 // Export augmentation types for external use
 export type {
 	ActionReference,
+	// Actions system types
+	ActionsConfigContext,
 	AdminCollectionConfig,
 	AdminGlobalConfig,
+	BuiltinActionType,
 	ComponentDefinition,
 	ComponentReference,
 	DashboardConfigContext,
@@ -42,6 +45,19 @@ export type {
 	ListViewConfig,
 	ListViewDefinition,
 	PreviewConfig,
+	// Action types
+	ServerActionContext,
+	ServerActionDefinition,
+	ServerActionDownload,
+	ServerActionEffects,
+	ServerActionError,
+	ServerActionForm,
+	ServerActionFormField,
+	ServerActionHandler,
+	ServerActionRedirect,
+	ServerActionResult,
+	ServerActionSuccess,
+	ServerActionsConfig,
 	ServerChartWidget,
 	ServerCustomWidget,
 	ServerDashboardConfig,
@@ -112,14 +128,22 @@ export {
 } from "./fields/index.js";
 // Main admin module - the complete backend for admin panel
 export {
+	// Action functions
+	actionFunctions,
 	adminModule,
 	createFirstAdmin,
 	// Preview helpers (server-only, crypto-based)
 	// For browser-safe preview utilities, use @questpie/admin/shared
 	createPreviewFunctions,
 	createPreviewTokenVerifier,
+	type ExecuteActionRequest,
+	type ExecuteActionResponse,
+	executeAction,
+	executeActionFn,
 	type FilterOperator,
 	type FilterRule,
+	getActionsConfig,
+	getActionsConfigFn,
 	isSetupRequired,
 	type PreviewTokenPayload,
 	type SortConfig,

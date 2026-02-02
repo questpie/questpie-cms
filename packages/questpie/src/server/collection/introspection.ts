@@ -83,7 +83,7 @@ export interface CollectionSchema {
 	};
 
 	/**
-	 * Admin configuration from .admin(), .list(), .form(), .preview()
+	 * Admin configuration from .admin(), .list(), .form(), .preview(), .actions()
 	 * Only present when adminModule is used.
 	 */
 	admin?: {
@@ -95,6 +95,8 @@ export interface CollectionSchema {
 		form?: AdminFormViewSchema;
 		/** Preview configuration */
 		preview?: AdminPreviewSchema;
+		/** Actions configuration */
+		actions?: AdminActionsSchema;
 	};
 }
 
@@ -180,6 +182,61 @@ export interface AdminPreviewSchema {
 	defaultWidth?: number;
 	/** URL template or pattern (actual URL generation happens server-side) */
 	hasUrlBuilder?: boolean;
+}
+
+/**
+ * Admin actions schema (from .actions())
+ */
+export interface AdminActionsSchema {
+	/** Built-in actions enabled */
+	builtin: string[];
+	/** Custom actions (without handlers) */
+	custom: Array<AdminActionDefinitionSchema>;
+}
+
+/**
+ * Schema for a custom action definition (without handler)
+ */
+export interface AdminActionDefinitionSchema {
+	/** Unique action ID */
+	id: string;
+	/** Display label */
+	label: I18nText;
+	/** Action description */
+	description?: I18nText;
+	/** Icon reference */
+	icon?: { type: string; props: Record<string, unknown> };
+	/** Button variant */
+	variant?: "default" | "destructive" | "outline" | "secondary" | "ghost";
+	/** Where the action appears */
+	scope?: "single" | "bulk" | "header" | "row";
+	/** Form configuration (for actions with input) */
+	form?: {
+		title: I18nText;
+		description?: I18nText;
+		fields: Record<
+			string,
+			{
+				type: string;
+				label?: I18nText;
+				description?: I18nText;
+				required?: boolean;
+				default?: unknown;
+				options?: unknown;
+			}
+		>;
+		submitLabel?: I18nText;
+		cancelLabel?: I18nText;
+		width?: "sm" | "md" | "lg" | "xl";
+	};
+	/** Confirmation dialog */
+	confirmation?: {
+		title: I18nText;
+		description?: I18nText;
+		confirmLabel?: I18nText;
+		cancelLabel?: I18nText;
+		destructive?: boolean;
+	};
 }
 
 /**
@@ -439,6 +496,29 @@ function extractAdminConfig(
 			defaultWidth: stateAny.adminPreview.defaultWidth,
 			// Don't include the url function - just indicate it exists
 			hasUrlBuilder: typeof stateAny.adminPreview.url === "function",
+		};
+	}
+
+	// Extract actions config (.actions())
+	if (stateAny.adminActions) {
+		const actionsConfig = stateAny.adminActions;
+
+		// Strip handlers from custom actions for client consumption
+		const customActions = (actionsConfig.custom || []).map(
+			(action: { handler?: unknown; [key: string]: unknown }) => {
+				const { handler, ...rest } = action;
+				return rest;
+			},
+		);
+
+		result.actions = {
+			builtin: actionsConfig.builtin || [
+				"create",
+				"save",
+				"delete",
+				"deleteMany",
+			],
+			custom: customActions,
 		};
 	}
 

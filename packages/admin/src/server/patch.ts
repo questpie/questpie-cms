@@ -16,8 +16,10 @@
 
 import { CollectionBuilder, GlobalBuilder, QuestpieBuilder } from "questpie";
 import type {
+	ActionsConfigContext,
 	AdminCollectionConfig,
 	AdminGlobalConfig,
+	BuiltinActionType,
 	ComponentDefinition,
 	DashboardConfigContext,
 	EditViewDefinition,
@@ -25,6 +27,8 @@ import type {
 	ListViewConfig,
 	ListViewDefinition,
 	PreviewConfig,
+	ServerActionDefinition,
+	ServerActionsConfig,
 	ServerDashboardConfig,
 	ServerSidebarConfig,
 	SidebarConfigContext,
@@ -162,6 +166,136 @@ function createActionProxy() {
 		 * Reference a custom action by name
 		 */
 		custom: (name: string, config?: unknown) => ({ type: name, config }),
+	};
+}
+
+/**
+ * Create a simple field definition for action forms.
+ * This is a lightweight version that only stores the config
+ * for later extraction during introspection.
+ */
+function createSimpleFieldDef(type: string, config?: Record<string, unknown>) {
+	return {
+		_isActionField: true,
+		type,
+		...config,
+		// For compatibility with field definition interface
+		getMetadata() {
+			return { type, ...config };
+		},
+	};
+}
+
+/**
+ * Default field factories for action forms.
+ * These create simple field configs that will be serialized for the client.
+ */
+const defaultActionFieldRegistry: Record<
+	string,
+	(config?: Record<string, unknown>) => any
+> = {
+	text: (config) => createSimpleFieldDef("text", config),
+	email: (config) => createSimpleFieldDef("email", config),
+	textarea: (config) => createSimpleFieldDef("textarea", config),
+	number: (config) => createSimpleFieldDef("number", config),
+	boolean: (config) => createSimpleFieldDef("boolean", config),
+	date: (config) => createSimpleFieldDef("date", config),
+	datetime: (config) => createSimpleFieldDef("datetime", config),
+	time: (config) => createSimpleFieldDef("time", config),
+	select: (config) => createSimpleFieldDef("select", config),
+	json: (config) => createSimpleFieldDef("json", config),
+	url: (config) => createSimpleFieldDef("url", config),
+};
+
+/**
+ * Create an actions config context for the .actions() method.
+ * Provides builders for both built-in and custom actions.
+ *
+ * @example
+ * ```ts
+ * .actions(({ a, c, f }) => ({
+ *   builtin: [a.create(), a.delete(), a.deleteMany()],
+ *   custom: [
+ *     a.action({
+ *       id: "send-email",
+ *       label: { en: "Send Email" },
+ *       icon: c.icon("ph:envelope"),
+ *       form: {
+ *         title: { en: "Send Email" },
+ *         fields: {
+ *           subject: f.text({ label: { en: "Subject" }, required: true }),
+ *           message: f.textarea({ label: { en: "Message" } }),
+ *         },
+ *       },
+ *       handler: async ({ data }) => {
+ *         return { type: "success", toast: { message: "Email sent!" } };
+ *       },
+ *     }),
+ *   ],
+ * }))
+ * ```
+ */
+function createActionsConfigContext<
+	TFields extends Record<string, unknown> = Record<string, unknown>,
+>(
+	fieldRegistry?: Record<string, (config?: any) => any>,
+): ActionsConfigContext<TFields> {
+	// Use provided registry or fall back to default action field registry
+	const registry = fieldRegistry || defaultActionFieldRegistry;
+
+	// Create field proxy that uses the field registry
+	const fieldProxy = new Proxy(
+		{} as Record<string, (config?: Record<string, unknown>) => any>,
+		{
+			get: (_target, prop: string) => {
+				// First check custom registry, then fallback to default
+				const factory = registry[prop] || defaultActionFieldRegistry[prop];
+				if (!factory) {
+					throw new Error(
+						`Unknown field type: "${prop}". ` +
+							`Available types: ${Object.keys({ ...defaultActionFieldRegistry, ...registry }).join(", ")}`,
+					);
+				}
+				return (config?: Record<string, unknown>) => factory(config);
+			},
+		},
+	);
+
+	return {
+		a: {
+			create: () => "create" as BuiltinActionType,
+			save: () => "save" as BuiltinActionType,
+			delete: () => "delete" as BuiltinActionType,
+			deleteMany: () => "deleteMany" as BuiltinActionType,
+			duplicate: () => "duplicate" as BuiltinActionType,
+			action: <TData = Record<string, unknown>>(
+				def: Omit<ServerActionDefinition<TData>, "scope"> & {
+					scope?: "single" | "row";
+				},
+			) =>
+				({
+					...def,
+					scope: def.scope ?? "single",
+				}) as ServerActionDefinition<TData>,
+			bulkAction: <TData = Record<string, unknown>>(
+				def: Omit<ServerActionDefinition<TData>, "scope">,
+			) =>
+				({
+					...def,
+					scope: "bulk",
+				}) as ServerActionDefinition<TData>,
+			headerAction: <TData = Record<string, unknown>>(
+				def: Omit<ServerActionDefinition<TData>, "scope">,
+			) =>
+				({
+					...def,
+					scope: "header",
+				}) as ServerActionDefinition<TData>,
+		},
+		c: {
+			icon: (name: string) => ({ type: "icon" as const, props: { name } }),
+		},
+		f: fieldProxy,
 	};
 }
 
@@ -555,6 +689,81 @@ function patchCollectionBuilder() {
 		const newState = {
 			...this.state,
 			adminPreview: config,
+		};
+
+		const newBuilder = new CollectionBuilder(newState);
+		if (this._indexesFn) {
+			(newBuilder as any)._indexesFn = this._indexesFn;
+		}
+		return newBuilder;
+	};
+
+	/**
+	 * Configure actions for the collection.
+	 * Enables built-in actions (create, delete, etc.) and custom actions with forms.
+	 *
+	 * Form fields use the same field registry as collections. The field proxy `f`
+	 * is resolved at build time when the full field registry is available.
+	 *
+	 * @example
+	 * ```ts
+	 * .actions(({ a, c, f }) => ({
+	 *   builtin: [a.create(), a.delete(), a.deleteMany(), a.duplicate()],
+	 *   custom: [
+	 *     a.action({
+	 *       id: "publish",
+	 *       label: { en: "Publish" },
+	 *       icon: c.icon("ph:check-circle"),
+	 *       confirmation: {
+	 *         title: { en: "Publish this item?" },
+	 *         description: { en: "This will make the item visible to the public." },
+	 *       },
+	 *       handler: async ({ itemId, app, db }) => {
+	 *         // publish logic
+	 *         return { type: "success", toast: { message: "Published!" } };
+	 *       },
+	 *     }),
+	 *     a.action({
+	 *       id: "send-email",
+	 *       label: { en: "Send Email" },
+	 *       icon: c.icon("ph:envelope"),
+	 *       form: {
+	 *         title: { en: "Send Email" },
+	 *         fields: {
+	 *           subject: f.text({ label: { en: "Subject" }, required: true }),
+	 *           message: f.textarea({ label: { en: "Message" } }),
+	 *         },
+	 *       },
+	 *       handler: async ({ data }) => {
+	 *         // send email logic - data.subject, data.message are typed
+	 *         return { type: "success", toast: { message: "Email sent!" } };
+	 *       },
+	 *     }),
+	 *     a.bulkAction({
+	 *       id: "bulk-publish",
+	 *       label: { en: "Publish Selected" },
+	 *       handler: async ({ itemIds }) => {
+	 *         // bulk publish logic
+	 *         return { type: "success", toast: { message: `${itemIds?.length} items published!` } };
+	 *       },
+	 *     }),
+	 *   ],
+	 * }))
+	 * ```
+	 */
+	proto.actions = function (
+		configFn: (
+			ctx: ActionsConfigContext<Record<string, unknown>>,
+		) => ServerActionsConfig,
+	): CollectionBuilder<any> {
+		// Execute with default field registry
+		// Custom field types can be added via the field registry
+		const ctx = createActionsConfigContext();
+		const config = configFn(ctx);
+
+		const newState = {
+			...this.state,
+			adminActions: config,
 		};
 
 		const newBuilder = new CollectionBuilder(newState);
