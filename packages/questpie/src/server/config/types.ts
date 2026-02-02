@@ -1,9 +1,12 @@
 import type {
 	CollectionAccess,
+	ExtractFieldsByLocation,
 	InferTableWithColumns,
-	LocalizedFields,
-	NonLocalizedFields,
 } from "#questpie/server/collection/builder/types.js";
+import type {
+	FieldDefinition,
+	FieldDefinitionState,
+} from "#questpie/server/fields/types.js";
 import type { FunctionsMap } from "#questpie/server/functions/types.js";
 import type { TranslationsConfig } from "#questpie/server/i18n/types.js";
 import type {
@@ -20,6 +23,22 @@ import type {
 	GetCollection,
 	GetGlobal,
 } from "#questpie/shared/type-utils.js";
+
+// Local type definitions using new TState approach
+// These types maintain backward compatibility while using the new field definition system
+type NonLocalizedFields<
+	TFields extends Record<string, any>,
+	TLocalized extends ReadonlyArray<keyof TFields>,
+> = TFields extends Record<string, FieldDefinition<FieldDefinitionState>>
+	? ExtractFieldsByLocation<TFields, "main">
+	: Omit<TFields, TLocalized[number]>;
+
+type LocalizedFields<
+	TFields extends Record<string, any>,
+	TLocalized extends ReadonlyArray<keyof TFields>,
+> = TFields extends Record<string, FieldDefinition<FieldDefinitionState>>
+	? ExtractFieldsByLocation<TFields, "i18n">
+	: Pick<TFields, TLocalized[number]>;
 
 // Re-export for convenience (many files import from here)
 export type {

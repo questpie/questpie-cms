@@ -1,22 +1,26 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
-import { text } from "drizzle-orm/pg-core";
-import { collection, global, questpie } from "../../src/server/index.js";
+import { defaultFields } from "../../src/server/fields/builtin/defaults.js";
+import { questpie } from "../../src/server/index.js";
 import { buildMockApp } from "../utils/mocks/mock-app-builder.js";
 import { createTestContext } from "../utils/test-context.js";
 import { runTestDbMigrations } from "../utils/test-db.js";
 
+const q = questpie({ name: "test-module" }).fields(defaultFields);
+
 // Collection WITHOUT explicit access - should inherit defaultAccess
-const publicPosts = collection("public_posts")
-	.fields({
-		title: text("title").notNull(),
-	})
+const publicPosts = q
+	.collection("public_posts")
+	.fields((f) => ({
+		title: f.textarea({ required: true }),
+	}))
 	.build();
 
 // Collection WITH explicit access - should override defaultAccess
-const adminNotes = collection("admin_notes")
-	.fields({
-		content: text("content").notNull(),
-	})
+const adminNotes = q
+	.collection("admin_notes")
+	.fields((f) => ({
+		content: f.textarea({ required: true }),
+	}))
 	.access({
 		read: ({ session }) => (session?.user as any)?.role === "admin",
 		create: ({ session }) => (session?.user as any)?.role === "admin",
@@ -24,10 +28,11 @@ const adminNotes = collection("admin_notes")
 	.build();
 
 // Collection with PARTIAL access - only read defined, others should fallback to defaultAccess
-const partialAccessPosts = collection("partial_access_posts")
-	.fields({
-		title: text("title").notNull(),
-	})
+const partialAccessPosts = q
+	.collection("partial_access_posts")
+	.fields((f) => ({
+		title: f.textarea({ required: true }),
+	}))
 	.access({
 		// Only read is defined - create/update/delete should use defaultAccess
 		read: () => true, // Public read
@@ -35,17 +40,19 @@ const partialAccessPosts = collection("partial_access_posts")
 	.build();
 
 // Global WITHOUT explicit access - should inherit defaultAccess
-const siteSettings = global("site_settings")
-	.fields({
-		siteName: text("site_name").notNull(),
-	})
+const siteSettings = q
+	.global("site_settings")
+	.fields((f) => ({
+		siteName: f.textarea({ required: true }),
+	}))
 	.build();
 
 // Global WITH explicit access - should override defaultAccess
-const adminSettings = global("admin_settings")
-	.fields({
-		secretKey: text("secret_key").notNull(),
-	})
+const adminSettings = q
+	.global("admin_settings")
+	.fields((f) => ({
+		secretKey: f.textarea({ required: true }),
+	}))
 	.access({
 		read: ({ session }) => (session?.user as any)?.role === "admin",
 		update: ({ session }) => (session?.user as any)?.role === "admin",
@@ -54,7 +61,7 @@ const adminSettings = global("admin_settings")
 
 describe("default access control", () => {
 	// Create CMS with defaultAccess requiring authentication
-	const testModule = questpie({ name: "test-module" })
+	const testModule = q
 		.collections({
 			public_posts: publicPosts,
 			admin_notes: adminNotes,

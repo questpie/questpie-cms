@@ -21,13 +21,11 @@ import {
 } from "drizzle-orm/pg-core";
 import { Collection } from "#questpie/server/collection/builder/collection.js";
 import type {
+	ExtractFieldsByLocation,
 	I18nFieldAccessor,
 	InferSQLType,
-	NonLocalizedFields,
-	RelationVariant,
 } from "#questpie/server/collection/builder/types.js";
 import type {
-	GlobalBuilderRelationFn,
 	GlobalBuilderState,
 	InferGlobalTableWithColumns,
 } from "#questpie/server/global/builder/types.js";
@@ -123,7 +121,9 @@ export class Global<TState extends GlobalBuilderState> {
 	public readonly name: TState["name"];
 	public readonly table: InferGlobalTableWithColumns<
 		TState["name"],
-		NonLocalizedFields<TState["fields"], TState["localized"]>,
+		TState["fieldDefinitions"] extends Record<string, any>
+			? ExtractFieldsByLocation<TState["fieldDefinitions"], "main">
+			: Omit<TState["fields"], TState["localized"][number]>,
 		TState["options"]
 	>;
 	public readonly i18nTable: TState["localized"][number] extends never
@@ -140,7 +140,9 @@ export class Global<TState extends GlobalBuilderState> {
 		select: InferGlobalSelect<
 			InferGlobalTableWithColumns<
 				TState["name"],
-				NonLocalizedFields<TState["fields"], TState["localized"]>,
+				TState["fieldDefinitions"] extends Record<string, any>
+					? ExtractFieldsByLocation<TState["fieldDefinitions"], "main">
+					: Omit<TState["fields"], TState["localized"][number]>,
 				TState["options"]
 			>,
 			TState["fields"],
@@ -150,7 +152,9 @@ export class Global<TState extends GlobalBuilderState> {
 		insert: InferGlobalInsert<
 			InferGlobalTableWithColumns<
 				TState["name"],
-				NonLocalizedFields<TState["fields"], TState["localized"]>,
+				TState["fieldDefinitions"] extends Record<string, any>
+					? ExtractFieldsByLocation<TState["fieldDefinitions"], "main">
+					: Omit<TState["fields"], TState["localized"][number]>,
 				TState["options"]
 			>,
 			TState["fields"],
@@ -159,7 +163,9 @@ export class Global<TState extends GlobalBuilderState> {
 		update: InferGlobalUpdate<
 			InferGlobalTableWithColumns<
 				TState["name"],
-				NonLocalizedFields<TState["fields"], TState["localized"]>,
+				TState["fieldDefinitions"] extends Record<string, any>
+					? ExtractFieldsByLocation<TState["fieldDefinitions"], "main">
+					: Omit<TState["fields"], TState["localized"][number]>,
 				TState["options"]
 			>,
 			TState["fields"],
@@ -167,15 +173,7 @@ export class Global<TState extends GlobalBuilderState> {
 		>;
 	};
 
-	constructor(
-		state: TState,
-		private readonly virtualsFn?: (
-			table: any,
-			i18n: any,
-			context: any,
-		) => TState["virtuals"],
-		private readonly relationsFn?: GlobalBuilderRelationFn<TState, any>,
-	) {
+	constructor(state: TState) {
 		this.state = state;
 		this.name = state.name;
 
@@ -184,55 +182,17 @@ export class Global<TState extends GlobalBuilderState> {
 		this.versionsTable = this.generateVersionsTable();
 		this.i18nVersionsTable = this.generateI18nVersionsTable();
 
-		// Execute virtuals to populate state
-		if (virtualsFn) {
-			const context = {
-				defaultLocale: DEFAULT_LOCALE,
-			};
-			const i18nAccessor = this.createI18nAccessor(context);
-			state.virtuals = virtualsFn(
-				this.table,
-				i18nAccessor,
-				context,
-			) as TState["virtuals"];
-		}
-
-		// Execute relations
-		if (relationsFn) {
-			const context = { defaultLocale: DEFAULT_LOCALE };
-			const i18nAccessor = this.createI18nAccessor(context);
-			const helpers: RelationVariant = {
-				one: (collection, config) =>
-					({ type: "one", collection, ...config }) as any,
-				many: (collection, config) =>
-					({ type: "many", collection, ...config }) as any,
-				manyToMany: (collection, config) =>
-					({ type: "manyToMany", collection, ...config }) as any,
-			};
-			state.relations = relationsFn({
-				table: this.table as any,
-				i18n: i18nAccessor,
-				...helpers,
-			});
-		}
+		// Relations are now defined via f.relation() in fields() and resolved in global-builder.ts
 
 		this.$infer = {} as any;
 	}
 
-	public getVirtuals(context: any): TState["virtuals"] {
-		if (!this.virtualsFn) return this.state.virtuals;
-		const i18nAccessor = this.createI18nAccessor(context);
-		return this.virtualsFn(this.table, i18nAccessor, context);
+	public getVirtuals(_context: any): TState["virtuals"] {
+		return this.state.virtuals;
 	}
 
-	public getVirtualsForVersions(context: any): TState["virtuals"] {
-		if (!this.virtualsFn || !this.versionsTable) return this.state.virtuals;
-		const i18nAccessor = this.createI18nAccessorForVersions(
-			this.versionsTable,
-			this.i18nVersionsTable,
-			context,
-		);
-		return this.virtualsFn(this.versionsTable, i18nAccessor, context);
+	public getVirtualsForVersions(_context: any): TState["virtuals"] {
+		return this.state.virtuals;
 	}
 
 	/**

@@ -1,17 +1,19 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
-import { sql } from "drizzle-orm";
-import { text, varchar } from "drizzle-orm/pg-core";
 import { ApiError } from "../../src/server/errors/index.js";
-import { collection, questpie } from "../../src/server/index.js";
+import { defaultFields } from "../../src/server/fields/builtin/defaults.js";
+import { questpie } from "../../src/server/index.js";
 import { buildMockApp } from "../utils/mocks/mock-app-builder";
 import { createTestContext } from "../utils/test-context";
 import { runTestDbMigrations } from "../utils/test-db";
 
-const errorTest = collection("error_test")
-	.fields({
-		title: text("title").notNull(),
-		status: varchar("status", { length: 50 }).notNull(),
-	})
+const q = questpie({ name: "test-module" }).fields(defaultFields);
+
+const errorTest = q
+	.collection("error_test")
+	.fields((f) => ({
+		title: f.textarea({ required: true }),
+		status: f.text({ required: true, maxLength: 50 }),
+	}))
 	.title(({ f }) => f.title)
 	.access({
 		// Create allowed for everyone
@@ -31,7 +33,7 @@ const errorTest = collection("error_test")
 		timestamps: true,
 	});
 
-const testModule = questpie({ name: "test-module" }).collections({
+const testModule = q.collections({
 	error_test: errorTest,
 });
 
@@ -139,8 +141,7 @@ describe("error handling", () => {
 				await setup.cms.api.collections.error_test.create(
 					{
 						id: crypto.randomUUID(),
-						// @ts-expect-error - intentionally missing required fields
-						title: null,
+						title: null as any, // intentionally null to trigger constraint violation
 						status: "draft",
 					},
 					systemCtx,

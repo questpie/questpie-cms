@@ -1598,16 +1598,20 @@ export class GlobalCRUDGenerator<TState extends GlobalBuilderState> {
 	): string | undefined {
 		if (typeof column === "string") return column;
 
-		const columnName = column?.name;
+		// Column can be either a built column (with .name) or a builder (with .config.name)
+		const columnName = column?.name ?? column?.config?.name;
 		if (!columnName) return undefined;
 
 		for (const [key, value] of Object.entries(state.fields)) {
-			if ((value as any)?.name === columnName) return key;
+			// Check both .name and .config.name for compatibility
+			const valueName = (value as any)?.name ?? (value as any)?.config?.name;
+			if (valueName === columnName) return key;
 		}
 
 		if (table) {
 			for (const [key, value] of Object.entries(table)) {
-				if ((value as any)?.name === columnName) return key;
+				const valueName = (value as any)?.name ?? (value as any)?.config?.name;
+				if (valueName === columnName) return key;
 			}
 		}
 

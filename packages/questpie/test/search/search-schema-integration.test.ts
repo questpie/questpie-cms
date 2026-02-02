@@ -1,11 +1,11 @@
-import { describe, expect, it, beforeEach, afterEach } from "bun:test";
-import { varchar, text } from "drizzle-orm/pg-core";
-import { collection, questpie } from "../../src/server/index.js";
-import { createPostgresSearchAdapter } from "../../src/server/integrated/search/adapters/postgres.js";
+import { afterEach, beforeEach, describe, expect, it } from "bun:test";
+import { defaultFields } from "../../src/server/fields/builtin/defaults.js";
+import { questpie } from "../../src/server/index.js";
 import {
 	createPgVectorSearchAdapter,
 	type PgVectorSearchAdapter,
 } from "../../src/server/integrated/search/adapters/pgvector.js";
+import { createPostgresSearchAdapter } from "../../src/server/integrated/search/adapters/postgres.js";
 import { buildMockApp } from "../utils/mocks/mock-app-builder";
 
 /**
@@ -109,20 +109,27 @@ describe("Search Schema Integration", () => {
 });
 
 // ============================================================================
+// Create questpie builder with default fields
+// ============================================================================
+
+const q = questpie({ name: "schema-test" }).fields(defaultFields);
+
+// ============================================================================
 // CMS Integration Tests
 // ============================================================================
 
 describe("CMS getSchema() Integration", () => {
 	// Test collection
-	const posts = collection("posts")
-		.fields({
-			title: varchar("title", { length: 255 }).notNull(),
-			content: text("content"),
-		})
+	const posts = q
+		.collection("posts")
+		.fields((f) => ({
+			title: f.text({ required: true, maxLength: 255 }),
+			content: f.textarea(),
+		}))
 		.title(({ f }) => f.title)
 		.options({ timestamps: true });
 
-	const testModule = questpie({ name: "schema-test" }).collections({
+	const testModule = q.collections({
 		posts,
 	});
 

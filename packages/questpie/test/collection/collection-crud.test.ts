@@ -1,22 +1,21 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
-import { sql } from "drizzle-orm";
-import { text, varchar } from "drizzle-orm/pg-core";
-import { collection, questpie } from "../../src/server/index.js";
+import { defaultFields } from "../../src/server/fields/builtin/defaults.js";
+import { questpie } from "../../src/server/index.js";
 import { buildMockApp } from "../utils/mocks/mock-app-builder";
 import { createTestContext } from "../utils/test-context";
 import { runTestDbMigrations } from "../utils/test-db";
 
-const products = collection("products")
-	.fields({
-		sku: varchar("sku", { length: 50 }).notNull(),
-		name: text("name").notNull(),
-		description: text("description"),
-	})
-	.localized(["name", "description"] as const)
-	.virtuals(({ table, i18n }) => ({
-		displayTitle: sql`${i18n.name} || ' - ' || ${table.sku}`,
+// Create questpie builder with default fields
+const q = questpie({ name: "test-module" }).fields(defaultFields);
+
+const products = q
+	.collection("products")
+	.fields((f) => ({
+		sku: f.text({ required: true, maxLength: 50 }),
+		name: f.text({ required: true, localized: true }),
+		description: f.text({ localized: true }),
 	}))
-	.title(({ f }) => f.displayTitle)
+	.title(({ f }) => f.name)
 	.options({
 		timestamps: true,
 		softDelete: true,
@@ -24,36 +23,36 @@ const products = collection("products")
 	});
 
 // Collection without .title() - should fallback _title to id
-const simple_items = collection("simple_items")
-	.fields({
-		name: text("name").notNull(),
-		description: text("description"),
-	})
+const simple_items = q
+	.collection("simple_items")
+	.fields((f) => ({
+		name: f.text({ required: true }),
+		description: f.text(),
+	}))
 	.options({
 		timestamps: true,
 	});
 
-const testModule = questpie({ name: "test-module" }).collections({
+const locked_products = q
+	.collection("locked_products")
+	.fields((f) => ({
+		sku: f.text({ required: true, maxLength: 50 }),
+		name: f.text({ required: true, localized: true }),
+	}))
+	.title(({ f }) => f.name)
+	.options({
+		timestamps: true,
+		softDelete: true,
+		versioning: true,
+	})
+	.access({
+		create: () => false,
+	});
+
+const testModule = q.collections({
 	products,
 	simple_items,
-	locked_products: collection("locked_products")
-		.fields({
-			sku: varchar("sku", { length: 50 }).notNull(),
-			name: text("name").notNull(),
-		})
-		.localized(["name"] as const)
-		.virtuals(({ table, i18n }) => ({
-			displayTitle: sql`${i18n.name} || ' - ' || ${table.sku}`,
-		}))
-		.title(({ f }) => f.displayTitle)
-		.options({
-			timestamps: true,
-			softDelete: true,
-			versioning: true,
-		})
-		.access({
-			create: () => false,
-		}),
+	locked_products,
 });
 
 describe("collection CRUD", () => {
@@ -70,7 +69,6 @@ describe("collection CRUD", () => {
 
 	it("creates, updates localized fields, and falls back to default locale", async () => {
 		const ctx = createTestContext();
-		// Use cms.api.collections.products directly
 
 		const created = await setup.cms.api.collections.products.create(
 			{
@@ -105,7 +103,6 @@ describe("collection CRUD", () => {
 
 	it("soft delete hides rows from find", async () => {
 		const ctx = createTestContext();
-		// Use cms.api.collections.products directly
 
 		const created = await setup.cms.api.collections.products.create(
 			{
@@ -128,7 +125,6 @@ describe("collection CRUD", () => {
 
 	it("system access mode bypasses access rules", async () => {
 		const _ctx = createTestContext();
-		// Use cms.api.collections.locked_products directly
 
 		await expect(
 			setup.cms.api.collections.locked_products.create(
@@ -154,7 +150,6 @@ describe("collection CRUD", () => {
 
 	it("records versions on create, update, and delete", async () => {
 		const ctx = createTestContext();
-		// Use cms.api.collections.products directly
 
 		const created = await setup.cms.api.collections.products.create(
 			{
@@ -198,23 +193,23 @@ describe("collection CRUD", () => {
 			ctx,
 		);
 
-		// _title should be returned on create
+		// _title should be returned on create (now just name, not virtual)
 		expect(created._title).toBeDefined();
-		expect(created._title).toBe("Test Product - TITLE-TEST");
+		expect(created._title).toBe("Test Product");
 
 		// _title should be returned on findOne
 		const found = await setup.cms.api.collections.products.findOne(
 			{ where: { id: created.id } },
 			ctx,
 		);
-		expect(found?._title).toBe("Test Product - TITLE-TEST");
+		expect(found?._title).toBe("Test Product");
 
 		// _title should be returned on find (list)
 		const list = await setup.cms.api.collections.products.find(
 			{ where: { id: created.id } },
 			ctx,
 		);
-		expect(list.docs[0]._title).toBe("Test Product - TITLE-TEST");
+		expect(list.docs[0]._title).toBe("Test Product");
 
 		// _title should be returned on updateById
 		const updated = await setup.cms.api.collections.products.updateById(
@@ -224,7 +219,7 @@ describe("collection CRUD", () => {
 			},
 			ctx,
 		);
-		expect(updated._title).toBe("Updated Product - TITLE-TEST");
+		expect(updated._title).toBe("Updated Product");
 	});
 
 	it("returns _title field falling back to id when collection has no .title() defined", async () => {
@@ -301,7 +296,7 @@ describe("collection CRUD", () => {
 			ctx,
 		);
 
-		// Search for "Alpha" - should match title "Alpha Product - ALPHA-001"
+		// Search for "Alpha" - should match title "Alpha Product"
 		const alphaResults = await setup.cms.api.collections.products.find(
 			{ search: "Alpha" } as any,
 			ctx,
@@ -309,9 +304,9 @@ describe("collection CRUD", () => {
 		expect(alphaResults.docs.length).toBe(1);
 		expect((alphaResults.docs[0] as any)._title).toContain("Alpha");
 
-		// Search for "BETA" - should match title "Beta Product - BETA-002"
+		// Search for "Beta" - should match title "Beta Product"
 		const betaResults = await setup.cms.api.collections.products.find(
-			{ search: "BETA" } as any,
+			{ search: "Beta" } as any,
 			ctx,
 		);
 		expect(betaResults.docs.length).toBe(1);
@@ -365,8 +360,8 @@ describe("collection CRUD", () => {
 		expect(updated[0].name).toBe("Updated Batch");
 		expect(updated[1].name).toBe("Updated Batch");
 
-		// Verify _title is updated in returned objects (requires re-fetch logic to work)
-		expect(updated[0]._title).toBe("Updated Batch - BATCH-1");
-		expect(updated[1]._title).toBe("Updated Batch - BATCH-2");
+		// Verify _title is updated in returned objects
+		expect(updated[0]._title).toBe("Updated Batch");
+		expect(updated[1]._title).toBe("Updated Batch");
 	});
 });

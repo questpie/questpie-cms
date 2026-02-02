@@ -6,16 +6,16 @@
  * For typed objects, prefer `objectField` or `arrayField`.
  */
 
-import { isNull, isNotNull, sql } from "drizzle-orm";
-import { jsonb, json } from "drizzle-orm/pg-core";
+import { isNotNull, isNull, sql } from "drizzle-orm";
+import { json, jsonb } from "drizzle-orm/pg-core";
 import { z } from "zod";
 import { defineField } from "../define-field.js";
+import { getDefaultRegistry } from "../registry.js";
 import type {
 	BaseFieldConfig,
 	ContextualOperators,
 	FieldMetadataBase,
 } from "../types.js";
-import { getDefaultRegistry } from "../registry.js";
 
 // ============================================================================
 // JSON Field Configuration
@@ -46,14 +46,12 @@ function getJsonOperators(): ContextualOperators {
 	return {
 		column: {
 			// Contains the given key-value pairs (for objects)
-			contains: (col, value) =>
-				sql`${col} @> ${JSON.stringify(value)}::jsonb`,
+			contains: (col, value) => sql`${col} @> ${JSON.stringify(value)}::jsonb`,
 			// Is contained by the given value
 			containedBy: (col, value) =>
 				sql`${col} <@ ${JSON.stringify(value)}::jsonb`,
 			// Has the given key (for objects)
-			hasKey: (col, value) =>
-				sql`${col} ? ${value}`,
+			hasKey: (col, value) => sql`${col} ? ${value}`,
 			// Has all the given keys
 			hasKeys: (col, values) =>
 				sql`${col} ?& ${sql.raw(`ARRAY[${(values as string[]).map((v) => `'${v}'`).join(",")}]`)}`,
@@ -71,14 +69,11 @@ function getJsonOperators(): ContextualOperators {
 				return sql`${col}#>'{${sql.raw(path.join(","))}}' IS NOT NULL`;
 			},
 			// JSON path query (PostgreSQL 12+)
-			jsonPath: (col, value) =>
-				sql`${col} @@ ${value}::jsonpath`,
+			jsonPath: (col, value) => sql`${col} @@ ${value}::jsonpath`,
 			// Equals (exact match)
-			eq: (col, value) =>
-				sql`${col} = ${JSON.stringify(value)}::jsonb`,
+			eq: (col, value) => sql`${col} = ${JSON.stringify(value)}::jsonb`,
 			// Not equals
-			ne: (col, value) =>
-				sql`${col} != ${JSON.stringify(value)}::jsonb`,
+			ne: (col, value) => sql`${col} != ${JSON.stringify(value)}::jsonb`,
 			// Type of JSON value
 			typeof: (col, value) => {
 				const type = value as string;
@@ -193,16 +188,8 @@ export const jsonField = defineField<"json", JsonFieldConfig, JsonValue>(
 
 		toZodSchema(config) {
 			// Schema-less: accept any valid JSON
-			const jsonSchema: z.ZodType<JsonValue> = z.lazy(() =>
-				z.union([
-					z.string(),
-					z.number(),
-					z.boolean(),
-					z.null(),
-					z.array(jsonSchema),
-					z.record(jsonSchema),
-				]),
-			);
+			// Use z.any() for simplicity since JSON can be anything
+			const jsonSchema = z.any() as z.ZodType<JsonValue>;
 
 			// Nullability
 			if (!config.required && config.nullable !== false) {

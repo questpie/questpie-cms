@@ -2,11 +2,12 @@
 
 import type { BuildColumn, SQL } from "drizzle-orm";
 import type { PgTableWithColumns } from "drizzle-orm/pg-core";
+import type { Collection } from "#questpie/exports/index.js";
 import type {
 	CollectionVersioningOptions,
+	ExtractFieldsByLocation,
 	I18nFieldAccessor,
 	InferTableWithColumns,
-	NonLocalizedFields,
 	RelationConfig,
 	RelationVariant,
 } from "#questpie/server/collection/builder/types.js";
@@ -14,7 +15,6 @@ import type {
 // Users should use getApp<AppCMS>(), getDb<AppCMS>(), and getSession<AppCMS>() instead.
 import type { AccessMode } from "#questpie/server/config/types.js";
 import type { FunctionDefinition } from "#questpie/server/functions/types.js";
-import type { Collection } from "#questpie/exports/index.js";
 
 /**
  * Options for global configuration
@@ -168,7 +168,9 @@ export type GlobalBuilderRelationFn<
 	ctx: {
 		table: InferTableWithColumns<
 			TState["name"],
-			NonLocalizedFields<TState["fields"], TState["localized"]>,
+			TState["fieldDefinitions"] extends Record<string, any>
+				? ExtractFieldsByLocation<TState["fieldDefinitions"], "main">
+				: Omit<TState["fields"], TState["localized"][number]>,
 			undefined,
 			TState["options"]
 		>;
@@ -193,14 +195,44 @@ export interface GlobalBuilderState {
 	hooks: GlobalHooks;
 	access: GlobalAccess;
 	functions: Record<string, FunctionDefinition>;
+	/**
+	 * Field definitions when using Field Builder.
+	 * undefined when using raw Drizzle columns.
+	 */
+	fieldDefinitions: Record<string, any> | undefined;
+	/**
+	 * Phantom type for QuestpieBuilder reference.
+	 * Used to access field types registered via q.fields().
+	 */
+	"~questpieApp"?: any;
+	/**
+	 * Phantom type for field types available in .fields((f) => ...).
+	 * Extracted from ~questpieApp at compile time for type inference.
+	 */
+	"~fieldTypes"?: Record<string, any>;
 }
 
 /**
+ * Extract field types from QuestpieBuilder.
+ * QuestpieBuilder<TState> has `$state: TState` declared property for type extraction.
+ */
+type ExtractFieldTypesFromApp<TQuestpieApp> = TQuestpieApp extends {
+	$state: { fields: infer TFields };
+}
+	? TFields
+	: undefined;
+
+/**
  * Default empty state for a new global
+ *
+ * @param TName - Global name
+ * @param TQuestpieApp - Reference to QuestpieBuilder instance
+ * @param TFieldTypes - Field types available in .fields((f) => ...)
  */
 export type EmptyGlobalState<
 	TName extends string,
-	_TApp = any,
+	TQuestpieApp = undefined,
+	TFieldTypes extends Record<string, any> | undefined = undefined,
 > = GlobalBuilderState & {
 	name: TName;
 	fields: {};
@@ -211,6 +243,9 @@ export type EmptyGlobalState<
 	hooks: {};
 	access: {};
 	functions: {};
+	fieldDefinitions: undefined;
+	"~questpieApp": TQuestpieApp;
+	"~fieldTypes": TFieldTypes;
 };
 
 /**

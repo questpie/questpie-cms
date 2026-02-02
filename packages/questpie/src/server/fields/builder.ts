@@ -5,40 +5,22 @@
  * Usage: f.text({ required: true }), f.number({ min: 0 }), etc.
  */
 
-import type { AnyFieldFactory, FieldRegistry } from "./registry.js";
-import type { FieldDefinition, BaseFieldConfig } from "./types.js";
+import type { DefaultFields } from "./builtin/defaults.js";
+import type { FieldRegistry } from "./registry.js";
+import type { FieldDefinition, FieldDefinitionState } from "./types.js";
 
 // ============================================================================
 // Field Builder Proxy Types
 // ============================================================================
 
 /**
- * Type map for registered fields.
- * Used to provide type-safe autocomplete for f.text(), f.number(), etc.
- *
- * This can be extended via module augmentation for custom fields:
- * ```ts
- * declare module "questpie/server/fields/builder" {
- *   interface FieldTypeMap {
- *     myCustomField: typeof myCustomFieldFactory;
- *   }
- * }
- * ```
- */
-export interface FieldTypeMap {
-	// Built-in fields will be added here via module augmentation
-	// when the built-in fields module is loaded
-	[key: string]: AnyFieldFactory;
-}
-
-/**
  * Default field type map for built-in fields.
  * Provides full type inference for standard fields.
  *
- * Note: This interface is populated by the builtin fields module.
- * It's defined here for type-level extension.
+ * This type contains all built-in field types from defaultFields.
+ * When using standalone `collection()` (not `q.collection()`), this is the fallback.
  */
-export interface DefaultFieldTypeMap extends FieldTypeMap {}
+export type DefaultFieldTypeMap = DefaultFields;
 
 /**
  * Field builder proxy type.
@@ -56,10 +38,9 @@ export interface DefaultFieldTypeMap extends FieldTypeMap {}
  * };
  * ```
  */
-export type FieldBuilderProxy<TMap extends FieldTypeMap = DefaultFieldTypeMap> =
-	{
-		[K in keyof TMap]: TMap[K];
-	};
+export type FieldBuilderProxy<TMap = DefaultFieldTypeMap> = {
+	[K in keyof TMap]: TMap[K];
+};
 
 // ============================================================================
 // Field Builder Creation
@@ -83,7 +64,7 @@ export type FieldBuilderProxy<TMap extends FieldTypeMap = DefaultFieldTypeMap> =
  * };
  * ```
  */
-export function createFieldBuilder<TMap extends FieldTypeMap = DefaultFieldTypeMap>(
+export function createFieldBuilder<TMap = DefaultFieldTypeMap>(
 	registry: FieldRegistry,
 ): FieldBuilderProxy<TMap> {
 	// Create a proxy that delegates to the registry
@@ -132,8 +113,10 @@ export function createFieldBuilder<TMap extends FieldTypeMap = DefaultFieldTypeM
  * @returns Object with both field definitions and extracted columns
  */
 export function extractFieldDefinitions<
-	TFields extends Record<string, FieldDefinition>,
->(fields: TFields): {
+	TFields extends Record<string, FieldDefinition<FieldDefinitionState>>,
+>(
+	fields: TFields,
+): {
 	definitions: TFields;
 	columns: Record<string, unknown>;
 } {
@@ -164,20 +147,26 @@ export function extractFieldDefinitions<
  * Type helper to infer field types from a fields factory function.
  */
 export type InferFieldsFromFactory<
-	TFactory extends (f: FieldBuilderProxy) => Record<string, FieldDefinition>,
+	TFactory extends (
+		f: FieldBuilderProxy,
+	) => Record<string, FieldDefinition<FieldDefinitionState>>,
 > = ReturnType<TFactory>;
 
 /**
  * Type helper to extract value types from field definitions.
  */
-export type FieldValues<TFields extends Record<string, FieldDefinition>> = {
+export type FieldValues<
+	TFields extends Record<string, FieldDefinition<FieldDefinitionState>>,
+> = {
 	[K in keyof TFields]: TFields[K]["$types"]["value"];
 };
 
 /**
  * Type helper to extract input types from field definitions.
  */
-export type FieldInputs<TFields extends Record<string, FieldDefinition>> = {
+export type FieldInputs<
+	TFields extends Record<string, FieldDefinition<FieldDefinitionState>>,
+> = {
 	[K in keyof TFields as TFields[K]["$types"]["input"] extends never
 		? never
 		: K]: TFields[K]["$types"]["input"];
@@ -186,7 +175,9 @@ export type FieldInputs<TFields extends Record<string, FieldDefinition>> = {
 /**
  * Type helper to extract output types from field definitions.
  */
-export type FieldOutputs<TFields extends Record<string, FieldDefinition>> = {
+export type FieldOutputs<
+	TFields extends Record<string, FieldDefinition<FieldDefinitionState>>,
+> = {
 	[K in keyof TFields as TFields[K]["$types"]["output"] extends never
 		? never
 		: K]: TFields[K]["$types"]["output"];

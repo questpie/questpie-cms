@@ -461,6 +461,7 @@ export function buildBelongsToExistsClause(
 		}
 	} else if (relation.fields && relation.fields.length > 0) {
 		// Array field format: fields: [table.userId], references: ["id"]
+		// Note: relation.fields may contain builders or columns - we need to resolve to actual table columns
 		joinConditions = relation.fields
 			.map((sourceField, index) => {
 				const refs = relation.references as string[];
@@ -468,7 +469,15 @@ export function buildBelongsToExistsClause(
 				const targetColumn = targetFieldName
 					? (relatedTable as any)[targetFieldName]
 					: undefined;
-				return targetColumn ? eq(targetColumn, sourceField) : undefined;
+				// Get the actual column from the table by matching the name
+				const sourceFieldName =
+					(sourceField as any)?.name ?? (sourceField as any)?.config?.name;
+				const sourceColumn = sourceFieldName
+					? (parentTable as any)[sourceFieldName]
+					: undefined;
+				return targetColumn && sourceColumn
+					? eq(targetColumn, sourceColumn)
+					: undefined;
 			})
 			.filter(Boolean) as SQL[];
 	}
@@ -530,13 +539,21 @@ export function buildHasManyExistsClause(
 		return undefined;
 	}
 
+	// Note: reverseRelation.fields may contain builders or columns - we need to resolve to actual table columns
 	const joinConditions = reverseRelation.fields
 		.map((foreignField: any, index: number) => {
 			const parentFieldName = reverseRelation.references?.[index];
 			const parentColumn = parentFieldName
 				? (parentTable as any)[parentFieldName]
 				: undefined;
-			return parentColumn ? eq(foreignField, parentColumn) : undefined;
+			// Get the actual column from the related table by matching the name
+			const foreignFieldName = foreignField?.name ?? foreignField?.config?.name;
+			const foreignColumn = foreignFieldName
+				? (relatedTable as any)[foreignFieldName]
+				: undefined;
+			return parentColumn && foreignColumn
+				? eq(foreignColumn, parentColumn)
+				: undefined;
 		})
 		.filter(Boolean) as SQL[];
 

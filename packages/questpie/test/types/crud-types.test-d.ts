@@ -7,7 +7,6 @@
  * Run with: tsc --noEmit
  */
 
-import { integer, text, timestamp, varchar } from "drizzle-orm/pg-core";
 import { collection } from "#questpie/server/collection/builder/collection-builder.js";
 import type {
 	Columns,
@@ -25,21 +24,23 @@ import type { Equal, Expect, Extends, HasKey } from "./type-test-utils.js";
 // ============================================================================
 
 // Simple collection for basic tests
-const postsCollection = collection("posts")
-	.fields({
-		title: varchar("title", { length: 255 }).notNull(),
-		content: text("content"),
-		views: integer("views").default(0),
-		authorId: text("author_id").notNull(),
-		publishedAt: timestamp("published_at", { mode: "date" }),
-	})
-	.relations(({ table, one, many }) => ({
-		author: one("users", {
-			fields: [table.authorId],
-			references: ["id"],
-		}),
-		comments: many("comments"),
-	}));
+const postsCollection = collection("posts").fields((f) => ({
+	title: f.text({ required: true, maxLength: 255 }),
+	content: f.textarea(),
+	views: f.number({ default: 0 }),
+	author: f.relation({
+		to: "users",
+		required: true,
+		relationName: "author",
+	}),
+	publishedAt: f.datetime(),
+	comments: f.relation({
+		to: "comments",
+		hasMany: true,
+		foreignKey: "postId",
+		relationName: "post",
+	}),
+}));
 
 type PostSelect = typeof postsCollection.$infer.select;
 type PostInsert = typeof postsCollection.$infer.insert;
@@ -118,7 +119,7 @@ const whereNot: PostWhere = {
 const whereCombined: PostWhere = {
 	title: { like: "%hello%" },
 	views: { gt: 100, lt: 1000 },
-	AND: [{ authorId: "user-1" }],
+	AND: [{ author: { eq: "user-1" } }],
 };
 
 // ============================================================================
@@ -273,7 +274,7 @@ const complexWhere: PostWhere = {
 		},
 	],
 	NOT: {
-		authorId: "excluded-author",
+		author: { eq: "excluded-author" },
 	},
 };
 
@@ -284,7 +285,7 @@ const fullQuery: PostFindOptions = {
 			{ title: { ilike: "%search%" } },
 			{ views: { gte: 10 } },
 			{
-				OR: [{ publishedAt: { isNotNull: true } }, { authorId: "admin" }],
+				OR: [{ publishedAt: { isNotNull: true } }, { author: { eq: "admin" } }],
 			},
 		],
 	},
@@ -325,5 +326,5 @@ const emptyWhere: PostWhere = {};
 const mixedWhere: PostWhere = {
 	title: "Exact Match", // Direct value
 	views: { gt: 100 }, // Operator
-	authorId: "user-123", // Direct value
+	author: { eq: "user-123" }, // Relation field uses operators
 };

@@ -5,16 +5,24 @@
  * Supports single and multiple file uploads with mime type and size validation.
  */
 
-import { eq, ne, inArray, notInArray, isNull, isNotNull, sql } from "drizzle-orm";
-import { varchar, jsonb } from "drizzle-orm/pg-core";
+import {
+	eq,
+	inArray,
+	isNotNull,
+	isNull,
+	ne,
+	notInArray,
+	sql,
+} from "drizzle-orm";
+import { jsonb, varchar } from "drizzle-orm/pg-core";
 import { z } from "zod";
 import { defineField } from "../define-field.js";
+import { getDefaultRegistry } from "../registry.js";
 import type {
 	BaseFieldConfig,
 	ContextualOperators,
 	RelationFieldMetadata,
 } from "../types.js";
-import { getDefaultRegistry } from "../registry.js";
 
 // ============================================================================
 // Upload Field Configuration
@@ -41,9 +49,12 @@ export interface UploadFieldConfig extends BaseFieldConfig {
 
 	/**
 	 * Target upload collection.
+	 * Can be a string name or a callback returning the collection.
 	 * @default "assets"
+	 * @example "assets"
+	 * @example () => mediaCollection
 	 */
-	collection?: string;
+	collection?: string | (() => { name: string });
 
 	/**
 	 * Allow multiple file uploads.
@@ -125,11 +136,9 @@ function getMultipleUploadOperators(): ContextualOperators {
 			containsAny: (col, values) =>
 				sql`${col} ?| ${sql.raw(`ARRAY[${(values as string[]).map((v) => `'${v}'`).join(",")}]`)}`,
 			// Is empty array
-			isEmpty: (col) =>
-				sql`(${col} = '[]'::jsonb OR ${col} IS NULL)`,
+			isEmpty: (col) => sql`(${col} = '[]'::jsonb OR ${col} IS NULL)`,
 			// Is not empty
-			isNotEmpty: (col) =>
-				sql`(${col} != '[]'::jsonb AND ${col} IS NOT NULL)`,
+			isNotEmpty: (col) => sql`(${col} != '[]'::jsonb AND ${col} IS NOT NULL)`,
 			// Count equals
 			count: (col, value) =>
 				sql`jsonb_array_length(COALESCE(${col}, '[]'::jsonb)) = ${value}`,
@@ -254,7 +263,7 @@ export const uploadField = defineField<
 			return schema;
 		} else {
 			// Single upload: UUID
-			let schema = z.string().uuid();
+			const schema = z.string().uuid();
 
 			// Nullability
 			if (!config.required && config.nullable !== false) {
@@ -272,6 +281,12 @@ export const uploadField = defineField<
 	},
 
 	getMetadata(config): RelationFieldMetadata {
+		// Extract collection name from string or callback
+		const targetCollection =
+			typeof config.collection === "function"
+				? config.collection().name
+				: (config.collection ?? "assets");
+
 		return {
 			type: "relation",
 			label: config.label,
@@ -282,12 +297,8 @@ export const uploadField = defineField<
 			searchable: config.searchable ?? false,
 			readOnly: config.input === false,
 			writeOnly: config.output === false,
-			relationTarget: config.collection ?? "assets",
-			relationType: config.multiple ? "hasMany" : "belongsTo",
-			validation: {
-				minItems: config.minItems,
-				maxItems: config.maxItems,
-			},
+			targetCollection,
+			relationType: config.multiple ? "multiple" : "belongsTo",
 		};
 	},
 });

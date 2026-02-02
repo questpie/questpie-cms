@@ -3,49 +3,18 @@
  *
  * Re-exports all built-in field type definitions and factories.
  * Import this module to register all built-in fields with the default registry.
+ *
+ * NOTE: Module augmentation is no longer used.
+ * Field types are now derived from questpie.state.fields at compile time.
+ * DefaultFieldTypeMap is a type alias to DefaultFields in builder.ts.
  */
 
-// Text-based fields
-export { textField, type TextFieldConfig } from "./text.js";
-export { textareaField, type TextareaFieldConfig } from "./textarea.js";
-export { emailField, type EmailFieldConfig } from "./email.js";
-export { urlField, type UrlFieldConfig } from "./url.js";
-
-// Numeric fields
-export { numberField, type NumberFieldConfig } from "./number.js";
-
+export { type ArrayFieldConfig, arrayField } from "./array.js";
 // Boolean field
-export { booleanField, type BooleanFieldConfig } from "./boolean.js";
-
+export { type BooleanFieldConfig, booleanField } from "./boolean.js";
 // Date/Time fields
-export { dateField, type DateFieldConfig } from "./date.js";
-export { datetimeField, type DatetimeFieldConfig } from "./datetime.js";
-export { timeField, type TimeFieldConfig } from "./time.js";
-
-// Select/Enum field
-export { selectField, type SelectFieldConfig, type SelectOption } from "./select.js";
-
-// Upload field
-export { uploadField, type UploadFieldConfig } from "./upload.js";
-
-// Relation fields
-export {
-	relationField,
-	type RelationFieldConfig,
-	type RelationType,
-	type ReferentialAction,
-} from "./relation.js";
-export {
-	polymorphicRelationField,
-	type PolymorphicRelationConfig,
-	type PolymorphicReference,
-} from "./polymorphic-relation.js";
-
-// Complex fields
-export { objectField, type ObjectFieldConfig } from "./object.js";
-export { arrayField, type ArrayFieldConfig } from "./array.js";
-export { jsonField, type JsonFieldConfig, type JsonValue } from "./json.js";
-
+export { type DateFieldConfig, dateField } from "./date.js";
+export { type DatetimeFieldConfig, datetimeField } from "./datetime.js";
 /**
  * Default field factories map.
  * Use this with QuestpieBuilder.fields() to register all built-in fields.
@@ -58,4 +27,39 @@ export { jsonField, type JsonFieldConfig, type JsonValue } from "./json.js";
  *   .fields(defaultFields);
  * ```
  */
-export { defaultFields } from "./defaults.js";
+export { type DefaultFields, defaultFields } from "./defaults.js";
+export { type EmailFieldConfig, emailField } from "./email.js";
+export { type JsonFieldConfig, type JsonValue, jsonField } from "./json.js";
+// Numeric fields
+export { type NumberFieldConfig, numberField } from "./number.js";
+// Complex fields
+export { type ObjectFieldConfig, objectField } from "./object.js";
+export {
+	type PolymorphicReference,
+	type PolymorphicRelationConfig,
+	polymorphicRelationField,
+} from "./polymorphic-relation.js";
+// Relation fields
+export {
+	type InferredRelationType,
+	type InferredRelationType as RelationType, // Alias for backwards compatibility
+	inferRelationType,
+	type ReferentialAction,
+	type RelationFieldConfig,
+	type RelationFieldMetadata,
+	type RelationTarget,
+	relationField,
+} from "./relation.js";
+// Select/Enum field
+export {
+	type SelectFieldConfig,
+	type SelectOption,
+	selectField,
+} from "./select.js";
+// Text-based fields
+export { type TextFieldConfig, textField } from "./text.js";
+export { type TextareaFieldConfig, textareaField } from "./textarea.js";
+export { type TimeFieldConfig, timeField } from "./time.js";
+// Upload field
+export { type UploadFieldConfig, uploadField } from "./upload.js";
+export { type UrlFieldConfig, urlField } from "./url.js";

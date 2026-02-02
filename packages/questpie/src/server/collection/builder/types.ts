@@ -12,6 +12,11 @@ import type { ValidationSchemas } from "#questpie/server/collection/builder/vali
 // Note: any and any are deprecated.
 // Users should use getApp<AppCMS>(), getDb<AppCMS>(), and getSession<AppCMS>() instead.
 import type { AccessMode } from "#questpie/server/config/types.js";
+import type {
+	FieldDefinition,
+	FieldDefinitionState,
+	FieldLocation,
+} from "#questpie/server/fields/types.js";
 import type { FunctionDefinition } from "#questpie/server/functions/types.js";
 import type { SearchableConfig } from "#questpie/server/integrated/search/index.js";
 
@@ -98,6 +103,16 @@ export interface RelationConfig {
 	targetField?: string; // Foreign key column in junction table pointing to target
 }
 
+/**
+ * Extract fields for relations context.
+ * For field definitions, uses ExtractFieldsByLocation.
+ * For raw Drizzle columns, passes through as-is.
+ */
+type FieldsForRelationsContext<TFields extends Record<string, any>> =
+	TFields extends Record<string, FieldDefinition<FieldDefinitionState>>
+		? ExtractFieldsByLocation<TFields, "main">
+		: TFields;
+
 export type CollectionBuilderRelationFn<
 	TState extends CollectionBuilderState,
 	TNewRelations extends Record<string, RelationConfig>,
@@ -105,7 +120,7 @@ export type CollectionBuilderRelationFn<
 	ctx: {
 		table: InferTableWithColumns<
 			TState["name"],
-			NonLocalizedFields<TState["fields"], TState["localized"]>,
+			FieldsForRelationsContext<TState["fields"]>,
 			undefined,
 			TState["options"]
 		>;
@@ -122,7 +137,7 @@ export type CollectionBuilderVirtualsFn<
 > = (ctx: {
 	table: InferTableWithColumns<
 		TState["name"],
-		NonLocalizedFields<TState["fields"], TState["localized"]>,
+		ExtractFieldsByLocation<TState["fields"], "main">,
 		undefined,
 		TState["options"]
 	>;
@@ -742,8 +757,13 @@ export type CollectionFunctionsMap = Record<string, FunctionDefinition>;
  */
 export interface CollectionBuilderState {
 	name: string;
-	fields: Record<string, any>; // Allow any Drizzle column type
-	localized: readonly any[];
+	/** Drizzle columns extracted from field definitions */
+	fields: Record<string, any>;
+	/**
+	 * Localized field names (computed from fieldDefinitions).
+	 * Fields with `state.location === "i18n"` are considered localized.
+	 */
+	localized: readonly string[];
 	virtuals: Record<string, SQL> | undefined;
 	relations: Record<string, RelationConfig>;
 	indexes: Record<string, any>;
@@ -772,11 +792,21 @@ export interface CollectionBuilderState {
 	 */
 	upload: UploadOptions | undefined;
 	/**
-	 * Field definitions for introspection (when using Field Builder).
-	 * Stores the FieldDefinition objects for admin introspection.
-	 * undefined when using raw Drizzle columns.
+	 * Field definitions from Field Builder.
+	 * Stores the FieldDefinition objects for validation, introspection, and localization.
 	 */
-	fieldDefinitions: Record<string, any> | undefined;
+	fieldDefinitions: Record<string, FieldDefinition<FieldDefinitionState>>;
+	/**
+	 * Phantom type for QuestpieBuilder reference.
+	 * Used to access field types registered via q.fields().
+	 */
+	"~questpieApp"?: any;
+	/**
+	 * Phantom type for field types available in .fields((f) => ...).
+	 * Extracted from ~questpieApp at compile time for type inference.
+	 * This is set directly rather than computed to avoid complex type inference.
+	 */
+	"~fieldTypes"?: Record<string, any>;
 }
 
 /**
@@ -806,26 +836,35 @@ export type ExtractFunctions<TState extends CollectionBuilderState> =
 
 /**
  * Default empty state for a new collection
+ *
+ * @param TName - Collection name
+ * @param TQuestpieApp - Reference to QuestpieBuilder instance (for accessing cms config)
+ * @param TFieldTypes - Field types available in .fields((f) => ...), passed directly to avoid type extraction issues
  */
-export type EmptyCollectionState<TName extends string> =
-	CollectionBuilderState & {
-		name: TName;
-		fields: {};
-		localized: [];
-		virtuals: undefined;
-		relations: {};
-		indexes: {};
-		title: undefined;
-		options: {};
-		hooks: CollectionHooks<any, any, any>;
-		access: {};
-		functions: {};
-		searchable: undefined;
-		validation: undefined;
-		output: undefined;
-		upload: undefined;
-		fieldDefinitions: undefined;
-	};
+export type EmptyCollectionState<
+	TName extends string,
+	TQuestpieApp = undefined,
+	TFieldTypes extends Record<string, any> = Record<string, any>,
+> = CollectionBuilderState & {
+	name: TName;
+	fields: {};
+	localized: [];
+	virtuals: undefined;
+	relations: {};
+	indexes: {};
+	title: undefined;
+	options: {};
+	hooks: CollectionHooks<any, any, any>;
+	access: {};
+	functions: {};
+	searchable: undefined;
+	validation: undefined;
+	output: undefined;
+	upload: undefined;
+	fieldDefinitions: {};
+	"~questpieApp": TQuestpieApp;
+	"~fieldTypes": TFieldTypes;
+};
 
 /**
  * Any collection builder state (for type constraints)
@@ -833,20 +872,27 @@ export type EmptyCollectionState<TName extends string> =
 export type AnyCollectionState = CollectionBuilderState;
 
 /**
- * Extract non-localized fields from field definitions
+ * Extract fields by location from TState-based field definitions.
+ * New approach using FieldDefinition state.location property.
  */
-export type NonLocalizedFields<
-	TFields extends Record<string, any>,
-	TLocalized extends ReadonlyArray<keyof TFields>,
-> = Omit<TFields, TLocalized[number]>;
-
-/**
- * Extract localized fields from field definitions
- */
-export type LocalizedFields<
-	TFields extends Record<string, any>,
-	TLocalized extends ReadonlyArray<keyof TFields>,
-> = Pick<TFields, TLocalized[number]>;
+export type ExtractFieldsByLocation<
+	TFields extends Record<string, FieldDefinition<FieldDefinitionState>>,
+	TLocation extends FieldLocation,
+> = {
+	[K in keyof TFields as TFields[K] extends FieldDefinition<infer TState>
+		? TState extends FieldDefinitionState
+			? TState["location"] extends TLocation
+				? K
+				: never
+			: never
+		: never]: TFields[K] extends FieldDefinition<infer TState>
+		? TState extends FieldDefinitionState
+			? TState["column"] extends null
+				? never // Skip fields without columns (virtual, relations)
+				: TState["column"]
+			: never
+		: never;
+};
 
 /**
  * Helper type to create i18n access object with SQL expressions
@@ -895,12 +941,76 @@ export type InferI18nVersionColumnFromFields<
 	[K in keyof TFields]: TFields[K];
 };
 
+// ============================================================================
+// TState-based Column Inference (New Approach)
+// ============================================================================
+
+/**
+ * Infer main table columns from TState-based field definitions.
+ * Extracts only fields with location: "main" and non-null columns.
+ */
+export type InferMainColumnsFromFields<
+	TFields extends Record<string, FieldDefinition<FieldDefinitionState>>,
+	TOptions extends CollectionOptions,
+	TUpload extends UploadOptions | undefined = undefined,
+> = ("id" extends keyof ExtractFieldsByLocation<TFields, "main">
+	? {} // User defined their own ID field, don't add default
+	: ReturnType<typeof Collection.pkCols>) &
+	ExtractFieldsByLocation<TFields, "main"> &
+	(TOptions["timestamps"] extends false
+		? {}
+		: ReturnType<typeof Collection.timestampsCols>) &
+	(TOptions["softDelete"] extends true
+		? ReturnType<typeof Collection.softDeleteCols>
+		: {}) &
+	(TUpload extends UploadOptions
+		? ReturnType<typeof Collection.uploadCols>
+		: {});
+
+/**
+ * Infer i18n table columns from TState-based field definitions.
+ * Extracts only fields with location: "i18n" and non-null columns.
+ */
 export type InferI18nColumnsFromFields<
-	TFields extends Record<string, any>,
-	_TTitle extends TitleExpression | undefined,
-> = ReturnType<typeof Collection.i18nCols> & {
-	[K in keyof TFields]: TFields[K];
-};
+	TFields extends Record<string, FieldDefinition<FieldDefinitionState>>,
+> = ReturnType<typeof Collection.i18nCols> &
+	ExtractFieldsByLocation<TFields, "i18n">;
+
+/**
+ * Infer main table type from TState-based field definitions.
+ */
+export type InferMainTableWithColumns<
+	TName extends string,
+	TFields extends Record<string, FieldDefinition<FieldDefinitionState>>,
+	TOptions extends CollectionOptions,
+	TUpload extends UploadOptions | undefined = undefined,
+> = PgTableWithColumns<{
+	name: TName;
+	schema: undefined;
+	columns: BuildColumns<
+		TName,
+		InferMainColumnsFromFields<TFields, TOptions, TUpload>,
+		"pg"
+	>;
+	dialect: "pg";
+}>;
+
+/**
+ * Infer i18n table type from TState-based field definitions.
+ */
+export type InferI18nTableWithColumns<
+	TName extends string,
+	TFields extends Record<string, FieldDefinition<FieldDefinitionState>>,
+> = PgTableWithColumns<{
+	name: LocalizedTableName<TName>;
+	schema: undefined;
+	columns: BuildColumns<
+		LocalizedTableName<TName>,
+		InferI18nColumnsFromFields<TFields>,
+		"pg"
+	>;
+	dialect: "pg";
+}>;
 
 export type LocalizedTableName<TName extends string> = `${TName}_i18n`;
 export type VersionedTableName<TName extends string> = `${TName}_versions`;
@@ -922,21 +1032,6 @@ export type InferTableWithColumns<
 	columns: BuildColumns<
 		TName,
 		InferColumnsFromFields<TFields, TOptions, TTitle>,
-		"pg"
-	>;
-	dialect: "pg";
-}>;
-
-export type InferI18nTableWithColumns<
-	TName extends string,
-	TFields extends Record<string, any>,
-	TTitle extends TitleExpression | undefined,
-> = PgTableWithColumns<{
-	name: LocalizedTableName<TName>;
-	schema: undefined;
-	columns: BuildColumns<
-		LocalizedTableName<TName>,
-		InferI18nColumnsFromFields<TFields, TTitle>,
 		"pg"
 	>;
 	dialect: "pg";

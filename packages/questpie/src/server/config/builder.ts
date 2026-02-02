@@ -1,5 +1,7 @@
 import type { BetterAuthOptions } from "better-auth";
 import type { MailAdapter, QueueAdapter } from "#questpie/exports/index.js";
+import { CollectionBuilder } from "#questpie/server/collection/builder/collection-builder.js";
+import type { EmptyCollectionState } from "#questpie/server/collection/builder/types.js";
 import type {
 	BuilderCollectionsMap,
 	BuilderEmailTemplatesMap,
@@ -16,6 +18,13 @@ import type {
 	LocaleConfig,
 	QuestpieConfig,
 } from "#questpie/server/config/types.js";
+import type {
+	FunctionDefinition,
+	JsonFunctionDefinition,
+	RawFunctionDefinition,
+} from "#questpie/server/functions/types.js";
+import { GlobalBuilder } from "#questpie/server/global/builder/global-builder.js";
+import type { EmptyGlobalState } from "#questpie/server/global/builder/types.js";
 import {
 	mergeMessagesIntoConfig,
 	mergeTranslationsConfig,
@@ -28,7 +37,9 @@ import type {
 import {
 	type MergeAuthOptions,
 	mergeAuthOptions,
-} from "#questpie/server/integrated/auth/config.js";
+} from "#questpie/server/integrated/auth/merge.js";
+import type { EmailTemplateDefinition } from "#questpie/server/integrated/mailer/template.js";
+import type { JobDefinition } from "#questpie/server/integrated/queue/types.js";
 import type { Migration } from "#questpie/server/migration/types.js";
 import type {
 	PrettifiedAnyCollectionOrBuilder,
@@ -121,6 +132,11 @@ export class QuestpieBuilder<
 	 * No value at runtime - purely for type inference.
 	 */
 	public declare readonly $inferCms: QuestpieFromState<TState>;
+	/**
+	 * Type-only property for accessing state type in conditional types.
+	 * Used by CollectionBuilder to extract field types.
+	 */
+	public declare readonly $state: TState;
 
 	static empty<TName extends string>(name: TName) {
 		return new QuestpieBuilder({
@@ -345,10 +361,7 @@ export class QuestpieBuilder<
 			TState,
 			"fields",
 			Prettify<
-				TypeMerge<
-					UnsetProperty<TState["fields"], keyof TNewFields>,
-					TNewFields
-				>
+				TypeMerge<UnsetProperty<TState["fields"], keyof TNewFields>, TNewFields>
 			>
 		>
 	> {
@@ -667,6 +680,182 @@ export class QuestpieBuilder<
 		} as any);
 	}
 
+	// ============================================================================
+	// Entity Creation Methods
+	// ============================================================================
+
+	/**
+	 * Create a collection builder bound to this Questpie builder.
+	 * The collection has access to all registered field types from `.fields()`.
+	 *
+	 * @example
+	 * ```ts
+	 * import { defaultFields } from "@questpie/server/fields/builtin";
+	 *
+	 * const q = questpie({ name: "app" })
+	 *   .fields(defaultFields);
+	 *
+	 * // Use q.collection() for type-safe field access:
+	 * const posts = q.collection("posts")
+	 *   .fields((f) => ({
+	 *     title: f.text({ required: true }),  // ✅ autocomplete from defaultFields
+	 *     views: f.number({ min: 0 }),
+	 *   }));
+	 *
+	 * const cms = q
+	 *   .collections({ posts })
+	 *   .build({ ... });
+	 * ```
+	 */
+	collection<TName extends string>(
+		name: TName,
+	): CollectionBuilder<
+		EmptyCollectionState<TName, QuestpieBuilder<TState>, TState["fields"]>
+	> {
+		return new CollectionBuilder({
+			name,
+			fields: {},
+			localized: [],
+			virtuals: undefined,
+			relations: {},
+			indexes: {},
+			title: undefined,
+			options: {},
+			hooks: {},
+			access: {},
+			functions: {},
+			searchable: undefined,
+			validation: undefined,
+			output: undefined,
+			upload: undefined,
+			fieldDefinitions: {},
+			"~questpieApp": this,
+			"~fieldTypes": undefined, // Type only - passed via generics
+		}) as any;
+	}
+
+	/**
+	 * Create a global builder bound to this Questpie builder.
+	 * The global has access to all registered field types from `.fields()`.
+	 *
+	 * @example
+	 * ```ts
+	 * import { defaultFields } from "@questpie/server/fields/builtin";
+	 *
+	 * const q = questpie({ name: "app" })
+	 *   .fields(defaultFields);
+	 *
+	 * // Use q.global() for type-safe field access:
+	 * const settings = q.global("settings")
+	 *   .fields((f) => ({
+	 *     siteName: f.text({ required: true }),  // ✅ autocomplete from defaultFields
+	 *     maintenanceMode: f.boolean({ default: false }),
+	 *   }));
+	 *
+	 * const cms = q
+	 *   .globals({ settings })
+	 *   .build({ ... });
+	 * ```
+	 */
+	global<TName extends string>(
+		name: TName,
+	): GlobalBuilder<
+		EmptyGlobalState<TName, QuestpieBuilder<TState>, TState["fields"]>
+	> {
+		return new GlobalBuilder({
+			name,
+			fields: {},
+			localized: [],
+			virtuals: {},
+			relations: {},
+			options: {},
+			hooks: {},
+			access: {},
+			functions: {},
+			fieldDefinitions: undefined,
+			"~questpieApp": this,
+			"~fieldTypes": undefined, // Type only - passed via generics
+		}) as any;
+	}
+
+	// ============================================================================
+	// Factory Methods (passthrough helpers for type-safe definitions)
+	// ============================================================================
+
+	/**
+	 * Define a background job with type-safe payload and handler.
+	 *
+	 * @example
+	 * ```ts
+	 * const sendEmailJob = q.job({
+	 *   name: 'send-email',
+	 *   schema: z.object({
+	 *     to: z.string().email(),
+	 *     subject: z.string(),
+	 *   }),
+	 *   handler: async ({ payload, app }) => {
+	 *     await app.email.send({ to: payload.to, subject: payload.subject, html: '...' });
+	 *   },
+	 * });
+	 *
+	 * const cms = q.jobs({ sendEmail: sendEmailJob }).build({ ... });
+	 * ```
+	 */
+	job<TName extends string, TPayload, TResult = void>(
+		definition: JobDefinition<TPayload, TResult, TName>,
+	): JobDefinition<TPayload, TResult, TName> {
+		return definition;
+	}
+
+	/**
+	 * Define an RPC function with type-safe input/output.
+	 *
+	 * @example
+	 * ```ts
+	 * const getStats = q.fn({
+	 *   schema: z.object({ period: z.enum(['day', 'week', 'month']) }),
+	 *   handler: async ({ input, app }) => {
+	 *     return { visits: 100, orders: 50 };
+	 *   },
+	 * });
+	 *
+	 * const cms = q.functions({ getStats }).build({ ... });
+	 * ```
+	 */
+	fn<TInput, TOutput>(
+		definition: JsonFunctionDefinition<TInput, TOutput>,
+	): JsonFunctionDefinition<TInput, TOutput>;
+	fn(definition: RawFunctionDefinition): RawFunctionDefinition;
+	fn(definition: FunctionDefinition): FunctionDefinition {
+		return definition;
+	}
+
+	/**
+	 * Define an email template with type-safe context.
+	 *
+	 * @example
+	 * ```ts
+	 * const welcomeEmail = q.email({
+	 *   name: 'welcome',
+	 *   schema: z.object({ name: z.string(), activationLink: z.string().url() }),
+	 *   render: ({ name, activationLink }) => (
+	 *     <div>
+	 *       <h1>Welcome, {name}!</h1>
+	 *       <a href={activationLink}>Activate</a>
+	 *     </div>
+	 *   ),
+	 *   subject: (ctx) => `Welcome, ${ctx.name}!`,
+	 * });
+	 *
+	 * const cms = q.emailTemplates({ welcome: welcomeEmail }).build({ ... });
+	 * ```
+	 */
+	email<TName extends string, TContext>(
+		definition: EmailTemplateDefinition<TContext, TName>,
+	): EmailTemplateDefinition<TContext, TName> {
+		return definition;
+	}
+
 	/**
 	 * Build the final Questpie instance
 	 * Requires runtime configuration (app.url, db.url, etc.)
@@ -767,4 +956,86 @@ export class QuestpieBuilder<
  */
 export function questpie<TName extends string>(config: { name: TName }) {
 	return QuestpieBuilder.empty(config.name);
+}
+
+/**
+ * Type for a callable QuestpieBuilder.
+ * Can be invoked as a function to create new builders, while also having all builder methods.
+ */
+export type CallableQuestpieBuilder<
+	TState extends QuestpieBuilderState<
+		string,
+		any,
+		any,
+		any,
+		any,
+		any,
+		any,
+		any,
+		any
+	>,
+> = QuestpieBuilder<TState> &
+	(<TName extends string>(config: {
+		name: TName;
+	}) => QuestpieBuilder<
+		QuestpieBuilderState<TName, {}, {}, {}, {}, {}, {}, never, TState["fields"]>
+	>);
+
+/**
+ * Create a callable QuestpieBuilder that can be both invoked as a function
+ * and used directly as a builder instance.
+ *
+ * When called as a function, it creates a new builder with the same field types.
+ * When used as an object, it provides all builder methods directly.
+ *
+ * @example
+ * ```ts
+ * const q = createCallableBuilder(
+ *   questpie({ name: "base" }).fields(defaultFields)
+ * );
+ *
+ * // Use as builder directly
+ * const posts = q.collection("posts").fields((f) => ({
+ *   title: f.text({ required: true }),
+ * }));
+ *
+ * // Or create new builder with same fields
+ * const myApp = q({ name: "my-app" })
+ *   .collections({ posts })
+ *   .build({ ... });
+ * ```
+ */
+export function createCallableBuilder<
+	TState extends QuestpieBuilderState<
+		string,
+		any,
+		any,
+		any,
+		any,
+		any,
+		any,
+		any,
+		any
+	>,
+>(builder: QuestpieBuilder<TState>): CallableQuestpieBuilder<TState> {
+	// Create the callable function
+	const callable = <TName extends string>(config: { name: TName }) => {
+		// Create new builder with same fields but fresh state
+		return QuestpieBuilder.empty(config.name).fields(
+			builder.state.fields,
+		) as any;
+	};
+
+	// Copy all properties and methods from the builder to the callable
+	Object.setPrototypeOf(callable, QuestpieBuilder.prototype);
+	Object.assign(callable, builder);
+
+	// Copy the state property explicitly
+	Object.defineProperty(callable, "state", {
+		value: builder.state,
+		writable: false,
+		enumerable: true,
+	});
+
+	return callable as CallableQuestpieBuilder<TState>;
 }

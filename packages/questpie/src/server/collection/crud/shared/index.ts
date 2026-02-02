@@ -15,6 +15,17 @@ export {
 	validateFieldsWriteAccess,
 } from "./access-control.js";
 export { getDb, type NormalizedContext, normalizeContext } from "./context.js";
+// TState-based field extraction (new approach)
+export {
+	extractFieldNamesByLocation,
+	extractLocalizedFieldNames,
+	extractMainFieldNames,
+	extractVirtualFieldNames,
+	hasLocalizedFields,
+	hasVirtualFields,
+	mergeFieldsByLocation,
+	splitFieldsByLocation,
+} from "./field-extraction.js";
 export { resolveFieldKey } from "./field-resolver.js";
 export {
 	type CreateHookContextParams,

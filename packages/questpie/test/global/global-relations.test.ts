@@ -1,37 +1,52 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
-import { integer, text, varchar } from "drizzle-orm/pg-core";
-import { collection, global, questpie } from "../../src/server/index.js";
+import { defaultFields } from "../../src/server/fields/builtin/defaults.js";
+import { questpie } from "../../src/server/index.js";
 import { buildMockApp } from "../utils/mocks/mock-app-builder";
 import { createTestContext } from "../utils/test-context";
 import { runTestDbMigrations } from "../utils/test-db";
 
+const q = questpie({ name: "test-module" }).fields(defaultFields);
+
 // Assets collection (target of many-to-many)
-const assets = collection("assets")
-	.fields({
-		filename: varchar("filename", { length: 255 }).notNull(),
-		mimeType: varchar("mime_type", { length: 100 }),
-	})
+const assets = q
+	.collection("assets")
+	.fields((f) => ({
+		filename: f.text({ required: true, maxLength: 255 }),
+		mimeType: f.text({ maxLength: 100 }),
+	}))
 	.build();
 
 // Junction table for candle settings images
-const candleSettingsImages = collection("candle_settings_images")
-	.fields({
-		candleSettingsId: varchar("candle_settings_id", { length: 36 }).notNull(),
-		assetId: varchar("asset_id", { length: 36 }).notNull(),
-		order: integer("order").default(0),
-	})
+const candleSettingsImages = q
+	.collection("candle_settings_images")
+	.fields((f) => ({
+		candleSettings: f.relation({
+			to: "candle_settings",
+			required: true,
+			onDelete: "cascade",
+		}),
+		asset: f.relation({
+			to: "assets",
+			required: true,
+			onDelete: "cascade",
+		}),
+		order: f.number({ default: 0 }),
+	}))
 	.build();
 
 // Candle settings global with many-to-many relation
-const candleSettings = global("candle_settings")
-	.fields({
-		pageTitle: varchar("page_title", { length: 255 })
-			.notNull()
-			.default("Zapal svíčku"),
-		pageDescription: text("page_description").default("Test description"),
-	})
-	.relations(({ manyToMany }) => ({
-		images: manyToMany("assets", {
+const candleSettings = q
+	.global("candle_settings")
+	.fields((f) => ({
+		pageTitle: f.text({
+			required: true,
+			maxLength: 255,
+			default: "Zapal svíčku",
+		}),
+		pageDescription: f.textarea({ default: "Test description" }),
+		images: f.relation({
+			to: "assets",
+			hasMany: true,
 			through: "candle_settings_images",
 			sourceField: "candleSettingsId",
 			targetField: "assetId",
@@ -39,7 +54,7 @@ const candleSettings = global("candle_settings")
 	}))
 	.build();
 
-const testModule = questpie({ name: "test-module" })
+const testModule = q
 	.collections({
 		assets,
 		candle_settings_images: candleSettingsImages,
@@ -93,7 +108,7 @@ describe("global many-to-many relations", () => {
 
 		// Manually create junction records (since global CRUD doesn't support many-to-many mutations yet)
 		const settingsId = (settings as any).id;
-		await cms.api.collections.candle_settings_images.create(
+		await (cms as any).api.collections.candle_settings_images.create(
 			{
 				id: crypto.randomUUID(),
 				candleSettingsId: settingsId,
@@ -102,7 +117,7 @@ describe("global many-to-many relations", () => {
 			},
 			ctx,
 		);
-		await cms.api.collections.candle_settings_images.create(
+		await (cms as any).api.collections.candle_settings_images.create(
 			{
 				id: crypto.randomUUID(),
 				candleSettingsId: settingsId,
@@ -154,7 +169,7 @@ describe("global many-to-many relations", () => {
 		);
 
 		// Create junction record
-		await cms.api.collections.candle_settings_images.create(
+		await (cms as any).api.collections.candle_settings_images.create(
 			{
 				id: crypto.randomUUID(),
 				candleSettingsId: (settings as any).id,
@@ -435,7 +450,7 @@ describe("global many-to-many relations", () => {
 			);
 
 			// Manually update junction with order
-			await cms.api.collections.candle_settings_images.update(
+			await (cms as any).api.collections.candle_settings_images.update(
 				{
 					where: {
 						AND: [
@@ -449,11 +464,12 @@ describe("global many-to-many relations", () => {
 			);
 
 			// Verify extra field is preserved
-			const junctionRecords =
-				await cms.api.collections.candle_settings_images.find(
-					{ where: { candleSettingsId: (settings as any).id } },
-					ctx,
-				);
+			const junctionRecords = await (
+				cms as any
+			).api.collections.candle_settings_images.find(
+				{ where: { candleSettingsId: (settings as any).id } },
+				ctx,
+			);
 
 			expect(junctionRecords.docs).toHaveLength(1);
 			expect((junctionRecords.docs[0] as any).order).toBe(10);

@@ -19,48 +19,35 @@ import type { I18nText } from "#questpie/shared/i18n/types.js";
 // ============================================================================
 
 /**
- * Core field definition interface.
+ * Core field definition interface using TState pattern.
  * Each field type implements this to provide:
  * - Column generation for Drizzle
  * - Validation schema (Zod v4 - JSON Schema derived via z.toJSONSchema())
  * - Query operators (context-aware for column vs JSONB)
  * - Admin metadata
+ * - Field location (main, i18n, virtual, relation)
  *
- * Type parameters:
- * - TType: Field type identifier ("text", "number", etc.)
- * - TConfig: Configuration object type
- * - TValue: Base runtime value type (string, number, etc.)
- * - TInput: Type for create/update input (may differ due to required/default)
- * - TOutput: Type for select output (may differ due to output: false)
- * - TColumn: Drizzle column type
+ * Type parameter:
+ * - TState: FieldDefinitionState containing all type information
  */
-export interface FieldDefinition<
-	TType extends string = string,
-	TConfig extends BaseFieldConfig = BaseFieldConfig,
-	TValue = unknown,
-	TInput = TValue,
-	TOutput = TValue,
-	TColumn extends AnyPgColumn | null = AnyPgColumn | null,
-> {
-	/** Field type identifier (e.g., "text", "number", "relation") */
-	readonly type: TType;
-
-	/** Field configuration */
-	readonly config: TConfig;
+export interface FieldDefinition<TState extends FieldDefinitionState> {
+	/** Field state - contains all type and configuration information */
+	readonly state: TState;
 
 	/** Phantom types for inference - used by collection $infer */
 	readonly $types: {
-		value: TValue;
-		input: TInput;
-		output: TOutput;
-		column: TColumn;
+		value: TState["value"];
+		input: TState["input"];
+		output: TState["output"];
+		column: TState["column"];
+		location: TState["location"];
 	};
 
 	/**
 	 * Generate Drizzle column(s) for this field.
-	 * May return single column, multiple (e.g., polymorphic), or null (e.g., hasMany, virtual).
+	 * May return single column, multiple (e.g., polymorphic), or null (e.g., virtual, relation).
 	 */
-	toColumn(name: string): TColumn | TColumn[] | null;
+	toColumn(name: string): TState["column"] | TState["column"][] | null;
 
 	/**
 	 * Generate Zod schema for input validation.
@@ -71,7 +58,7 @@ export interface FieldDefinition<
 	 * Zod v4 provides z.toJSONSchema(schema) to convert any Zod schema.
 	 * This is used at collection level to generate client validation schemas.
 	 */
-	toZodSchema(): ZodType<TInput>;
+	toZodSchema(): ZodType<TState["input"]>;
 
 	/**
 	 * Get operators for query builder.
@@ -90,7 +77,7 @@ export interface FieldDefinition<
 	/**
 	 * Optional: Get nested fields (for object/array types).
 	 */
-	getNestedFields?(): Record<string, FieldDefinition>;
+	getNestedFields?(): Record<string, FieldDefinition<FieldDefinitionState>>;
 
 	/**
 	 * Optional: Modify select query (for relations, computed fields).
@@ -105,12 +92,12 @@ export interface FieldDefinition<
 	/**
 	 * Optional: Transform value after reading from DB.
 	 */
-	fromDb?(dbValue: unknown): TValue;
+	fromDb?(dbValue: unknown): TState["value"];
 
 	/**
 	 * Optional: Transform value before writing to DB.
 	 */
-	toDb?(value: TInput): unknown;
+	toDb?(value: TState["input"]): unknown;
 }
 
 // ============================================================================
@@ -304,7 +291,10 @@ export interface FieldHooks<TValue = unknown> {
 	 * Called before sending to client.
 	 * Must return same type as stored value.
 	 */
-	afterRead?: (value: TValue, ctx: FieldHookContext) => TValue | Promise<TValue>;
+	afterRead?: (
+		value: TValue,
+		ctx: FieldHookContext,
+	) => TValue | Promise<TValue>;
 
 	/**
 	 * Validate value before save.
@@ -434,16 +424,59 @@ export interface SelectFieldMetadata extends FieldMetadataBase {
 }
 
 /**
- * Relation field metadata
+ * Inferred relation type.
+ */
+export type InferredRelationType =
+	| "belongsTo"
+	| "hasMany"
+	| "manyToMany"
+	| "multiple"
+	| "morphTo"
+	| "morphMany";
+
+/**
+ * Referential action for FK constraints.
+ */
+export type ReferentialAction =
+	| "cascade"
+	| "set null"
+	| "restrict"
+	| "no action";
+
+/**
+ * Relation field metadata (unified - includes polymorphic).
  */
 export interface RelationFieldMetadata extends FieldMetadataBase {
 	type: "relation";
-	relationTarget: string;
-	relationType: "belongsTo" | "hasMany" | "manyToMany";
+	relationType: InferredRelationType;
+	/** Target collection name(s) - array for polymorphic, "__deferred__" if lazy */
+	targetCollection: string | string[];
+	/** FK column name on target (for hasMany) */
+	foreignKey?: string;
+	/** Junction collection name (for manyToMany), "__deferred__" if lazy */
+	through?: string;
+	/** Source field on junction */
+	sourceField?: string;
+	/** Target field on junction */
+	targetField?: string;
+	/** MorphTo field name (for morphMany) */
+	morphName?: string;
+	/** Type value for morphMany */
+	morphType?: string;
+	/** On delete action */
+	onDelete?: ReferentialAction;
+	/** On update action */
+	onUpdate?: ReferentialAction;
+	/** Relation name for disambiguation */
+	relationName?: string;
+	/** Internal: Original config.to for runtime resolution */
+	_toConfig?: unknown;
+	/** Internal: Original config.through for runtime resolution */
+	_throughConfig?: unknown;
 }
 
 /**
- * Polymorphic relation field metadata
+ * @deprecated Use RelationFieldMetadata with relationType: "morphTo" instead
  */
 export interface PolymorphicRelationFieldMetadata extends FieldMetadataBase {
 	type: "polymorphicRelation";
@@ -511,29 +544,33 @@ export interface JoinBuilder {
  * Infer input type from field config.
  * Handles required, nullable, virtual, input options.
  */
-export type InferInputType<TConfig extends BaseFieldConfig, TValue> =
-	TConfig extends { virtual: true | SQL<unknown> }
-		? TConfig extends { input: true }
-			? TValue | undefined // Explicitly enabled input for virtual
-			: never // Default: no input for virtual
-		: TConfig extends { input: false }
-			? never
-			: TConfig extends { input: "optional" }
-				? TValue | undefined
-				: TConfig extends { required: true }
-					? TValue
-					: TValue | null | undefined;
+export type InferInputType<
+	TConfig extends BaseFieldConfig,
+	TValue,
+> = TConfig extends { virtual: true | SQL<unknown> }
+	? TConfig extends { input: true }
+		? TValue | undefined // Explicitly enabled input for virtual
+		: never // Default: no input for virtual
+	: TConfig extends { input: false }
+		? never
+		: TConfig extends { input: "optional" }
+			? TValue | undefined
+			: TConfig extends { required: true }
+				? TValue
+				: TValue | null | undefined;
 
 /**
  * Infer output type from field config.
  * Handles output: false and access.read functions.
  */
-export type InferOutputType<TConfig extends BaseFieldConfig, TValue> =
-	TConfig extends { output: false }
-		? never
-		: TConfig extends { access: { read: (...args: unknown[]) => unknown } }
-			? TValue | undefined // Runtime check = might be filtered
-			: TValue;
+export type InferOutputType<
+	TConfig extends BaseFieldConfig,
+	TValue,
+> = TConfig extends { output: false }
+	? never
+	: TConfig extends { access: { read: (...args: unknown[]) => unknown } }
+		? TValue | undefined // Runtime check = might be filtered
+		: TValue;
 
 /**
  * Infer column type from field config.
@@ -548,14 +585,137 @@ export type InferColumnType<
 // Field Definition Generic Type
 // ============================================================================
 
+// ============================================================================
+// Field Definition State (TState Pattern)
+// ============================================================================
+
+/**
+ * Field location determines which table the field belongs to
+ */
+export type FieldLocation = "main" | "i18n" | "virtual" | "relation";
+
+/**
+ * Core field definition state interface.
+ * Uses TState pattern for better type composition and extensibility.
+ *
+ * Similar to CollectionBuilderState - accumulates field configuration
+ * through the type system for precise inference.
+ */
+export interface FieldDefinitionState {
+	/** Field type identifier (e.g., "text", "number", "relation") */
+	type: string;
+
+	/** Field configuration - any config extending BaseFieldConfig */
+	config: Record<string, any>;
+
+	/** Base runtime value type */
+	value: unknown;
+
+	/** Input type for create/update (affected by required, default, etc.) */
+	input: unknown;
+
+	/** Output type for select (affected by output, access, etc.) */
+	output: unknown;
+
+	/** Drizzle column type (null for virtual/relation fields) */
+	column: AnyPgColumn | null;
+
+	/** Field location - determines which table the field belongs to */
+	location: FieldLocation;
+
+	/** Optional: Field-specific operators */
+	operators?: ContextualOperators;
+
+	/** Optional: Field metadata for introspection */
+	metadata?: FieldMetadata;
+}
+
+/**
+ * Empty field state for initialization
+ */
+export type EmptyFieldState = {
+	type: string;
+	config: BaseFieldConfig;
+	value: unknown;
+	input: unknown;
+	output: unknown;
+	column: AnyPgColumn | null;
+	location: "main";
+};
+
+// ============================================================================
+// Field Extraction Type Helpers (for unified .fields() API)
+// ============================================================================
+
+/**
+ * Extract fields by location from field definitions.
+ * Used to separate main table fields, i18n fields, virtual fields, and relations.
+ */
+export type ExtractFieldsByLocation<
+	TFields extends Record<string, FieldDefinition<FieldDefinitionState>>,
+	TLocation extends FieldLocation,
+> = {
+	[K in keyof TFields as TFields[K] extends FieldDefinition<infer TState>
+		? TState["location"] extends TLocation
+			? K
+			: never
+		: never]: TFields[K];
+};
+
+/**
+ * Extract main table fields (location: "main")
+ */
+export type ExtractMainFields<
+	TFields extends Record<string, FieldDefinition<FieldDefinitionState>>,
+> = ExtractFieldsByLocation<TFields, "main">;
+
+/**
+ * Extract localized fields (location: "i18n")
+ */
+export type ExtractI18nFields<
+	TFields extends Record<string, FieldDefinition<FieldDefinitionState>>,
+> = ExtractFieldsByLocation<TFields, "i18n">;
+
+/**
+ * Extract virtual fields (location: "virtual")
+ */
+export type ExtractVirtualFields<
+	TFields extends Record<string, FieldDefinition<FieldDefinitionState>>,
+> = ExtractFieldsByLocation<TFields, "virtual">;
+
+/**
+ * Extract relation fields (location: "relation")
+ */
+export type ExtractRelationFields<
+	TFields extends Record<string, FieldDefinition<FieldDefinitionState>>,
+> = ExtractFieldsByLocation<TFields, "relation">;
+
+/**
+ * Extract column types from field definitions.
+ * Maps each field to its Drizzle column type.
+ */
+export type ExtractColumnsFromFields<
+	TFields extends Record<string, FieldDefinition<FieldDefinitionState>>,
+> = {
+	[K in keyof TFields as TFields[K] extends FieldDefinition<infer TState>
+		? TState["column"] extends null
+			? never // Skip virtual/relation fields
+			: K
+		: never]: TFields[K] extends FieldDefinition<infer TState>
+		? TState["column"]
+		: never;
+};
+
 /**
  * Generic FieldDefinition type for use when the specific field type is unknown.
+ * Uses a default FieldDefinitionState with all unknown types.
  */
-export type AnyFieldDefinition = FieldDefinition<
-	string,
-	BaseFieldConfig,
-	unknown,
-	unknown,
-	unknown,
-	AnyPgColumn | null
->;
+export type AnyFieldDefinition = FieldDefinition<{
+	type: string;
+	config: BaseFieldConfig;
+	value: unknown;
+	input: unknown;
+	output: unknown;
+	column: AnyPgColumn | null;
+	location: FieldLocation;
+}>;

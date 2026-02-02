@@ -4,10 +4,17 @@
  * Tests for access filtering via SQL JOINs in the search adapter.
  */
 
-import { afterEach, beforeEach, describe, expect, it, setDefaultTimeout } from "bun:test";
+import {
+	afterEach,
+	beforeEach,
+	describe,
+	expect,
+	it,
+	setDefaultTimeout,
+} from "bun:test";
 import { sql } from "drizzle-orm";
-import { text, varchar } from "drizzle-orm/pg-core";
-import { collection, questpie } from "../../src/server/index.js";
+import { defaultFields } from "../../src/server/fields/builtin/defaults.js";
+import { questpie } from "../../src/server/index.js";
 import {
 	createPostgresSearchAdapter,
 	type PostgresSearchAdapter,
@@ -18,18 +25,22 @@ import { runTestDbMigrations } from "../utils/test-db";
 
 setDefaultTimeout(30000);
 
-const posts = collection("posts")
-	.fields({
-		title: varchar("title", { length: 255 }).notNull(),
-		content: text("content"),
-	})
+// Create questpie builder with default fields
+const q = questpie({ name: "search-access-test" }).fields(defaultFields);
+
+const posts = q
+	.collection("posts")
+	.fields((f) => ({
+		title: f.text({ required: true, maxLength: 255 }),
+		content: f.textarea(),
+	}))
 	.title(({ f }) => f.title)
 	.searchable({
 		content: (record) => record.content || "",
 	})
 	.options({ timestamps: true });
 
-const testModule = questpie({ name: "search-access-test" }).collections({
+const testModule = q.collections({
 	posts,
 });
 

@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
-import { jsonb, varchar } from "drizzle-orm/pg-core";
-import { collection, questpie } from "../../src/server/index.js";
+import { defaultFields } from "../../src/server/fields/builtin/defaults.js";
+import { questpie } from "../../src/server/index.js";
 import { buildMockApp } from "../utils/mocks/mock-app-builder";
 import { createTestContext } from "../utils/test-context";
 import { runTestDbMigrations } from "../utils/test-db";
@@ -8,10 +8,14 @@ import { runTestDbMigrations } from "../utils/test-db";
 /**
  * Test collection with mixed localization modes:
  * - Flat field (text) - whole replacement (default for primitives)
- * - JSONB whole-mode - entire JSONB per locale (default for JSONB)
- * - JSONB nested-mode - { $i18n: value } wrappers (explicit :nested suffix)
+ * - JSONB whole-mode - entire JSONB per locale (localized: true on json field)
+ * - JSONB nested-mode - { $i18n: value } wrappers (auto-detected, no localized flag needed)
  *
  * This tests that different localization strategies can coexist in one collection.
+ *
+ * Note: $i18n markers are auto-detected by the localization system even without
+ * explicit localized configuration. When the system encounters $i18n wrappers,
+ * it extracts those values to the _localized column.
  */
 
 type TipTapContent = {
@@ -27,22 +31,25 @@ type TipTapContent = {
 
 type PageContent = any; // Complex nested structure with $i18n markers
 
-const products = collection("products")
-	.fields({
-		name: varchar("name", { length: 255 }).notNull(), // flat localized
-		description: jsonb("description").$type<TipTapContent>(), // whole-mode JSONB
-		metadata: jsonb("metadata").$type<PageContent>(), // nested-mode JSONB
-	})
+const q = questpie({ name: "mixed-modes-test" }).fields(defaultFields);
+
+const products = q
+	.collection("products")
+	.fields((f) => ({
+		name: f.text({ required: true, maxLength: 255, localized: true }), // flat localized
+		description: f.json({ localized: true }), // whole-mode JSONB
+		// nested-mode JSONB - $i18n markers auto-detected, no localized flag needed
+		metadata: f.json(),
+	}))
 	// Mix of modes:
-	// - name: flat field (whole replacement by default)
-	// - description: JSONB whole-mode (default for JSONB)
-	// - metadata: JSONB nested-mode (explicit :nested)
-	.localized(["name", "description", "metadata:nested"])
+	// - name: flat field (whole replacement - localized: true)
+	// - description: JSONB whole-mode (localized: true)
+	// - metadata: JSONB nested-mode ($i18n markers auto-detected)
 	.options({
 		timestamps: true,
 	});
 
-const testModule = questpie({ name: "mixed-modes-test" }).collections({
+const testModule = q.collections({
 	products,
 });
 
@@ -70,13 +77,15 @@ describe("mixed localization modes", () => {
 			content: [
 				{
 					type: "paragraph",
-					content: [{ type: "text", text: "Natural ingredients for healthy hair." }],
+					content: [
+						{ type: "text", text: "Natural ingredients for healthy hair." },
+					],
 				},
 			],
 		};
 
 		// JSONB nested-mode (with $i18n wrappers)
-		const metadataEN = {
+		const metadataEN: PageContent = {
 			sku: "SH-001", // static
 			category: { $i18n: "Hair Care" }, // localized
 			tags: [
@@ -96,9 +105,11 @@ describe("mixed localization modes", () => {
 
 		expect(created.name).toBe(nameEN);
 		expect(created.description).toEqual(descriptionEN);
-		expect(created.metadata.sku).toBe("SH-001"); // static preserved
-		expect(created.metadata.category).toBe("Hair Care"); // $i18n extracted
-		expect(created.metadata.tags[0].name).toBe("Natural"); // $i18n extracted
+		// Type assertion needed due to JSONB type inference
+		const metadata = created.metadata as any;
+		expect(metadata.sku).toBe("SH-001"); // static preserved
+		expect(metadata.category).toBe("Hair Care"); // $i18n extracted
+		expect(metadata.tags[0].name).toBe("Natural"); // $i18n extracted
 	});
 
 	it("updates different locales independently for each mode", async () => {
@@ -145,10 +156,7 @@ describe("mixed localization modes", () => {
 					metadata: {
 						sku: "HG-001", // static unchanged
 						category: { $i18n: "Styling" },
-						benefits: [
-							{ $i18n: "Dlhotrvajúce" },
-							{ $i18n: "Ľahko sa zmýva" },
-						],
+						benefits: [{ $i18n: "Dlhotrvajúce" }, { $i18n: "Ľahko sa zmýva" }],
 					},
 				},
 			},
@@ -161,11 +169,11 @@ describe("mixed localization modes", () => {
 			ctxEN,
 		);
 		expect(enProduct?.name).toBe("Hair Gel");
-		expect(enProduct?.description?.content[0]?.content?.[0]?.text).toBe(
-			"Strong hold all day.",
-		);
-		expect(enProduct?.metadata.category).toBe("Styling");
-		expect(enProduct?.metadata.benefits[0]).toBe("Long lasting");
+		expect(
+			(enProduct?.description as any)?.content[0]?.content?.[0]?.text,
+		).toBe("Strong hold all day.");
+		expect((enProduct?.metadata as any).category).toBe("Styling");
+		expect((enProduct?.metadata as any).benefits[0]).toBe("Long lasting");
 
 		// Read in SK
 		const skProduct = await setup.cms.api.collections.products.findOne(
@@ -173,11 +181,11 @@ describe("mixed localization modes", () => {
 			ctxSK,
 		);
 		expect(skProduct?.name).toBe("Gél na vlasy");
-		expect(skProduct?.description?.content[0]?.content?.[0]?.text).toBe(
-			"Silné držanie celý deň.",
-		);
-		expect(skProduct?.metadata.category).toBe("Styling");
-		expect(skProduct?.metadata.benefits[0]).toBe("Dlhotrvajúce");
+		expect(
+			(skProduct?.description as any)?.content[0]?.content?.[0]?.text,
+		).toBe("Silné držanie celý deň.");
+		expect((skProduct?.metadata as any).category).toBe("Styling");
+		expect((skProduct?.metadata as any).benefits[0]).toBe("Dlhotrvajúce");
 	});
 
 	it("falls back correctly for each mode", async () => {
@@ -213,10 +221,10 @@ describe("mixed localization modes", () => {
 
 		// All should fallback to EN
 		expect(deProduct?.name).toBe("Conditioner"); // flat field fallback
-		expect(deProduct?.description?.content[0]?.content?.[0]?.text).toBe(
-			"Moisturizing formula.",
-		); // whole-mode JSONB fallback
-		expect(deProduct?.metadata.slogan).toBe("The best for your hair"); // nested-mode fallback
+		expect(
+			(deProduct?.description as any)?.content[0]?.content?.[0]?.text,
+		).toBe("Moisturizing formula."); // whole-mode JSONB fallback
+		expect((deProduct?.metadata as any).slogan).toBe("The best for your hair"); // nested-mode fallback
 	});
 
 	it("preserves static values in nested-mode while localizing marked values", async () => {
@@ -242,15 +250,16 @@ describe("mixed localization modes", () => {
 			ctx,
 		);
 
-		expect(created.metadata.id).toBe(123);
-		expect(created.metadata.active).toBe(true);
-		expect(created.metadata.title).toBe("Localized Title");
-		expect(created.metadata.prices).toEqual([
+		const createdMeta = created.metadata as any;
+		expect(createdMeta.id).toBe(123);
+		expect(createdMeta.active).toBe(true);
+		expect(createdMeta.title).toBe("Localized Title");
+		expect(createdMeta.prices).toEqual([
 			{ currency: "EUR", amount: 1999 },
 			{ currency: "USD", amount: 2199 },
 		]);
-		expect(created.metadata.features[0].icon).toBe("star");
-		expect(created.metadata.features[0].label).toBe("Premium");
+		expect(createdMeta.features[0].icon).toBe("star");
+		expect(createdMeta.features[0].label).toBe("Premium");
 	});
 
 	it("handles null values for each mode", async () => {
@@ -354,26 +363,26 @@ describe("mixed localization modes", () => {
 			{ where: { id: created.id } },
 			ctxEN,
 		);
-		expect(enProduct?.description?.content).toHaveLength(2); // EN has 2 paragraphs
+		expect((enProduct?.description as any)?.content).toHaveLength(2); // EN has 2 paragraphs
 
 		const skProduct = await setup.cms.api.collections.products.findOne(
 			{ where: { id: created.id } },
 			ctxSK,
 		);
-		expect(skProduct?.description?.content).toHaveLength(1); // SK has 1 paragraph
+		expect((skProduct?.description as any)?.content).toHaveLength(1); // SK has 1 paragraph
 
 		const deProduct = await setup.cms.api.collections.products.findOne(
 			{ where: { id: created.id } },
 			ctxDE,
 		);
-		expect(deProduct?.description?.content).toHaveLength(3); // DE has 3 paragraphs
+		expect((deProduct?.description as any)?.content).toHaveLength(3); // DE has 3 paragraphs
 	});
 
 	it("handles complex nested $i18n structures in nested-mode", async () => {
 		const ctxEN = createTestContext({ locale: "en" });
 		const ctxSK = createTestContext({ locale: "sk" });
 
-		const metadataEN = {
+		const metadataEN: PageContent = {
 			sections: [
 				{
 					id: "intro",
@@ -438,18 +447,20 @@ describe("mixed localization modes", () => {
 			{ where: { id: created.id } },
 			ctxEN,
 		);
-		expect(enProduct?.metadata.sections[0].title).toBe("Introduction");
-		expect(enProduct?.metadata.sections[0].items[0].label).toBe("Welcome");
-		expect(enProduct?.metadata.sections[0].items[0].value).toBe("static-value"); // static preserved
+		const enMeta = enProduct?.metadata as any;
+		expect(enMeta.sections[0].title).toBe("Introduction");
+		expect(enMeta.sections[0].items[0].label).toBe("Welcome");
+		expect(enMeta.sections[0].items[0].value).toBe("static-value"); // static preserved
 
 		// Verify SK
 		const skProduct = await setup.cms.api.collections.products.findOne(
 			{ where: { id: created.id } },
 			ctxSK,
 		);
-		expect(skProduct?.metadata.sections[0].title).toBe("Úvod");
-		expect(skProduct?.metadata.sections[0].items[0].label).toBe("Vitajte");
-		expect(skProduct?.metadata.sections[0].items[0].value).toBe("static-value"); // static preserved
-		expect(skProduct?.metadata.sections[1].items[0].icon).toBe("zap"); // static preserved
+		const skMeta = skProduct?.metadata as any;
+		expect(skMeta.sections[0].title).toBe("Úvod");
+		expect(skMeta.sections[0].items[0].label).toBe("Vitajte");
+		expect(skMeta.sections[0].items[0].value).toBe("static-value"); // static preserved
+		expect(skMeta.sections[1].items[0].icon).toBe("zap"); // static preserved
 	});
 });

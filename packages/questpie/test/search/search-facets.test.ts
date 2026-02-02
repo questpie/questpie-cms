@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { sql } from "drizzle-orm";
-import { integer, jsonb, text, varchar } from "drizzle-orm/pg-core";
-import { collection, questpie } from "../../src/server/index.js";
+import { defaultFields } from "../../src/server/fields/builtin/defaults.js";
+import { questpie } from "../../src/server/index.js";
 import { createPostgresSearchAdapter } from "../../src/server/integrated/search/adapters/postgres.js";
 import { extractFacetValues } from "../../src/server/integrated/search/facet-utils.js";
 import type { FacetsConfig } from "../../src/server/integrated/search/types.js";
@@ -9,18 +9,25 @@ import { buildMockApp } from "../utils/mocks/mock-app-builder";
 import { runTestDbMigrations } from "../utils/test-db";
 
 // ============================================================================
+// Create questpie builder with default fields
+// ============================================================================
+
+const q = questpie({ name: "facets-test" }).fields(defaultFields);
+
+// ============================================================================
 // Test Collections
 // ============================================================================
 
-const products = collection("products")
-	.fields({
-		name: varchar("name", { length: 255 }).notNull(),
-		description: text("description"),
-		status: varchar("status", { length: 50 }).default("draft"),
-		category: varchar("category", { length: 100 }),
-		price: integer("price"),
-		tags: jsonb("tags").$type<string[]>().default([]),
-	})
+const products = q
+	.collection("products")
+	.fields((f) => ({
+		name: f.text({ required: true, maxLength: 255 }),
+		description: f.textarea(),
+		status: f.text({ maxLength: 50, default: "draft" }),
+		category: f.text({ maxLength: 100 }),
+		price: f.number(),
+		tags: f.json({ default: [] }),
+	}))
 	.title(({ f }) => f.name)
 	.searchable({
 		content: (record) => record.description || "",
@@ -47,12 +54,13 @@ const products = collection("products")
 	})
 	.options({ timestamps: true });
 
-const articles = collection("articles")
-	.fields({
-		title: varchar("title", { length: 255 }).notNull(),
-		content: text("content"),
-		categoryPath: varchar("category_path", { length: 255 }),
-	})
+const articles = q
+	.collection("articles")
+	.fields((f) => ({
+		title: f.text({ required: true, maxLength: 255 }),
+		content: f.textarea(),
+		categoryPath: f.text({ maxLength: 255 }),
+	}))
 	.title(({ f }) => f.title)
 	.searchable({
 		content: (record) => record.content || "",
@@ -65,7 +73,7 @@ const articles = collection("articles")
 	})
 	.options({ timestamps: true });
 
-const testModule = questpie({ name: "facets-test" }).collections({
+const testModule = q.collections({
 	products,
 	articles,
 });

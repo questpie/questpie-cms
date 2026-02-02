@@ -5,7 +5,6 @@
  * These are compile-time only tests - run with: tsc --noEmit
  */
 
-import { integer, text, varchar } from "drizzle-orm/pg-core";
 import { z } from "zod";
 import { collection } from "#questpie/server/collection/builder/collection-builder.js";
 import type { QuestpieBuilder } from "#questpie/server/config/builder.js";
@@ -26,27 +25,24 @@ import type {
 // Test fixtures
 // ============================================================================
 
-const usersCollection = collection("users").fields({
-	name: text("name").notNull(),
-	email: varchar("email", { length: 255 }).notNull(),
-});
+const usersCollection = collection("users").fields((f) => ({
+	name: f.textarea({ required: true }),
+	email: f.email({ required: true, maxLength: 255 }),
+}));
 
-const postsCollection = collection("posts")
-	.fields({
-		title: varchar("title", { length: 255 }).notNull(),
-		content: text("content"),
-		authorId: text("author_id").notNull(),
-	})
-	.relations(({ table, one }) => ({
-		author: one("users", {
-			fields: [table.authorId],
-			references: ["id"],
-		}),
-	}));
+const postsCollection = collection("posts").fields((f) => ({
+	title: f.text({ required: true, maxLength: 255 }),
+	content: f.textarea(),
+	author: f.relation({
+		to: "users",
+		required: true,
+		relationName: "author",
+	}),
+}));
 
-const settingsGlobal = global("settings").fields({
-	siteName: varchar("site_name", { length: 255 }).notNull(),
-});
+const settingsGlobal = global("settings").fields((f) => ({
+	siteName: f.text({ required: true, maxLength: 255 }),
+}));
 
 const sendEmailJob = job({
 	name: "send-email",

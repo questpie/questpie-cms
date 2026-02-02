@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
-import { jsonb, varchar } from "drizzle-orm/pg-core";
-import { collection, questpie } from "../../src/server/index.js";
+import { defaultFields } from "../../src/server/fields/builtin/defaults.js";
+import { questpie } from "../../src/server/index.js";
 import { buildMockApp } from "../utils/mocks/mock-app-builder";
 import { createTestContext } from "../utils/test-context";
 import { runTestDbMigrations } from "../utils/test-db";
@@ -24,13 +24,14 @@ type TipTapContent = {
 	}>;
 };
 
-const barbers = collection("barbers")
-	.fields({
-		name: varchar("name", { length: 255 }).notNull(),
-		bio: jsonb("bio").$type<TipTapContent>(),
-	})
-	// bio is JSONB with whole replacement (default behavior)
-	.localized(["name", "bio"])
+const q = questpie({ name: "whole-jsonb-test" }).fields(defaultFields);
+
+const barbers = q
+	.collection("barbers")
+	.fields((f) => ({
+		name: f.text({ required: true, maxLength: 255, localized: true }),
+		bio: f.json({ localized: true }),
+	}))
 	.options({
 		timestamps: true,
 	});
@@ -250,14 +251,14 @@ describe("whole JSONB localization", () => {
 			{ where: { id: created.id } },
 			ctxEN,
 		);
-		expect(enBarber?.bio?.content).toHaveLength(2);
+		expect((enBarber?.bio as any)?.content).toHaveLength(2);
 
 		// Verify SK has 3 paragraphs
 		const skBarber = await setup.cms.api.collections.barbers.findOne(
 			{ where: { id: created.id } },
 			ctxSK,
 		);
-		expect(skBarber?.bio?.content).toHaveLength(3);
+		expect((skBarber?.bio as any)?.content).toHaveLength(3);
 	});
 
 	it("handles null bio values", async () => {

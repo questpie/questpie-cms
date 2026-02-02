@@ -1,135 +1,139 @@
-import { beforeEach, afterEach, describe, expect, it } from "bun:test";
-import { text } from "drizzle-orm/pg-core";
+import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { z } from "zod";
-import { collection, fn, global, questpie } from "../../src/server/index.js";
-import { buildMockApp } from "../utils/mocks/mock-app-builder";
 import { createFetchHandler } from "../../src/server/adapters/http.js";
+import { defaultFields } from "../../src/server/fields/builtin/defaults.js";
+import { fn, questpie } from "../../src/server/index.js";
+import { buildMockApp } from "../utils/mocks/mock-app-builder";
 
 const createModule = () => {
-  const ping = fn({
-    schema: z.object({ message: z.string() }),
-    outputSchema: z.object({
-      message: z.string(),
-      hasSession: z.boolean(),
-    }),
-    handler: async ({ input, session }) => {
-      return {
-        message: input.message,
-        // Test that session is accessible in handler
-        hasSession: session !== undefined && session !== null,
-      };
-    },
-  });
+	const q = questpie({ name: "rpc-test" }).fields(defaultFields);
 
-  const webhook = fn({
-    mode: "raw",
-    handler: async ({ request }) => {
-      const body = await request.text();
-      return new Response(body);
-    },
-  });
+	const ping = fn({
+		schema: z.object({ message: z.string() }),
+		outputSchema: z.object({
+			message: z.string(),
+			hasSession: z.boolean(),
+		}),
+		handler: async ({ input, session }) => {
+			return {
+				message: input.message,
+				// Test that session is accessible in handler
+				hasSession: session !== undefined && session !== null,
+			};
+		},
+	});
 
-  const posts = collection("posts")
-    .fields({
-      title: text("title").notNull(),
-    })
-    .functions({
-      publish: fn({
-        schema: z.object({ id: z.string() }),
-        handler: async ({ input }) => ({ id: input.id }),
-      }),
-    });
+	const webhook = fn({
+		mode: "raw",
+		handler: async ({ request }) => {
+			const body = await request.text();
+			return new Response(body);
+		},
+	});
 
-  const settings = global("settings")
-    .fields({
-      title: text("title").notNull(),
-    })
-    .functions({
-      refresh: fn({
-        schema: z.object({ ok: z.boolean() }),
-        handler: async ({ input }) => ({ ok: input.ok }),
-      }),
-    });
+	const posts = q
+		.collection("posts")
+		.fields((f) => ({
+			title: f.textarea({ required: true }),
+		}))
+		.functions({
+			publish: fn({
+				schema: z.object({ id: z.string() }),
+				handler: async ({ input }) => ({ id: input.id }),
+			}),
+		});
 
-  return questpie({ name: "rpc-test" })
-    .functions({ ping, webhook })
-    .collections({ posts })
-    .globals({ settings });
+	const settings = q
+		.global("settings")
+		.fields((f) => ({
+			title: f.textarea({ required: true }),
+		}))
+		.functions({
+			refresh: fn({
+				schema: z.object({ ok: z.boolean() }),
+				handler: async ({ input }) => ({ ok: input.ok }),
+			}),
+		});
+
+	return q
+		.functions({ ping, webhook })
+		.collections({ posts })
+		.globals({ settings });
 };
 
 describe("rpc functions", () => {
-  let setup: Awaited<
-    ReturnType<typeof buildMockApp<ReturnType<typeof createModule>>>
-  >;
+	let setup: Awaited<
+		ReturnType<typeof buildMockApp<ReturnType<typeof createModule>>>
+	>;
 
-  beforeEach(async () => {
-    const module = createModule();
-    setup = await buildMockApp(module);
-  });
+	beforeEach(async () => {
+		const module = createModule();
+		setup = await buildMockApp(module);
+	});
 
-  afterEach(async () => {
-    await setup.cleanup();
-  });
+	afterEach(async () => {
+		await setup.cleanup();
+	});
 
-  it("executes root functions via cms.api with context", async () => {
-    const ctx = await setup.cms.createContext({
-      accessMode: "system",
-    });
+	it("executes root functions via cms.api with context", async () => {
+		const ctx = await setup.cms.createContext({
+			accessMode: "system",
+		});
 
-    const result = await setup.cms.api.ping({ message: "hi" }, ctx);
-    expect(result).toEqual({ message: "hi", hasSession: false });
-  });
+		const result = await setup.cms.api.ping({ message: "hi" }, ctx);
+		expect(result).toEqual({ message: "hi", hasSession: false });
+	});
 
-  it("executes collection/global functions via adapter routes", async () => {
-    const handler = createFetchHandler(setup.cms, {});
+	it("executes collection/global functions via adapter routes", async () => {
+		const handler = createFetchHandler(setup.cms, {});
 
-    const rootResponse = await handler(
-      new Request("http://localhost/cms/rpc/ping", {
-        method: "POST",
-        body: JSON.stringify({ message: "hello" }),
-      }),
-    );
-    const rootPayload = await rootResponse?.json();
-    expect(rootPayload).toEqual({ message: "hello", hasSession: false });
+		const rootResponse = await handler(
+			new Request("http://localhost/cms/rpc/ping", {
+				method: "POST",
+				body: JSON.stringify({ message: "hello" }),
+			}),
+		);
+		const rootPayload = await rootResponse?.json();
+		expect(rootPayload).toEqual({ message: "hello", hasSession: false });
 
-    const collectionResponse = await handler(
-      new Request("http://localhost/cms/collections/posts/rpc/publish", {
-        method: "POST",
-        body: JSON.stringify({ id: "post-1" }),
-      }),
-    );
-    expect(await collectionResponse?.json()).toEqual({ id: "post-1" });
+		const collectionResponse = await handler(
+			new Request("http://localhost/cms/collections/posts/rpc/publish", {
+				method: "POST",
+				body: JSON.stringify({ id: "post-1" }),
+			}),
+		);
+		expect(await collectionResponse?.json()).toEqual({ id: "post-1" });
 
-    const globalResponse = await handler(
-      new Request("http://localhost/cms/globals/settings/rpc/refresh", {
-        method: "POST",
-        body: JSON.stringify({ ok: true }),
-      }),
-    );
-    expect(await globalResponse?.json()).toEqual({ ok: true });
-  });
+		const globalResponse = await handler(
+			new Request("http://localhost/cms/globals/settings/rpc/refresh", {
+				method: "POST",
+				body: JSON.stringify({ ok: true }),
+			}),
+		);
+		expect(await globalResponse?.json()).toEqual({ ok: true });
+	});
 
-  it("handles raw functions without JSON parsing", async () => {
-    const handler = createFetchHandler(setup.cms);
-    const response = await handler(
-      new Request("http://localhost/cms/rpc/webhook", {
-        method: "POST",
-        body: "raw-payload",
-      }),
-    );
+	it("handles raw functions without JSON parsing", async () => {
+		const handler = createFetchHandler(setup.cms);
+		const response = await handler(
+			new Request("http://localhost/cms/rpc/webhook", {
+				method: "POST",
+				body: "raw-payload",
+			}),
+		);
 
-    expect(await response?.text()).toBe("raw-payload");
-  });
+		expect(await response?.text()).toBe("raw-payload");
+	});
 
-  it("returns 400 on invalid JSON input", async () => {
-    const handler = createFetchHandler(setup.cms);
-    const response = await handler(
-      new Request("http://localhost/cms/rpc/ping", {
-        method: "POST",
-        body: "{invalid",
-      }),
-    );
+	it("returns 400 on invalid JSON input", async () => {
+		const handler = createFetchHandler(setup.cms);
+		const response = await handler(
+			new Request("http://localhost/cms/rpc/ping", {
+				method: "POST",
+				body: "{invalid",
+			}),
+		);
 
-    expect(response?.status).toBe(400);
-  });
+		expect(response?.status).toBe(400);
+	});
 });

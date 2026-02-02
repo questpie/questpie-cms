@@ -1,85 +1,86 @@
-import {
-  boolean,
-  integer,
-  text,
-  timestamp,
-  varchar,
-} from "drizzle-orm/pg-core";
-import { collection } from "#questpie/server/collection/builder/collection-builder.js";
+import { coreBuilder as q } from "./core-builder.js";
 
 // User Collection
-export const usersCollection = collection("user")
-  .options({ timestamps: true })
-  .fields({
-    name: varchar("name", { length: 255 }).notNull(),
-    email: varchar("email", { length: 255 }).notNull().unique(),
-    emailVerified: boolean("emailVerified").notNull(),
-    image: varchar("image", { length: 500 }),
-    role: varchar("role", { length: 50 }), // Optional: Better Auth role handling
-    banned: boolean("banned").default(false), // Optional: Better Auth ban handling
-    banReason: varchar("banReason", { length: 255 }),
-    banExpires: timestamp("banExpires", { mode: "date" }),
-  })
-  .title(({ f }) => f.name);
+export const usersCollection = q
+	.collection("user")
+	.options({ timestamps: true })
+	.fields((f) => ({
+		name: f.text({ required: true, maxLength: 255 }),
+		email: f.email({ required: true, maxLength: 255, unique: true }),
+		emailVerified: f.boolean({ required: true }),
+		image: f.url({ maxLength: 500 }),
+		role: f.text({ maxLength: 50 }), // Optional: Better Auth role handling
+		banned: f.boolean({ default: false }), // Optional: Better Auth ban handling
+		banReason: f.text({ maxLength: 255 }),
+		banExpires: f.datetime(),
+	}))
+	.title(({ f }) => f.name);
 
 // Session Collection
-export const sessionsCollection = collection("session")
-  .fields({
-    userId: varchar("userId", { length: 255 }).notNull(),
-    token: varchar("token", { length: 255 }).notNull().unique(),
-    expiresAt: timestamp("expiresAt", { mode: "date" }).notNull(),
-    ipAddress: varchar("ipAddress", { length: 45 }),
-    userAgent: varchar("userAgent", { length: 500 }),
-    impersonatedBy: varchar("impersonatedBy", { length: 255 }),
-  })
-  .title(({ f }) => f.token);
+export const sessionsCollection = q
+	.collection("session")
+	.options({ timestamps: false })
+	.fields((f) => ({
+		userId: f.text({ required: true, maxLength: 255 }),
+		token: f.text({ required: true, maxLength: 255, unique: true }),
+		expiresAt: f.datetime({ required: true }),
+		ipAddress: f.text({ maxLength: 45 }),
+		userAgent: f.text({ maxLength: 500 }),
+		impersonatedBy: f.text({ maxLength: 255 }),
+	}))
+	.title(({ f }) => f.token);
 
 // Account Collection (Social Logins)
-export const accountsCollection = collection("account")
-  .fields({
-    userId: varchar("userId", { length: 255 }).notNull(),
-    accountId: varchar("accountId", { length: 255 }).notNull(),
-    providerId: varchar("providerId", { length: 255 }).notNull(),
-    accessToken: varchar("accessToken", { length: 500 }),
-    refreshToken: varchar("refreshToken", { length: 500 }),
-    accessTokenExpiresAt: timestamp("accessTokenExpiresAt", { mode: "date" }),
-    refreshTokenExpiresAt: timestamp("refreshTokenExpiresAt", { mode: "date" }),
-    scope: varchar("scope", { length: 255 }),
-    idToken: varchar("idToken", { length: 500 }),
-    password: varchar("password", { length: 255 }), // Optional: if using credential account here
-  })
-  .title(({ f }) => f.providerId);
+export const accountsCollection = q
+	.collection("account")
+	.options({ timestamps: false })
+	.fields((f) => ({
+		userId: f.text({ required: true, maxLength: 255 }),
+		accountId: f.text({ required: true, maxLength: 255 }),
+		providerId: f.text({ required: true, maxLength: 255 }),
+		accessToken: f.text({ maxLength: 500 }),
+		refreshToken: f.text({ maxLength: 500 }),
+		accessTokenExpiresAt: f.datetime(),
+		refreshTokenExpiresAt: f.datetime(),
+		scope: f.text({ maxLength: 255 }),
+		idToken: f.text({ maxLength: 500 }),
+		password: f.text({ maxLength: 255 }), // Optional: if using credential account here
+	}))
+	.title(({ f }) => f.providerId);
 
 // Verification Collection
-export const verificationsCollection = collection("verification")
-  .fields({
-    identifier: varchar("identifier", { length: 255 }).notNull(),
-    value: varchar("value", { length: 255 }).notNull(),
-    expiresAt: timestamp("expiresAt", { mode: "date" }).notNull(),
-  })
-  .title(({ f }) => f.identifier);
+export const verificationsCollection = q
+	.collection("verification")
+	.options({ timestamps: false })
+	.fields((f) => ({
+		identifier: f.text({ required: true, maxLength: 255 }),
+		value: f.text({ required: true, maxLength: 255 }),
+		expiresAt: f.datetime({ required: true }),
+	}))
+	.title(({ f }) => f.identifier);
 
 // API Key Collection (Better Auth apiKey plugin)
-export const apiKeysCollection = collection("apikey")
-  .options({ timestamps: true })
-  .fields({
-    name: varchar("name", { length: 255 }),
-    start: varchar("start", { length: 255 }),
-    prefix: varchar("prefix", { length: 255 }),
-    key: varchar("key", { length: 500 }).notNull().unique(),
-    userId: varchar("userId", { length: 255 }).notNull(),
-    refillInterval: integer("refillInterval"),
-    refillAmount: integer("refillAmount"),
-    lastRefillAt: timestamp("lastRefillAt", { mode: "date" }),
-    enabled: boolean("enabled").default(true),
-    rateLimitEnabled: boolean("rateLimitEnabled").default(true),
-    rateLimitTimeWindow: integer("rateLimitTimeWindow"),
-    rateLimitMax: integer("rateLimitMax"),
-    requestCount: integer("requestCount").default(0),
-    remaining: integer("remaining"),
-    lastRequest: timestamp("lastRequest", { mode: "date" }),
-    expiresAt: timestamp("expiresAt", { mode: "date" }),
-    permissions: text("permissions"),
-    metadata: text("metadata"),
-  })
-  .title(({ f }) => f.key);
+export const apiKeysCollection = q
+	.collection("apikey")
+	.options({ timestamps: true })
+	.fields((f) => ({
+		name: f.text({ maxLength: 255 }),
+		start: f.text({ maxLength: 255 }),
+		prefix: f.text({ maxLength: 255 }),
+		key: f.text({ required: true, maxLength: 500, unique: true }),
+		userId: f.text({ required: true, maxLength: 255 }),
+		refillInterval: f.number(),
+		refillAmount: f.number(),
+		lastRefillAt: f.datetime(),
+		enabled: f.boolean({ default: true }),
+		rateLimitEnabled: f.boolean({ default: true }),
+		rateLimitTimeWindow: f.number(),
+		rateLimitMax: f.number(),
+		requestCount: f.number({ default: 0 }),
+		remaining: f.number(),
+		lastRequest: f.datetime(),
+		expiresAt: f.datetime(),
+		permissions: f.textarea(), // Larger text for JSON permissions
+		metadata: f.textarea(), // Larger text for JSON metadata
+	}))
+	.title(({ f }) => f.key);

@@ -33,59 +33,54 @@
  * ```
  */
 
-// Core types
-export type {
-	FieldDefinition,
-	AnyFieldDefinition,
-	BaseFieldConfig,
-	FieldDefinitionAccess,
-	FieldHooks,
-	FieldHookContext,
-	FieldAccessContext,
-	ContextualOperators,
-	OperatorMap,
-	OperatorFn,
-	QueryContext,
-	FieldMetadata,
-	FieldMetadataBase,
-	SelectFieldMetadata,
-	RelationFieldMetadata,
-	PolymorphicRelationFieldMetadata,
-	NestedFieldMetadata,
-	SelectModifier,
-	JoinBuilder,
-	InferInputType,
-	InferOutputType,
-	InferColumnType,
-} from "./types.js";
-
-// Registry
-export {
-	FieldRegistry,
-	getDefaultRegistry,
-	createFieldRegistry,
-	type FieldFactory,
-	type AnyFieldFactory,
-} from "./registry.js";
-
 // Builder
 export {
 	createFieldBuilder,
+	type DefaultFieldTypeMap,
 	extractFieldDefinitions,
 	type FieldBuilderProxy,
-	type FieldTypeMap,
-	type DefaultFieldTypeMap,
-	type InferFieldsFromFactory,
-	type FieldValues,
 	type FieldInputs,
 	type FieldOutputs,
+	type FieldValues,
+	type InferFieldsFromFactory,
 } from "./builder.js";
-
-// Define field helper
-export { defineField, type FieldImplementation } from "./define-field.js";
-
 // Built-in field types
 export * from "./builtin/index.js";
+// Define field helper
+export { defineField, type FieldImplementation } from "./define-field.js";
+// Registry
+export {
+	type AnyFieldFactory,
+	createFieldRegistry,
+	type FieldFactory,
+	FieldRegistry,
+	getDefaultRegistry,
+} from "./registry.js";
+// Core types
+export type {
+	AnyFieldDefinition,
+	BaseFieldConfig,
+	ContextualOperators,
+	FieldAccessContext,
+	FieldDefinition,
+	FieldDefinitionAccess,
+	FieldHookContext,
+	FieldHooks,
+	FieldMetadata,
+	FieldMetadataBase,
+	InferColumnType,
+	InferInputType,
+	InferOutputType,
+	JoinBuilder,
+	NestedFieldMetadata,
+	OperatorFn,
+	OperatorMap,
+	PolymorphicRelationFieldMetadata,
+	QueryContext,
+	RelationFieldMetadata,
+	SelectFieldMetadata,
+	SelectModifier,
+} from "./types.js";
 
 // Utilities
 export * from "./utils/index.js";

@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { sql } from "drizzle-orm";
-import { text, varchar } from "drizzle-orm/pg-core";
-import { collection, questpie } from "../../src/server/index.js";
+import { defaultFields } from "../../src/server/fields/builtin/defaults.js";
+import { questpie } from "../../src/server/index.js";
 import {
 	createPostgresSearchAdapter,
 	type PostgresSearchAdapter,
@@ -11,15 +11,22 @@ import { createTestContext } from "../utils/test-context";
 import { runTestDbMigrations } from "../utils/test-db";
 
 // ============================================================================
+// Create questpie builder with default fields
+// ============================================================================
+
+const q = questpie({ name: "search-test" }).fields(defaultFields);
+
+// ============================================================================
 // Test Collections
 // ============================================================================
 
-const posts = collection("posts")
-	.fields({
-		title: varchar("title", { length: 255 }).notNull(),
-		content: text("content"),
-		status: varchar("status", { length: 50 }).default("draft"),
-	})
+const posts = q
+	.collection("posts")
+	.fields((f) => ({
+		title: f.text({ required: true, maxLength: 255 }),
+		content: f.textarea(),
+		status: f.text({ maxLength: 50, default: "draft" }),
+	}))
 	.title(({ f }) => f.title)
 	.searchable({
 		content: (record) => record.content || "",
@@ -27,12 +34,13 @@ const posts = collection("posts")
 	})
 	.options({ timestamps: true });
 
-const products = collection("products")
-	.fields({
-		name: varchar("name", { length: 255 }).notNull(),
-		description: text("description"),
-		sku: varchar("sku", { length: 50 }).notNull(),
-	})
+const products = q
+	.collection("products")
+	.fields((f) => ({
+		name: f.text({ required: true, maxLength: 255 }),
+		description: f.textarea(),
+		sku: f.text({ required: true, maxLength: 50 }),
+	}))
 	.title(({ f }) => f.name)
 	.searchable({
 		content: (record) => record.description || "",
@@ -40,7 +48,7 @@ const products = collection("products")
 	})
 	.options({ timestamps: true });
 
-const testModule = questpie({ name: "search-test" }).collections({
+const testModule = q.collections({
 	posts,
 	products,
 });

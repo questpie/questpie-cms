@@ -5,15 +5,16 @@
  * The registry maps field type names to their factory functions.
  */
 
+import type { AnyPgColumn } from "drizzle-orm/pg-core";
 import type {
 	AnyFieldDefinition,
 	BaseFieldConfig,
 	FieldDefinition,
+	FieldDefinitionState,
 	InferColumnType,
 	InferInputType,
 	InferOutputType,
 } from "./types.js";
-import type { AnyPgColumn } from "drizzle-orm/pg-core";
 
 // ============================================================================
 // Field Factory Type
@@ -29,6 +30,7 @@ import type { AnyPgColumn } from "drizzle-orm/pg-core";
  * - TInput: Input type (inferred from config via InferInputType)
  * - TOutput: Output type (inferred from config via InferOutputType)
  * - TColumn: Drizzle column type (inferred from toColumn return)
+ * - TLocation: Field location ("main", "i18n", "virtual") inferred from config
  *
  * See "Type System & Inference" section for detailed type derivation.
  */
@@ -37,16 +39,18 @@ export type FieldFactory<
 	TConfig extends BaseFieldConfig = BaseFieldConfig,
 	TValue = unknown,
 	TColumn extends AnyPgColumn = AnyPgColumn,
+	TLocation extends "main" | "i18n" | "virtual" = "main" | "i18n" | "virtual",
 > = <TUserConfig extends TConfig>(
 	config?: TUserConfig,
-) => FieldDefinition<
-	TType,
-	TUserConfig,
-	TValue,
-	InferInputType<TUserConfig, TValue>,
-	InferOutputType<TUserConfig, TValue>,
-	InferColumnType<TUserConfig, TColumn>
->;
+) => FieldDefinition<{
+	type: TType;
+	config: TUserConfig;
+	value: TValue;
+	input: InferInputType<TUserConfig, TValue>;
+	output: InferOutputType<TUserConfig, TValue>;
+	column: InferColumnType<TUserConfig, TColumn>;
+	location: TLocation;
+}>;
 
 /**
  * Generic field factory type for registry storage.

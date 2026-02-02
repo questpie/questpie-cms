@@ -1,6 +1,4 @@
-import { sql } from "drizzle-orm";
-import { integer, text, varchar } from "drizzle-orm/pg-core";
-import { collection } from "#questpie/server/collection/builder/collection-builder.js";
+import { coreBuilder as q } from "./core-builder.js";
 
 /**
  * Default assets collection with file upload support.
@@ -14,36 +12,38 @@ import { collection } from "#questpie/server/collection/builder/collection-build
  *
  * Additional fields for image metadata are included.
  */
-export const assetsCollection = collection("assets")
-  .options({
-    timestamps: true,
-  })
-  .fields({
-    // Image dimensions (optional)
-    width: integer("width"),
-    height: integer("height"),
+export const assetsCollection = q
+	.collection("assets")
+	.options({
+		timestamps: true,
+	})
+	.fields((f) => ({
+		// Image dimensions (optional)
+		width: f.number(),
+		height: f.number(),
 
-    // Descriptive metadata
-    alt: varchar("alt", { length: 500 }),
-    caption: text("caption"),
-  })
-  // Enable file upload with public visibility by default
-  .upload({
-    visibility: "public",
-  })
-  .hooks({
-    afterDelete: async ({ data, app }) => {
-      const cms = app as any;
-      if (!cms?.storage || !data?.key) return;
+		// Descriptive metadata
+		alt: f.text({ maxLength: 500 }),
+		caption: f.textarea(),
+	}))
+	// Enable file upload with public visibility by default
+	.upload({
+		visibility: "public",
+	})
+	.hooks({
+		afterDelete: async ({ data, app }) => {
+			const cms = app as any;
+			const record = data as any;
+			if (!cms?.storage || !record?.key) return;
 
-      try {
-        await cms.storage.use().delete(data.key);
-      } catch (error) {
-        cms.logger?.warn?.("Failed to delete asset file from storage", {
-          key: data.key,
-          error: error instanceof Error ? error.message : String(error),
-        });
-      }
-    },
-  })
-  .title(({ f }) => f.filename);
+			try {
+				await cms.storage.use().delete(record.key);
+			} catch (error) {
+				cms.logger?.warn?.("Failed to delete asset file from storage", {
+					key: record.key,
+					error: error instanceof Error ? error.message : String(error),
+				});
+			}
+		},
+	})
+	.title(({ f }) => f.filename);

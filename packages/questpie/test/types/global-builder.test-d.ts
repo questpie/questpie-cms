@@ -26,14 +26,12 @@ import type {
 // Test fixtures
 // ============================================================================
 
-const settingsGlobal = global("settings")
-	.fields({
-		siteName: varchar("site_name", { length: 255 }).notNull(),
-		siteDescription: text("site_description"),
-		maintenanceMode: boolean("maintenance_mode").default(false),
-		maxUploadSize: integer("max_upload_size").default(10_000_000),
-	})
-	.localized(["siteName", "siteDescription"] as const);
+const settingsGlobal = global("settings").fields({
+	siteName: varchar("site_name", { length: 255 }).notNull(),
+	siteDescription: text("site_description"),
+	maintenanceMode: boolean("maintenance_mode").default(false),
+	maxUploadSize: integer("max_upload_size").default(10_000_000),
+});
 
 // ============================================================================
 // global() factory tests
@@ -96,57 +94,6 @@ type _maintenanceOptional = Expect<
 >;
 
 // ============================================================================
-// .localized() method tests
-// ============================================================================
-
-// Localized should only allow valid field keys
-const localizedSettings = global("settings")
-	.fields({
-		siteName: text("site_name"),
-		siteDescription: text("site_description"),
-		version: varchar("version", { length: 50 }),
-	})
-	.localized(["siteName", "siteDescription"] as const);
-
-type LocalizedState =
-	typeof localizedSettings extends GlobalBuilder<infer S> ? S : never;
-type Localized = LocalizedState["localized"];
-
-type _localizedCorrect = Expect<
-	Equal<Localized, readonly ["siteName", "siteDescription"]>
->;
-
-// Localized fields should be optional on update
-type LocalizedUpdate = typeof settingsGlobal.$infer.update;
-type LocalizedOptionalKeys = OptionalKeys<LocalizedUpdate>;
-
-type _localizedSiteNameOptional = Expect<
-	Extends<"siteName", LocalizedOptionalKeys>
->;
-type _localizedDescriptionOptional = Expect<
-	Extends<"siteDescription", LocalizedOptionalKeys>
->;
-
-// ============================================================================
-// .virtuals() method tests
-// ============================================================================
-
-// Virtual fields should be added to select type
-const virtualSettings = global("settings")
-	.fields({
-		siteName: text("site_name"),
-		siteUrl: text("site_url"),
-	})
-	.virtuals(() => ({
-		fullUrl: sql<string>`'computed'`,
-	}));
-
-type VirtualSelect = typeof virtualSettings.$infer.select;
-
-type _hasFullUrl = Expect<Equal<HasKey<VirtualSelect, "fullUrl">, true>>;
-type _fullUrlString = Expect<Equal<VirtualSelect["fullUrl"], string>>;
-
-// ============================================================================
 // .hooks() method type tests
 // ============================================================================
 
@@ -200,10 +147,6 @@ const complexSettings = global("site_settings")
 			features: string[];
 		}>(),
 	})
-	.localized(["siteName", "siteDescription"] as const)
-	.virtuals(() => ({
-		isActive: sql<boolean>`true`,
-	}))
 	.hooks({
 		beforeChange: async ({ data }) => {
 			// Can access data fields
@@ -220,9 +163,6 @@ type _complexHasSiteName = Expect<
 	Equal<HasKey<ComplexSelect, "siteName">, true>
 >;
 type _complexHasConfig = Expect<Equal<HasKey<ComplexSelect, "config">, true>>;
-type _complexHasIsActive = Expect<
-	Equal<HasKey<ComplexSelect, "isActive">, true>
->;
 
 // JSONB type should be inferred correctly
 const jsonbSettings = global("settings").fields({

@@ -1,5 +1,4 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
-import { text, varchar } from "drizzle-orm/pg-core";
 import { collection, questpie } from "../../src/server/index.js";
 import { buildMockApp } from "../utils/mocks/mock-app-builder";
 import { createTestContext } from "../utils/test-context";
@@ -12,26 +11,22 @@ import { runTestDbMigrations } from "../utils/test-db";
 // Assets collection with .upload() for URL generation testing
 const assets = collection("assets")
 	.options({ timestamps: true })
-	.fields({
-		alt: varchar("alt", { length: 500 }),
-		caption: text("caption"),
-	})
+	.fields((f) => ({
+		alt: f.text({ maxLength: 500 }),
+		caption: f.textarea(),
+	}))
 	.upload({
 		visibility: "public",
 	});
 
-// Services collection that references assets (using string field format)
-const services = collection("services")
-	.fields({
-		name: varchar("name", { length: 255 }).notNull(),
-		image: text("image").references(() => assets.table.id),
-	})
-	.relations(({ table, one }) => ({
-		image: one("assets", {
-			fields: [table.image],
-			references: ["id"],
-		}),
-	}));
+// Services collection that references assets (using f.relation())
+const services = collection("services").fields((f) => ({
+	name: f.text({ required: true, maxLength: 255 }),
+	image: f.relation({
+		to: "assets",
+		relationName: "image",
+	}),
+}));
 
 const testModule = questpie({ name: "upload-test" }).collections({
 	assets,
@@ -147,29 +142,29 @@ describe("collection upload URL generation", () => {
 				ctx,
 			);
 
-			// Create a service referencing the asset
+			// Create a service referencing the asset (using FK column name)
 			const service = await servicesCrud.create(
 				{
 					id: crypto.randomUUID(),
 					name: "Haircut",
-					image: asset.id,
-				},
+					imageId: asset.id,
+				} as any,
 				ctx,
 			);
 
 			// Fetch service with expanded image relation
-			const serviceWithImage = await servicesCrud.findOne(
+			const serviceWithImage = (await servicesCrud.findOne(
 				{ where: { id: service.id }, with: { image: true } },
 				ctx,
-			);
+			)) as any;
 
 			expect(serviceWithImage).not.toBeNull();
 			expect(serviceWithImage?.image).not.toBeNull();
 			expect(serviceWithImage?.image?.id).toBe(asset.id);
 			expect(serviceWithImage?.image?.filename).toBe("service-image.png");
 			// URL should be generated for the expanded relation
-			expect((serviceWithImage?.image as any)?.url).toBeDefined();
-			expect(typeof (serviceWithImage?.image as any)?.url).toBe("string");
+			expect(serviceWithImage?.image?.url).toBeDefined();
+			expect(typeof serviceWithImage?.image?.url).toBe("string");
 		});
 
 		it("URL generation handles both public and private visibility", async () => {

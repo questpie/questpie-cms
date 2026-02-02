@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
-import { jsonb, varchar } from "drizzle-orm/pg-core";
-import { collection, questpie } from "../../src/server/index.js";
+import { defaultFields } from "../../src/server/fields/builtin/defaults.js";
+import { questpie } from "../../src/server/index.js";
 import { buildMockApp } from "../utils/mocks/mock-app-builder";
 import { createTestContext } from "../utils/test-context";
 import { runTestDbMigrations } from "../utils/test-db";
@@ -11,25 +11,32 @@ import { runTestDbMigrations } from "../utils/test-db";
  * The `content` field is a JSONB that contains both static and localized values.
  * On write: client sends data with { $i18n: value } wrappers for localized fields
  * On read: server merges structure (with $i18n markers) with localized values from _localized column
+ *
+ * Note: The $i18n markers are auto-detected even without explicit localized configuration.
+ * When the system encounters $i18n wrappers, it extracts those values to the _localized column.
  */
 // Use any for the complex nested JSONB type to simplify test assertions
 // In real usage, the type would be properly defined but tests focus on runtime behavior
 type PageContent = any;
 
-const pages = collection("pages")
-	.fields({
-		slug: varchar("slug", { length: 100 }).notNull(),
-		content: jsonb("content").$type<PageContent>(),
-	})
-	// Mark JSONB field as localized with nested mode (uses { $i18n: value } wrappers)
-	// The JSONB structure stays in main table, extracted $i18n values go to _localized column
-	// Use ":nested" suffix to enable nested mode (default is whole replacement)
-	.localized(["content:nested"])
+const q = questpie({ name: "nested-i18n-test" }).fields(defaultFields);
+
+const pages = q
+	.collection("pages")
+	.fields((f) => ({
+		slug: f.text({ required: true, maxLength: 100 }),
+		// A localized field is needed to create the i18n table with _localized column
+		// for storing nested $i18n marker values
+		title: f.text({ localized: true }),
+		// JSON field - $i18n markers in the content will be auto-detected and handled
+		// by the localization system. The _localized column in i18n table stores the extracted values.
+		content: f.json(),
+	}))
 	.options({
 		timestamps: true,
 	});
 
-const testModule = questpie({ name: "nested-i18n-test" }).collections({
+const testModule = q.collections({
 	pages,
 });
 
@@ -454,23 +461,23 @@ describe("nested localized JSONB", () => {
 			{ where: { id: p1.id } },
 			ctxSk,
 		);
-		expect(p1Sk?.content?.title).toBe("Stranka SK");
-		expect(p1Sk?.content?.alignment).toBe("center");
+		expect((p1Sk?.content as any)?.title).toBe("Stranka SK");
+		expect((p1Sk?.content as any)?.alignment).toBe("center");
 
 		// Verify P2 in SK
 		const p2Sk = await setup.cms.api.collections.pages.findOne(
 			{ where: { id: p2.id } },
 			ctxSk,
 		);
-		expect(p2Sk?.content?.title).toBe("Stranka SK");
-		expect(p2Sk?.content?.alignment).toBe("center");
+		expect((p2Sk?.content as any)?.title).toBe("Stranka SK");
+		expect((p2Sk?.content as any)?.alignment).toBe("center");
 
 		// Verify P1 in EN remains unchanged in localized part
 		const p1En = await setup.cms.api.collections.pages.findOne(
 			{ where: { id: p1.id } },
 			ctxEn,
 		);
-		expect(p1En?.content?.title).toBe("Page 1 EN");
-		expect(p1En?.content?.alignment).toBe("center"); // static field changed for all
+		expect((p1En?.content as any)?.title).toBe("Page 1 EN");
+		expect((p1En?.content as any)?.alignment).toBe("center"); // static field changed for all
 	});
 });
