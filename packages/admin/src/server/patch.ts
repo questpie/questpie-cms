@@ -19,12 +19,20 @@ import type {
 	AdminCollectionConfig,
 	AdminGlobalConfig,
 	ComponentDefinition,
+	DashboardConfigContext,
 	EditViewDefinition,
 	FormViewConfig,
 	ListViewConfig,
 	ListViewDefinition,
 	PreviewConfig,
+	ServerDashboardConfig,
+	ServerSidebarConfig,
+	SidebarConfigContext,
 } from "./augmentation.js";
+import type {
+	AnyBlockBuilder,
+	AnyBlockDefinition,
+} from "./block/block-builder.js";
 
 // Track if patches have been applied to avoid double-patching
 let patchesApplied = false;
@@ -230,6 +238,160 @@ function patchQuestpieBuilder() {
 		return new QuestpieBuilder({
 			...this.state,
 			components: { ...(this.state.components || {}), ...components },
+		});
+	};
+
+	/**
+	 * Register block types for the visual block editor.
+	 * Blocks are built and stored on the state for use by blocks fields.
+	 *
+	 * @example
+	 * ```ts
+	 * import { block } from "@questpie/admin/server";
+	 *
+	 * const heroBlock = block("hero")
+	 *   .label({ en: "Hero Section" })
+	 *   .fields((f) => ({
+	 *     title: f.text({ required: true }),
+	 *   }));
+	 *
+	 * const cms = q({ name: "my-app" })
+	 *   .use(adminModule)
+	 *   .blocks({ hero: heroBlock })
+	 *   .collections({ ... })
+	 *   .build({ ... });
+	 * ```
+	 */
+	proto.blocks = function (
+		blocks: Record<string, AnyBlockBuilder>,
+	): QuestpieBuilder<any> {
+		// Build each block and store the definitions
+		const builtBlocks: Record<string, AnyBlockDefinition> = {};
+
+		for (const [name, blockBuilder] of Object.entries(blocks)) {
+			// Resolve fields using the builder's field registry
+			const state = blockBuilder.state as any;
+			if (state._fieldsFactory && this.state.fields) {
+				// Create field proxy from registered fields
+				const fieldProxy = new Proxy(
+					{},
+					{
+						get: (_target, prop: string) => {
+							const factory = this.state.fields[prop];
+							if (!factory) {
+								throw new Error(
+									`Unknown field type: "${prop}". ` +
+										`Available types: ${Object.keys(this.state.fields).join(", ")}`,
+								);
+							}
+							return factory;
+						},
+					},
+				);
+
+				// Execute the fields factory to get field definitions
+				const fields = state._fieldsFactory(fieldProxy);
+				state.fields = fields;
+				delete state._fieldsFactory;
+			}
+
+			builtBlocks[name] = blockBuilder.build();
+		}
+
+		return new QuestpieBuilder({
+			...this.state,
+			blocks: { ...(this.state.blocks || {}), ...builtBlocks },
+		});
+	};
+
+	/**
+	 * Configure the admin dashboard.
+	 * Widgets that need data (stats, chart, recentItems) are executed on server.
+	 *
+	 * @example
+	 * ```ts
+	 * .dashboard(({ d, c }) => d.dashboard({
+	 *   title: { en: "Dashboard" },
+	 *   items: [
+	 *     d.section({
+	 *       label: { en: "Overview" },
+	 *       items: [
+	 *         d.stats({ collection: "users", label: { en: "Total Users" } }),
+	 *       ],
+	 *     }),
+	 *   ],
+	 * }))
+	 * ```
+	 */
+	proto.dashboard = function (
+		configFn: (ctx: DashboardConfigContext) => ServerDashboardConfig,
+	): QuestpieBuilder<any> {
+		const ctx: DashboardConfigContext = {
+			d: {
+				dashboard: (config) => config,
+				section: (config) => ({ type: "section" as const, ...config }),
+				tabs: (config) => ({ type: "tabs" as const, ...config }),
+				stats: (config) => ({ type: "stats" as const, ...config }),
+				chart: (config) => ({ type: "chart" as const, ...config }),
+				recentItems: (config) => ({ type: "recentItems" as const, ...config }),
+				quickActions: (config) => ({
+					type: "quickActions" as const,
+					...config,
+				}),
+				custom: (config) => ({ type: "custom" as const, ...config }),
+			},
+			c: {
+				icon: (name: string) => ({ type: "icon" as const, props: { name } }),
+			},
+		};
+
+		const dashboard = configFn(ctx);
+
+		return new QuestpieBuilder({
+			...this.state,
+			dashboard,
+		});
+	};
+
+	/**
+	 * Configure the admin sidebar.
+	 * Sections can contain collections, globals, pages, links, and dividers.
+	 *
+	 * @example
+	 * ```ts
+	 * .sidebar(({ s, c }) => s.sidebar({
+	 *   sections: [
+	 *     s.section({
+	 *       id: "content",
+	 *       title: { en: "Content" },
+	 *       icon: c.icon("ph:files"),
+	 *       items: [
+	 *         { type: "collection", collection: "posts" },
+	 *         { type: "collection", collection: "pages" },
+	 *       ],
+	 *     }),
+	 *   ],
+	 * }))
+	 * ```
+	 */
+	proto.sidebar = function (
+		configFn: (ctx: SidebarConfigContext) => ServerSidebarConfig,
+	): QuestpieBuilder<any> {
+		const ctx: SidebarConfigContext = {
+			s: {
+				sidebar: (config) => config,
+				section: (config) => ({ items: [], ...config }),
+			},
+			c: {
+				icon: (name: string) => ({ type: "icon" as const, props: { name } }),
+			},
+		};
+
+		const sidebar = configFn(ctx);
+
+		return new QuestpieBuilder({
+			...this.state,
+			sidebar,
 		});
 	};
 }

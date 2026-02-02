@@ -217,6 +217,364 @@ export interface AdminGlobalConfig {
 }
 
 // ============================================================================
+// Server-Side Dashboard Configuration
+// ============================================================================
+
+/**
+ * Server-side dashboard widget configuration.
+ * These are serializable and can be sent via introspection API.
+ */
+export type ServerDashboardWidget =
+	| ServerStatsWidget
+	| ServerChartWidget
+	| ServerRecentItemsWidget
+	| ServerQuickActionsWidget
+	| ServerCustomWidget;
+
+/**
+ * Stats widget - shows count from a collection
+ */
+export interface ServerStatsWidget {
+	type: "stats";
+	/** Unique widget ID */
+	id?: string;
+	/** Widget label */
+	label?: I18nText;
+	/** Icon reference */
+	icon?: ComponentReference<"icon">;
+	/** Collection to count */
+	collection: string;
+	/** Filter to apply */
+	filter?: Record<string, unknown>;
+	/** Grid span (1-4) */
+	span?: number;
+}
+
+/**
+ * Chart widget - shows data over time
+ */
+export interface ServerChartWidget {
+	type: "chart";
+	/** Unique widget ID */
+	id?: string;
+	/** Widget label */
+	label?: I18nText;
+	/** Chart type */
+	chartType: "line" | "bar" | "area" | "pie";
+	/** Collection to query */
+	collection: string;
+	/** Date field for time series */
+	dateField: string;
+	/** Time range */
+	timeRange?: "7d" | "30d" | "90d" | "1y";
+	/** Filter to apply */
+	filter?: Record<string, unknown>;
+	/** Grid span (1-4) */
+	span?: number;
+}
+
+/**
+ * Recent items widget - shows latest items from a collection
+ */
+export interface ServerRecentItemsWidget {
+	type: "recentItems";
+	/** Unique widget ID */
+	id?: string;
+	/** Widget label */
+	label?: I18nText;
+	/** Collection to query */
+	collection: string;
+	/** Date field for ordering */
+	dateField: string;
+	/** Number of items to show */
+	limit?: number;
+	/** Filter to apply */
+	filter?: Record<string, unknown>;
+	/** Grid span (1-4) */
+	span?: number;
+}
+
+/**
+ * Quick actions widget - shows action buttons
+ */
+export interface ServerQuickActionsWidget {
+	type: "quickActions";
+	/** Unique widget ID */
+	id?: string;
+	/** Widget label */
+	label?: I18nText;
+	/** Actions to display */
+	actions: ServerQuickAction[];
+	/** Grid span (1-4) */
+	span?: number;
+}
+
+/**
+ * Quick action definition
+ */
+export interface ServerQuickAction {
+	/** Action label */
+	label: I18nText;
+	/** Action icon */
+	icon?: ComponentReference<"icon">;
+	/** Action to perform */
+	action:
+		| { type: "create"; collection: string }
+		| { type: "link"; href: string; external?: boolean }
+		| { type: "page"; pageId: string };
+}
+
+/**
+ * Custom widget - rendered by client component
+ */
+export interface ServerCustomWidget {
+	type: "custom";
+	/** Unique widget ID (required for custom) */
+	id: string;
+	/** Widget label */
+	label?: I18nText;
+	/** Custom widget type name (resolved by client registry) */
+	widgetType: string;
+	/** Widget props (passed to client component) */
+	props?: Record<string, unknown>;
+	/** Grid span (1-4) */
+	span?: number;
+}
+
+/**
+ * Dashboard section - groups widgets
+ */
+export interface ServerDashboardSection {
+	type: "section";
+	/** Section label */
+	label?: I18nText;
+	/** Section description */
+	description?: I18nText;
+	/** Section icon */
+	icon?: ComponentReference<"icon">;
+	/** Layout mode */
+	layout?: "grid" | "stack";
+	/** Grid columns */
+	columns?: number;
+	/** Wrapper style */
+	wrapper?: "flat" | "card" | "collapsible";
+	/** Default collapsed (for collapsible) */
+	defaultCollapsed?: boolean;
+	/** Section items */
+	items: ServerDashboardItem[];
+}
+
+/**
+ * Dashboard tabs - tabbed sections
+ */
+export interface ServerDashboardTabs {
+	type: "tabs";
+	/** Tabs configuration */
+	tabs: ServerDashboardTab[];
+	/** Default active tab ID */
+	defaultTab?: string;
+}
+
+/**
+ * Single tab configuration
+ */
+export interface ServerDashboardTab {
+	/** Tab ID */
+	id: string;
+	/** Tab label */
+	label: I18nText;
+	/** Tab icon */
+	icon?: ComponentReference<"icon">;
+	/** Tab items */
+	items: ServerDashboardItem[];
+}
+
+/**
+ * Dashboard layout item
+ */
+export type ServerDashboardItem =
+	| ServerDashboardWidget
+	| ServerDashboardSection
+	| ServerDashboardTabs;
+
+/**
+ * Server-side dashboard configuration
+ */
+export interface ServerDashboardConfig {
+	/** Dashboard title */
+	title?: I18nText;
+	/** Dashboard description */
+	description?: I18nText;
+	/** Grid columns (default: 4) */
+	columns?: number;
+	/** Gap between widgets */
+	gap?: number;
+	/** Dashboard items */
+	items?: ServerDashboardItem[];
+	/** Auto-refresh interval in milliseconds */
+	refreshInterval?: number;
+}
+
+// ============================================================================
+// Server-Side Sidebar Configuration
+// ============================================================================
+
+/**
+ * Server-side sidebar item types
+ */
+export type ServerSidebarItem =
+	| ServerSidebarCollectionItem
+	| ServerSidebarGlobalItem
+	| ServerSidebarPageItem
+	| ServerSidebarLinkItem
+	| ServerSidebarDividerItem;
+
+/**
+ * Collection item in sidebar
+ */
+export interface ServerSidebarCollectionItem {
+	type: "collection";
+	/** Collection name (validated against registered collections) */
+	collection: string;
+	/** Override display label */
+	label?: I18nText;
+	/** Override icon */
+	icon?: ComponentReference<"icon">;
+}
+
+/**
+ * Global item in sidebar
+ */
+export interface ServerSidebarGlobalItem {
+	type: "global";
+	/** Global name (validated against registered globals) */
+	global: string;
+	/** Override display label */
+	label?: I18nText;
+	/** Override icon */
+	icon?: ComponentReference<"icon">;
+}
+
+/**
+ * Custom page item in sidebar
+ */
+export interface ServerSidebarPageItem {
+	type: "page";
+	/** Page ID (resolved by client) */
+	pageId: string;
+	/** Display label */
+	label?: I18nText;
+	/** Icon */
+	icon?: ComponentReference<"icon">;
+}
+
+/**
+ * External link item in sidebar
+ */
+export interface ServerSidebarLinkItem {
+	type: "link";
+	/** Display label */
+	label: I18nText;
+	/** Link URL */
+	href: string;
+	/** Icon */
+	icon?: ComponentReference<"icon">;
+	/** Open in new tab */
+	external?: boolean;
+}
+
+/**
+ * Divider item in sidebar
+ */
+export interface ServerSidebarDividerItem {
+	type: "divider";
+}
+
+/**
+ * Sidebar section
+ */
+export interface ServerSidebarSection {
+	/** Section ID (for targeting/extending) */
+	id: string;
+	/** Section title */
+	title?: I18nText;
+	/** Section icon */
+	icon?: ComponentReference<"icon">;
+	/** Whether collapsed by default */
+	collapsed?: boolean;
+	/** Section items */
+	items: ServerSidebarItem[];
+}
+
+/**
+ * Server-side sidebar configuration
+ */
+export interface ServerSidebarConfig {
+	/** Sidebar sections */
+	sections: ServerSidebarSection[];
+}
+
+// ============================================================================
+// Dashboard and Sidebar Context Types
+// ============================================================================
+
+/**
+ * Context for dashboard config function
+ */
+export interface DashboardConfigContext {
+	/** Dashboard builder helpers */
+	d: {
+		/** Create dashboard config */
+		dashboard: (config: ServerDashboardConfig) => ServerDashboardConfig;
+		/** Create a section */
+		section: (
+			config: Omit<ServerDashboardSection, "type">,
+		) => ServerDashboardSection;
+		/** Create tabs */
+		tabs: (config: Omit<ServerDashboardTabs, "type">) => ServerDashboardTabs;
+		/** Create a stats widget */
+		stats: (config: Omit<ServerStatsWidget, "type">) => ServerStatsWidget;
+		/** Create a chart widget */
+		chart: (config: Omit<ServerChartWidget, "type">) => ServerChartWidget;
+		/** Create a recent items widget */
+		recentItems: (
+			config: Omit<ServerRecentItemsWidget, "type">,
+		) => ServerRecentItemsWidget;
+		/** Create a quick actions widget */
+		quickActions: (
+			config: Omit<ServerQuickActionsWidget, "type">,
+		) => ServerQuickActionsWidget;
+		/** Create a custom widget */
+		custom: (config: Omit<ServerCustomWidget, "type">) => ServerCustomWidget;
+	};
+	/** Component helpers */
+	c: {
+		icon: (name: string) => ComponentReference<"icon">;
+	};
+}
+
+/**
+ * Context for sidebar config function
+ */
+export interface SidebarConfigContext {
+	/** Sidebar builder helpers */
+	s: {
+		/** Create sidebar config */
+		sidebar: (config: ServerSidebarConfig) => ServerSidebarConfig;
+		/** Create a section */
+		section: (
+			config: Omit<ServerSidebarSection, "items"> & {
+				items?: ServerSidebarItem[];
+			},
+		) => ServerSidebarSection;
+	};
+	/** Component helpers */
+	c: {
+		icon: (name: string) => ComponentReference<"icon">;
+	};
+}
+
+// ============================================================================
 // Admin Builder Context Types
 // ============================================================================
 
@@ -327,6 +685,51 @@ export interface QuestpieBuilderAdminMethods {
 	components<TComponents extends Record<string, ComponentDefinition>>(
 		components: TComponents,
 	): this;
+
+	/**
+	 * Configure the admin dashboard.
+	 *
+	 * @example
+	 * ```ts
+	 * .dashboard(({ d, c }) => d.dashboard({
+	 *   title: { en: "Dashboard" },
+	 *   items: [
+	 *     d.section({
+	 *       label: { en: "Overview" },
+	 *       items: [
+	 *         d.stats({ collection: "users", label: { en: "Total Users" } }),
+	 *         d.chart({ collection: "posts", chartType: "line", dateField: "createdAt" }),
+	 *       ],
+	 *     }),
+	 *   ],
+	 * }))
+	 * ```
+	 */
+	dashboard(
+		configFn: (ctx: DashboardConfigContext) => ServerDashboardConfig,
+	): this;
+
+	/**
+	 * Configure the admin sidebar.
+	 *
+	 * @example
+	 * ```ts
+	 * .sidebar(({ s, c }) => s.sidebar({
+	 *   sections: [
+	 *     s.section({
+	 *       id: "content",
+	 *       title: { en: "Content" },
+	 *       icon: c.icon("ph:files"),
+	 *       items: [
+	 *         { type: "collection", collection: "posts" },
+	 *         { type: "collection", collection: "pages" },
+	 *       ],
+	 *     }),
+	 *   ],
+	 * }))
+	 * ```
+	 */
+	sidebar(configFn: (ctx: SidebarConfigContext) => ServerSidebarConfig): this;
 }
 
 /**

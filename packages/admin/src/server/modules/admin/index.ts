@@ -30,8 +30,10 @@
  */
 
 import { q, starterModule } from "questpie";
+import { adminFields } from "../../fields/index.js";
 import { adminPreferencesCollection } from "../admin-preferences/collections/admin-preferences.collection.js";
 import { savedViewsCollection } from "../admin-preferences/collections/saved-views.collection.js";
+import { adminConfigFunctions } from "./functions/admin-config.js";
 import { localeFunctions } from "./functions/locales.js";
 import { previewFunctions } from "./functions/preview.js";
 import { setupFunctions } from "./functions/setup.js";
@@ -46,6 +48,11 @@ export {
 	savedViewsCollection,
 	type ViewConfiguration,
 } from "../admin-preferences/collections/saved-views.collection.js";
+// Re-export admin config functions
+export {
+	adminConfigFunctions,
+	getAdminConfig,
+} from "./functions/admin-config.js";
 // Re-export locale functions for individual use
 export { getContentLocales, localeFunctions } from "./functions/locales.js";
 // Re-export server-only preview functions (crypto-based token verification)
@@ -112,14 +119,17 @@ export {
 export const adminModule = q({ name: "questpie-admin" })
 	// Include all starterModule functionality (auth, assets)
 	.use(starterModule)
+	// Register admin-specific field types (richText, blocks)
+	.fields(adminFields)
 	// Add admin-specific collections
 	.collections({
 		admin_saved_views: savedViewsCollection,
 		admin_preferences: adminPreferencesCollection,
 	})
-	// Add setup, locale, and preview functions
+	// Add setup, locale, preview, and admin config functions
 	.functions({
 		...setupFunctions,
 		...localeFunctions,
 		...previewFunctions,
+		...adminConfigFunctions,
 	});
