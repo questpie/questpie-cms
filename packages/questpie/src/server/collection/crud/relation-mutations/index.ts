@@ -5,16 +5,17 @@
  */
 
 export {
-  handleCascadeDelete,
-  type CascadeDeleteOptions,
+	type CascadeDeleteOptions,
+	handleCascadeDelete,
 } from "./cascade-delete.js";
 
 export {
-  separateNestedRelations,
-  extractBelongsToConnectValues,
-  applyBelongsToRelations,
-  processHasManyNestedOperations,
-  processManyToManyNestedOperations,
-  processNestedRelations,
-  type ProcessNestedRelationsOptions,
+	applyBelongsToRelations,
+	extractBelongsToConnectValues,
+	type ProcessNestedRelationsOptions,
+	processHasManyNestedOperations,
+	processManyToManyNestedOperations,
+	processNestedRelations,
+	separateNestedRelations,
+	transformSimpleRelationValues,
 } from "./nested-operations.js";

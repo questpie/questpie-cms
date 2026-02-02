@@ -5,10 +5,15 @@
 
 import type { PgColumn } from "drizzle-orm/pg-core";
 import { pgTable } from "drizzle-orm/pg-core";
-import type { z } from "zod";
+import { z } from "zod";
+import type { RelationFieldMetadata } from "#questpie/server/fields/builtin/relation.js";
+import type {
+	FieldDefinition,
+	FieldDefinitionState,
+} from "#questpie/server/fields/types.js";
 import {
-  createInsertSchema,
-  createUpdateSchema,
+	createInsertSchema,
+	createUpdateSchema,
 } from "#questpie/server/utils/drizzle-to-zod.js";
 
 /**
@@ -25,41 +30,115 @@ import {
  * ```
  */
 export function mergeFieldsForValidation<
-  TMainFields extends Record<string, PgColumn>,
-  TLocalizedFields extends Record<string, PgColumn>,
+	TMainFields extends Record<string, PgColumn>,
+	TLocalizedFields extends Record<string, PgColumn>,
 >(
-  tableName: string,
-  mainFields: TMainFields,
-  localizedFields: TLocalizedFields,
+	tableName: string,
+	mainFields: TMainFields,
+	localizedFields: TLocalizedFields,
 ): ReturnType<
-  typeof pgTable<
-    string,
-    TMainFields & TLocalizedFields extends infer R
-      ? R extends Record<string, PgColumn>
-        ? R
-        : never
-      : never
-  >
+	typeof pgTable<
+		string,
+		TMainFields & TLocalizedFields extends infer R
+			? R extends Record<string, PgColumn>
+				? R
+				: never
+			: never
+	>
 > {
-  // Merge fields into single object
-  const mergedFields = {
-    ...mainFields,
-    ...localizedFields,
-  } as TMainFields & TLocalizedFields;
+	// Merge fields into single object
+	const mergedFields = {
+		...mainFields,
+		...localizedFields,
+	} as TMainFields & TLocalizedFields;
 
-  // Create a virtual table for validation purposes
-  // This table is never actually used in the database
-  return pgTable(`${tableName}_validation`, mergedFields) as any;
+	// Create a virtual table for validation purposes
+	// This table is never actually used in the database
+	return pgTable(`${tableName}_validation`, mergedFields) as any;
 }
 
 /**
  * Validation schemas for a collection
  */
 export interface ValidationSchemas {
-  /** Schema for insert operations (create) */
-  insertSchema: z.ZodObject<any>;
-  /** Schema for update operations (partial) */
-  updateSchema: z.ZodObject<any>;
+	/** Schema for insert operations (create) - may include preprocessing for relation fields */
+	insertSchema: z.ZodTypeAny;
+	/** Schema for update operations (partial) - may include preprocessing for relation fields */
+	updateSchema: z.ZodTypeAny;
+}
+
+/**
+ * Extract relation field name to FK column name mappings from field definitions.
+ *
+ * For a relation field like `author: f.relation({ to: "users" })`,
+ * this returns `{ author: "authorId" }` - mapping the field name to its FK column.
+ *
+ * @param fieldDefinitions - Collection field definitions
+ * @returns Map of relation field names to their FK column names
+ */
+export function extractRelationFieldMappings(
+	fieldDefinitions: Record<string, FieldDefinition<FieldDefinitionState>>,
+): Record<string, string> {
+	const mappings: Record<string, string> = {};
+
+	for (const [fieldName, fieldDef] of Object.entries(fieldDefinitions)) {
+		// Check if this is a relation field by looking at metadata
+		const metadata = fieldDef.state.metadata as
+			| RelationFieldMetadata
+			| undefined;
+		if (!metadata?.relationType) continue;
+
+		// Only handle belongsTo relations (they have FK columns)
+		if (metadata.relationType !== "belongsTo") continue;
+
+		// The FK column name is `${fieldName}Id`
+		const fkColumnName = `${fieldName}Id`;
+		mappings[fieldName] = fkColumnName;
+	}
+
+	return mappings;
+}
+
+/**
+ * Create a Zod preprocessor that normalizes relation field names to FK column names.
+ *
+ * This allows users to use either:
+ * - `{ author: "user-uuid" }` (field name - preferred, matches TypeScript types)
+ * - `{ authorId: "user-uuid" }` (FK column name - also accepted)
+ *
+ * The preprocessor transforms field names to FK column names before validation.
+ *
+ * @param relationMappings - Map of relation field names to FK column names
+ * @returns Zod preprocessor function
+ */
+function createRelationFieldPreprocessor(
+	relationMappings: Record<string, string>,
+): (input: unknown) => unknown {
+	return (input: unknown) => {
+		if (typeof input !== "object" || input === null) {
+			return input;
+		}
+
+		const result = { ...input } as Record<string, unknown>;
+
+		for (const [fieldName, fkColumnName] of Object.entries(relationMappings)) {
+			// If the field name exists with a simple value (string/null)
+			if (fieldName in result) {
+				const value = result[fieldName];
+
+				// Only transform simple values (string IDs or null), not nested mutation objects
+				if (typeof value === "string" || value === null) {
+					// Transform: author → authorId
+					result[fkColumnName] = value;
+					delete result[fieldName];
+				}
+				// If it's an object (nested mutation), leave it for later processing
+				// It will be stripped by passthrough and handled by separateNestedRelations
+			}
+		}
+
+		return result;
+	};
 }
 
 /**
@@ -71,39 +150,65 @@ export interface ValidationSchemas {
  * @param options - Schema generation options
  */
 export function createCollectionValidationSchemas<
-  TMainFields extends Record<string, PgColumn>,
-  TLocalizedFields extends Record<string, PgColumn>,
+	TMainFields extends Record<string, PgColumn>,
+	TLocalizedFields extends Record<string, PgColumn>,
 >(
-  tableName: string,
-  mainFields: TMainFields,
-  localizedFields: TLocalizedFields,
-  options?: {
-    /** Fields to exclude from validation (e.g., id, createdAt, updatedAt) */
-    exclude?: Record<string, true>;
-    /** Custom refinements per field */
-    refine?: Record<string, (schema: z.ZodTypeAny) => z.ZodTypeAny>;
-  },
+	tableName: string,
+	mainFields: TMainFields,
+	localizedFields: TLocalizedFields,
+	options?: {
+		/** Fields to exclude from validation (e.g., id, createdAt, updatedAt) */
+		exclude?: Record<string, true>;
+		/** Custom refinements per field */
+		refine?: Record<string, (schema: z.ZodTypeAny) => z.ZodTypeAny>;
+		/** Field definitions for relation field name normalization */
+		fieldDefinitions?: Record<string, FieldDefinition<FieldDefinitionState>>;
+	},
 ): ValidationSchemas {
-  // Create merged table for validation
-  const validationTable = mergeFieldsForValidation(
-    tableName,
-    mainFields,
-    localizedFields,
-  );
+	// Create merged table for validation
+	const validationTable = mergeFieldsForValidation(
+		tableName,
+		mainFields,
+		localizedFields,
+	);
 
-  // Generate schemas using drizzle-to-zod utilities
-  const insertSchema = createInsertSchema(validationTable, {
-    exclude: options?.exclude || {},
-    refine: options?.refine as any,
-  });
+	// Generate base schemas using drizzle-to-zod utilities
+	const baseInsertSchema = createInsertSchema(validationTable, {
+		exclude: options?.exclude || {},
+		refine: options?.refine as any,
+	});
 
-  const updateSchema = createUpdateSchema(validationTable, {
-    exclude: options?.exclude || {},
-    refine: options?.refine as any,
-  });
+	const baseUpdateSchema = createUpdateSchema(validationTable, {
+		exclude: options?.exclude || {},
+		refine: options?.refine as any,
+	});
 
-  return {
-    insertSchema,
-    updateSchema,
-  };
+	// If field definitions are provided, add relation field name normalization
+	if (options?.fieldDefinitions) {
+		const relationMappings = extractRelationFieldMappings(
+			options.fieldDefinitions,
+		);
+
+		if (Object.keys(relationMappings).length > 0) {
+			const preprocessor = createRelationFieldPreprocessor(relationMappings);
+
+			// Wrap schemas with preprocessor to normalize relation field names
+			// Use passthrough() to allow extra keys (nested mutations will be stripped later)
+			return {
+				insertSchema: z.preprocess(
+					preprocessor,
+					baseInsertSchema.passthrough(),
+				),
+				updateSchema: z.preprocess(
+					preprocessor,
+					baseUpdateSchema.passthrough(),
+				),
+			};
+		}
+	}
+
+	return {
+		insertSchema: baseInsertSchema,
+		updateSchema: baseUpdateSchema,
+	};
 }

@@ -63,6 +63,68 @@ export function separateNestedRelations(
 }
 
 /**
+ * Transform simple relation field values to FK column names.
+ *
+ * When a user passes `{ author: "user-uuid" }` (simple string value),
+ * this transforms it to `{ authorId: "user-uuid" }` for belongsTo relations.
+ *
+ * This allows users to use the relation field name (author) instead of
+ * the FK column name (authorId) when providing simple ID values.
+ *
+ * @param regularFields - Regular field values (may contain relation field names with string values)
+ * @param relations - Relation configurations
+ * @param resolveFieldKey - Function to resolve field keys
+ * @param state - Collection state
+ * @param table - Collection table
+ * @returns Transformed fields with relation names converted to FK column names
+ */
+export function transformSimpleRelationValues(
+	regularFields: Record<string, any>,
+	relations: Record<string, RelationConfig>,
+	resolveFieldKey: typeof ResolveFieldKeyFn,
+	state: any,
+	table: any,
+): Record<string, any> {
+	const transformedFields = { ...regularFields };
+
+	for (const [relationName, relation] of Object.entries(relations)) {
+		// Only handle belongsTo relations (type: "one" with fields)
+		if (relation.type !== "one" || !relation.fields?.length) {
+			continue;
+		}
+
+		// Check if the relation field name exists in regularFields with a simple value
+		const value = regularFields[relationName];
+		if (value === undefined) {
+			continue;
+		}
+
+		// Only transform simple values (string IDs), not objects
+		if (typeof value === "object" && value !== null) {
+			continue;
+		}
+
+		// Get the FK column name
+		const fieldKeys = relation.fields
+			.map((field) => resolveFieldKey(state, field, table) ?? field?.name)
+			.filter(Boolean) as string[];
+
+		if (fieldKeys.length !== 1) {
+			continue;
+		}
+
+		const foreignKeyField = fieldKeys[0];
+
+		// Transform: author → authorId
+		// Remove the relation field name and add the FK column name
+		delete transformedFields[relationName];
+		transformedFields[foreignKeyField] = value;
+	}
+
+	return transformedFields;
+}
+
+/**
  * Pre-process connect operations before validation.
  * This extracts FK values from belongsTo relation connect operations,
  * allowing validation to pass even when the FK field is required but

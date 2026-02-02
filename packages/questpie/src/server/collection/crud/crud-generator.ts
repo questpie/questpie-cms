@@ -34,6 +34,7 @@ import {
 	handleCascadeDelete,
 	processNestedRelations,
 	separateNestedRelations,
+	transformSimpleRelationValues,
 } from "#questpie/server/collection/crud/relation-mutations/index.js";
 import {
 	resolveBelongsToRelation,
@@ -48,6 +49,10 @@ import {
 	mergeWhereWithAccess,
 	validateFieldsWriteAccess,
 } from "#questpie/server/collection/crud/shared/access-control.js";
+import {
+	extractLocalizedFieldNames,
+	hasLocalizedFields,
+} from "#questpie/server/collection/crud/shared/field-extraction.js";
 import {
 	appendRealtimeChange,
 	createHookContext,
@@ -118,6 +123,26 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 		_getRawTitleExpression?: (context: any) => TitleExpressionSQL,
 		private cms?: Questpie<any>,
 	) {}
+
+	/**
+	 * Get localized field names.
+	 * Uses field definitions (new API) or state.localized array (legacy API).
+	 */
+	private getLocalizedFieldNames(): string[] {
+		// New API: field definitions with TState location
+		if (this.state.fieldDefinitions) {
+			return extractLocalizedFieldNames(this.state.fieldDefinitions);
+		}
+		// Legacy API: explicit localized array
+		return (this.state.localized ?? []) as string[];
+	}
+
+	/**
+	 * Check if collection has any localized fields.
+	 */
+	private hasLocalizedFieldsInternal(): boolean {
+		return this.getLocalizedFieldNames().length > 0;
+	}
 
 	/**
 	 * Generate CRUD operations
@@ -331,8 +356,9 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 
 			if (this.state.title) {
 				// If title is a localized field, use buildLocalizedFieldRef
+				const localizedFieldNames = this.getLocalizedFieldNames();
 				if (
-					this.state.localized.includes(this.state.title as any) &&
+					localizedFieldNames.includes(this.state.title) &&
 					i18nCurrentTable
 				) {
 					titleExpr = buildLocalizedFieldRef(this.state.title, {
@@ -401,10 +427,10 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 
 		// Application-side i18n merge: replace prefixed columns with final values
 		// Handles both flat localized fields and nested localized JSONB fields (via _localized column)
-		const hasLocalizedFields = this.state.localized.length > 0;
-		if (useI18n && rows.length > 0 && hasLocalizedFields) {
+		const hasLocalized = this.hasLocalizedFieldsInternal();
+		if (useI18n && rows.length > 0 && hasLocalized) {
 			rows = mergeI18nRows(rows, {
-				localizedFields: this.state.localized,
+				localizedFields: this.getLocalizedFieldNames(),
 				hasFallback: needsFallback,
 			});
 		}
@@ -770,6 +796,30 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 	}
 
 	/**
+	 * Transform relation field names to FK column names in regular fields.
+	 *
+	 * Converts: { author: "user-uuid" } → { authorId: "user-uuid" }
+	 *
+	 * This allows users to use field names (matching TypeScript types)
+	 * while the DB expects FK column names.
+	 */
+	private transformRelationFieldsToFkColumns(
+		regularFields: Record<string, any>,
+	): Record<string, any> {
+		if (!this.state.relations) {
+			return regularFields;
+		}
+
+		return transformSimpleRelationValues(
+			regularFields,
+			this.state.relations,
+			this.resolveFieldKey,
+			this.state,
+			this.table,
+		);
+	}
+
+	/**
 	 * Create create operation
 	 */
 	private createCreate() {
@@ -837,6 +887,12 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 						regularFields,
 						nestedRelations,
 					));
+
+					// Transform simple relation field values to FK column names
+					// e.g., { author: "uuid" } → { authorId: "uuid" }
+					// This allows users to use field names (matching TypeScript types)
+					regularFields =
+						this.transformRelationFieldsToFkColumns(regularFields);
 
 					// Validate field-level write access (on regular fields only)
 					await this.validateFieldWriteAccess(regularFields, normalized);
@@ -969,10 +1025,10 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 
 							// Application-side i18n merge
 							// Handles both flat localized fields and nested localized JSONB fields (via _localized column)
-							const hasLocalizedFieldsCreate = this.state.localized.length > 0;
-							if (useI18n && createdRecord && hasLocalizedFieldsCreate) {
+							const hasLocalizedCreate = this.hasLocalizedFieldsInternal();
+							if (useI18n && createdRecord && hasLocalizedCreate) {
 								[createdRecord] = mergeI18nRows([createdRecord], {
-									localizedFields: this.state.localized,
+									localizedFields: this.getLocalizedFieldNames(),
 									hasFallback: needsFallback,
 								});
 							}
@@ -1124,6 +1180,10 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 		// This prevents the validation schema from stripping relation fields
 		let { regularFields, nestedRelations } =
 			this.separateNestedRelationsInternal(data);
+
+		// Transform simple relation field values to FK column names
+		// e.g., { author: "uuid" } → { authorId: "uuid" }
+		regularFields = this.transformRelationFieldsToFkColumns(regularFields);
 
 		// 4. Global Validation (Zod)
 		if (this.state.validation?.updateSchema) {
@@ -1764,10 +1824,10 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 
 			// Application-side i18n merge for versions
 			// Handles both flat localized fields and nested localized JSONB fields (via _localized column)
-			const hasLocalizedFieldsVersions = this.state.localized.length > 0;
-			if (useI18n && rows.length > 0 && hasLocalizedFieldsVersions) {
+			const hasLocalizedVersions = this.hasLocalizedFieldsInternal();
+			if (useI18n && rows.length > 0 && hasLocalizedVersions) {
 				rows = mergeI18nRows(rows, {
-					localizedFields: this.state.localized,
+					localizedFields: this.getLocalizedFieldNames(),
 					hasFallback: needsFallback,
 				});
 			}
@@ -1825,9 +1885,12 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 				throw ApiError.notFound("Record", options.id);
 			}
 
+			const localizedFieldNames = this.getLocalizedFieldNames();
+			const localizedFieldSet = new Set(localizedFieldNames);
+
 			const nonLocalized: Record<string, any> = {};
 			for (const [name] of Object.entries(this.state.fields)) {
-				if (this.state.localized.includes(name as any)) continue;
+				if (localizedFieldSet.has(name)) continue;
 				nonLocalized[name] = version[name];
 			}
 			if (this.state.options.softDelete) {
@@ -1852,9 +1915,8 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 					.limit(1);
 				const localeRow = localeRows[0];
 				if (localeRow) {
-					for (const fieldName of this.state.localized) {
-						localizedForContext[fieldName as string] =
-							localeRow[fieldName as string];
+					for (const fieldName of localizedFieldNames) {
+						localizedForContext[fieldName] = localeRow[fieldName];
 					}
 				}
 			}
@@ -2275,7 +2337,8 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 	 * @param input - Input data
 	 */
 	private splitLocalizedFields(input: any) {
-		return splitLocalizedFields(input, this.state.localized);
+		const localizedFieldNames = this.getLocalizedFieldNames();
+		return splitLocalizedFields(input, localizedFieldNames);
 	}
 
 	/**
