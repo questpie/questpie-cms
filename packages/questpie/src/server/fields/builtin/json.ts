@@ -18,6 +18,15 @@ import type {
 } from "../types.js";
 
 // ============================================================================
+// JSON Field Meta (augmentable by admin)
+// ============================================================================
+
+/**
+ * JSON field metadata - augmentable by external packages.
+ */
+export interface JsonFieldMeta {}
+
+// ============================================================================
 // JSON Field Configuration
 // ============================================================================
 
@@ -25,6 +34,8 @@ import type {
  * JSON field configuration options.
  */
 export interface JsonFieldConfig extends BaseFieldConfig {
+	/** Field-specific metadata, augmentable by external packages. */
+	meta?: JsonFieldMeta;
 	/**
 	 * Storage mode.
 	 * - jsonb: Binary JSON, supports indexing and operators (default)
@@ -166,10 +177,11 @@ export type JsonValue =
 export const jsonField = defineField<"json", JsonFieldConfig, JsonValue>(
 	"json",
 	{
-		toColumn(name, config) {
+		toColumn(_name, config) {
 			const { mode = "jsonb" } = config;
 
-			let column: any = mode === "json" ? json(name) : jsonb(name);
+			// Don't specify column name - Drizzle uses the key name
+			let column: any = mode === "json" ? json() : jsonb();
 
 			// Apply constraints
 			if (config.required && config.nullable !== true) {
@@ -214,6 +226,7 @@ export const jsonField = defineField<"json", JsonFieldConfig, JsonValue>(
 				searchable: config.searchable ?? false,
 				readOnly: config.input === false,
 				writeOnly: config.output === false,
+				meta: config.meta,
 			};
 		},
 	},

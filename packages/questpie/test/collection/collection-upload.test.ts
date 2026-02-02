@@ -142,12 +142,12 @@ describe("collection upload URL generation", () => {
 				ctx,
 			);
 
-			// Create a service referencing the asset (using FK column name)
+			// Create a service referencing the asset (using field name with unified API)
 			const service = await servicesCrud.create(
 				{
 					id: crypto.randomUUID(),
 					name: "Haircut",
-					imageId: asset.id,
+					image: asset.id, // FK column key is field name with unified API
 				} as any,
 				ctx,
 			);

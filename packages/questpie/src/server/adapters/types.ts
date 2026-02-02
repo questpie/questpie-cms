@@ -111,6 +111,15 @@ export type AdapterRoutes = {
 			params: { collection: string },
 			context?: AdapterContext,
 		) => Promise<Response>;
+		/**
+		 * Get introspected collection schema with fields, access, validation.
+		 * Used by admin UI to auto-generate forms and tables.
+		 */
+		schema: (
+			request: Request,
+			params: { collection: string },
+			context?: AdapterContext,
+		) => Promise<Response>;
 		create: (
 			request: Request,
 			params: { collection: string },

@@ -7,24 +7,47 @@
 
 import {
 	eq,
-	ne,
-	like,
 	ilike,
 	inArray,
-	notInArray,
-	isNull,
 	isNotNull,
+	isNull,
+	like,
+	ne,
+	notInArray,
 	sql,
 } from "drizzle-orm";
-import { varchar, text } from "drizzle-orm/pg-core";
+import { text, varchar } from "drizzle-orm/pg-core";
 import { z } from "zod";
 import { defineField } from "../define-field.js";
+import { getDefaultRegistry } from "../registry.js";
 import type {
 	BaseFieldConfig,
 	ContextualOperators,
 	FieldMetadataBase,
 } from "../types.js";
-import { getDefaultRegistry } from "../registry.js";
+
+// ============================================================================
+// Text Field Meta (augmentable by admin)
+// ============================================================================
+
+/**
+ * Text field metadata - augmentable by external packages.
+ *
+ * @example Admin augmentation:
+ * ```ts
+ * declare module "questpie" {
+ *   interface TextFieldMeta {
+ *     admin?: {
+ *       placeholder?: string;
+ *       showCounter?: boolean;
+ *       prefix?: string;
+ *       suffix?: string;
+ *     }
+ *   }
+ * }
+ * ```
+ */
+export interface TextFieldMeta {}
 
 // ============================================================================
 // Text Field Configuration
@@ -34,6 +57,10 @@ import { getDefaultRegistry } from "../registry.js";
  * Text field configuration options.
  */
 export interface TextFieldConfig extends BaseFieldConfig {
+	/**
+	 * Field-specific metadata, augmentable by external packages.
+	 */
+	meta?: TextFieldMeta;
 	/**
 	 * Storage mode: varchar (default) or text.
 	 * - varchar: Fixed max length, slightly more efficient for short strings
@@ -158,94 +185,93 @@ function getTextOperators(): ContextualOperators {
  * const content = textField({ mode: "text" });
  * ```
  */
-export const textField = defineField<"text", TextFieldConfig, string>(
-	"text",
-	{
-		toColumn(name, config) {
-			const { mode = "varchar", maxLength = 255 } = config;
+export const textField = defineField<"text", TextFieldConfig, string>("text", {
+	toColumn(_name, config) {
+		const { mode = "varchar", maxLength = 255 } = config;
 
-			let column: any =
-				mode === "text" ? text(name) : varchar(name, { length: maxLength });
+		// Don't specify column name - Drizzle uses the key name
+		// User's casing config handles naming (title → title or title → title)
+		let column: any = mode === "text" ? text() : varchar({ length: maxLength });
 
-			// Apply constraints
-			if (config.required && config.nullable !== true) {
-				column = column.notNull();
-			}
-			if (config.default !== undefined) {
-				const defaultValue =
-					typeof config.default === "function"
-						? config.default()
-						: config.default;
-				column = column.default(defaultValue as string);
-			}
-			if (config.unique) {
-				column = column.unique();
-			}
+		// Apply constraints
+		if (config.required && config.nullable !== true) {
+			column = column.notNull();
+		}
+		if (config.default !== undefined) {
+			const defaultValue =
+				typeof config.default === "function"
+					? config.default()
+					: config.default;
+			column = column.default(defaultValue as string);
+		}
+		if (config.unique) {
+			column = column.unique();
+		}
 
-			return column;
-		},
-
-		toZodSchema(config) {
-			let schema = z.string();
-
-			// Validation rules
-			if (config.maxLength !== undefined) {
-				schema = schema.max(config.maxLength);
-			}
-			if (config.minLength !== undefined) {
-				schema = schema.min(config.minLength);
-			}
-			if (config.pattern) {
-				const regex =
-					typeof config.pattern === "string"
-						? new RegExp(config.pattern)
-						: config.pattern;
-				schema = schema.regex(regex);
-			}
-
-			// Transforms
-			if (config.trim) {
-				schema = schema.trim();
-			}
-			if (config.lowercase) {
-				schema = schema.toLowerCase();
-			}
-			if (config.uppercase) {
-				schema = schema.toUpperCase();
-			}
-
-			// Nullability
-			if (!config.required && config.nullable !== false) {
-				return schema.nullish();
-			}
-
-			return schema;
-		},
-
-		getOperators() {
-			return getTextOperators();
-		},
-
-		getMetadata(config): FieldMetadataBase {
-			return {
-				type: "text",
-				label: config.label,
-				description: config.description,
-				required: config.required ?? false,
-				localized: config.localized ?? false,
-				unique: config.unique ?? false,
-				searchable: config.searchable ?? false,
-				readOnly: config.input === false,
-				writeOnly: config.output === false,
-				validation: {
-					maxLength: config.maxLength,
-					minLength: config.minLength,
-					pattern: config.pattern?.toString(),
-				},
-			};
-		},
+		return column;
 	},
-);
+
+	toZodSchema(config) {
+		let schema = z.string();
+
+		// Validation rules
+		if (config.maxLength !== undefined) {
+			schema = schema.max(config.maxLength);
+		}
+		if (config.minLength !== undefined) {
+			schema = schema.min(config.minLength);
+		}
+		if (config.pattern) {
+			const regex =
+				typeof config.pattern === "string"
+					? new RegExp(config.pattern)
+					: config.pattern;
+			schema = schema.regex(regex);
+		}
+
+		// Transforms
+		if (config.trim) {
+			schema = schema.trim();
+		}
+		if (config.lowercase) {
+			schema = schema.toLowerCase();
+		}
+		if (config.uppercase) {
+			schema = schema.toUpperCase();
+		}
+
+		// Nullability
+		if (!config.required && config.nullable !== false) {
+			return schema.nullish();
+		}
+
+		return schema;
+	},
+
+	getOperators() {
+		return getTextOperators();
+	},
+
+	getMetadata(config): FieldMetadataBase {
+		return {
+			type: "text",
+			label: config.label,
+			description: config.description,
+			required: config.required ?? false,
+			localized: config.localized ?? false,
+			unique: config.unique ?? false,
+			searchable: config.searchable ?? false,
+			readOnly: config.input === false,
+			writeOnly: config.output === false,
+			validation: {
+				maxLength: config.maxLength,
+				minLength: config.minLength,
+				pattern: config.pattern?.toString(),
+			},
+			meta: config.meta,
+		};
+	},
+});
 
 // Register in default registry
 getDefaultRegistry().register("text", textField);

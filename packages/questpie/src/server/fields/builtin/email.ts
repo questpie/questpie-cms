@@ -7,24 +7,33 @@
 
 import {
 	eq,
-	ne,
-	like,
 	ilike,
 	inArray,
-	notInArray,
-	isNull,
 	isNotNull,
+	isNull,
+	like,
+	ne,
+	notInArray,
 	sql,
 } from "drizzle-orm";
 import { varchar } from "drizzle-orm/pg-core";
 import { z } from "zod";
 import { defineField } from "../define-field.js";
+import { getDefaultRegistry } from "../registry.js";
 import type {
 	BaseFieldConfig,
 	ContextualOperators,
 	FieldMetadataBase,
 } from "../types.js";
-import { getDefaultRegistry } from "../registry.js";
+
+// ============================================================================
+// Email Field Meta (augmentable by admin)
+// ============================================================================
+
+/**
+ * Email field metadata - augmentable by external packages.
+ */
+export interface EmailFieldMeta {}
 
 // ============================================================================
 // Email Field Configuration
@@ -34,6 +43,8 @@ import { getDefaultRegistry } from "../registry.js";
  * Email field configuration options.
  */
 export interface EmailFieldConfig extends BaseFieldConfig {
+	/** Field-specific metadata, augmentable by external packages. */
+	meta?: EmailFieldMeta;
 	/**
 	 * Maximum character length.
 	 * @default 255
@@ -141,10 +152,11 @@ function getEmailOperators(): ContextualOperators {
 export const emailField = defineField<"email", EmailFieldConfig, string>(
 	"email",
 	{
-		toColumn(name, config) {
+		toColumn(_name, config) {
 			const { maxLength = 255 } = config;
 
-			let column: any = varchar(name, { length: maxLength });
+			// Don't specify column name - Drizzle uses the key name
+			let column: any = varchar({ length: maxLength });
 
 			// Apply constraints
 			if (config.required && config.nullable !== true) {
@@ -232,6 +244,7 @@ export const emailField = defineField<"email", EmailFieldConfig, string>(
 				validation: {
 					maxLength: config.maxLength ?? 255,
 				},
+				meta: config.meta,
 			};
 		},
 	},

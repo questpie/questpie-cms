@@ -164,37 +164,95 @@ export function buildWhereClause(
 			}
 		} else if (key === "RAW" && typeof value === "function") {
 			conditions.push(value(table));
-		} else if (state.relations?.[key]) {
-			const relation = state.relations[key] as RelationConfig;
-			const relationClause = buildRelationWhereClause(relation, value, {
-				parentTable: table,
-				parentState: state,
-				context,
-				cms,
-				db: options.db,
-			});
-			if (relationClause) {
-				conditions.push(relationClause);
-			}
 		} else if (
 			typeof value === "object" &&
 			value !== null &&
 			!Array.isArray(value)
 		) {
-			// Field operators - use buildLocalizedFieldRef for proper COALESCE handling
-			const column = buildLocalizedFieldRef(key, {
-				table,
-				state,
-				i18nCurrentTable,
-				i18nFallbackTable,
-				useI18n,
-			});
+			// Determine if value contains field operators or relation quantifiers
+			const fieldOperators = [
+				"eq",
+				"ne",
+				"not",
+				"gt",
+				"gte",
+				"lt",
+				"lte",
+				"in",
+				"notIn",
+				"like",
+				"ilike",
+				"notLike",
+				"notIlike",
+				"contains",
+				"startsWith",
+				"endsWith",
+				"isNull",
+				"isNotNull",
+				"arrayOverlaps",
+				"arrayContained",
+				"arrayContains",
+			];
+			const relationQuantifiers = ["some", "none", "every", "is", "isNot"];
+			const valueKeys = Object.keys(value as Record<string, any>);
+			const hasFieldOperators = valueKeys.some((k) =>
+				fieldOperators.includes(k),
+			);
+			const hasRelationQuantifiers = valueKeys.some((k) =>
+				relationQuantifiers.includes(k),
+			);
 
-			if (!column) continue;
+			// If value contains field operators, treat as field filter
+			// If value contains relation quantifiers OR key is a relation and value has no operators, treat as relation filter
+			if (hasFieldOperators && !hasRelationQuantifiers) {
+				// Field operators - use buildLocalizedFieldRef for proper COALESCE handling
+				const column = buildLocalizedFieldRef(key, {
+					table,
+					state,
+					i18nCurrentTable,
+					i18nFallbackTable,
+					useI18n,
+				});
 
-			for (const [op, val] of Object.entries(value)) {
-				const condition = buildOperatorCondition(column, op, val);
-				if (condition) conditions.push(condition);
+				if (column) {
+					for (const [op, val] of Object.entries(
+						value as Record<string, any>,
+					)) {
+						const condition = buildOperatorCondition(column, op, val);
+						if (condition) conditions.push(condition);
+					}
+				}
+			} else if (state.relations?.[key]) {
+				// Relation filter (has quantifiers or is a plain object for nested matching)
+				const relation = state.relations[key] as RelationConfig;
+				const relationClause = buildRelationWhereClause(relation, value, {
+					parentTable: table,
+					parentState: state,
+					context,
+					cms,
+					db: options.db,
+				});
+				if (relationClause) {
+					conditions.push(relationClause);
+				}
+			} else {
+				// Fallback: treat as field operators
+				const column = buildLocalizedFieldRef(key, {
+					table,
+					state,
+					i18nCurrentTable,
+					i18nFallbackTable,
+					useI18n,
+				});
+
+				if (column) {
+					for (const [op, val] of Object.entries(
+						value as Record<string, any>,
+					)) {
+						const condition = buildOperatorCondition(column, op, val);
+						if (condition) conditions.push(condition);
+					}
+				}
 			}
 		} else {
 			// Simple equality - use buildLocalizedFieldRef for proper COALESCE handling

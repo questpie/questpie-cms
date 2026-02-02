@@ -5,17 +5,39 @@
  * Supports typed items via nested field definition.
  */
 
-import { isNull, isNotNull, sql } from "drizzle-orm";
+import { isNotNull, isNull, sql } from "drizzle-orm";
 import { jsonb } from "drizzle-orm/pg-core";
 import { z } from "zod";
 import { defineField } from "../define-field.js";
+import { getDefaultRegistry } from "../registry.js";
 import type {
+	AnyFieldDefinition,
 	BaseFieldConfig,
 	ContextualOperators,
 	NestedFieldMetadata,
-	AnyFieldDefinition,
 } from "../types.js";
-import { getDefaultRegistry } from "../registry.js";
+
+// ============================================================================
+// Array Field Meta (augmentable by admin)
+// ============================================================================
+
+/**
+ * Array field metadata - augmentable by external packages.
+ *
+ * @example Admin augmentation:
+ * ```ts
+ * declare module "questpie" {
+ *   interface ArrayFieldMeta {
+ *     admin?: {
+ *       displayAs?: "list" | "table" | "cards";
+ *       addLabel?: string;
+ *       collapsible?: boolean;
+ *     }
+ *   }
+ * }
+ * ```
+ */
+export interface ArrayFieldMeta {}
 
 // ============================================================================
 // Array Field Configuration
@@ -25,6 +47,8 @@ import { getDefaultRegistry } from "../registry.js";
  * Array field configuration options.
  */
 export interface ArrayFieldConfig extends BaseFieldConfig {
+	/** Field-specific metadata, augmentable by external packages. */
+	meta?: ArrayFieldMeta;
 	/**
 	 * Item field definition.
 	 * Defines the type and validation of array items.
@@ -93,11 +117,9 @@ function getArrayOperators(): ContextualOperators {
 				return sql`jsonb_array_length(COALESCE(${col}, '[]'::jsonb)) BETWEEN ${min} AND ${max}`;
 			},
 			// Is empty array
-			isEmpty: (col) =>
-				sql`(${col} = '[]'::jsonb OR ${col} IS NULL)`,
+			isEmpty: (col) => sql`(${col} = '[]'::jsonb OR ${col} IS NULL)`,
 			// Is not empty
-			isNotEmpty: (col) =>
-				sql`(${col} != '[]'::jsonb AND ${col} IS NOT NULL)`,
+			isNotEmpty: (col) => sql`(${col} != '[]'::jsonb AND ${col} IS NOT NULL)`,
 			// Some element matches condition (requires subquery in practice)
 			some: () => sql`TRUE`, // Placeholder
 			// Every element matches condition
@@ -195,9 +217,10 @@ function resolveItemField(
 export const arrayField = defineField<"array", ArrayFieldConfig, unknown[]>(
 	"array",
 	{
-		toColumn(name, config) {
+		toColumn(_name, config) {
 			// Always use JSONB for complex typed arrays
-			let column: any = jsonb(name);
+			// Don't specify column name - Drizzle uses the key name
+			let column: any = jsonb();
 
 			// Apply constraints
 			if (config.required && config.nullable !== true) {
@@ -260,6 +283,7 @@ export const arrayField = defineField<"array", ArrayFieldConfig, unknown[]>(
 					minItems: config.minItems,
 					maxItems: config.maxItems,
 				},
+				meta: config.meta,
 			};
 		},
 	},

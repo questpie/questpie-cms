@@ -68,35 +68,20 @@ export interface ValidationSchemas {
 }
 
 /**
- * Extract relation field name to FK column name mappings from field definitions.
+ * Extract relation field mappings from field definitions.
  *
- * For a relation field like `author: f.relation({ to: "users" })`,
- * this returns `{ author: "authorId" }` - mapping the field name to its FK column.
+ * With the unified field API, the FK column key is the same as the field name.
+ * This function now returns an empty map since no transformation is needed.
  *
  * @param fieldDefinitions - Collection field definitions
- * @returns Map of relation field names to their FK column names
+ * @returns Empty map (no transformation needed with unified field API)
  */
 export function extractRelationFieldMappings(
-	fieldDefinitions: Record<string, FieldDefinition<FieldDefinitionState>>,
+	_fieldDefinitions: Record<string, FieldDefinition<FieldDefinitionState>>,
 ): Record<string, string> {
-	const mappings: Record<string, string> = {};
-
-	for (const [fieldName, fieldDef] of Object.entries(fieldDefinitions)) {
-		// Check if this is a relation field by looking at metadata
-		const metadata = fieldDef.state.metadata as
-			| RelationFieldMetadata
-			| undefined;
-		if (!metadata?.relationType) continue;
-
-		// Only handle belongsTo relations (they have FK columns)
-		if (metadata.relationType !== "belongsTo") continue;
-
-		// The FK column name is `${fieldName}Id`
-		const fkColumnName = `${fieldName}Id`;
-		mappings[fieldName] = fkColumnName;
-	}
-
-	return mappings;
+	// With unified field API, field name = column key
+	// No transformation needed
+	return {};
 }
 
 /**

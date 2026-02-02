@@ -5,16 +5,36 @@
  * Supports timezone, precision, auto-now on create/update.
  */
 
-import { eq, ne, gt, gte, lt, lte, between, isNull, isNotNull, sql } from "drizzle-orm";
+import {
+	between,
+	eq,
+	gt,
+	gte,
+	isNotNull,
+	isNull,
+	lt,
+	lte,
+	ne,
+	sql,
+} from "drizzle-orm";
 import { timestamp } from "drizzle-orm/pg-core";
 import { z } from "zod";
 import { defineField } from "../define-field.js";
+import { getDefaultRegistry } from "../registry.js";
 import type {
 	BaseFieldConfig,
 	ContextualOperators,
 	FieldMetadataBase,
 } from "../types.js";
-import { getDefaultRegistry } from "../registry.js";
+
+// ============================================================================
+// Datetime Field Meta (augmentable by admin)
+// ============================================================================
+
+/**
+ * Datetime field metadata - augmentable by external packages.
+ */
+export interface DatetimeFieldMeta {}
 
 // ============================================================================
 // Datetime Field Configuration
@@ -24,6 +44,8 @@ import { getDefaultRegistry } from "../registry.js";
  * Datetime field configuration options.
  */
 export interface DatetimeFieldConfig extends BaseFieldConfig {
+	/** Field-specific metadata, augmentable by external packages. */
+	meta?: DatetimeFieldMeta;
 	/**
 	 * Minimum datetime constraint (inclusive).
 	 * Can be a Date object or ISO datetime string.
@@ -147,10 +169,11 @@ function getDatetimeOperators(): ContextualOperators {
 export const datetimeField = defineField<"datetime", DatetimeFieldConfig, Date>(
 	"datetime",
 	{
-		toColumn(name, config) {
+		toColumn(_name, config) {
 			const { precision = 3, withTimezone = true } = config;
 
-			let column: any = timestamp(name, {
+			// Don't specify column name - Drizzle uses the key name
+			let column: any = timestamp({
 				precision,
 				withTimezone,
 				mode: "date",
@@ -185,11 +208,13 @@ export const datetimeField = defineField<"datetime", DatetimeFieldConfig, Date>(
 
 			// Min/max constraints
 			if (config.min) {
-				const minDate = typeof config.min === "string" ? new Date(config.min) : config.min;
+				const minDate =
+					typeof config.min === "string" ? new Date(config.min) : config.min;
 				schema = schema.min(minDate);
 			}
 			if (config.max) {
-				const maxDate = typeof config.max === "string" ? new Date(config.max) : config.max;
+				const maxDate =
+					typeof config.max === "string" ? new Date(config.max) : config.max;
 				schema = schema.max(maxDate);
 			}
 
@@ -216,6 +241,7 @@ export const datetimeField = defineField<"datetime", DatetimeFieldConfig, Date>(
 				searchable: config.searchable ?? false,
 				readOnly: config.input === false,
 				writeOnly: config.output === false,
+				meta: config.meta,
 			};
 		},
 	},

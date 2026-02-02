@@ -20,6 +20,17 @@ export type {
 	WhereOperators,
 	With,
 } from "#questpie/server/collection/crud/index.js";
+// Introspection API
+export {
+	type AccessResult,
+	type CollectionAccessInfo,
+	type CollectionSchema,
+	type FieldAccessInfo,
+	type FieldSchema,
+	introspectCollection,
+	introspectCollections,
+	type RelationSchema,
+} from "../introspection.js";
 export { Collection } from "./collection.js";
 export { CollectionBuilder, collection } from "./collection-builder.js";
 export { softDeleteUniqueIndex } from "./index-helpers.js";

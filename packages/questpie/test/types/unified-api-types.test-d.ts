@@ -123,6 +123,9 @@ type _postsTableHasCreatedAt = Expect<
 	Equal<HasKey<PostsTable, "createdAt">, true>
 >;
 
+// FK column uses field name directly (no Id suffix in unified API)
+type _postsTableHasAuthor = Expect<Equal<HasKey<PostsTable, "author">, true>>;
+
 // I18n table exists for localized fields
 type PostsI18nTable = typeof posts.i18nTable;
 type _postsI18nTableExists = Expect<Not<Equal<PostsI18nTable, null>>>;

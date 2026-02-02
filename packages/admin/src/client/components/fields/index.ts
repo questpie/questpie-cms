@@ -12,7 +12,9 @@ export type { AssetPreviewFieldProps } from "./asset-preview-field";
 export { AssetPreviewField } from "./asset-preview-field";
 export type { BlocksFieldConfig, BlocksFieldProps } from "./blocks-field";
 export { BlocksField } from "./blocks-field";
-export { CheckboxField } from "./checkbox-field";
+// Boolean field (unified checkbox/switch)
+export type { BooleanFieldProps } from "./boolean-field";
+export { BooleanField, CheckboxField, SwitchField } from "./boolean-field";
 export { CustomField } from "./custom-field";
 export { DateField } from "./date-field";
 export { DatetimeField } from "./datetime-field";
@@ -21,11 +23,11 @@ export type { EmbeddedCollectionFieldProps } from "./embedded-collection";
 
 export { EmbeddedCollectionField } from "./embedded-collection";
 // Types (note: RelationDisplayMode and RelationDisplayFields are exported from ./relation above)
+// BooleanFieldProps is now exported from ./boolean-field above
 export type {
 	ArrayFieldConfig,
 	ArrayItemType,
 	BaseFieldProps,
-	BooleanFieldProps,
 	CheckboxGroupFieldProps,
 	DateFieldProps,
 	DateRangeFieldProps,
@@ -49,7 +51,7 @@ export type {
 	TimeFieldConfig,
 	TimeFieldProps,
 	UploadFieldConfig,
-	UploadManyFieldConfig,
+
 	// Note: RichTextFeatures is exported from ./rich-text-editor
 } from "./field-types";
 export { useResolvedControl } from "./field-utils";
@@ -63,7 +65,7 @@ export type { ObjectArrayFieldProps } from "./object-array-field";
 export { ObjectArrayField } from "./object-array-field";
 export type { ObjectFieldProps } from "./object-field";
 export { ObjectField } from "./object-field";
-export { PasswordField } from "./password-field";
+
 // Relation display components (shared between relation fields)
 export {
 	type RelationDisplayFields,
@@ -87,7 +89,7 @@ export { RichTextField } from "./rich-text-field";
 export { SelectField } from "./select-field";
 export type { StatusFieldProps, StatusOption } from "./status-field";
 export { StatusField } from "./status-field";
-export { SwitchField } from "./switch-field";
+// SwitchField is now exported from boolean-field.tsx above
 // Basic field components (using primitives)
 export { TextField } from "./text-field";
 export { TextareaField } from "./textarea-field";
@@ -95,5 +97,3 @@ export { TimeField } from "./time-field";
 export type { UploadFieldProps } from "./upload-field";
 // Upload field components
 export { UploadField } from "./upload-field";
-export type { UploadManyFieldProps } from "./upload-many-field";
-export { UploadManyField } from "./upload-many-field";

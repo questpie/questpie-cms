@@ -5,18 +5,40 @@
  * Supports nested field definitions with type inference.
  */
 
-import { isNull, isNotNull, sql } from "drizzle-orm";
-import { jsonb, json } from "drizzle-orm/pg-core";
+import { isNotNull, isNull, sql } from "drizzle-orm";
+import { json, jsonb } from "drizzle-orm/pg-core";
 import { z } from "zod";
 import { defineField } from "../define-field.js";
+import { getDefaultRegistry } from "../registry.js";
 import type {
+	AnyFieldDefinition,
 	BaseFieldConfig,
 	ContextualOperators,
-	NestedFieldMetadata,
 	FieldDefinition,
-	AnyFieldDefinition,
+	NestedFieldMetadata,
 } from "../types.js";
-import { getDefaultRegistry } from "../registry.js";
+
+// ============================================================================
+// Object Field Meta (augmentable by admin)
+// ============================================================================
+
+/**
+ * Object field metadata - augmentable by external packages.
+ *
+ * @example Admin augmentation:
+ * ```ts
+ * declare module "questpie" {
+ *   interface ObjectFieldMeta {
+ *     admin?: {
+ *       collapsible?: boolean;
+ *       defaultCollapsed?: boolean;
+ *       displayAs?: "card" | "section" | "inline";
+ *     }
+ *   }
+ * }
+ * ```
+ */
+export interface ObjectFieldMeta {}
 
 // ============================================================================
 // Object Field Configuration
@@ -26,13 +48,17 @@ import { getDefaultRegistry } from "../registry.js";
  * Object field configuration options.
  */
 export interface ObjectFieldConfig extends BaseFieldConfig {
+	/** Field-specific metadata, augmentable by external packages. */
+	meta?: ObjectFieldMeta;
 	/**
 	 * Nested field definitions.
 	 * Can be:
 	 * - Direct field definitions map
 	 * - Factory function for deferred definition (avoids circular refs)
 	 */
-	fields: Record<string, AnyFieldDefinition> | (() => Record<string, AnyFieldDefinition>);
+	fields:
+		| Record<string, AnyFieldDefinition>
+		| (() => Record<string, AnyFieldDefinition>);
 
 	/**
 	 * Storage mode.
@@ -55,14 +81,12 @@ function getObjectOperators(): ContextualOperators {
 	return {
 		column: {
 			// Contains the given key-value pairs
-			contains: (col, value) =>
-				sql`${col} @> ${JSON.stringify(value)}::jsonb`,
+			contains: (col, value) => sql`${col} @> ${JSON.stringify(value)}::jsonb`,
 			// Is contained by the given object
 			containedBy: (col, value) =>
 				sql`${col} <@ ${JSON.stringify(value)}::jsonb`,
 			// Has the given key
-			hasKey: (col, value) =>
-				sql`${col} ? ${value}`,
+			hasKey: (col, value) => sql`${col} ? ${value}`,
 			// Has all the given keys
 			hasKeys: (col, values) =>
 				sql`${col} ?& ${sql.raw(`ARRAY[${(values as string[]).map((v) => `'${v}'`).join(",")}]`)}`,
@@ -75,14 +99,11 @@ function getObjectOperators(): ContextualOperators {
 				return sql`${col}#>>'{${sql.raw(path.join(","))}}' = ${val}`;
 			},
 			// JSON path query
-			jsonPath: (col, value) =>
-				sql`${col} @@ ${value}::jsonpath`,
+			jsonPath: (col, value) => sql`${col} @@ ${value}::jsonpath`,
 			// Is empty object
-			isEmpty: (col) =>
-				sql`(${col} = '{}'::jsonb OR ${col} IS NULL)`,
+			isEmpty: (col) => sql`(${col} = '{}'::jsonb OR ${col} IS NULL)`,
 			// Is not empty
-			isNotEmpty: (col) =>
-				sql`(${col} != '{}'::jsonb AND ${col} IS NOT NULL)`,
+			isNotEmpty: (col) => sql`(${col} != '{}'::jsonb AND ${col} IS NOT NULL)`,
 			isNull: (col) => isNull(col),
 			isNotNull: (col) => isNotNull(col),
 		},
@@ -131,7 +152,9 @@ function getObjectOperators(): ContextualOperators {
  * Resolve fields from config (handles factory functions).
  */
 function resolveFields(
-	fields: Record<string, AnyFieldDefinition> | (() => Record<string, AnyFieldDefinition>),
+	fields:
+		| Record<string, AnyFieldDefinition>
+		| (() => Record<string, AnyFieldDefinition>),
 ): Record<string, AnyFieldDefinition> {
 	return typeof fields === "function" ? fields() : fields;
 }
@@ -167,10 +190,11 @@ export const objectField = defineField<
 	ObjectFieldConfig,
 	Record<string, unknown>
 >("object", {
-	toColumn(name, config) {
+	toColumn(_name, config) {
 		const { mode = "jsonb" } = config;
 
-		let column: any = mode === "json" ? json(name) : jsonb(name);
+		// Don't specify column name - Drizzle uses the key name
+		let column: any = mode === "json" ? json() : jsonb();
 
 		// Apply constraints
 		if (config.required && config.nullable !== true) {
@@ -197,7 +221,7 @@ export const objectField = defineField<
 			shape[fieldName] = fieldDef.toZodSchema();
 		}
 
-		let schema = z.object(shape);
+		const schema = z.object(shape);
 
 		// Nullability
 		if (!config.required && config.nullable !== false) {
@@ -231,6 +255,7 @@ export const objectField = defineField<
 			readOnly: config.input === false,
 			writeOnly: config.output === false,
 			nestedFields: nestedMetadata,
+			meta: config.meta,
 		};
 	},
 });

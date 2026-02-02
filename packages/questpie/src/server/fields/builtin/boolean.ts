@@ -5,16 +5,36 @@
  * Supports default values and boolean operators.
  */
 
-import { eq, ne, isNull, isNotNull, sql } from "drizzle-orm";
+import { eq, isNotNull, isNull, ne, sql } from "drizzle-orm";
 import { boolean } from "drizzle-orm/pg-core";
 import { z } from "zod";
 import { defineField } from "../define-field.js";
+import { getDefaultRegistry } from "../registry.js";
 import type {
 	BaseFieldConfig,
 	ContextualOperators,
 	FieldMetadataBase,
 } from "../types.js";
-import { getDefaultRegistry } from "../registry.js";
+
+// ============================================================================
+// Boolean Field Meta (augmentable by admin)
+// ============================================================================
+
+/**
+ * Boolean field metadata - augmentable by external packages.
+ *
+ * @example Admin augmentation:
+ * ```ts
+ * declare module "questpie" {
+ *   interface BooleanFieldMeta {
+ *     admin?: {
+ *       displayAs?: "checkbox" | "switch";
+ *     }
+ *   }
+ * }
+ * ```
+ */
+export interface BooleanFieldMeta {}
 
 // ============================================================================
 // Boolean Field Configuration
@@ -24,6 +44,11 @@ import { getDefaultRegistry } from "../registry.js";
  * Boolean field configuration options.
  */
 export interface BooleanFieldConfig extends BaseFieldConfig {
+	/**
+	 * Field-specific metadata, augmentable by external packages.
+	 */
+	meta?: BooleanFieldMeta;
+
 	/**
 	 * Default to true.
 	 * Convenience option equivalent to `default: true`.
@@ -112,8 +137,9 @@ function getBooleanOperators(): ContextualOperators {
 export const booleanField = defineField<"boolean", BooleanFieldConfig, boolean>(
 	"boolean",
 	{
-		toColumn(name, config) {
-			let column: any = boolean(name);
+		toColumn(_name, config) {
+			// Don't specify column name - Drizzle uses the key name
+			let column: any = boolean();
 
 			// Apply constraints
 			if (config.required && config.nullable !== true) {
@@ -145,7 +171,7 @@ export const booleanField = defineField<"boolean", BooleanFieldConfig, boolean>(
 		},
 
 		toZodSchema(config) {
-			let schema = z.boolean();
+			const schema = z.boolean();
 
 			// Nullability
 			if (!config.required && config.nullable !== false) {
@@ -170,6 +196,7 @@ export const booleanField = defineField<"boolean", BooleanFieldConfig, boolean>(
 				searchable: config.searchable ?? false,
 				readOnly: config.input === false,
 				writeOnly: config.output === false,
+				meta: config.meta,
 			};
 		},
 	},

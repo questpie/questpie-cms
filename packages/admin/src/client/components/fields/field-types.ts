@@ -177,10 +177,8 @@ export type TagsFieldProps = BaseFieldProps & {
 	pattern?: RegExp;
 };
 
-/**
- * Props for checkbox/switch fields
- */
-export type BooleanFieldProps = BaseFieldProps;
+// BooleanFieldProps is now in ./boolean-field.tsx
+export type { BooleanFieldProps } from "./boolean-field";
 
 /**
  * Props for checkbox group field
@@ -232,8 +230,14 @@ export type DateTimeFieldConfig = Omit<
 /** Time field config */
 export type TimeFieldConfig = Omit<TimeFieldProps, keyof BaseFieldProps>;
 
-/** Boolean (checkbox/switch) field config - no extra config */
-export type BooleanFieldConfig = Record<string, never>;
+/** Boolean (checkbox/switch) field config */
+export type BooleanFieldConfig = {
+	/**
+	 * Display mode for the boolean field.
+	 * @default "checkbox"
+	 */
+	displayAs?: "checkbox" | "switch";
+};
 
 /** JSON field config */
 export type JsonFieldConfig = Record<string, never>;
@@ -286,10 +290,33 @@ export type RelationFieldConfig = {
 	gridColumns?: 1 | 2 | 3 | 4;
 };
 
-/** Upload field config (single file) */
+/**
+ * Upload field config.
+ *
+ * Handles both single and multiple file uploads based on `multiple` option.
+ * Maps to server's `upload` field type.
+ *
+ * @example Single upload (default)
+ * ```ts
+ * featuredImage: r.upload({
+ *   accept: ["image/*"],
+ *   maxSize: 5_000_000,
+ * })
+ * ```
+ *
+ * @example Multiple uploads
+ * ```ts
+ * gallery: r.upload({
+ *   multiple: true,
+ *   accept: ["image/*"],
+ *   maxItems: 10,
+ *   orderable: true,
+ * })
+ * ```
+ */
 export type UploadFieldConfig = {
 	/** Target collection for uploads (default: "assets") */
-	collection?: string;
+	to?: string;
 	/** Accepted file types (MIME types or extensions) */
 	accept?: string[];
 	/** Maximum file size in bytes */
@@ -300,15 +327,19 @@ export type UploadFieldConfig = {
 	editable?: boolean;
 	/** Preview variant */
 	previewVariant?: "card" | "compact" | "thumbnail";
-};
 
-/** Upload many field config (multiple files) */
-export type UploadManyFieldConfig = UploadFieldConfig & {
-	/** Maximum number of files */
+	// ── Multiple upload options ──────────────────────────────────────────────
+	/**
+	 * Enable multiple file uploads.
+	 * When true, field value is an array of asset IDs.
+	 * @default false
+	 */
+	multiple?: boolean;
+	/** Maximum number of files (only when multiple: true) */
 	maxItems?: number;
-	/** Enable drag-and-drop reordering */
+	/** Enable drag-and-drop reordering (only when multiple: true) */
 	orderable?: boolean;
-	/** Layout for previews */
+	/** Layout for previews (only when multiple: true) */
 	layout?: "grid" | "list";
 };
 

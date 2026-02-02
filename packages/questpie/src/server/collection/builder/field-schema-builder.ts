@@ -135,30 +135,18 @@ export function extendSchemaWithNestedMutations(
 /**
  * Extract relation field mappings for transformation.
  *
- * Returns a map of `{ fieldName: fkColumnName }` for belongsTo relations.
- * Example: `{ author: "authorId" }`
+ * With unified field API, the column key is the same as the field name.
+ * This function returns an empty map since no transformation is needed.
  *
  * @param fieldDefinitions - Collection field definitions
- * @returns Map of field names to FK column names
+ * @returns Empty map (no transformation needed with unified field API)
  */
 export function extractBelongsToMappings(
-	fieldDefinitions: Record<string, FieldDefinition<FieldDefinitionState>>,
+	_fieldDefinitions: Record<string, FieldDefinition<FieldDefinitionState>>,
 ): Record<string, string> {
-	const mappings: Record<string, string> = {};
-
-	for (const [fieldName, fieldDef] of Object.entries(fieldDefinitions)) {
-		const metadata = fieldDef.state.metadata as
-			| RelationFieldMetadata
-			| undefined;
-
-		// Only belongsTo relations have FK columns
-		if (metadata?.relationType !== "belongsTo") continue;
-
-		// The FK column is `${fieldName}Id`
-		mappings[fieldName] = `${fieldName}Id`;
-	}
-
-	return mappings;
+	// With unified field API, field name = column key
+	// No transformation needed
+	return {};
 }
 
 /**

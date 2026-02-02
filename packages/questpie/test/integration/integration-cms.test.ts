@@ -69,8 +69,8 @@ const createTestModule = () => {
 				to: "tags",
 				hasMany: true,
 				through: "article_tags",
-				sourceField: "articleId",
-				targetField: "tagId",
+				sourceField: "article", // FK column key is field name with unified API
+				targetField: "tag",
 			}),
 		}))
 		.title(({ f }) => f.title)
@@ -103,7 +103,7 @@ const createTestModule = () => {
 						await cms.queue.articlePublished.publish({
 							articleId: data.id,
 							title: data.title,
-							authorId: (data as any).authorId,
+							authorId: (data as any).author, // FK column key is field name with unified API
 						});
 
 						await cms.logger?.info("Article published", {
@@ -129,8 +129,8 @@ const createTestModule = () => {
 				to: "articles",
 				hasMany: true,
 				through: "article_tags",
-				sourceField: "tagId",
-				targetField: "articleId",
+				sourceField: "tag", // FK column key is field name with unified API
+				targetField: "article",
 			}),
 		}))
 		.title(({ f }) => f.name)
@@ -543,7 +543,7 @@ describe("integration: full CMS workflow", () => {
 		const aliceArticles = await articlesCrud.find(
 			{
 				where: {
-					authorId: author1.id,
+					author: author1.id, // FK column key is field name with unified API
 					status: "published",
 				},
 				orderBy: { viewCount: "desc" },

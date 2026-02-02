@@ -1,5 +1,5 @@
 import type * as React from "react";
-import { CheckboxField } from "../../components/fields/checkbox-field";
+import { BooleanField } from "../../components/fields/boolean-field";
 import { CustomField } from "../../components/fields/custom-field";
 import { DateField } from "../../components/fields/date-field";
 import { DatetimeField } from "../../components/fields/datetime-field";
@@ -7,9 +7,7 @@ import { EmailField } from "../../components/fields/email-field";
 import type { FormFieldProps } from "../../components/fields/field-types";
 import { JsonField } from "../../components/fields/json-field";
 import { NumberField } from "../../components/fields/number-field";
-import { PasswordField } from "../../components/fields/password-field";
 import { SelectField } from "../../components/fields/select-field";
-import { SwitchField } from "../../components/fields/switch-field";
 import { TextField } from "../../components/fields/text-field";
 import { TextareaField } from "../../components/fields/textarea-field";
 
@@ -32,9 +30,9 @@ export function FormField({
 		case "textarea":
 			return <TextareaField {...baseProps} />;
 		case "checkbox":
-			return <CheckboxField {...baseProps} />;
+			return <BooleanField {...baseProps} displayAs="checkbox" />;
 		case "switch":
-			return <SwitchField {...baseProps} />;
+			return <BooleanField {...baseProps} displayAs="switch" />;
 		case "select":
 			return <SelectField {...baseProps} options={options} />;
 		case "number":
@@ -46,7 +44,7 @@ export function FormField({
 		case "email":
 			return <EmailField {...baseProps} />;
 		case "password":
-			return <PasswordField {...baseProps} />;
+			return <TextField {...baseProps} type="password" />;
 		case "json":
 			return <JsonField {...baseProps} />;
 		default:

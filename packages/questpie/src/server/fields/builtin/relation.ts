@@ -33,6 +33,32 @@ import type {
 } from "../types.js";
 
 // ============================================================================
+// Relation Field Meta (augmentable by admin)
+// ============================================================================
+
+/**
+ * Relation field metadata - augmentable by external packages.
+ *
+ * @example Admin augmentation:
+ * ```ts
+ * declare module "questpie" {
+ *   interface RelationFieldMeta {
+ *     admin?: {
+ *       displayAs?: "select" | "table" | "cards" | "list";
+ *       displayFields?: string[];
+ *       titleField?: string;
+ *       allowCreate?: boolean;
+ *       allowEdit?: boolean;
+ *       preload?: boolean;
+ *       maxItems?: number;
+ *     }
+ *   }
+ * }
+ * ```
+ */
+export interface RelationFieldMeta {}
+
+// ============================================================================
 // Relation Field Configuration
 // ============================================================================
 
@@ -79,6 +105,9 @@ export type JunctionTarget = string | (() => { name: string });
  * Relation field configuration options.
  */
 export interface RelationFieldConfig extends BaseFieldConfig {
+	/** Field-specific metadata, augmentable by external packages. */
+	meta?: RelationFieldMeta;
+
 	/**
 	 * Target collection(s).
 	 * - String: `"users"` - collection name (recommended for most cases)
@@ -494,7 +523,8 @@ export const relationField = defineField<
 
 		// Multiple - jsonb array of FKs
 		if (relationType === "multiple") {
-			let column: any = jsonb(name);
+			// Don't specify column name - Drizzle uses the key name
+			let column: any = jsonb();
 
 			if (config.required && config.nullable !== true) {
 				column = column.notNull();
@@ -511,6 +541,8 @@ export const relationField = defineField<
 		}
 
 		// MorphTo - creates two columns (type + id)
+		// Note: These use derived names (${name}Type, ${name}Id) because
+		// they need distinct columns stored under different keys
 		if (relationType === "morphTo") {
 			const types = config.to as Record<
 				string,
@@ -518,26 +550,26 @@ export const relationField = defineField<
 			>;
 			const typeNames = Object.keys(types);
 
-			const typeColumnName = `${name}Type`;
-			const idColumnName = `${name}Id`;
-
 			const maxTypeLength = Math.max(...typeNames.map((t) => t.length), 50);
 
-			let typeColumn: any = varchar(typeColumnName, { length: maxTypeLength });
-			let idColumn: any = varchar(idColumnName, { length: 36 });
+			// MorphTo columns don't specify name - they get stored under derived keys
+			// (${name}Type, ${name}Id) by collection-builder
+			let typeColumn: any = varchar({ length: maxTypeLength });
+			let idColumn: any = varchar({ length: 36 });
 
 			if (config.required && config.nullable !== true) {
 				typeColumn = typeColumn.notNull();
 				idColumn = idColumn.notNull();
 			}
 
-			// Return both columns as array
+			// Return both columns as array - collection-builder handles key naming
 			return [typeColumn, idColumn] as any;
 		}
 
 		// BelongsTo - single FK column
-		const columnName = `${name}Id`;
-		let column: any = varchar(columnName, { length: 36 }); // UUID length
+		// Don't specify column name - Drizzle uses the key name
+		// User's casing config handles: author → author or author → author_id
+		let column: any = varchar({ length: 36 }); // UUID length
 
 		// Apply NOT NULL
 		if (config.required && config.nullable !== true) {
@@ -678,6 +710,7 @@ export const relationField = defineField<
 			// Store original configs for runtime resolution
 			_toConfig: config.to,
 			_throughConfig: config.through,
+			meta: config.meta,
 		};
 	},
 });

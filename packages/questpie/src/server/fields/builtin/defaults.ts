@@ -4,22 +4,21 @@
  * Provides a map of all built-in field factories for use with QuestpieBuilder.fields().
  */
 
-import { textField } from "./text.js";
-import { textareaField } from "./textarea.js";
-import { emailField } from "./email.js";
-import { urlField } from "./url.js";
-import { numberField } from "./number.js";
+import { arrayField } from "./array.js";
 import { booleanField } from "./boolean.js";
 import { dateField } from "./date.js";
 import { datetimeField } from "./datetime.js";
-import { timeField } from "./time.js";
-import { selectField } from "./select.js";
-import { uploadField } from "./upload.js";
-import { relationField } from "./relation.js";
-import { polymorphicRelationField } from "./polymorphic-relation.js";
-import { objectField } from "./object.js";
-import { arrayField } from "./array.js";
+import { emailField } from "./email.js";
 import { jsonField } from "./json.js";
+import { numberField } from "./number.js";
+import { objectField } from "./object.js";
+import { relationField } from "./relation.js";
+import { selectField } from "./select.js";
+import { textField } from "./text.js";
+import { textareaField } from "./textarea.js";
+import { timeField } from "./time.js";
+import { uploadField } from "./upload.js";
+import { urlField } from "./url.js";
 
 /**
  * Default field factories map.
@@ -69,7 +68,6 @@ export const defaultFields = {
 
 	// Relations
 	relation: relationField,
-	polymorphicRelation: polymorphicRelationField,
 
 	// Complex types
 	object: objectField,

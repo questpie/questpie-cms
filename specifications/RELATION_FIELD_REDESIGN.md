@@ -135,22 +135,35 @@ activities: f.relation({
 
 Upload is a specialized relation to asset collections.
 
+Breaking change (2026-02-02):
+
+- `collection` was removed in favor of `to`
+- `multiple`/JSON gallery was removed; use `through` for galleries
+- `upload` now supports many-to-many via `through`, `sourceField`, `targetField`
+- Admin UI does not yet provide a dedicated `upload + through` picker
+
+API Notes:
+
+- Prefer strings (`to: "assets"`) over callbacks to avoid circular dependency issues
+- Callbacks (`to: () => mediaCollection`) are supported but can cause circular deps
+- For type safety without circular deps, use `posts.name` pattern
+
 ```ts
-// Single upload - default assets
+// Single upload - default assets (string preferred)
 avatar: f.upload({ mimeTypes: ["image/*"] });
 
-// Single upload - custom collection
+// Single upload - custom collection (string preferred)
 document: f.upload({
-  collection: () => documents,
+  to: "documents",
   mimeTypes: ["application/pdf"],
 });
 
-// Multiple uploads
+// Gallery (many-to-many via junction) - strings preferred
 gallery: f.upload({
-  collection: () => assets,
-  multiple: true,
-  mimeTypes: ["image/*"],
-  maxItems: 20,
+  to: "assets",
+  through: "post_assets",
+  sourceField: "post",
+  targetField: "asset",
 });
 ```
 

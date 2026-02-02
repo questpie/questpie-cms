@@ -2,7 +2,7 @@
  * Upload Field Type
  *
  * File upload field that references assets collection.
- * Supports single and multiple file uploads with mime type and size validation.
+ * Supports single uploads and many-to-many relations with mime type and size validation.
  */
 
 import {
@@ -14,7 +14,7 @@ import {
 	notInArray,
 	sql,
 } from "drizzle-orm";
-import { jsonb, varchar } from "drizzle-orm/pg-core";
+import { varchar } from "drizzle-orm/pg-core";
 import { z } from "zod";
 import { defineField } from "../define-field.js";
 import { getDefaultRegistry } from "../registry.js";
@@ -25,6 +25,27 @@ import type {
 } from "../types.js";
 
 // ============================================================================
+// Upload Field Meta (augmentable by admin)
+// ============================================================================
+
+/**
+ * Upload field metadata - augmentable by external packages.
+ *
+ * @example Admin augmentation:
+ * ```ts
+ * declare module "questpie" {
+ *   interface UploadFieldMeta {
+ *     admin?: {
+ *       accept?: string;
+ *       dropzoneText?: string;
+ *     }
+ *   }
+ * }
+ * ```
+ */
+export interface UploadFieldMeta {}
+
+// ============================================================================
 // Upload Field Configuration
 // ============================================================================
 
@@ -32,6 +53,8 @@ import type {
  * Upload field configuration options.
  */
 export interface UploadFieldConfig extends BaseFieldConfig {
+	/** Field-specific metadata, augmentable by external packages. */
+	meta?: UploadFieldMeta;
 	/**
 	 * Allowed MIME types.
 	 * If not provided, all types are allowed.
@@ -48,30 +71,28 @@ export interface UploadFieldConfig extends BaseFieldConfig {
 	maxSize?: number;
 
 	/**
-	 * Target upload collection.
-	 * Can be a string name or a callback returning the collection.
+	 * Target upload collection name.
 	 * @default "assets"
 	 * @example "assets"
-	 * @example () => mediaCollection
+	 * @example "media"
 	 */
-	collection?: string | (() => { name: string });
+	to?: string;
 
 	/**
-	 * Allow multiple file uploads.
-	 * When true, stores array of asset IDs as JSONB.
-	 * @default false
+	 * Junction collection name for many-to-many uploads.
+	 * @example "post_assets"
 	 */
-	multiple?: boolean;
+	through?: string;
 
 	/**
-	 * Minimum number of files (for multiple: true).
+	 * Source field on junction table (points to this collection).
 	 */
-	minItems?: number;
+	sourceField?: string;
 
 	/**
-	 * Maximum number of files (for multiple: true).
+	 * Target field on junction table (points to upload collection).
 	 */
-	maxItems?: number;
+	targetField?: string;
 }
 
 // ============================================================================
@@ -121,69 +142,22 @@ function getSingleUploadOperators(): ContextualOperators {
 }
 
 /**
- * Get operators for multiple upload field.
+ * Get operators for many-to-many upload field.
  */
-function getMultipleUploadOperators(): ContextualOperators {
+function getToManyUploadOperators(): ContextualOperators {
 	return {
 		column: {
-			// Contains specified asset ID
-			contains: (col, value) =>
-				sql`${col} @> ${JSON.stringify([value])}::jsonb`,
-			// Contains all specified asset IDs
-			containsAll: (col, values) =>
-				sql`${col} @> ${JSON.stringify(values)}::jsonb`,
-			// Contains any of specified asset IDs
-			containsAny: (col, values) =>
-				sql`${col} ?| ${sql.raw(`ARRAY[${(values as string[]).map((v) => `'${v}'`).join(",")}]`)}`,
-			// Is empty array
-			isEmpty: (col) => sql`(${col} = '[]'::jsonb OR ${col} IS NULL)`,
-			// Is not empty
-			isNotEmpty: (col) => sql`(${col} != '[]'::jsonb AND ${col} IS NOT NULL)`,
-			// Count equals
-			count: (col, value) =>
-				sql`jsonb_array_length(COALESCE(${col}, '[]'::jsonb)) = ${value}`,
-			// Count greater than
-			countGt: (col, value) =>
-				sql`jsonb_array_length(COALESCE(${col}, '[]'::jsonb)) > ${value}`,
-			// Count less than
-			countLt: (col, value) =>
-				sql`jsonb_array_length(COALESCE(${col}, '[]'::jsonb)) < ${value}`,
-			isNull: (col) => isNull(col),
-			isNotNull: (col) => isNotNull(col),
+			// Placeholder operators - actual implementation in query builder
+			some: () => sql`TRUE`,
+			none: () => sql`TRUE`,
+			every: () => sql`TRUE`,
+			count: () => sql`0`,
 		},
 		jsonb: {
-			contains: (col, value, ctx) => {
-				const path = ctx.jsonbPath?.join(",") ?? "";
-				return sql`${col}#>'{${sql.raw(path)}}' @> ${JSON.stringify([value])}::jsonb`;
-			},
-			containsAll: (col, values, ctx) => {
-				const path = ctx.jsonbPath?.join(",") ?? "";
-				return sql`${col}#>'{${sql.raw(path)}}' @> ${JSON.stringify(values)}::jsonb`;
-			},
-			containsAny: (col, values, ctx) => {
-				const path = ctx.jsonbPath?.join(",") ?? "";
-				return sql`${col}#>'{${sql.raw(path)}}' ?| ${sql.raw(`ARRAY[${(values as string[]).map((v) => `'${v}'`).join(",")}]`)}`;
-			},
-			isEmpty: (col, _value, ctx) => {
-				const path = ctx.jsonbPath?.join(",") ?? "";
-				return sql`(${col}#>'{${sql.raw(path)}}' = '[]'::jsonb OR ${col}#>'{${sql.raw(path)}}' IS NULL)`;
-			},
-			isNotEmpty: (col, _value, ctx) => {
-				const path = ctx.jsonbPath?.join(",") ?? "";
-				return sql`(${col}#>'{${sql.raw(path)}}' != '[]'::jsonb AND ${col}#>'{${sql.raw(path)}}' IS NOT NULL)`;
-			},
-			count: (col, value, ctx) => {
-				const path = ctx.jsonbPath?.join(",") ?? "";
-				return sql`jsonb_array_length(COALESCE(${col}#>'{${sql.raw(path)}}', '[]'::jsonb)) = ${value}`;
-			},
-			isNull: (col, _value, ctx) => {
-				const path = ctx.jsonbPath?.join(",") ?? "";
-				return sql`${col}#>'{${sql.raw(path)}}' IS NULL`;
-			},
-			isNotNull: (col, _value, ctx) => {
-				const path = ctx.jsonbPath?.join(",") ?? "";
-				return sql`${col}#>'{${sql.raw(path)}}' IS NOT NULL`;
-			},
+			some: () => sql`TRUE`,
+			none: () => sql`TRUE`,
+			every: () => sql`TRUE`,
+			count: () => sql`0`,
 		},
 	};
 }
@@ -199,8 +173,13 @@ function getMultipleUploadOperators(): ContextualOperators {
  * @example
  * ```ts
  * const avatar = uploadField({ mimeTypes: ["image/*"], maxSize: 5_000_000 });
- * const documents = uploadField({ mimeTypes: ["application/pdf"], multiple: true, maxItems: 10 });
- * const gallery = uploadField({ mimeTypes: ["image/*"], multiple: true, minItems: 1, maxItems: 20 });
+ * const documents = uploadField({ to: "media" });
+ * const gallery = uploadField({
+ *   to: "assets",
+ *   through: "post_assets",
+ *   sourceField: "post",
+ *   targetField: "asset",
+ * });
  * ```
  */
 export const uploadField = defineField<
@@ -209,17 +188,12 @@ export const uploadField = defineField<
 	string | string[]
 >("upload", {
 	toColumn(name, config) {
-		const { multiple = false } = config;
-
-		let column: any;
-
-		if (multiple) {
-			// Multiple uploads: store as JSONB array of asset IDs
-			column = jsonb(name);
-		} else {
-			// Single upload: store asset ID as varchar
-			column = varchar(name, { length: 36 }); // UUID length
+		if (config.through) {
+			return null as any;
 		}
+
+		// Don't specify column name - Drizzle uses the key name
+		let column: any = varchar({ length: 36 }); // UUID length
 
 		// Apply constraints
 		if (config.required && config.nullable !== true) {
@@ -230,11 +204,9 @@ export const uploadField = defineField<
 				typeof config.default === "function"
 					? config.default()
 					: config.default;
-			column = column.default(
-				multiple ? JSON.stringify(defaultValue) : defaultValue,
-			);
+			column = column.default(defaultValue);
 		}
-		if (config.unique && !multiple) {
+		if (config.unique) {
 			column = column.unique();
 		}
 
@@ -242,51 +214,32 @@ export const uploadField = defineField<
 	},
 
 	toZodSchema(config) {
-		const { multiple = false } = config;
+		if (config.through) {
+			const schema = z.array(z.string().uuid());
 
-		if (multiple) {
-			// Multiple uploads: array of UUIDs
-			let schema = z.array(z.string().uuid());
-
-			if (config.minItems !== undefined) {
-				schema = schema.min(config.minItems);
-			}
-			if (config.maxItems !== undefined) {
-				schema = schema.max(config.maxItems);
-			}
-
-			// Nullability
-			if (!config.required && config.nullable !== false) {
-				return schema.nullish();
-			}
-
-			return schema;
-		} else {
-			// Single upload: UUID
-			const schema = z.string().uuid();
-
-			// Nullability
 			if (!config.required && config.nullable !== false) {
 				return schema.nullish();
 			}
 
 			return schema;
 		}
+
+		const schema = z.string().uuid();
+
+		if (!config.required && config.nullable !== false) {
+			return schema.nullish();
+		}
+
+		return schema;
 	},
 
 	getOperators(config) {
-		return config.multiple
-			? getMultipleUploadOperators()
+		return config.through
+			? getToManyUploadOperators()
 			: getSingleUploadOperators();
 	},
 
 	getMetadata(config): RelationFieldMetadata {
-		// Extract collection name from string or callback
-		const targetCollection =
-			typeof config.collection === "function"
-				? config.collection().name
-				: (config.collection ?? "assets");
-
 		return {
 			type: "relation",
 			label: config.label,
@@ -297,8 +250,12 @@ export const uploadField = defineField<
 			searchable: config.searchable ?? false,
 			readOnly: config.input === false,
 			writeOnly: config.output === false,
-			targetCollection,
-			relationType: config.multiple ? "multiple" : "belongsTo",
+			targetCollection: config.to ?? "assets",
+			relationType: config.through ? "manyToMany" : "belongsTo",
+			through: config.through,
+			sourceField: config.sourceField,
+			targetField: config.targetField,
+			meta: config.meta,
 		};
 	},
 });

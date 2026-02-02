@@ -5,16 +5,36 @@
  * Supports min/max constraints and date operators.
  */
 
-import { eq, ne, gt, gte, lt, lte, between, isNull, isNotNull, sql } from "drizzle-orm";
+import {
+	between,
+	eq,
+	gt,
+	gte,
+	isNotNull,
+	isNull,
+	lt,
+	lte,
+	ne,
+	sql,
+} from "drizzle-orm";
 import { date } from "drizzle-orm/pg-core";
 import { z } from "zod";
 import { defineField } from "../define-field.js";
+import { getDefaultRegistry } from "../registry.js";
 import type {
 	BaseFieldConfig,
 	ContextualOperators,
 	FieldMetadataBase,
 } from "../types.js";
-import { getDefaultRegistry } from "../registry.js";
+
+// ============================================================================
+// Date Field Meta (augmentable by admin)
+// ============================================================================
+
+/**
+ * Date field metadata - augmentable by external packages.
+ */
+export interface DateFieldMeta {}
 
 // ============================================================================
 // Date Field Configuration
@@ -24,6 +44,8 @@ import { getDefaultRegistry } from "../registry.js";
  * Date field configuration options.
  */
 export interface DateFieldConfig extends BaseFieldConfig {
+	/** Field-specific metadata, augmentable by external packages. */
+	meta?: DateFieldMeta;
 	/**
 	 * Minimum date constraint (inclusive).
 	 * Can be a Date object or ISO date string.
@@ -125,80 +147,84 @@ function getDateOperators(): ContextualOperators {
  * const createdAt = dateField({ autoNow: true, input: false });
  * ```
  */
-export const dateField = defineField<"date", DateFieldConfig, string>(
-	"date",
-	{
-		toColumn(name, config) {
-			let column: any = date(name, { mode: "string" });
+export const dateField = defineField<"date", DateFieldConfig, string>("date", {
+	toColumn(name, config) {
+		let column: any = date(name, { mode: "string" });
 
-			// Apply constraints
-			if (config.required && config.nullable !== true) {
-				column = column.notNull();
-			}
+		// Apply constraints
+		if (config.required && config.nullable !== true) {
+			column = column.notNull();
+		}
 
-			// Default value
-			if (config.autoNow) {
-				column = column.defaultNow();
-			} else if (config.default !== undefined) {
-				const defaultValue =
-					typeof config.default === "function"
-						? config.default()
-						: config.default;
-				column = column.default(defaultValue as string);
-			}
+		// Default value
+		if (config.autoNow) {
+			column = column.defaultNow();
+		} else if (config.default !== undefined) {
+			const defaultValue =
+				typeof config.default === "function"
+					? config.default()
+					: config.default;
+			column = column.default(defaultValue as string);
+		}
 
-			if (config.unique) {
-				column = column.unique();
-			}
+		if (config.unique) {
+			column = column.unique();
+		}
 
-			return column;
-		},
-
-		toZodSchema(config) {
-			// Use string for date in ISO format (YYYY-MM-DD)
-			let schema = z.string().date();
-
-			// Min/max constraints (use refine since .min/.max on string().date() is for length)
-			if (config.min) {
-				const minDate = typeof config.min === "string" ? config.min : config.min.toISOString().split("T")[0];
-				schema = schema.refine((val) => val >= minDate, {
-					message: `Date must be on or after ${minDate}`,
-				}) as unknown as typeof schema;
-			}
-			if (config.max) {
-				const maxDate = typeof config.max === "string" ? config.max : config.max.toISOString().split("T")[0];
-				schema = schema.refine((val) => val <= maxDate, {
-					message: `Date must be on or before ${maxDate}`,
-				}) as unknown as typeof schema;
-			}
-
-			// Nullability
-			if (!config.required && config.nullable !== false) {
-				return schema.nullish();
-			}
-
-			return schema;
-		},
-
-		getOperators() {
-			return getDateOperators();
-		},
-
-		getMetadata(config): FieldMetadataBase {
-			return {
-				type: "date",
-				label: config.label,
-				description: config.description,
-				required: config.required ?? false,
-				localized: config.localized ?? false,
-				unique: config.unique ?? false,
-				searchable: config.searchable ?? false,
-				readOnly: config.input === false,
-				writeOnly: config.output === false,
-			};
-		},
+		return column;
 	},
-);
+
+	toZodSchema(config) {
+		// Use string for date in ISO format (YYYY-MM-DD)
+		let schema = z.string().date();
+
+		// Min/max constraints (use refine since .min/.max on string().date() is for length)
+		if (config.min) {
+			const minDate =
+				typeof config.min === "string"
+					? config.min
+					: config.min.toISOString().split("T")[0];
+			schema = schema.refine((val) => val >= minDate, {
+				message: `Date must be on or after ${minDate}`,
+			}) as unknown as typeof schema;
+		}
+		if (config.max) {
+			const maxDate =
+				typeof config.max === "string"
+					? config.max
+					: config.max.toISOString().split("T")[0];
+			schema = schema.refine((val) => val <= maxDate, {
+				message: `Date must be on or before ${maxDate}`,
+			}) as unknown as typeof schema;
+		}
+
+		// Nullability
+		if (!config.required && config.nullable !== false) {
+			return schema.nullish();
+		}
+
+		return schema;
+	},
+
+	getOperators() {
+		return getDateOperators();
+	},
+
+	getMetadata(config): FieldMetadataBase {
+		return {
+			type: "date",
+			label: config.label,
+			description: config.description,
+			required: config.required ?? false,
+			localized: config.localized ?? false,
+			unique: config.unique ?? false,
+			searchable: config.searchable ?? false,
+			readOnly: config.input === false,
+			writeOnly: config.output === false,
+			meta: config.meta,
+		};
+	},
+});
 
 // Register in default registry
 getDefaultRegistry().register("date", dateField);

@@ -6,35 +6,56 @@
  */
 
 import {
+	between,
 	eq,
-	ne,
 	gt,
 	gte,
+	inArray,
+	isNotNull,
+	isNull,
 	lt,
 	lte,
-	between,
-	inArray,
+	ne,
 	notInArray,
-	isNull,
-	isNotNull,
 	sql,
 } from "drizzle-orm";
 import {
-	integer,
-	smallint,
 	bigint,
-	real,
 	doublePrecision,
+	integer,
 	numeric,
+	real,
+	smallint,
 } from "drizzle-orm/pg-core";
 import { z } from "zod";
 import { defineField } from "../define-field.js";
+import { getDefaultRegistry } from "../registry.js";
 import type {
 	BaseFieldConfig,
 	ContextualOperators,
 	FieldMetadataBase,
 } from "../types.js";
-import { getDefaultRegistry } from "../registry.js";
+
+// ============================================================================
+// Number Field Meta (augmentable by admin)
+// ============================================================================
+
+/**
+ * Number field metadata - augmentable by external packages.
+ *
+ * @example Admin augmentation:
+ * ```ts
+ * declare module "questpie" {
+ *   interface NumberFieldMeta {
+ *     admin?: {
+ *       showButtons?: boolean;
+ *       step?: number;
+ *     }
+ *   }
+ * }
+ * ```
+ */
+export interface NumberFieldMeta {}
 
 // ============================================================================
 // Number Field Configuration
@@ -44,6 +65,8 @@ import { getDefaultRegistry } from "../registry.js";
  * Number field configuration options.
  */
 export interface NumberFieldConfig extends BaseFieldConfig {
+	/** Field-specific metadata, augmentable by external packages. */
+	meta?: NumberFieldMeta;
 	/**
 	 * Storage mode: integer (default), smallint, bigint, real, double, or decimal.
 	 * - integer: 32-bit integer (-2,147,483,648 to 2,147,483,647)
@@ -207,30 +230,31 @@ function getNumberOperators(): ContextualOperators {
 export const numberField = defineField<"number", NumberFieldConfig, number>(
 	"number",
 	{
-		toColumn(name, config) {
+		toColumn(_name, config) {
 			const { mode = "integer", precision = 10, scale = 2 } = config;
 
+			// Don't specify column name - Drizzle uses the key name
 			let column: any;
 
 			switch (mode) {
 				case "smallint":
-					column = smallint(name);
+					column = smallint();
 					break;
 				case "bigint":
-					column = bigint(name, { mode: "number" });
+					column = bigint({ mode: "number" });
 					break;
 				case "real":
-					column = real(name);
+					column = real();
 					break;
 				case "double":
-					column = doublePrecision(name);
+					column = doublePrecision();
 					break;
 				case "decimal":
-					column = numeric(name, { precision, scale });
+					column = numeric({ precision, scale });
 					break;
 				case "integer":
 				default:
-					column = integer(name);
+					column = integer();
 					break;
 			}
 
@@ -278,7 +302,11 @@ export const numberField = defineField<"number", NumberFieldConfig, number>(
 			}
 
 			// Type constraints
-			if (config.int || config.mode === "integer" || config.mode === "smallint") {
+			if (
+				config.int ||
+				config.mode === "integer" ||
+				config.mode === "smallint"
+			) {
 				schema = schema.int();
 			}
 			if (config.finite ?? config.mode === "decimal") {
@@ -296,9 +324,11 @@ export const numberField = defineField<"number", NumberFieldConfig, number>(
 						// Check if value is a multiple of step (with floating point tolerance)
 						const remainder = Math.abs(val % step);
 						const tolerance = 1e-10;
-						return remainder < tolerance || Math.abs(remainder - step) < tolerance;
+						return (
+							remainder < tolerance || Math.abs(remainder - step) < tolerance
+						);
 					},
-					{ message: `Value must be a multiple of ${step}` }
+					{ message: `Value must be a multiple of ${step}` },
 				);
 			}
 
@@ -329,6 +359,7 @@ export const numberField = defineField<"number", NumberFieldConfig, number>(
 					min: config.min,
 					max: config.max,
 				},
+				meta: config.meta,
 			};
 		},
 	},

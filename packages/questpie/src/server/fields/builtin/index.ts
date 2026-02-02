@@ -9,12 +9,24 @@
  * DefaultFieldTypeMap is a type alias to DefaultFields in builder.ts.
  */
 
-export { type ArrayFieldConfig, arrayField } from "./array.js";
+export {
+	type ArrayFieldConfig,
+	type ArrayFieldMeta,
+	arrayField,
+} from "./array.js";
 // Boolean field
-export { type BooleanFieldConfig, booleanField } from "./boolean.js";
+export {
+	type BooleanFieldConfig,
+	type BooleanFieldMeta,
+	booleanField,
+} from "./boolean.js";
 // Date/Time fields
-export { type DateFieldConfig, dateField } from "./date.js";
-export { type DatetimeFieldConfig, datetimeField } from "./datetime.js";
+export { type DateFieldConfig, type DateFieldMeta, dateField } from "./date.js";
+export {
+	type DatetimeFieldConfig,
+	type DatetimeFieldMeta,
+	datetimeField,
+} from "./datetime.js";
 /**
  * Default field factories map.
  * Use this with QuestpieBuilder.fields() to register all built-in fields.
@@ -28,17 +40,29 @@ export { type DatetimeFieldConfig, datetimeField } from "./datetime.js";
  * ```
  */
 export { type DefaultFields, defaultFields } from "./defaults.js";
-export { type EmailFieldConfig, emailField } from "./email.js";
-export { type JsonFieldConfig, type JsonValue, jsonField } from "./json.js";
-// Numeric fields
-export { type NumberFieldConfig, numberField } from "./number.js";
-// Complex fields
-export { type ObjectFieldConfig, objectField } from "./object.js";
 export {
-	type PolymorphicReference,
-	type PolymorphicRelationConfig,
-	polymorphicRelationField,
-} from "./polymorphic-relation.js";
+	type EmailFieldConfig,
+	type EmailFieldMeta,
+	emailField,
+} from "./email.js";
+export {
+	type JsonFieldConfig,
+	type JsonFieldMeta,
+	type JsonValue,
+	jsonField,
+} from "./json.js";
+// Numeric fields
+export {
+	type NumberFieldConfig,
+	type NumberFieldMeta,
+	numberField,
+} from "./number.js";
+// Complex fields
+export {
+	type ObjectFieldConfig,
+	type ObjectFieldMeta,
+	objectField,
+} from "./object.js";
 // Relation fields
 export {
 	type InferredRelationType,
@@ -46,6 +70,7 @@ export {
 	inferRelationType,
 	type ReferentialAction,
 	type RelationFieldConfig,
+	type RelationFieldMeta,
 	type RelationFieldMetadata,
 	type RelationTarget,
 	relationField,
@@ -53,13 +78,22 @@ export {
 // Select/Enum field
 export {
 	type SelectFieldConfig,
+	type SelectFieldMeta,
 	type SelectOption,
 	selectField,
 } from "./select.js";
 // Text-based fields
-export { type TextFieldConfig, textField } from "./text.js";
-export { type TextareaFieldConfig, textareaField } from "./textarea.js";
-export { type TimeFieldConfig, timeField } from "./time.js";
+export { type TextFieldConfig, type TextFieldMeta, textField } from "./text.js";
+export {
+	type TextareaFieldConfig,
+	type TextareaFieldMeta,
+	textareaField,
+} from "./textarea.js";
+export { type TimeFieldConfig, type TimeFieldMeta, timeField } from "./time.js";
 // Upload field
-export { type UploadFieldConfig, uploadField } from "./upload.js";
-export { type UrlFieldConfig, urlField } from "./url.js";
+export {
+	type UploadFieldConfig,
+	type UploadFieldMeta,
+	uploadField,
+} from "./upload.js";
+export { type UrlFieldConfig, type UrlFieldMeta, urlField } from "./url.js";

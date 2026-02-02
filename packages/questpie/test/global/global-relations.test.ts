@@ -48,8 +48,8 @@ const candleSettings = q
 			to: "assets",
 			hasMany: true,
 			through: "candle_settings_images",
-			sourceField: "candleSettingsId",
-			targetField: "assetId",
+			sourceField: "candleSettings", // FK column key (field name with unified API)
+			targetField: "asset", // FK column key (field name with unified API)
 		}),
 	}))
 	.build();
@@ -111,8 +111,8 @@ describe("global many-to-many relations", () => {
 		await (cms as any).api.collections.candle_settings_images.create(
 			{
 				id: crypto.randomUUID(),
-				candleSettingsId: settingsId,
-				assetId: asset1.id,
+				candleSettings: settingsId, // FK column key is field name with unified API
+				asset: asset1.id,
 				order: 0,
 			},
 			ctx,
@@ -120,8 +120,8 @@ describe("global many-to-many relations", () => {
 		await (cms as any).api.collections.candle_settings_images.create(
 			{
 				id: crypto.randomUUID(),
-				candleSettingsId: settingsId,
-				assetId: asset2.id,
+				candleSettings: settingsId,
+				asset: asset2.id,
 				order: 1,
 			},
 			ctx,
@@ -172,8 +172,8 @@ describe("global many-to-many relations", () => {
 		await (cms as any).api.collections.candle_settings_images.create(
 			{
 				id: crypto.randomUUID(),
-				candleSettingsId: (settings as any).id,
-				assetId: asset1.id,
+				candleSettings: (settings as any).id,
+				asset: asset1.id,
 				order: 0,
 			},
 			ctx,
@@ -454,8 +454,8 @@ describe("global many-to-many relations", () => {
 				{
 					where: {
 						AND: [
-							{ candleSettingsId: (settings as any).id },
-							{ assetId: asset.id },
+							{ candleSettings: (settings as any).id },
+							{ asset: asset.id },
 						],
 					},
 					data: { order: 10 },
@@ -467,7 +467,7 @@ describe("global many-to-many relations", () => {
 			const junctionRecords = await (
 				cms as any
 			).api.collections.candle_settings_images.find(
-				{ where: { candleSettingsId: (settings as any).id } },
+				{ where: { candleSettings: (settings as any).id } },
 				ctx,
 			);
 

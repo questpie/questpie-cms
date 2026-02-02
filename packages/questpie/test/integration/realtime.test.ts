@@ -600,7 +600,7 @@ describe("realtime", () => {
 				ctx,
 			);
 			await setup.cms.api.collections.messages.create(
-				{ chatId: "chat1", content: "Hello", userId: user.id },
+				{ chatId: "chat1", content: "Hello", user: user.id }, // FK column key is field name with unified API
 				ctx,
 			);
 
@@ -673,11 +673,11 @@ describe("realtime", () => {
 				ctx,
 			);
 			const post = await setup.cms.api.collections.posts.create(
-				{ title: "Post 1", userId: user.id },
+				{ title: "Post 1", user: user.id }, // FK column key is field name with unified API
 				ctx,
 			);
 			const comment = await setup.cms.api.collections.comments.create(
-				{ content: "Nice post!", postId: post.id },
+				{ content: "Nice post!", post: post.id }, // FK column key is field name with unified API
 				ctx,
 			);
 
@@ -762,7 +762,7 @@ describe("realtime", () => {
 				ctx,
 			);
 			await setup.cms.api.collections.products.create(
-				{ name: "Phone", categoryId: category.id },
+				{ name: "Phone", category: category.id }, // FK column key is field name with unified API
 				ctx,
 			);
 

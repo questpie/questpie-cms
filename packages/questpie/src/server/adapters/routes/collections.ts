@@ -4,6 +4,7 @@
  * Collection CRUD route handlers.
  */
 
+import { introspectCollection } from "../../collection/introspection.js";
 import type { Questpie } from "../../config/cms.js";
 import type { QuestpieConfig } from "../../config/types.js";
 import { ApiError } from "../../errors/index.js";
@@ -256,6 +257,41 @@ export const createCollectionRoutes = <
 			try {
 				const meta = collection.getMeta();
 				return smartResponse(meta, request);
+			} catch (error) {
+				return errorResponse(error, request, resolved.cmsContext.locale);
+			}
+		},
+
+		schema: async (
+			request: Request,
+			params: { collection: string },
+			context?: AdapterContext,
+		): Promise<Response> => {
+			const resolved = await resolveContext(cms, request, config, context);
+
+			// Get collection config directly (not CRUD)
+			const collection = cms.getCollections()[params.collection as any];
+
+			if (!collection) {
+				return errorResponse(
+					ApiError.notFound("Collection", params.collection),
+					request,
+					resolved.cmsContext.locale,
+				);
+			}
+
+			try {
+				// Introspect collection with access control evaluation
+				const schema = await introspectCollection(
+					collection,
+					{
+						session: resolved.cmsContext.session,
+						db: cms.db,
+						locale: resolved.cmsContext.locale,
+					},
+					cms,
+				);
+				return smartResponse(schema, request);
 			} catch (error) {
 				return errorResponse(error, request, resolved.cmsContext.locale);
 			}

@@ -86,6 +86,11 @@ export {
 	getCollectionMetaQueryKey,
 	useCollectionMeta,
 } from "./use-collection-meta";
+// Collection schema hook (full introspection)
+export {
+	getCollectionSchemaQueryKey,
+	useCollectionSchema,
+} from "./use-collection-schema";
 // Collection validation hooks
 export {
 	type CollectionValidationResult,
@@ -124,6 +129,21 @@ export {
 	useSaveView,
 	useUpdateSavedView,
 } from "./use-saved-views";
+// Search hooks
+export {
+	type PopulatedSearchResult,
+	type SearchFacetDefinition,
+	type SearchFacetResult,
+	type SearchFacetValue,
+	type SearchMeta,
+	type SearchResponse,
+	type UseGlobalSearchOptions,
+	type UseSearchOptions,
+	useDebouncedValue,
+	useGlobalSearch,
+	useReindex,
+	useSearch,
+} from "./use-search";
 // Setup status hook
 export { type SetupStatus, useSetupStatus } from "./use-setup-status";
 // Upload hook
@@ -135,7 +155,6 @@ export {
 	type UseUploadReturn,
 	useUpload,
 } from "./use-upload";
-
 // Validation error map hook
 export {
 	createAdminZodErrorMap,
@@ -143,18 +162,3 @@ export {
 } from "./use-validation-error-map";
 // View state hook
 export { useViewState } from "./use-view-state";
-// Search hooks
-export {
-	useDebouncedValue,
-	useGlobalSearch,
-	useReindex,
-	useSearch,
-	type PopulatedSearchResult,
-	type SearchFacetDefinition,
-	type SearchFacetResult,
-	type SearchFacetValue,
-	type SearchMeta,
-	type SearchResponse,
-	type UseGlobalSearchOptions,
-	type UseSearchOptions,
-} from "./use-search";

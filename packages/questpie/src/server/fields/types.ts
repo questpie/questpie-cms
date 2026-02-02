@@ -177,6 +177,16 @@ export interface BaseFieldConfig {
 	 * Field-level hooks (BE only).
 	 */
 	hooks?: FieldHooks;
+
+	// NOTE: `meta` is NOT defined here!
+	// Each field type defines its own `meta?: XFieldMeta` with field-specific options.
+	// External packages (like @questpie/admin) augment each field's meta interface
+	// to add their own configuration (e.g., admin UI options).
+	//
+	// Example in text field:
+	//   interface TextFieldMeta { /* base text options */ }
+	//   // Admin augments:
+	//   interface TextFieldMeta { admin?: { placeholder?: string } }
 }
 
 // ============================================================================
@@ -370,6 +380,23 @@ export interface ContextualOperators {
 // ============================================================================
 
 /**
+ * Base metadata interface - shared across all field types.
+ *
+ * NOTE: This is NOT used directly! Each field type defines its own meta interface
+ * that can be augmented by external packages.
+ *
+ * Pattern:
+ * 1. Field defines: `interface TextFieldMeta {}`
+ * 2. Admin augments: `interface TextFieldMeta { admin?: { placeholder?: string } }`
+ * 3. Field config uses: `meta?: TextFieldMeta`
+ *
+ * This allows type-safe, field-specific admin configuration.
+ *
+ * @deprecated Use field-specific meta interfaces (TextFieldMeta, BooleanFieldMeta, etc.)
+ */
+export type FieldMetadataMeta = {};
+
+/**
  * Base metadata exposed for introspection.
  * Contains only data-relevant information - NO UI/admin config.
  * Admin package uses this to auto-generate UI, then applies its own overrides.
@@ -412,6 +439,12 @@ export interface FieldMetadataBase {
 		minItems?: number;
 		maxItems?: number;
 	};
+
+	/**
+	 * Extensible metadata for external packages.
+	 * Augmented by packages like @questpie/admin to add UI configuration.
+	 */
+	meta?: FieldMetadataMeta;
 }
 
 /**
@@ -476,17 +509,6 @@ export interface RelationFieldMetadata extends FieldMetadataBase {
 }
 
 /**
- * @deprecated Use RelationFieldMetadata with relationType: "morphTo" instead
- */
-export interface PolymorphicRelationFieldMetadata extends FieldMetadataBase {
-	type: "polymorphicRelation";
-	relationType: "polymorphic";
-	types: string[];
-	typeField?: string;
-	idField?: string;
-}
-
-/**
  * Object/Array field metadata
  */
 export interface NestedFieldMetadata extends FieldMetadataBase {
@@ -496,13 +518,24 @@ export interface NestedFieldMetadata extends FieldMetadataBase {
 
 /**
  * Union type of all field metadata types.
- * Extensible via module augmentation for custom fields.
+ * Custom fields can use FieldMetadataBase which has `type: string`.
+ *
+ * TODO: Consider making this extensible via a registry pattern:
+ * ```ts
+ * export interface FieldMetadataRegistry {
+ *   base: FieldMetadataBase;
+ *   select: SelectFieldMetadata;
+ *   relation: RelationFieldMetadata;
+ *   nested: NestedFieldMetadata;
+ * }
+ * export type FieldMetadata = FieldMetadataRegistry[keyof FieldMetadataRegistry];
+ * // Then external packages can augment FieldMetadataRegistry
+ * ```
  */
 export type FieldMetadata =
 	| FieldMetadataBase
 	| SelectFieldMetadata
 	| RelationFieldMetadata
-	| PolymorphicRelationFieldMetadata
 	| NestedFieldMetadata;
 
 // ============================================================================

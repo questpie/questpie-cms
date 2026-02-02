@@ -5,24 +5,38 @@
  * Optimized for longer content like descriptions, comments, etc.
  */
 
-import {
-	eq,
-	ne,
-	like,
-	ilike,
-	isNull,
-	isNotNull,
-	sql,
-} from "drizzle-orm";
+import { eq, ilike, isNotNull, isNull, like, ne, sql } from "drizzle-orm";
 import { text } from "drizzle-orm/pg-core";
 import { z } from "zod";
 import { defineField } from "../define-field.js";
+import { getDefaultRegistry } from "../registry.js";
 import type {
 	BaseFieldConfig,
 	ContextualOperators,
 	FieldMetadataBase,
 } from "../types.js";
-import { getDefaultRegistry } from "../registry.js";
+
+// ============================================================================
+// Textarea Field Meta (augmentable by admin)
+// ============================================================================
+
+/**
+ * Textarea field metadata - augmentable by external packages.
+ *
+ * @example Admin augmentation:
+ * ```ts
+ * declare module "questpie" {
+ *   interface TextareaFieldMeta {
+ *     admin?: {
+ *       rows?: number;
+ *       autoResize?: boolean;
+ *       richText?: boolean;
+ *     }
+ *   }
+ * }
+ * ```
+ */
+export interface TextareaFieldMeta {}
 
 // ============================================================================
 // Textarea Field Configuration
@@ -32,6 +46,8 @@ import { getDefaultRegistry } from "../registry.js";
  * Textarea field configuration options.
  */
 export interface TextareaFieldConfig extends BaseFieldConfig {
+	/** Field-specific metadata, augmentable by external packages. */
+	meta?: TextareaFieldMeta;
 	/**
 	 * Maximum character length for validation.
 	 */
@@ -144,79 +160,82 @@ function getTextareaOperators(): ContextualOperators {
  * const notes = textareaField({ rows: 10 });
  * ```
  */
-export const textareaField = defineField<"textarea", TextareaFieldConfig, string>(
+export const textareaField = defineField<
 	"textarea",
-	{
-		toColumn(name, config) {
-			let column: any = text(name);
+	TextareaFieldConfig,
+	string
+>("textarea", {
+	toColumn(_name, config) {
+		// Don't specify column name - Drizzle uses the key name
+		let column: any = text();
 
-			// Apply constraints
-			if (config.required && config.nullable !== true) {
-				column = column.notNull();
-			}
-			if (config.default !== undefined) {
-				const defaultValue =
-					typeof config.default === "function"
-						? config.default()
-						: config.default;
-				column = column.default(defaultValue as string);
-			}
-			if (config.unique) {
-				column = column.unique();
-			}
+		// Apply constraints
+		if (config.required && config.nullable !== true) {
+			column = column.notNull();
+		}
+		if (config.default !== undefined) {
+			const defaultValue =
+				typeof config.default === "function"
+					? config.default()
+					: config.default;
+			column = column.default(defaultValue as string);
+		}
+		if (config.unique) {
+			column = column.unique();
+		}
 
-			return column;
-		},
-
-		toZodSchema(config) {
-			const { trim = true } = config;
-
-			let schema = z.string();
-
-			// Validation rules
-			if (config.maxLength !== undefined) {
-				schema = schema.max(config.maxLength);
-			}
-			if (config.minLength !== undefined) {
-				schema = schema.min(config.minLength);
-			}
-
-			// Transforms
-			if (trim) {
-				schema = schema.trim();
-			}
-
-			// Nullability
-			if (!config.required && config.nullable !== false) {
-				return schema.nullish();
-			}
-
-			return schema;
-		},
-
-		getOperators() {
-			return getTextareaOperators();
-		},
-
-		getMetadata(config): FieldMetadataBase {
-			return {
-				type: "textarea",
-				label: config.label,
-				description: config.description,
-				required: config.required ?? false,
-				localized: config.localized ?? false,
-				unique: config.unique ?? false,
-				searchable: config.searchable ?? false,
-				readOnly: config.input === false,
-				writeOnly: config.output === false,
-				validation: {
-					maxLength: config.maxLength,
-					minLength: config.minLength,
-				},
-			};
-		},
+		return column;
 	},
-);
+
+	toZodSchema(config) {
+		const { trim = true } = config;
+
+		let schema = z.string();
+
+		// Validation rules
+		if (config.maxLength !== undefined) {
+			schema = schema.max(config.maxLength);
+		}
+		if (config.minLength !== undefined) {
+			schema = schema.min(config.minLength);
+		}
+
+		// Transforms
+		if (trim) {
+			schema = schema.trim();
+		}
+
+		// Nullability
+		if (!config.required && config.nullable !== false) {
+			return schema.nullish();
+		}
+
+		return schema;
+	},
+
+	getOperators() {
+		return getTextareaOperators();
+	},
+
+	getMetadata(config): FieldMetadataBase {
+		return {
+			type: "textarea",
+			label: config.label,
+			description: config.description,
+			required: config.required ?? false,
+			localized: config.localized ?? false,
+			unique: config.unique ?? false,
+			searchable: config.searchable ?? false,
+			readOnly: config.input === false,
+			writeOnly: config.output === false,
+			validation: {
+				maxLength: config.maxLength,
+				minLength: config.minLength,
+			},
+			meta: config.meta,
+		};
+	},
+});
 
 // Register in default registry
 getDefaultRegistry().register("textarea", textareaField);

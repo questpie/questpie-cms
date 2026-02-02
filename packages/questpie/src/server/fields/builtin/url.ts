@@ -7,24 +7,33 @@
 
 import {
 	eq,
-	ne,
-	like,
 	ilike,
 	inArray,
-	notInArray,
-	isNull,
 	isNotNull,
+	isNull,
+	like,
+	ne,
+	notInArray,
 	sql,
 } from "drizzle-orm";
-import { varchar, text } from "drizzle-orm/pg-core";
+import { text, varchar } from "drizzle-orm/pg-core";
 import { z } from "zod";
 import { defineField } from "../define-field.js";
+import { getDefaultRegistry } from "../registry.js";
 import type {
 	BaseFieldConfig,
 	ContextualOperators,
 	FieldMetadataBase,
 } from "../types.js";
-import { getDefaultRegistry } from "../registry.js";
+
+// ============================================================================
+// URL Field Meta (augmentable by admin)
+// ============================================================================
+
+/**
+ * URL field metadata - augmentable by external packages.
+ */
+export interface UrlFieldMeta {}
 
 // ============================================================================
 // URL Field Configuration
@@ -34,6 +43,8 @@ import { getDefaultRegistry } from "../registry.js";
  * URL field configuration options.
  */
 export interface UrlFieldConfig extends BaseFieldConfig {
+	/** Field-specific metadata, augmentable by external packages. */
+	meta?: UrlFieldMeta;
 	/**
 	 * Allowed protocols.
 	 * @default ["http", "https"]
@@ -161,10 +172,11 @@ function getUrlOperators(): ContextualOperators {
  * ```
  */
 export const urlField = defineField<"url", UrlFieldConfig, string>("url", {
-	toColumn(name, config) {
+	toColumn(_name, config) {
 		const { maxLength = 2048, textMode = false } = config;
 
-		let column: any = textMode ? text(name) : varchar(name, { length: maxLength });
+		// Don't specify column name - Drizzle uses the key name
+		let column: any = textMode ? text() : varchar({ length: maxLength });
 
 		// Apply constraints
 		if (config.required && config.nullable !== true) {
@@ -194,16 +206,10 @@ export const urlField = defineField<"url", UrlFieldConfig, string>("url", {
 
 		// Protocol validation
 		if (protocols.length > 0) {
-			const protocolPattern = new RegExp(
-				`^(${protocols.join("|")})://`,
-				"i",
-			);
-			schema = schema.refine(
-				(url) => protocolPattern.test(url),
-				{
-					message: `URL must use one of these protocols: ${protocols.join(", ")}`,
-				},
-			);
+			const protocolPattern = new RegExp(`^(${protocols.join("|")})://`, "i");
+			schema = schema.refine((url) => protocolPattern.test(url), {
+				message: `URL must use one of these protocols: ${protocols.join(", ")}`,
+			});
 		}
 
 		// Host validation
@@ -213,9 +219,7 @@ export const urlField = defineField<"url", UrlFieldConfig, string>("url", {
 				(url) => {
 					try {
 						const host = new URL(url).host.toLowerCase();
-						return hosts.some(
-							(h) => host === h || host.endsWith(`.${h}`),
-						);
+						return hosts.some((h) => host === h || host.endsWith(`.${h}`));
 					} catch {
 						return false;
 					}
@@ -232,9 +236,7 @@ export const urlField = defineField<"url", UrlFieldConfig, string>("url", {
 				(url) => {
 					try {
 						const host = new URL(url).host.toLowerCase();
-						return !hosts.some(
-							(h) => host === h || host.endsWith(`.${h}`),
-						);
+						return !hosts.some((h) => host === h || host.endsWith(`.${h}`));
 					} catch {
 						return true;
 					}
@@ -271,6 +273,7 @@ export const urlField = defineField<"url", UrlFieldConfig, string>("url", {
 			validation: {
 				maxLength: config.maxLength ?? 2048,
 			},
+			meta: config.meta,
 		};
 	},
 });

@@ -5,17 +5,47 @@
  * Supports single and multiple selection, enum types, and option labels.
  */
 
-import { eq, ne, inArray, notInArray, isNull, isNotNull, sql } from "drizzle-orm";
-import { varchar, pgEnum, jsonb } from "drizzle-orm/pg-core";
+import {
+	eq,
+	inArray,
+	isNotNull,
+	isNull,
+	ne,
+	notInArray,
+	sql,
+} from "drizzle-orm";
+import { jsonb, pgEnum, varchar } from "drizzle-orm/pg-core";
 import { z } from "zod";
+import type { I18nText } from "#questpie/shared/i18n/types.js";
 import { defineField } from "../define-field.js";
+import { getDefaultRegistry } from "../registry.js";
 import type {
 	BaseFieldConfig,
 	ContextualOperators,
 	SelectFieldMetadata,
 } from "../types.js";
-import { getDefaultRegistry } from "../registry.js";
-import type { I18nText } from "#questpie/shared/i18n/types.js";
+
+// ============================================================================
+// Select Field Meta (augmentable by admin)
+// ============================================================================
+
+/**
+ * Select field metadata - augmentable by external packages.
+ *
+ * @example Admin augmentation:
+ * ```ts
+ * declare module "questpie" {
+ *   interface SelectFieldMeta {
+ *     admin?: {
+ *       displayAs?: "dropdown" | "radio" | "checkbox" | "buttons";
+ *       searchable?: boolean;
+ *       creatable?: boolean;
+ *     }
+ *   }
+ * }
+ * ```
+ */
+export interface SelectFieldMeta {}
 
 // ============================================================================
 // Select Field Configuration
@@ -42,6 +72,9 @@ export interface SelectOption {
  * Select field configuration options.
  */
 export interface SelectFieldConfig extends BaseFieldConfig {
+	/** Field-specific metadata, augmentable by external packages. */
+	meta?: SelectFieldMeta;
+
 	/**
 	 * Available options for selection.
 	 */
@@ -127,17 +160,13 @@ function getMultiSelectOperators(): ContextualOperators {
 			containsAny: (col, values) =>
 				sql`${col} ?| ${sql.raw(`ARRAY[${(values as string[]).map((v) => `'${v}'`).join(",")}]`)}`,
 			// Exactly equals (same values, same order)
-			eq: (col, values) =>
-				sql`${col} = ${JSON.stringify(values)}::jsonb`,
+			eq: (col, values) => sql`${col} = ${JSON.stringify(values)}::jsonb`,
 			// Is empty array
-			isEmpty: (col) =>
-				sql`${col} = '[]'::jsonb OR ${col} IS NULL`,
+			isEmpty: (col) => sql`${col} = '[]'::jsonb OR ${col} IS NULL`,
 			// Is not empty
-			isNotEmpty: (col) =>
-				sql`${col} != '[]'::jsonb AND ${col} IS NOT NULL`,
+			isNotEmpty: (col) => sql`${col} != '[]'::jsonb AND ${col} IS NOT NULL`,
 			// Length equals
-			length: (col, value) =>
-				sql`jsonb_array_length(${col}) = ${value}`,
+			length: (col, value) => sql`jsonb_array_length(${col}) = ${value}`,
 			isNull: (col) => isNull(col),
 			isNotNull: (col) => isNotNull(col),
 		},
@@ -228,17 +257,19 @@ export const selectField = defineField<
 	toColumn(name, config) {
 		const { multiple = false, enumType = false, enumName } = config;
 
+		// Don't specify column name - Drizzle uses the key name
 		let column: any;
 
 		if (multiple) {
 			// Multi-select: store as JSONB array
-			column = jsonb(name);
+			column = jsonb();
 		} else if (enumType) {
 			// Single select with PostgreSQL enum
 			const enumValues = config.options.map((o) => String(o.value)) as [
 				string,
 				...string[],
 			];
+			// Note: enum name uses field name for uniqueness, but column name is from key
 			const finalEnumName = enumName ?? `${name}_enum`;
 
 			// Create or get cached enum
@@ -248,14 +279,14 @@ export const selectField = defineField<
 				enumCache.set(finalEnumName, enumDef);
 			}
 
-			column = (enumDef as any)(name);
+			column = (enumDef as any)();
 		} else {
 			// Single select: store as varchar
 			const maxLength = Math.max(
 				...config.options.map((o) => String(o.value).length),
 				50,
 			);
-			column = varchar(name, { length: maxLength });
+			column = varchar({ length: maxLength });
 		}
 
 		// Apply constraints
@@ -284,7 +315,7 @@ export const selectField = defineField<
 
 		if (multiple) {
 			// Multi-select: array of valid values
-			let schema = z.array(z.enum(validValues as [string, ...string[]]));
+			const schema = z.array(z.enum(validValues as [string, ...string[]]));
 
 			// Nullability
 			if (!config.required && config.nullable !== false) {
@@ -294,7 +325,7 @@ export const selectField = defineField<
 			return schema;
 		} else {
 			// Single select: one of valid values
-			let schema = z.enum(validValues as [string, ...string[]]);
+			const schema = z.enum(validValues as [string, ...string[]]);
 
 			// Nullability
 			if (!config.required && config.nullable !== false) {
@@ -327,6 +358,7 @@ export const selectField = defineField<
 				label: o.label,
 			})),
 			multiple: config.multiple,
+			meta: config.meta,
 		};
 	},
 });

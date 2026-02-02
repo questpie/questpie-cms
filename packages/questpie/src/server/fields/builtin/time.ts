@@ -5,16 +5,36 @@
  * Supports precision and time operators.
  */
 
-import { eq, ne, gt, gte, lt, lte, between, isNull, isNotNull, sql } from "drizzle-orm";
+import {
+	between,
+	eq,
+	gt,
+	gte,
+	isNotNull,
+	isNull,
+	lt,
+	lte,
+	ne,
+	sql,
+} from "drizzle-orm";
 import { time } from "drizzle-orm/pg-core";
 import { z } from "zod";
 import { defineField } from "../define-field.js";
+import { getDefaultRegistry } from "../registry.js";
 import type {
 	BaseFieldConfig,
 	ContextualOperators,
 	FieldMetadataBase,
 } from "../types.js";
-import { getDefaultRegistry } from "../registry.js";
+
+// ============================================================================
+// Time Field Meta (augmentable by admin)
+// ============================================================================
+
+/**
+ * Time field metadata - augmentable by external packages.
+ */
+export interface TimeFieldMeta {}
 
 // ============================================================================
 // Time Field Configuration
@@ -24,6 +44,8 @@ import { getDefaultRegistry } from "../registry.js";
  * Time field configuration options.
  */
 export interface TimeFieldConfig extends BaseFieldConfig {
+	/** Field-specific metadata, augmentable by external packages. */
+	meta?: TimeFieldMeta;
 	/**
 	 * Minimum time constraint (inclusive).
 	 * Format: "HH:MM" or "HH:MM:SS"
@@ -132,86 +154,84 @@ function getTimeOperators(): ContextualOperators {
  * const startTime = timeField({ required: true });
  * ```
  */
-export const timeField = defineField<"time", TimeFieldConfig, string>(
-	"time",
-	{
-		toColumn(name, config) {
-			const { precision = 0 } = config;
+export const timeField = defineField<"time", TimeFieldConfig, string>("time", {
+	toColumn(name, config) {
+		const { precision = 0 } = config;
 
-			let column: any = time(name, { precision });
+		let column: any = time(name, { precision });
 
-			// Apply constraints
-			if (config.required && config.nullable !== true) {
-				column = column.notNull();
-			}
+		// Apply constraints
+		if (config.required && config.nullable !== true) {
+			column = column.notNull();
+		}
 
-			if (config.default !== undefined) {
-				const defaultValue =
-					typeof config.default === "function"
-						? config.default()
-						: config.default;
-				column = column.default(defaultValue as string);
-			}
+		if (config.default !== undefined) {
+			const defaultValue =
+				typeof config.default === "function"
+					? config.default()
+					: config.default;
+			column = column.default(defaultValue as string);
+		}
 
-			if (config.unique) {
-				column = column.unique();
-			}
+		if (config.unique) {
+			column = column.unique();
+		}
 
-			return column;
-		},
-
-		toZodSchema(config) {
-			// Time format: HH:MM or HH:MM:SS
-			const withSeconds = config.withSeconds !== false;
-			const timePattern = withSeconds
-				? /^([01]\d|2[0-3]):([0-5]\d):([0-5]\d)(\.\d+)?$/
-				: /^([01]\d|2[0-3]):([0-5]\d)$/;
-
-			let schema = z.string().regex(timePattern, {
-				message: withSeconds
-					? "Invalid time format. Expected HH:MM:SS"
-					: "Invalid time format. Expected HH:MM",
-			});
-
-			// Min/max constraints (string comparison works for time)
-			if (config.min) {
-				schema = schema.refine((val) => val >= config.min!, {
-					message: `Time must be at or after ${config.min}`,
-				});
-			}
-			if (config.max) {
-				schema = schema.refine((val) => val <= config.max!, {
-					message: `Time must be at or before ${config.max}`,
-				});
-			}
-
-			// Nullability
-			if (!config.required && config.nullable !== false) {
-				return schema.nullish();
-			}
-
-			return schema;
-		},
-
-		getOperators() {
-			return getTimeOperators();
-		},
-
-		getMetadata(config): FieldMetadataBase {
-			return {
-				type: "time",
-				label: config.label,
-				description: config.description,
-				required: config.required ?? false,
-				localized: config.localized ?? false,
-				unique: config.unique ?? false,
-				searchable: config.searchable ?? false,
-				readOnly: config.input === false,
-				writeOnly: config.output === false,
-			};
-		},
+		return column;
 	},
-);
+
+	toZodSchema(config) {
+		// Time format: HH:MM or HH:MM:SS
+		const withSeconds = config.withSeconds !== false;
+		const timePattern = withSeconds
+			? /^([01]\d|2[0-3]):([0-5]\d):([0-5]\d)(\.\d+)?$/
+			: /^([01]\d|2[0-3]):([0-5]\d)$/;
+
+		let schema = z.string().regex(timePattern, {
+			message: withSeconds
+				? "Invalid time format. Expected HH:MM:SS"
+				: "Invalid time format. Expected HH:MM",
+		});
+
+		// Min/max constraints (string comparison works for time)
+		if (config.min) {
+			schema = schema.refine((val) => val >= config.min!, {
+				message: `Time must be at or after ${config.min}`,
+			});
+		}
+		if (config.max) {
+			schema = schema.refine((val) => val <= config.max!, {
+				message: `Time must be at or before ${config.max}`,
+			});
+		}
+
+		// Nullability
+		if (!config.required && config.nullable !== false) {
+			return schema.nullish();
+		}
+
+		return schema;
+	},
+
+	getOperators() {
+		return getTimeOperators();
+	},
+
+	getMetadata(config): FieldMetadataBase {
+		return {
+			type: "time",
+			label: config.label,
+			description: config.description,
+			required: config.required ?? false,
+			localized: config.localized ?? false,
+			unique: config.unique ?? false,
+			searchable: config.searchable ?? false,
+			readOnly: config.input === false,
+			writeOnly: config.output === false,
+			meta: config.meta,
+		};
+	},
+});
 
 // Register in default registry
 getDefaultRegistry().register("time", timeField);

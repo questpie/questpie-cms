@@ -62,14 +62,14 @@ const authors = collection("authors").fields((f) => ({
 	posts: f.relation({
 		to: "posts",
 		hasMany: true,
-		foreignKey: "authorId",
+		foreignKey: "author", // FK column on posts table
 		onDelete: "cascade",
 		relationName: "author",
 	}),
 	editedPosts: f.relation({
 		to: "posts",
 		hasMany: true,
-		foreignKey: "editorId",
+		foreignKey: "editor", // FK column on posts table
 		onDelete: "set null", // Application-level SET NULL when author is deleted
 		relationName: "editor",
 	}),
@@ -95,7 +95,7 @@ const posts = collection("posts").fields((f) => ({
 	comments: f.relation({
 		to: "comments",
 		hasMany: true,
-		foreignKey: "postId",
+		foreignKey: "post", // FK column on comments table
 		onDelete: "cascade",
 		relationName: "post",
 	}),
@@ -121,7 +121,7 @@ const comments = collection("comments").fields((f) => ({
 	replies: f.relation({
 		to: "comments",
 		hasMany: true,
-		foreignKey: "parentId",
+		foreignKey: "parent", // FK column on comments table
 		relationName: "parent",
 	}),
 }));
@@ -134,7 +134,7 @@ const restrictedCategories = collection("restrictedCategories").fields((f) => ({
 	products: f.relation({
 		to: "restrictedProducts", // Must match the key in .collections({})
 		hasMany: true,
-		foreignKey: "categoryId",
+		foreignKey: "category", // FK column on products table
 		onDelete: "restrict", // Application-level RESTRICT when category is deleted
 		relationName: "category",
 	}),
@@ -159,8 +159,8 @@ const articles = collection("articles").fields((f) => ({
 		to: "articleTags",
 		hasMany: true,
 		through: "articleTagJunction",
-		sourceField: "articleId",
-		targetField: "tagId",
+		sourceField: "article", // FK column on junction table
+		targetField: "tag", // FK column on junction table
 	}),
 }));
 
@@ -171,8 +171,8 @@ const articleTags = collection("articleTags").fields((f) => ({
 		to: "articles",
 		hasMany: true,
 		through: "articleTagJunction",
-		sourceField: "tagId",
-		targetField: "articleId",
+		sourceField: "tag", // FK column on junction table
+		targetField: "article", // FK column on junction table
 	}),
 }));
 
@@ -199,7 +199,7 @@ const categories = collection("categories").fields((f) => ({
 	products: f.relation({
 		to: "products",
 		hasMany: true,
-		foreignKey: "categoryId",
+		foreignKey: "category", // FK column on products table
 		relationName: "category",
 	}),
 	// ManyToMany
@@ -207,8 +207,8 @@ const categories = collection("categories").fields((f) => ({
 		to: "tags",
 		hasMany: true,
 		through: "categoryTags",
-		sourceField: "categoryId",
-		targetField: "tagId",
+		sourceField: "category", // FK column on junction table
+		targetField: "tag", // FK column on junction table
 	}),
 }));
 
@@ -225,8 +225,8 @@ const products = collection("products").fields((f) => ({
 		to: "tags",
 		hasMany: true,
 		through: "productTags",
-		sourceField: "productId",
-		targetField: "tagId",
+		sourceField: "product", // FK column on junction table
+		targetField: "tag", // FK column on junction table
 	}),
 }));
 
@@ -237,15 +237,15 @@ const tags = collection("tags").fields((f) => ({
 		to: "products",
 		hasMany: true,
 		through: "productTags",
-		sourceField: "tagId",
-		targetField: "productId",
+		sourceField: "tag", // FK column on junction table
+		targetField: "product", // FK column on junction table
 	}),
 	categories: f.relation({
 		to: "categories",
 		hasMany: true,
 		through: "categoryTags",
-		sourceField: "tagId",
-		targetField: "categoryId",
+		sourceField: "tag", // FK column on junction table
+		targetField: "category", // FK column on junction table
 	}),
 }));
 
@@ -337,7 +337,7 @@ describe("collection relations", () => {
 			const profile = await profilesCrud.create(
 				{
 					id: crypto.randomUUID(),
-					userId: user.id,
+					user: user.id,
 					bio: "Software engineer",
 					avatar: "avatar.jpg",
 				},
@@ -380,7 +380,7 @@ describe("collection relations", () => {
 			await profilesCrud.create(
 				{
 					id: crypto.randomUUID(),
-					userId: user1.id,
+					user: user1.id,
 					bio: "Developer",
 					avatar: "alice.jpg",
 				},
@@ -390,7 +390,7 @@ describe("collection relations", () => {
 			await profilesCrud.create(
 				{
 					id: crypto.randomUUID(),
-					userId: user2.id,
+					user: user2.id,
 					bio: "Designer",
 					avatar: "bob.jpg",
 				},
@@ -433,8 +433,8 @@ describe("collection relations", () => {
 					id: crypto.randomUUID(),
 					title: "Post 1",
 					views: 100,
-					authorId: author.id,
-					editorId: author.id,
+					author: author.id,
+					editor: author.id,
 				},
 				ctx,
 			);
@@ -443,7 +443,7 @@ describe("collection relations", () => {
 				{
 					id: crypto.randomUUID(),
 					content: "Great post!",
-					postId: post.id,
+					post: post.id,
 				},
 				ctx,
 			);
@@ -452,7 +452,7 @@ describe("collection relations", () => {
 				{
 					id: crypto.randomUUID(),
 					content: "Thanks for sharing",
-					postId: post.id,
+					post: post.id,
 				},
 				ctx,
 			);
@@ -502,7 +502,7 @@ describe("collection relations", () => {
 				{
 					id: crypto.randomUUID(),
 					content: "Root comment",
-					postId: post.id,
+					post: post.id,
 				},
 				ctx,
 			);
@@ -511,8 +511,8 @@ describe("collection relations", () => {
 				{
 					id: crypto.randomUUID(),
 					content: "Reply to root",
-					postId: post.id,
-					parentId: rootComment.id,
+					post: post.id,
+					parent: rootComment.id,
 				},
 				ctx,
 			);
@@ -521,8 +521,8 @@ describe("collection relations", () => {
 				{
 					id: crypto.randomUUID(),
 					content: "Reply to reply",
-					postId: post.id,
-					parentId: reply1.id,
+					post: post.id,
+					parent: reply1.id,
 				},
 				ctx,
 			);
@@ -567,7 +567,7 @@ describe("collection relations", () => {
 					id: crypto.randomUUID(),
 					title: "Post 1",
 					views: 100,
-					authorId: author.id,
+					author: author.id,
 				},
 				ctx,
 			);
@@ -577,7 +577,7 @@ describe("collection relations", () => {
 					id: crypto.randomUUID(),
 					title: "Post 2",
 					views: 200,
-					authorId: author.id,
+					author: author.id,
 				},
 				ctx,
 			);
@@ -626,7 +626,7 @@ describe("collection relations", () => {
 					id: crypto.randomUUID(),
 					title: "Post A",
 					views: 100,
-					authorId: author.id,
+					author: author.id,
 				},
 				ctx,
 			);
@@ -636,7 +636,7 @@ describe("collection relations", () => {
 					id: crypto.randomUUID(),
 					title: "Post B",
 					views: 500,
-					authorId: author.id,
+					author: author.id,
 				},
 				ctx,
 			);
@@ -646,7 +646,7 @@ describe("collection relations", () => {
 					id: crypto.randomUUID(),
 					title: "Post C",
 					views: 300,
-					authorId: author.id,
+					author: author.id,
 				},
 				ctx,
 			);
@@ -685,7 +685,7 @@ describe("collection relations", () => {
 					id: crypto.randomUUID(),
 					title: "Post 1",
 					views: 10,
-					authorId: author.id,
+					author: author.id,
 				},
 				ctx,
 			);
@@ -695,7 +695,7 @@ describe("collection relations", () => {
 					id: crypto.randomUUID(),
 					title: "Post 2",
 					views: 20,
-					authorId: author.id,
+					author: author.id,
 				},
 				ctx,
 			);
@@ -705,7 +705,7 @@ describe("collection relations", () => {
 					id: crypto.randomUUID(),
 					title: "Post 3",
 					views: 30,
-					authorId: author.id,
+					author: author.id,
 				},
 				ctx,
 			);
@@ -750,7 +750,7 @@ describe("collection relations", () => {
 					id: crypto.randomUUID(),
 					title: "Post 1",
 					views: 100,
-					authorId: author.id,
+					author: author.id,
 				},
 				ctx,
 			);
@@ -760,7 +760,7 @@ describe("collection relations", () => {
 					id: crypto.randomUUID(),
 					title: "Post 2",
 					views: 200,
-					authorId: author.id,
+					author: author.id,
 				},
 				ctx,
 			);
@@ -770,7 +770,7 @@ describe("collection relations", () => {
 					id: crypto.randomUUID(),
 					title: "Post 3",
 					views: 300,
-					authorId: author.id,
+					author: author.id,
 				},
 				ctx,
 			);
@@ -818,7 +818,7 @@ describe("collection relations", () => {
 					id: crypto.randomUUID(),
 					title: "Popular Post",
 					views: 1000,
-					authorId: author.id,
+					author: author.id,
 				},
 				ctx,
 			);
@@ -828,7 +828,7 @@ describe("collection relations", () => {
 					id: crypto.randomUUID(),
 					title: "Unpopular Post",
 					views: 50,
-					authorId: author.id,
+					author: author.id,
 				},
 				ctx,
 			);
@@ -838,7 +838,7 @@ describe("collection relations", () => {
 					id: crypto.randomUUID(),
 					title: "Another Popular Post",
 					views: 800,
-					authorId: author.id,
+					author: author.id,
 				},
 				ctx,
 			);
@@ -1129,7 +1129,7 @@ describe("collection relations", () => {
 					id: crypto.randomUUID(),
 					title: "Post 1",
 					views: 10,
-					authorId: author.id,
+					author: author.id,
 				},
 				ctx,
 			);
@@ -1139,7 +1139,7 @@ describe("collection relations", () => {
 					id: crypto.randomUUID(),
 					title: "Post 2",
 					views: 20,
-					authorId: author.id,
+					author: author.id,
 				},
 				ctx,
 			);
@@ -1177,7 +1177,7 @@ describe("collection relations", () => {
 					id: crypto.randomUUID(),
 					title: "Post with Comments",
 					views: 100,
-					authorId: author.id,
+					author: author.id,
 				},
 				ctx,
 			);
@@ -1186,7 +1186,7 @@ describe("collection relations", () => {
 				{
 					id: crypto.randomUUID(),
 					content: "Comment to be deleted",
-					postId: post.id,
+					post: post.id,
 				},
 				ctx,
 			);
@@ -1229,8 +1229,8 @@ describe("collection relations", () => {
 					id: crypto.randomUUID(),
 					title: "Post with Editor",
 					views: 50,
-					authorId: author.id,
-					editorId: editor.id,
+					author: author.id,
+					editor: editor.id,
 				},
 				ctx,
 			);
@@ -1245,8 +1245,8 @@ describe("collection relations", () => {
 			);
 
 			expect(updatedPost).not.toBeNull();
-			expect(updatedPost?.authorId).toBe(author.id);
-			expect(updatedPost?.editorId).toBeNull();
+			expect(updatedPost?.author).toBe(author.id);
+			expect(updatedPost?.editor).toBeNull();
 		});
 	});
 
@@ -1269,7 +1269,7 @@ describe("collection relations", () => {
 				{
 					id: crypto.randomUUID(),
 					name: "Product in Category",
-					categoryId: category.id,
+					category: category.id,
 				},
 				ctx,
 			);
@@ -1310,7 +1310,7 @@ describe("collection relations", () => {
 					id: crypto.randomUUID(),
 					title: "Post without Editor",
 					views: 10,
-					authorId: author.id,
+					author: author.id,
 					// editorId intentionally omitted (null)
 				},
 				ctx,
@@ -1324,7 +1324,7 @@ describe("collection relations", () => {
 
 			// When FK is null, relation loading returns null or undefined
 			expect(postWithEditor?.editor).toBeFalsy();
-			expect(postWithEditor?.editorId).toBeNull();
+			// With unified API, FK column key is field name (editor, not editorId)
 		});
 
 		it("handles empty collections in hasMany relations", async () => {
@@ -1410,8 +1410,8 @@ describe("collection relations", () => {
 					id: crypto.randomUUID(),
 					title: "Complex Post",
 					views: 100,
-					authorId: author.id,
-					editorId: editor.id,
+					author: author.id,
+					editor: editor.id,
 				},
 				ctx,
 			);
@@ -1420,7 +1420,7 @@ describe("collection relations", () => {
 				{
 					id: crypto.randomUUID(),
 					content: "Comment 1",
-					postId: post.id,
+					post: post.id,
 				},
 				ctx,
 			);
@@ -1429,7 +1429,7 @@ describe("collection relations", () => {
 				{
 					id: crypto.randomUUID(),
 					content: "Comment 2",
-					postId: post.id,
+					post: post.id,
 				},
 				ctx,
 			);
@@ -1472,7 +1472,7 @@ describe("collection relations", () => {
 				{
 					id: crypto.randomUUID(),
 					name: "Product A",
-					categoryId: category.id,
+					category: category.id,
 				},
 				ctx,
 			);
@@ -1481,7 +1481,7 @@ describe("collection relations", () => {
 				{
 					id: crypto.randomUUID(),
 					name: "Product B",
-					categoryId: category.id,
+					category: category.id,
 				},
 				ctx,
 			);
@@ -1513,7 +1513,7 @@ describe("collection relations", () => {
 				{
 					id: crypto.randomUUID(),
 					name: "Product C",
-					categoryId: category.id,
+					category: category.id,
 				},
 				ctx,
 			);
@@ -1522,7 +1522,7 @@ describe("collection relations", () => {
 				{
 					id: crypto.randomUUID(),
 					name: "Product D",
-					categoryId: category.id,
+					category: category.id,
 				},
 				ctx,
 			);
@@ -1548,7 +1548,7 @@ describe("collection relations", () => {
 				{
 					id: crypto.randomUUID(),
 					name: "Product E",
-					categoryId: category.id,
+					category: category.id,
 					tags: {
 						create: [{ name: "Tag A" }, { name: "Tag B" }],
 					},
@@ -1588,8 +1588,8 @@ describe("collection relations", () => {
 			await categoryTagsCrud.create(
 				{
 					id: crypto.randomUUID(),
-					categoryId: categoryA.id,
-					tagId: tagIvan.id,
+					category: categoryA.id,
+					tag: tagIvan.id,
 				},
 				ctx,
 			);
@@ -1598,7 +1598,7 @@ describe("collection relations", () => {
 				{
 					id: crypto.randomUUID(),
 					name: "Product A",
-					categoryId: categoryA.id,
+					category: categoryA.id,
 				},
 				ctx,
 			);
@@ -1606,7 +1606,7 @@ describe("collection relations", () => {
 				{
 					id: crypto.randomUUID(),
 					name: "Product B",
-					categoryId: categoryB.id,
+					category: categoryB.id,
 				},
 				ctx,
 			);
@@ -1745,24 +1745,24 @@ describe("collection relations", () => {
 			await categoryTagsCrud.create(
 				{
 					id: crypto.randomUUID(),
-					categoryId: categoryA.id,
-					tagId: tagIvan.id,
+					category: categoryA.id,
+					tag: tagIvan.id,
 				},
 				ctx,
 			);
 			await categoryTagsCrud.create(
 				{
 					id: crypto.randomUUID(),
-					categoryId: categoryA.id,
-					tagId: tagZed.id,
+					category: categoryA.id,
+					tag: tagZed.id,
 				},
 				ctx,
 			);
 			await categoryTagsCrud.create(
 				{
 					id: crypto.randomUUID(),
-					categoryId: categoryB.id,
-					tagId: tagIvan.id,
+					category: categoryB.id,
+					tag: tagIvan.id,
 				},
 				ctx,
 			);
@@ -1771,7 +1771,7 @@ describe("collection relations", () => {
 				{
 					id: crypto.randomUUID(),
 					name: "Product A",
-					categoryId: categoryA.id,
+					category: categoryA.id,
 				},
 				ctx,
 			);
@@ -1779,7 +1779,7 @@ describe("collection relations", () => {
 				{
 					id: crypto.randomUUID(),
 					name: "Product B",
-					categoryId: categoryB.id,
+					category: categoryB.id,
 				},
 				ctx,
 			);
@@ -1787,7 +1787,7 @@ describe("collection relations", () => {
 				{
 					id: crypto.randomUUID(),
 					name: "Product C",
-					categoryId: categoryC.id,
+					category: categoryC.id,
 				},
 				ctx,
 			);
@@ -1872,7 +1872,7 @@ describe("collection relations", () => {
 				{
 					id: crypto.randomUUID(),
 					name: "Haircut",
-					imageId: asset.id,
+					image: asset.id,
 				},
 				ctx,
 			);
@@ -1919,7 +1919,7 @@ describe("collection relations", () => {
 				{
 					id: crypto.randomUUID(),
 					name: "Service A",
-					imageId: asset1.id,
+					image: asset1.id,
 				},
 				ctx,
 			);
@@ -1928,7 +1928,7 @@ describe("collection relations", () => {
 				{
 					id: crypto.randomUUID(),
 					name: "Service B",
-					imageId: asset2.id,
+					image: asset2.id,
 				},
 				ctx,
 			);
@@ -2019,7 +2019,7 @@ describe("collection relations", () => {
 				{
 					id: crypto.randomUUID(),
 					name: "SVG Service",
-					imageId: svgAsset.id,
+					image: svgAsset.id,
 				},
 				ctx,
 			);
@@ -2028,7 +2028,7 @@ describe("collection relations", () => {
 				{
 					id: crypto.randomUUID(),
 					name: "PNG Service",
-					imageId: pngAsset.id,
+					image: pngAsset.id,
 				},
 				ctx,
 			);

@@ -186,6 +186,12 @@ export type {
 export {
 	adminMessagesEN,
 	adminMessagesSK,
+	adminMessagesCS,
+	adminMessagesPL,
+	adminMessagesDE,
+	adminMessagesFR,
+	adminMessagesES,
+	adminMessagesPT,
 } from "#questpie/admin/client/i18n/messages/index.js";
 // I18n types
 export type {

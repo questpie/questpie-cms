@@ -54,13 +54,15 @@ export const userCollectionAdmin = coreAdminModule
 				},
 			],
 		}),
-		emailVerified: r.checkbox({
+		emailVerified: r.boolean({
 			label: { key: "defaults.users.fields.emailVerified.label" },
 			description: { key: "defaults.users.fields.emailVerified.description" },
+			displayAs: "checkbox",
 		}),
-		banned: r.checkbox({
+		banned: r.boolean({
 			label: { key: "defaults.users.fields.banned.label" },
 			description: { key: "defaults.users.fields.banned.description" },
+			displayAs: "checkbox",
 		}),
 		banReason: r.textarea({
 			label: { key: "defaults.users.fields.banReason.label" },
@@ -106,7 +108,7 @@ export const userCollectionAdmin = coreAdminModule
 											placeholder: { key: "auth.emailPlaceholder" },
 											required: true,
 										}),
-										password: r.password({
+										password: r.text({
 											label: {
 												key: "defaults.users.actions.createUser.fields.password.label",
 											},
@@ -114,6 +116,7 @@ export const userCollectionAdmin = coreAdminModule
 												key: "defaults.users.actions.createUser.fields.password.placeholder",
 											},
 											required: true,
+											type: "password",
 										}),
 										role: r.select({
 											label: { key: "defaults.users.fields.role.label" },
@@ -235,7 +238,7 @@ export const userCollectionAdmin = coreAdminModule
 									key: "defaults.users.actions.resetPassword.description",
 								},
 								fields: {
-									newPassword: r.password({
+									newPassword: r.text({
 										label: {
 											key: "defaults.users.actions.resetPassword.fields.newPassword.label",
 										},
@@ -243,8 +246,9 @@ export const userCollectionAdmin = coreAdminModule
 											key: "defaults.users.actions.resetPassword.fields.newPassword.placeholder",
 										},
 										required: true,
+										type: "password",
 									}),
-									confirmPassword: r.password({
+									confirmPassword: r.text({
 										label: {
 											key: "defaults.users.actions.resetPassword.fields.confirmPassword.label",
 										},
@@ -252,6 +256,7 @@ export const userCollectionAdmin = coreAdminModule
 											key: "defaults.users.actions.resetPassword.fields.confirmPassword.placeholder",
 										},
 										required: true,
+										type: "password",
 									}),
 								},
 								submitLabel: {

@@ -316,9 +316,10 @@ type RelationMutations<TRelations> = [TRelations] extends [never]
 						}
 				: {}; // Not a record type or unknown, return empty object instead of permissive Record
 
+// With unified field API, FK column key is the same as the relation field name
 type RelationIdKey<TInsert, K extends string> = Extract<
 	Extract<keyof TInsert, string>,
-	`${K}Id`
+	K
 >;
 
 type RelationForeignKeys<TInsert, TRelations> =

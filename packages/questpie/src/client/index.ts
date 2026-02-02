@@ -86,6 +86,7 @@ import type {
 	GetGlobal,
 	Questpie,
 } from "#questpie/exports/index.js";
+import type { CollectionSchema } from "#questpie/server/collection/introspection.js";
 import type { CollectionMeta } from "#questpie/shared/collection-meta.js";
 import type { ApiErrorShape } from "#questpie/shared/error-types.js";
 
@@ -364,6 +365,12 @@ type CollectionAPI<
 	 * Useful for building dynamic UIs that adapt to collection configuration
 	 */
 	meta: () => Promise<CollectionMeta>;
+
+	/**
+	 * Get collection schema with full introspection (fields, relations, access, validation)
+	 * Includes evaluated access control for the current user and JSON Schema for validation
+	 */
+	schema: () => Promise<CollectionSchema>;
 } & CollectionFunctionsAPI<TCollection>;
 
 /**
@@ -543,7 +550,9 @@ type SearchAPI = {
 	/**
 	 * Reindex a collection
 	 */
-	reindex: (collection: string) => Promise<{ success: boolean; collection: string }>;
+	reindex: (
+		collection: string,
+	) => Promise<{ success: boolean; collection: string }>;
 };
 
 /**
@@ -802,6 +811,10 @@ export function createClient<T extends Questpie<any>>(
 
 				meta: async () => {
 					return request(`${cmsBasePath}/${collectionName}/meta`);
+				},
+
+				schema: async () => {
+					return request(`${cmsBasePath}/${collectionName}/schema`);
 				},
 
 				upload: (file: File, options?: UploadOptions): Promise<any> => {
@@ -1071,6 +1084,15 @@ export function createClient<T extends Questpie<any>>(
 	};
 }
 
+// Re-export collection schema types for admin introspection
+export type {
+	AccessResult,
+	CollectionAccessInfo,
+	CollectionSchema,
+	FieldAccessInfo,
+	FieldSchema,
+	RelationSchema,
+} from "#questpie/server/collection/introspection.js";
 // Re-export collection meta types
 export type {
 	CollectionFieldMeta,

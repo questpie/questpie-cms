@@ -5,7 +5,12 @@
 import type { CollectionInfer, Questpie } from "questpie";
 import type { QuestpieClient } from "questpie/client";
 
-export { Admin, type AdminInput, type AppAdmin, type InferAdminCMS } from "./admin";
+export {
+	Admin,
+	type AdminInput,
+	type AppAdmin,
+	type InferAdminCMS,
+} from "./admin";
 export { AdminBuilder } from "./admin-builder";
 export type { AdminBuilderState } from "./admin-types";
 export {

@@ -192,15 +192,10 @@ export class CollectionBuilder<TState extends CollectionBuilderState> {
 							columns[colName] = col;
 						}
 					} else {
-						// For belongsTo relations, the column name is {fieldName}Id
-						if (
-							metadata?.type === "relation" &&
-							(metadata as RelationFieldMetadata).relationType === "belongsTo"
-						) {
-							columns[`${name}Id`] = column;
-						} else {
-							columns[name] = column;
-						}
+						// Store column under field name
+						// For belongsTo relations, the column is still the FK but key is field name
+						// Drizzle casing handles DB column naming (author → author or author_id)
+						columns[name] = column;
 					}
 				}
 			}
@@ -276,12 +271,12 @@ export class CollectionBuilder<TState extends CollectionBuilderState> {
 
 		switch (relationType) {
 			case "belongsTo": {
-				// FK column is on this table: {fieldName}Id
-				const fkColumnName = `${fieldName}Id`;
+				// FK column is stored under field name (e.g., "author")
+				// Drizzle casing config handles actual DB column naming
 				return {
 					type: "one",
 					collection: targetName,
-					fields: columns[fkColumnName] ? [columns[fkColumnName]] : undefined,
+					fields: columns[fieldName] ? [columns[fieldName]] : undefined,
 					references: ["id"],
 					relationName: metadata.relationName,
 					onDelete: metadata.onDelete,

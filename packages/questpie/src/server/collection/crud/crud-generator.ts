@@ -34,7 +34,6 @@ import {
 	handleCascadeDelete,
 	processNestedRelations,
 	separateNestedRelations,
-	transformSimpleRelationValues,
 } from "#questpie/server/collection/crud/relation-mutations/index.js";
 import {
 	resolveBelongsToRelation,
@@ -796,30 +795,6 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 	}
 
 	/**
-	 * Transform relation field names to FK column names in regular fields.
-	 *
-	 * Converts: { author: "user-uuid" } → { authorId: "user-uuid" }
-	 *
-	 * This allows users to use field names (matching TypeScript types)
-	 * while the DB expects FK column names.
-	 */
-	private transformRelationFieldsToFkColumns(
-		regularFields: Record<string, any>,
-	): Record<string, any> {
-		if (!this.state.relations) {
-			return regularFields;
-		}
-
-		return transformSimpleRelationValues(
-			regularFields,
-			this.state.relations,
-			this.resolveFieldKey,
-			this.state,
-			this.table,
-		);
-	}
-
-	/**
 	 * Create create operation
 	 */
 	private createCreate() {
@@ -887,12 +862,6 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 						regularFields,
 						nestedRelations,
 					));
-
-					// Transform simple relation field values to FK column names
-					// e.g., { author: "uuid" } → { authorId: "uuid" }
-					// This allows users to use field names (matching TypeScript types)
-					regularFields =
-						this.transformRelationFieldsToFkColumns(regularFields);
 
 					// Validate field-level write access (on regular fields only)
 					await this.validateFieldWriteAccess(regularFields, normalized);
@@ -1180,10 +1149,6 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 		// This prevents the validation schema from stripping relation fields
 		let { regularFields, nestedRelations } =
 			this.separateNestedRelationsInternal(data);
-
-		// Transform simple relation field values to FK column names
-		// e.g., { author: "uuid" } → { authorId: "uuid" }
-		regularFields = this.transformRelationFieldsToFkColumns(regularFields);
 
 		// 4. Global Validation (Zod)
 		if (this.state.validation?.updateSchema) {

@@ -2499,11 +2499,13 @@ interface UploadFieldConfig extends BaseFieldConfig {
   /** Max file size in bytes */
   maxSize?: number;
 
-  /** Upload target collection (default: 'uploads') */
-  collection?: string;
+  /** Upload target collection (default: 'assets') */
+  to?: string;
 
-  /** Allow multiple files */
-  multiple?: boolean;
+  /** Junction collection for many-to-many uploads */
+  through?: string;
+  sourceField?: string;
+  targetField?: string;
 }
 
 const uploadField = defineField<
@@ -2512,14 +2514,8 @@ const uploadField = defineField<
   string | string[] // ID or array of IDs
 >("upload", {
   toColumn(name, config) {
-    // Upload stores relation to upload collection
-    if (config.multiple) {
-      // Array of IDs stored as JSONB
-      let column = jsonb(name);
-      if (config.required) column = column.notNull();
-      if (config.default !== undefined) column = column.default(config.default);
-      return column;
-    }
+    // Many-to-many uploads use a junction table, no local column
+    if (config.through) return null;
 
     // Single ID stored as varchar
     let column = varchar(name, { length: 36 }); // UUID
@@ -2530,15 +2526,10 @@ const uploadField = defineField<
   toZodSchema(config) {
     const idSchema = z.string().uuid();
 
-    let schema: ZodType<string | string[]>;
-    if (config.multiple) {
-      schema = z.array(idSchema);
-    } else {
-      schema = idSchema;
-    }
+    const schema = config.through ? z.array(idSchema) : idSchema;
 
     if (!config.required && config.nullable !== false) {
-      schema = schema.nullish();
+      return schema.nullish();
     }
 
     return schema;
@@ -2547,39 +2538,19 @@ const uploadField = defineField<
   // NOTE: No toJsonSchema()! Derived from Zod via z.toJSONSchema()
 
   getOperators(config): ContextualOperators {
-    if (config.multiple) {
+    if (config.through) {
       return {
         column: {
-          contains: (col, id) => sql`${col} @> ${JSON.stringify([id])}::jsonb`,
-          containsAll: (col, ids) =>
-            sql`${col} @> ${JSON.stringify(ids)}::jsonb`,
-          isEmpty: (col) => sql`jsonb_array_length(${col}) = 0`,
-          isNotEmpty: (col) => sql`jsonb_array_length(${col}) > 0`,
-          length: (col, len) => sql`jsonb_array_length(${col}) = ${len}`,
-          isNull: (col) => isNull(col),
-          isNotNull: (col) => isNotNull(col),
+          some: () => sql`TRUE`,
+          none: () => sql`TRUE`,
+          every: () => sql`TRUE`,
+          count: () => sql`0`,
         },
         jsonb: {
-          contains: (col, id, ctx) => {
-            const path = ctx.jsonbPath!.join(",");
-            return sql`${col} #> '{${sql.raw(path)}}' @> ${JSON.stringify([id])}::jsonb`;
-          },
-          isEmpty: (col, _, ctx) => {
-            const path = ctx.jsonbPath!.join(",");
-            return sql`jsonb_array_length(${col} #> '{${sql.raw(path)}}') = 0`;
-          },
-          isNotEmpty: (col, _, ctx) => {
-            const path = ctx.jsonbPath!.join(",");
-            return sql`jsonb_array_length(${col} #> '{${sql.raw(path)}}') > 0`;
-          },
-          isNull: (col, _, ctx) => {
-            const path = ctx.jsonbPath!.join(",");
-            return sql`${col} #> '{${sql.raw(path)}}' IS NULL`;
-          },
-          isNotNull: (col, _, ctx) => {
-            const path = ctx.jsonbPath!.join(",");
-            return sql`${col} #> '{${sql.raw(path)}}' IS NOT NULL`;
-          },
+          some: () => sql`TRUE`,
+          none: () => sql`TRUE`,
+          every: () => sql`TRUE`,
+          count: () => sql`0`,
         },
       };
     }
