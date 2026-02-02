@@ -1,14 +1,13 @@
 /**
- * Server-Side Module Augmentation for questpie package
+ * Server-Side Type Definitions for Admin Package
  *
- * This file augments questpie builder types to add admin-specific
- * state and methods. This enables server-side admin configuration
- * without modifying the core questpie package.
+ * This file provides type definitions for admin-specific features.
+ * The actual methods are added via runtime monkey patching in ./patch.ts.
  *
- * Augmentation happens at multiple levels:
- * 1. QuestpieBuilderState - stores registered views/components
- * 2. CollectionBuilderState - stores admin config for collections
- * 3. GlobalBuilderState - stores admin config for globals
+ * For type-safe usage, use the helper types:
+ * - WithAdminMethods<T> - adds admin methods to QuestpieBuilder
+ * - WithCollectionAdminMethods<T> - adds admin methods to CollectionBuilder
+ * - WithGlobalAdminMethods<T> - adds admin methods to GlobalBuilder
  *
  * @example
  * ```ts
@@ -22,7 +21,7 @@
  *       .fields((f) => ({
  *         title: f.text({ required: true }),
  *       }))
- *       // These methods are added by adminModule augmentation:
+ *       // These methods are added by adminModule at runtime:
  *       .admin(({ c }) => ({
  *         label: { en: "Posts" },
  *         icon: c.icon("ph:article"),
@@ -37,7 +36,6 @@
  * ```
  */
 
-import "questpie";
 import type { I18nText } from "questpie/shared";
 
 // ============================================================================
@@ -219,48 +217,192 @@ export interface AdminGlobalConfig {
 }
 
 // ============================================================================
-// Module Augmentation - Builder States
+// Admin Builder Context Types
 // ============================================================================
 
-declare module "questpie" {
-	// ─────────────────────────────────────────────────────────────────────────
-	// 1. QUESTPIE BUILDER STATE - for views/components registry
-	// ─────────────────────────────────────────────────────────────────────────
-
-	interface QuestpieBuilderState {
-		/** Registered list view types */
-		listViews?: Record<string, ListViewDefinition>;
-		/** Registered edit view types */
-		editViews?: Record<string, EditViewDefinition>;
-		/** Registered component types */
-		components?: Record<string, ComponentDefinition>;
-	}
-
-	// ─────────────────────────────────────────────────────────────────────────
-	// 2. COLLECTION BUILDER STATE - for admin config
-	// ─────────────────────────────────────────────────────────────────────────
-
-	interface CollectionBuilderState {
-		/** Admin metadata (label, icon, description, etc.) */
-		admin?: AdminCollectionConfig;
-		/** List view configuration */
-		adminList?: ListViewConfig;
-		/** Form view configuration */
-		adminForm?: FormViewConfig;
-		/** Preview configuration */
-		adminPreview?: PreviewConfig;
-	}
-
-	// ─────────────────────────────────────────────────────────────────────────
-	// 3. GLOBAL BUILDER STATE - for admin config
-	// ─────────────────────────────────────────────────────────────────────────
-
-	interface GlobalBuilderState {
-		/** Admin metadata */
-		admin?: AdminGlobalConfig;
-		/** Form view configuration */
-		adminForm?: FormViewConfig;
-	}
+/**
+ * Context for admin config functions with component proxy
+ */
+export interface AdminConfigContext {
+	c: {
+		/** Create an icon reference */
+		icon: (name: string) => ComponentReference<"icon">;
+		/** Create a badge reference */
+		badge: (props: {
+			text: string;
+			color?: string;
+		}) => ComponentReference<"badge">;
+	};
 }
 
-// Types are already exported at their definitions above
+/**
+ * Context for list view config functions
+ */
+export interface ListViewConfigContext<
+	TFields extends Record<string, any> = Record<string, any>,
+> {
+	/** View factory */
+	v: {
+		table: (config: Omit<ListViewConfig, "view">) => ListViewConfig;
+		cards: (config: Omit<ListViewConfig, "view">) => ListViewConfig;
+	};
+	/** Field reference proxy - returns field names as strings */
+	f: { [K in keyof TFields]: K };
+	/** Action reference proxy */
+	a: {
+		create: string;
+		save: string;
+		delete: string;
+		deleteMany: string;
+		duplicate: string;
+		export: string;
+		custom: (
+			name: string,
+			config?: unknown,
+		) => { type: string; config?: unknown };
+	};
+}
+
+/**
+ * Context for form view config functions
+ */
+export interface FormViewConfigContext<
+	TFields extends Record<string, any> = Record<string, any>,
+> {
+	/** View factory */
+	v: {
+		form: (config: Omit<FormViewConfig, "view">) => FormViewConfig;
+		wizard: (config: Omit<FormViewConfig, "view">) => FormViewConfig;
+	};
+	/** Field reference proxy - returns field names as strings */
+	f: { [K in keyof TFields]: K };
+}
+
+// ============================================================================
+// Admin Builder Methods Type (for type-safe usage)
+// ============================================================================
+
+/**
+ * Admin methods added to QuestpieBuilder via monkey patching.
+ * Use with type assertion when you need type safety:
+ *
+ * @example
+ * ```ts
+ * import type { WithAdminMethods } from "@questpie/admin/server";
+ *
+ * const builder = q({ name: "app" }).use(adminModule) as WithAdminMethods<typeof q>;
+ * builder.listView("table"); // now has type support
+ * ```
+ */
+export interface QuestpieBuilderAdminMethods {
+	/** Create a list view definition */
+	listView<TName extends string>(
+		name: TName,
+		config?: Record<string, unknown>,
+	): ListViewDefinition<TName>;
+
+	/** Create an edit view definition */
+	editView<TName extends string>(
+		name: TName,
+		config?: Record<string, unknown>,
+	): EditViewDefinition<TName>;
+
+	/** Create a component definition */
+	component<TName extends string>(
+		name: TName,
+		config?: Record<string, unknown>,
+	): ComponentDefinition<TName>;
+
+	/** Register list views */
+	listViews<TViews extends Record<string, ListViewDefinition>>(
+		views: TViews,
+	): this;
+
+	/** Register edit views */
+	editViews<TViews extends Record<string, EditViewDefinition>>(
+		views: TViews,
+	): this;
+
+	/** Register components */
+	components<TComponents extends Record<string, ComponentDefinition>>(
+		components: TComponents,
+	): this;
+}
+
+/**
+ * Admin methods added to CollectionBuilder via monkey patching.
+ */
+export interface CollectionBuilderAdminMethods<
+	TFields extends Record<string, any> = Record<string, any>,
+> {
+	/**
+	 * Set admin metadata for the collection.
+	 */
+	admin(
+		configOrFn:
+			| AdminCollectionConfig
+			| ((ctx: AdminConfigContext) => AdminCollectionConfig),
+	): this;
+
+	/**
+	 * Configure list view for the collection.
+	 */
+	list(configFn: (ctx: ListViewConfigContext<TFields>) => ListViewConfig): this;
+
+	/**
+	 * Configure form view for the collection.
+	 */
+	form(configFn: (ctx: FormViewConfigContext<TFields>) => FormViewConfig): this;
+
+	/**
+	 * Configure preview for the collection.
+	 */
+	preview(config: PreviewConfig): this;
+}
+
+/**
+ * Admin methods added to GlobalBuilder via monkey patching.
+ */
+export interface GlobalBuilderAdminMethods<
+	TFields extends Record<string, any> = Record<string, any>,
+> {
+	/**
+	 * Set admin metadata for the global.
+	 */
+	admin(
+		configOrFn:
+			| AdminGlobalConfig
+			| ((ctx: AdminConfigContext) => AdminGlobalConfig),
+	): this;
+
+	/**
+	 * Configure form view for the global.
+	 */
+	form(configFn: (ctx: FormViewConfigContext<TFields>) => FormViewConfig): this;
+}
+
+/**
+ * Type helper to add admin methods to a QuestpieBuilder type.
+ *
+ * @example
+ * ```ts
+ * const builder = q({ name: "app" }).use(adminModule) as WithAdminMethods<typeof q>;
+ * ```
+ */
+export type WithAdminMethods<T> = T & QuestpieBuilderAdminMethods;
+
+/**
+ * Type helper to add admin methods to a CollectionBuilder type.
+ */
+export type WithCollectionAdminMethods<
+	T,
+	TFields extends Record<string, any> = Record<string, any>,
+> = T & CollectionBuilderAdminMethods<TFields>;
+
+/**
+ * Type helper to add admin methods to a GlobalBuilder type.
+ */
+export type WithGlobalAdminMethods<
+	T,
+	TFields extends Record<string, any> = Record<string, any>,
+> = T & GlobalBuilderAdminMethods<TFields>;

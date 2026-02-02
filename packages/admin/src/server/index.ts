@@ -18,6 +18,12 @@
 // This import activates the module augmentation for questpie types
 import "./augmentation.js";
 
+// Apply runtime patches to builder prototypes
+// This adds admin methods to QuestpieBuilder, CollectionBuilder, GlobalBuilder
+import { applyAdminPatches } from "./patch.js";
+
+applyAdminPatches();
+
 // Framework adapters
 export * from "./adapters/index.js";
 // Export augmentation types for external use
@@ -36,7 +42,6 @@ export type {
 	ListViewDefinition,
 	PreviewConfig,
 } from "./augmentation.js";
-
 // Auth helpers for SSR
 export {
 	type AuthSession,
@@ -66,3 +71,12 @@ export {
 	type ViewConfiguration,
 	verifyPreviewTokenDirect,
 } from "./modules/admin/index.js";
+// Runtime patching (applied automatically when this module is imported)
+export {
+	applyAdminPatches,
+	arePatchesApplied,
+	createActionProxy,
+	createComponentProxy,
+	createFieldProxy,
+	createViewProxy,
+} from "./patch.js";
