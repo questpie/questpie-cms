@@ -184,14 +184,14 @@ export type {
 
 // I18n messages
 export {
-	adminMessagesEN,
-	adminMessagesSK,
 	adminMessagesCS,
-	adminMessagesPL,
 	adminMessagesDE,
-	adminMessagesFR,
+	adminMessagesEN,
 	adminMessagesES,
+	adminMessagesFR,
+	adminMessagesPL,
 	adminMessagesPT,
+	adminMessagesSK,
 } from "#questpie/admin/client/i18n/messages/index.js";
 // I18n types
 export type {
@@ -389,18 +389,33 @@ export type {
 } from "#questpie/admin/client/blocks/index.js";
 // Block renderer component
 // Block prefetch utilities (for SSR data fetching)
+// Block renderer registry (type-safe server-defined blocks → client renderers)
 export {
+	type AllBlockData,
+	type AllBlockValues,
+	type BlockComponentProps,
 	type BlockPrefetchContext,
+	type BlockPrefetchData,
 	BlockPrefetchError,
 	type BlockPrefetchParams,
 	type BlockPrefetchResult,
+	type BlockRegistry,
 	BlockRenderer,
+	type BlockRendererComponent,
 	type BlockRendererComponentProps,
+	type BlockRendererDefinition,
+	type BlockValues,
 	createBlockNode,
+	createBlockRegistry,
 	EMPTY_BLOCK_CONTENT,
+	type ExtractBlockFieldValues,
+	type ExtractBlockPrefetchData,
+	type ExtractServerBlocks,
 	isBlockContent,
 	prefetchBlockData,
+	type ServerBlockNames,
 	type TypedBlockPrefetch,
+	type TypedBlockRendererProps,
 } from "#questpie/admin/client/blocks/index.js";
 export type {
 	BlockBuilderState,
@@ -440,6 +455,10 @@ export type {
 } from "#questpie/admin/client/preview/index.js";
 // Frontend preview hook and components
 export {
+	type BlockScopeContextValue,
+	// Block scope (for block field resolution)
+	BlockScopeProvider,
+	type BlockScopeProviderProps,
 	isAdminToPreviewMessage,
 	isPreviewToAdminMessage,
 	PreviewBanner,
@@ -450,13 +469,9 @@ export {
 	StandalonePreviewField,
 	type UseCollectionPreviewOptions,
 	type UseCollectionPreviewResult,
+	useBlockScope,
 	useCollectionPreview,
 	usePreviewContext,
-	// Block scope (for block field resolution)
-	BlockScopeProvider,
-	type BlockScopeProviderProps,
-	type BlockScopeContextValue,
-	useBlockScope,
 	useResolveFieldPath,
 } from "#questpie/admin/client/preview/index.js";
 

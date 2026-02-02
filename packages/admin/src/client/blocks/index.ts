@@ -4,6 +4,23 @@
  * Core types and components for the visual page building system.
  */
 
+// Block Registry (type-safe renderer registration)
+export {
+	type AllBlockData,
+	type AllBlockValues,
+	type BlockComponentProps,
+	type BlockPrefetchData,
+	type BlockRegistry,
+	type BlockRendererComponent,
+	type BlockRendererDefinition,
+	type BlockRendererProps as TypedBlockRendererProps,
+	type BlockValues,
+	createBlockRegistry,
+	type ExtractBlockFieldValues,
+	type ExtractBlockPrefetchData,
+	type ExtractServerBlocks,
+	type ServerBlockNames,
+} from "./block-registry.js";
 // Components
 export {
 	BlockRenderer,
