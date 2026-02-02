@@ -14,8 +14,28 @@
  * ```
  */
 
+// Server-side type augmentation for builder states
+// This import activates the module augmentation for questpie types
+import "./augmentation.js";
+
 // Framework adapters
 export * from "./adapters/index.js";
+// Export augmentation types for external use
+export type {
+	ActionReference,
+	AdminCollectionConfig,
+	AdminGlobalConfig,
+	ComponentDefinition,
+	ComponentReference,
+	EditViewDefinition,
+	FieldReference,
+	FormSection,
+	FormTab,
+	FormViewConfig,
+	ListViewConfig,
+	ListViewDefinition,
+	PreviewConfig,
+} from "./augmentation.js";
 
 // Auth helpers for SSR
 export {
@@ -30,19 +50,19 @@ export {
 export {
 	adminModule,
 	createFirstAdmin,
-	type FilterOperator,
-	type FilterRule,
-	isSetupRequired,
 	// Preview helpers (server-only, crypto-based)
 	// For browser-safe preview utilities, use @questpie/admin/shared
 	createPreviewFunctions,
 	createPreviewTokenVerifier,
+	type FilterOperator,
+	type FilterRule,
+	isSetupRequired,
 	type PreviewTokenPayload,
-	verifyPreviewTokenDirect,
+	type SortConfig,
 	// Saved views
 	savedViewsCollection,
-	type SortConfig,
 	// Setup functions
 	setupFunctions,
 	type ViewConfiguration,
+	verifyPreviewTokenDirect,
 } from "./modules/admin/index.js";
