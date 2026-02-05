@@ -19,7 +19,7 @@ import type {
 import { useCollectionList } from "../../hooks/use-collection";
 import { useResolveText } from "../../i18n/hooks";
 import type { I18nText } from "../../i18n/types";
-import { cn } from "../../lib/utils";
+import { cn, formatLabel } from "../../lib/utils";
 import { selectAdmin, useAdminStore } from "../../runtime";
 import { DefaultCell } from "../../views/collection/cells/primitive-cells";
 import { WidgetCard } from "../../views/dashboard/widget-card";
@@ -75,10 +75,7 @@ function getColumnLabel(
 		return fieldOptions.label;
 	}
 	// Fallback to formatted key
-	return column.key
-		.replace(/([A-Z])/g, " $1")
-		.replace(/^./, (s) => s.toUpperCase())
-		.trim();
+	return formatLabel(column.key);
 }
 
 /**

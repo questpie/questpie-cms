@@ -13,6 +13,7 @@ import type {
 	QuestpieRuntimeConfig,
 } from "#questpie/server/config/builder-types.js";
 import { Questpie } from "#questpie/server/config/cms.js";
+import type { QuestpieBuilderExtensions } from "#questpie/server/config/extensions.js";
 import type {
 	DbConfig,
 	LocaleConfig,
@@ -113,6 +114,7 @@ type QuestpieFromState<
  *   })
  * ```
  */
+// biome-ignore lint/suspicious/noUnsafeDeclarationMerging: Declaration merging is intentional for extension pattern
 export class QuestpieBuilder<
 	TState extends QuestpieBuilderState<
 		string,
@@ -896,6 +898,30 @@ export class QuestpieBuilder<
 		return new Questpie(cmsConfig) as any;
 	}
 }
+
+// =============================================================================
+// Declaration Merging for Extensions
+// =============================================================================
+
+/**
+ * Declaration merging: QuestpieBuilder implements QuestpieBuilderExtensions.
+ *
+ * This allows packages to augment QuestpieBuilderExtensions and have those
+ * methods appear on QuestpieBuilder instances.
+ */
+export interface QuestpieBuilder<
+	TState extends QuestpieBuilderState<
+		string,
+		any,
+		any,
+		any,
+		any,
+		any,
+		any,
+		any,
+		any
+	>,
+> extends QuestpieBuilderExtensions {}
 
 /**
  * Helper function to start building a Questpie instance

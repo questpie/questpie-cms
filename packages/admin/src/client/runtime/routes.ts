@@ -8,6 +8,7 @@ import type { Questpie } from "questpie";
 import type { CollectionNames, GlobalNames, IconComponent } from "../builder";
 import type { Admin } from "../builder/admin";
 import type { I18nText } from "../i18n/types";
+import { formatLabel } from "../lib/utils";
 
 // ============================================================================
 // Route Types
@@ -290,10 +291,7 @@ function resolveLabel(label: unknown, fallback: string): I18nText {
 	}
 
 	// Capitalize and format fallback
-	return fallback
-		.replace(/([A-Z])/g, " $1")
-		.replace(/^./, (s) => s.toUpperCase())
-		.trim();
+	return formatLabel(fallback);
 }
 
 /**

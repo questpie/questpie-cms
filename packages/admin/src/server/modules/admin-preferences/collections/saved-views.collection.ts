@@ -1,5 +1,4 @@
 import { q } from "questpie";
-import type { ViewConfiguration } from "../../../../shared/types/saved-views.types.js";
 
 // Re-export types from shared
 export type {

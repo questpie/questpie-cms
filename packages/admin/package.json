@@ -21,7 +21,7 @@
 		"./client": "./src/exports/client.ts",
 		"./server": "./src/exports/server.ts",
 		"./shared": "./src/exports/shared.ts",
-		"./package.json": "./package.json",
+		"./*": "./*",
 		"./client/styles/index.css": "./src/client/styles/index.css"
 	},
 	"scripts": {
@@ -116,7 +116,7 @@
 			"./client": "./dist/client.mjs",
 			"./server": "./dist/server.mjs",
 			"./shared": "./dist/shared.mjs",
-			"./package.json": "./package.json",
+			"./*": "./*",
 			"./client/styles/index.css": "./dist/client/styles/index.css"
 		}
 	},

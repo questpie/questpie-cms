@@ -4,6 +4,7 @@
 
 import type * as React from "react";
 import type { FieldDefinition } from "../../../../builder/field/field";
+import { formatLabel } from "../../../../lib/utils";
 import { DefaultCell } from "../../../../views/collection/cells";
 
 /**
@@ -114,10 +115,7 @@ export function getItemDisplayValue(item: any): string {
  */
 export function formatColumnHeader(column: string): string {
 	if (column === "_title") return "Name";
-	return column
-		.replace(/([A-Z])/g, " $1")
-		.replace(/^./, (str) => str.toUpperCase())
-		.trim();
+	return formatLabel(column);
 }
 
 /**

@@ -13,6 +13,7 @@ import type {
 	RelationFieldMetadata,
 } from "#questpie/server/fields/types.js";
 import type { FunctionDefinition } from "#questpie/server/functions/types.js";
+import type { GlobalBuilderExtensions } from "#questpie/server/global/builder/extensions.js";
 import { Global } from "#questpie/server/global/builder/global.js";
 import type {
 	EmptyGlobalState,
@@ -56,6 +57,7 @@ type ExtractFieldTypes<TState extends GlobalBuilderState> =
 /**
  * Main global builder class
  */
+// biome-ignore lint/suspicious/noUnsafeDeclarationMerging: Declaration merging is intentional for extension pattern
 export class GlobalBuilder<TState extends GlobalBuilderState> {
 	private state: TState;
 	private _builtGlobal?: Global<TState>;
@@ -407,6 +409,19 @@ export class GlobalBuilder<TState extends GlobalBuilderState> {
 		return this.build().$infer;
 	}
 }
+
+// =============================================================================
+// Declaration Merging for Extensions
+// =============================================================================
+
+/**
+ * Declaration merging: GlobalBuilder implements GlobalBuilderExtensions.
+ *
+ * This allows packages to augment GlobalBuilderExtensions and have those
+ * methods appear on GlobalBuilder instances.
+ */
+export interface GlobalBuilder<TState extends GlobalBuilderState>
+	extends GlobalBuilderExtensions {}
 
 /**
  * Factory function to create a new global builder.

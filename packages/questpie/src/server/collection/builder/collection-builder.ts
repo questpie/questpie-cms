@@ -8,6 +8,7 @@ import type {
 	CollectionUpdate,
 } from "#questpie/server/collection/builder/collection.js";
 import { Collection } from "#questpie/server/collection/builder/collection.js";
+import type { CollectionBuilderExtensions } from "#questpie/server/collection/builder/extensions.js";
 import type {
 	CollectionAccess,
 	CollectionBuilderIndexesFn,
@@ -76,6 +77,7 @@ type ExtractFieldTypes<TState extends CollectionBuilderState> =
  * Main collection builder class.
  * Uses field builder pattern for type-safe field definitions.
  */
+// biome-ignore lint/suspicious/noUnsafeDeclarationMerging: Declaration merging is intentional for extension pattern
 export class CollectionBuilder<TState extends CollectionBuilderState> {
 	/**
 	 * Internal state. Public for type extraction.
@@ -1018,6 +1020,38 @@ export class CollectionBuilder<TState extends CollectionBuilderState> {
 		return merged;
 	}
 }
+
+// =============================================================================
+// Declaration Merging for Extensions
+// =============================================================================
+
+/**
+ * Declaration merging: CollectionBuilder implements CollectionBuilderExtensions.
+ *
+ * This allows packages to augment CollectionBuilderExtensions and have those
+ * methods appear on CollectionBuilder instances. The key benefit is that
+ * extension methods use `FieldsOf<this>` which is evaluated lazily, avoiding
+ * type explosion when combining many collections.
+ *
+ * @example
+ * ```typescript
+ * // In @questpie/admin augmentation:
+ * declare module "questpie" {
+ *   interface CollectionBuilderExtensions {
+ *     admin(config: AdminConfig): this;
+ *     list(fn: (ctx: { f: FieldsOf<this> }) => ListConfig): this;
+ *   }
+ * }
+ *
+ * // Now available on all CollectionBuilder instances:
+ * collection("posts")
+ *   .fields((f) => ({ title: f.text() }))
+ *   .admin({ label: "Posts" })
+ *   .list(({ f }) => ({ columns: [f.title] }))
+ * ```
+ */
+export interface CollectionBuilder<TState extends CollectionBuilderState>
+	extends CollectionBuilderExtensions {}
 
 /**
  * Factory function to create a new collection builder.

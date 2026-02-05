@@ -22,51 +22,24 @@ import type { AdminBuilder } from "./admin-builder";
  *
  */
 export function createAdminHelpers<TAdmin extends AdminBuilder<any>>() {
-  type TApp = TAdmin["state"]["~app"];
-  type TCollections = keyof TAdmin["state"]["collections"];
-  type TGlobals = keyof TAdmin["state"]["globals"];
+	type TApp = TAdmin["state"]["~app"];
+	type TCollections = keyof TAdmin["state"]["collections"];
+	type TGlobals = keyof TAdmin["state"]["globals"];
 
-  return {
-    collection(name: TCollections) {
-      return name;
-    },
+	return {
+		collection(name: TCollections) {
+			return name;
+		},
 
-    global(name: TGlobals) {
-      return name;
-    },
-
-    /**
-     * Navigation helpers
-     *
-     * TODO: We want to use aliases to build type-safe paths
-     */
-    // route: {
-    // 	dashboard: () => {
-    // 		console.warn("navigate.dashboard() not implemented");
-    // 	},
-    // 	collection: (name: TCollections) => {
-    // 		console.warn(`navigate.collection("${String(name)}") not implemented`);
-    // 	},
-    // 	collectionCreate: (name: TCollections) => {
-    // 		console.warn(
-    // 			`navigate.collectionCreate("${String(name)}") not implemented`,
-    // 		);
-    // 	},
-    // 	collectionEdit: (name: TCollections, id: string) => {
-    // 		console.warn(
-    // 			`navigate.collectionEdit("${String(name)}", "${id}") not implemented`,
-    // 		);
-    // 	},
-    // 	global: (name: TGlobals) => {
-    // 		console.warn(`navigate.global("${String(name)}") not implemented`);
-    // 	},
-    // },
-  };
+		global(name: TGlobals) {
+			return name;
+		},
+	};
 }
 
 /**
  * Type of helpers created by createAdminHelpers
  */
 export type AdminHelpers<TAdmin extends AdminBuilder<any>> = ReturnType<
-  typeof createAdminHelpers<TAdmin>
+	typeof createAdminHelpers<TAdmin>
 >;

@@ -4,6 +4,7 @@
  */
 
 import type { FieldDefinition } from "../../../../builder/field/field";
+import { formatLabel } from "../../../../lib/utils";
 
 /**
  * Get display label for a relation item
@@ -34,13 +35,9 @@ export function getRelationItemId(item: unknown): string | null {
 
 /**
  * Format a field key as a readable label (camelCase -> Title Case)
+ * @deprecated Use `formatLabel` from `@/lib/utils` instead
  */
-export function formatFieldLabel(key: string): string {
-	return key
-		.replace(/([A-Z])/g, " $1")
-		.replace(/^./, (str) => str.toUpperCase())
-		.trim();
-}
+export const formatFieldLabel = formatLabel;
 
 /**
  * Get label for a field from field definition or format from key

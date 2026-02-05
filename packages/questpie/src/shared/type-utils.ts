@@ -208,15 +208,6 @@ export type CollectionRelations<T> =
 			: Record<string, RelationConfig>
 		: Record<string, RelationConfig>;
 
-// /**
-// TODO: use this type
-//  * Extract search metadata type from a Collection or CollectionBuilder
-//  */
-// export type CollectionSearchMetadata<T> =
-// 	CollectionState<T> extends { searchable: SearchableConfig }
-// 		? Record<string, any>
-// 		: Record<string, any>;
-
 // ============================================================================
 // Global Type Inference (from $infer property)
 // ============================================================================
@@ -304,20 +295,6 @@ export type GetCollection<
 	: TCollections[Name] extends CollectionBuilder<infer TState>
 		? Collection<TState>
 		: never;
-
-// /**
-// TODO: use this type
-//  * Extract searchable collection names from a collections map
-//  */
-// export type SearchableCollectionNames<
-// 	TCollections extends Record<string, AnyCollectionOrBuilder>,
-// > = {
-// 	[K in keyof TCollections]: CollectionState<
-// 		GetCollection<TCollections, K>
-// 	> extends { searchable: SearchableConfig }
-// 		? K
-// 		: never;
-// }[keyof TCollections];
 
 // ============================================================================
 // Global Name Extraction & Lookup

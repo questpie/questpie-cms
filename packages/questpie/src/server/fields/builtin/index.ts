@@ -64,6 +64,8 @@ export {
 	objectField,
 } from "./object.js";
 // Relation fields
+// Note: RelationFieldMetadata is exported from ../types.ts to avoid duplicate exports
+// which cause TS4023 errors during declaration generation
 export {
 	type InferredRelationType,
 	type InferredRelationType as RelationType, // Alias for backwards compatibility
@@ -71,7 +73,6 @@ export {
 	type ReferentialAction,
 	type RelationFieldConfig,
 	type RelationFieldMeta,
-	type RelationFieldMetadata,
 	type RelationTarget,
 	relationField,
 } from "./relation.js";

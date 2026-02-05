@@ -50,6 +50,11 @@ export type {
 	InferSessionFromApp,
 } from "./config/context.js";
 export * from "./config/context.js";
+// QuestpieBuilder extensions for module augmentation
+export type {
+	QuestpieBuilderExtensions,
+	QuestpieStateOf,
+} from "./config/extensions.js";
 export * from "./config/types.js";
 export * from "./fields/index.js";
 export * from "./functions/index.js";

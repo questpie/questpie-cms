@@ -17,6 +17,7 @@ import type {
 } from "questpie";
 import type { AnyAdminMeta } from "../../augmentation";
 import type { FieldBuilder, FieldDefinition } from "../builder/field/field";
+import { formatLabel } from "../lib/utils";
 
 // ============================================================================
 // Types
@@ -179,7 +180,7 @@ function buildFieldConfig(
 	fieldType: string,
 ): Record<string, unknown> {
 	const config: Record<string, unknown> = {
-		label: metadata.label ?? formatFieldLabel(fieldName),
+		label: metadata.label ?? formatLabel(fieldName),
 		description: metadata.description,
 		required: metadata.required,
 		localized: metadata.localized,
@@ -475,16 +476,4 @@ function isSystemField(fieldName: string): boolean {
 		"_locale",
 	];
 	return systemFields.includes(fieldName);
-}
-
-/**
- * Format field name as label
- * @example "firstName" -> "First Name"
- */
-function formatFieldLabel(fieldName: string): string {
-	return fieldName
-		.replace(/([A-Z])/g, " $1") // Add space before capitals
-		.replace(/[_-]/g, " ") // Replace underscores/dashes with spaces
-		.replace(/^\s/, "") // Remove leading space
-		.replace(/\b\w/g, (c) => c.toUpperCase()); // Capitalize first letter of each word
 }

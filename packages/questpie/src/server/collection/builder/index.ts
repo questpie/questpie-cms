@@ -37,6 +37,12 @@ export {
 } from "../introspection.js";
 export { Collection } from "./collection.js";
 export { CollectionBuilder, collection } from "./collection-builder.js";
+// Extension types for module augmentation
+export type {
+	CollectionBuilderExtensions,
+	FieldsOf,
+	StateOf,
+} from "./extensions.js";
 export { softDeleteUniqueIndex } from "./index-helpers.js";
 export type {
 	AccessContext,

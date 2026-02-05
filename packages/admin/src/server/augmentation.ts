@@ -45,7 +45,9 @@ import type {
 	BuilderGlobalsMap,
 	BuilderJobsMap,
 	CollectionBuilderState,
+	FieldsOf,
 	GlobalBuilderState,
+	GlobalFieldsOf,
 	QuestpieBuilderState,
 } from "questpie";
 import type { I18nText } from "questpie/shared";
@@ -1144,18 +1146,92 @@ export type WithGlobalAdminMethods<
 > = T & GlobalBuilderAdminMethods<TFields>;
 
 declare module "questpie" {
-	// Augment the QuestpieBuilder class with admin methods (dashboard, sidebar, blocks, etc.)
-	interface QuestpieBuilder extends QuestpieBuilderAdminMethods {}
+	// ==========================================================================
+	// EXTENSION INTERFACES - Using new lazy evaluation pattern
+	// ==========================================================================
+	// These extensions use FieldsOf<this> which is evaluated LAZILY, avoiding
+	// type explosion when combining many collections via .use() and .collections().
 
-	// Augment the CollectionBuilder class directly with admin methods (.admin(), .list(), .form(), etc.)
-	// This works because questpie's exports resolve to source types (via "types" condition),
-	// where CollectionBuilder is a class declaration (supports interface merging).
-	interface CollectionBuilder<TState extends CollectionBuilderState>
-		extends CollectionBuilderAdminMethods<TState["fields"]> {}
+	/**
+	 * Admin methods for QuestpieBuilder.
+	 * Added via runtime monkey patching in ./patch.ts.
+	 */
+	interface QuestpieBuilderExtensions extends QuestpieBuilderAdminMethods {}
 
-	interface GlobalBuilder<TState extends GlobalBuilderState>
-		extends GlobalBuilderAdminMethods<TState["fields"]> {}
+	/**
+	 * Admin methods for CollectionBuilder.
+	 * Uses FieldsOf<this> for lazy field type extraction - this prevents
+	 * type explosion (TS7056) when combining many collections.
+	 */
+	interface CollectionBuilderExtensions {
+		/**
+		 * Set admin metadata for the collection.
+		 */
+		admin(
+			configOrFn:
+				| AdminCollectionConfig
+				| ((ctx: AdminConfigContext) => AdminCollectionConfig),
+		): this;
 
+		/**
+		 * Configure list view for the collection.
+		 * Field proxy `f` provides autocomplete for field names.
+		 */
+		list(
+			configFn: (ctx: ListViewConfigContext<FieldsOf<this>>) => ListViewConfig,
+		): this;
+
+		/**
+		 * Configure form view for the collection.
+		 */
+		form(
+			configFn: (ctx: FormViewConfigContext<FieldsOf<this>>) => FormViewConfig,
+		): this;
+
+		/**
+		 * Configure preview for the collection.
+		 */
+		preview(config: PreviewConfig): this;
+
+		/**
+		 * Configure actions for the collection.
+		 */
+		actions(
+			configFn: (
+				ctx: ActionsConfigContext<FieldsOf<this>>,
+			) => ServerActionsConfig,
+		): this;
+	}
+
+	/**
+	 * Admin methods for GlobalBuilder.
+	 * Uses GlobalFieldsOf<this> for lazy field type extraction.
+	 */
+	interface GlobalBuilderExtensions {
+		/**
+		 * Set admin metadata for the global.
+		 */
+		admin(
+			configOrFn:
+				| AdminGlobalConfig
+				| ((ctx: AdminConfigContext) => AdminGlobalConfig),
+		): this;
+
+		/**
+		 * Configure form view for the global.
+		 */
+		form(
+			configFn: (
+				ctx: FormViewConfigContext<GlobalFieldsOf<this>>,
+			) => FormViewConfig,
+		): this;
+	}
+
+	// ==========================================================================
+	// STATE EXTENSIONS - For storing admin config in builder state
+	// ==========================================================================
+
+	// Extend QuestpieBuilderState to include admin-specific properties
 	interface QuestpieBuilderState<
 		TName extends string = string,
 		TCollections extends BuilderCollectionsMap = BuilderCollectionsMap,
@@ -1178,6 +1254,7 @@ declare module "questpie" {
 		sidebar?: ServerSidebarConfig;
 	}
 
+	// Extend CollectionBuilderState to include admin-specific properties
 	interface CollectionBuilderState {
 		admin?: AdminCollectionConfig;
 		adminList?: ListViewConfig;
@@ -1186,6 +1263,7 @@ declare module "questpie" {
 		adminActions?: ServerActionsConfig;
 	}
 
+	// Extend GlobalBuilderState to include admin-specific properties
 	interface GlobalBuilderState {
 		admin?: AdminGlobalConfig;
 		adminForm?: FormViewConfig;

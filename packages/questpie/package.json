@@ -75,11 +75,11 @@
 		}
 	},
 	"exports": {
-		".": "./dist/index.mjs",
-		"./cli": "./dist/cli.mjs",
-		"./client": "./dist/client.mjs",
-		"./shared": "./dist/shared.mjs",
-		"./package.json": "./package.json"
+		".": "./src/exports/index.ts",
+		"./cli": "./src/exports/cli.ts",
+		"./client": "./src/exports/client.ts",
+		"./shared": "./src/exports/shared.ts",
+		"./*": "./*"
 	},
 	"imports": {
 		"#questpie/*": "./src/*"
@@ -91,7 +91,7 @@
 			"./cli": "./dist/cli.mjs",
 			"./client": "./dist/client.mjs",
 			"./shared": "./dist/shared.mjs",
-			"./package.json": "./package.json"
+			"./*": "./*"
 		}
 	},
 	"main": "./dist/index.mjs",

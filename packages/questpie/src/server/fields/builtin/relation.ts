@@ -17,7 +17,11 @@ import type { AnyPgColumn } from "drizzle-orm/pg-core";
 import { jsonb, varchar } from "drizzle-orm/pg-core";
 import { z } from "zod";
 import { defineField } from "../define-field.js";
-import type { BaseFieldConfig, FieldMetadataBase } from "../types.js";
+import type {
+	BaseFieldConfig,
+	FieldMetadataBase,
+	RelationFieldMetadata,
+} from "../types.js";
 import { operator } from "../types.js";
 
 // ============================================================================
@@ -451,30 +455,9 @@ function getToManyOperators() {
 // Relation Field Metadata
 // ============================================================================
 
-/**
- * Extended metadata for relation fields.
- */
-export interface RelationFieldMetadata extends FieldMetadataBase {
-	type: "relation";
-	relationType: InferredRelationType;
-	/** Target collection name(s) - resolved from config.to */
-	targetCollection: string | string[];
-	/** FK column name on target (for hasMany) */
-	foreignKey?: string;
-	/** Junction collection name (for manyToMany) */
-	through?: string;
-	sourceField?: string;
-	targetField?: string;
-	morphName?: string;
-	morphType?: string;
-	onDelete?: ReferentialAction;
-	onUpdate?: ReferentialAction;
-	relationName?: string;
-	/** Original config.to for runtime resolution */
-	_toConfig?: RelationTarget;
-	/** Original config.through for runtime resolution */
-	_throughConfig?: JunctionTarget;
-}
+// RelationFieldMetadata is imported from ../types.js (single source of truth)
+// This prevents TS4023 errors during declaration generation when the bundler
+// creates internal chunks with non-deterministic names.
 
 // ============================================================================
 // Relation Field Definition

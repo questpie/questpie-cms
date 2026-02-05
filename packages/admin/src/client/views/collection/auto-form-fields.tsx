@@ -25,7 +25,7 @@ import {
 	getFieldName,
 	isFieldReference,
 } from "../../builder/types/field-types";
-import { containerGridColumnClasses } from "../../components/fields/field-utils";
+import { getGridColumnsClass } from "../../components/fields/field-utils";
 import {
 	Accordion,
 	AccordionContent,
@@ -140,11 +140,6 @@ function normalizeFieldItem(item: FieldLayoutItem): {
 // ============================================================================
 // Layout Helpers
 // ============================================================================
-
-function getGridColumnsClass(columns?: number) {
-	if (!columns) return "";
-	return containerGridColumnClasses[columns] || "";
-}
 
 function getGapStyle(gap?: number) {
 	if (gap === undefined) return undefined;
@@ -275,7 +270,7 @@ function renderFields({
 
 	if (!visibleFields.length) return null;
 
-	const gridClass = columns > 1 ? getGridColumnsClass(columns) : "";
+	const gridClass = columns > 1 ? getGridColumnsClass(columns, true) : "";
 
 	// Calculate if last field should span full width
 	// (when there's an odd number of fields in a multi-column grid)

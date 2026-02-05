@@ -135,6 +135,7 @@ export const adminModule = q({ name: "questpie-admin" })
 	// Add admin-specific collections
 	.collections({
 		admin_saved_views: savedViewsCollection,
+		
 		admin_preferences: adminPreferencesCollection,
 	})
 	// Add setup, locale, preview, admin config, and action functions

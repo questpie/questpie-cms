@@ -52,7 +52,7 @@ import { useAdminConfig } from "../../hooks/use-admin-config";
 import { useAuthClientSafe } from "../../hooks/use-auth";
 import { useSessionState } from "../../hooks/use-current-user";
 import { useResolveText, useTranslation } from "../../i18n/hooks";
-import { cn } from "../../lib/utils";
+import { cn, formatLabel } from "../../lib/utils";
 import {
 	selectAdmin,
 	selectBasePath,
@@ -216,12 +216,7 @@ function useServerNavigation(): NavigationGroup[] | undefined {
 								const collectionName = (item as any).collection as string;
 								return {
 									id: `collection:${collectionName}`,
-									label:
-										(item as any).label ??
-										collectionName
-											.replace(/([A-Z])/g, " $1")
-											.replace(/^./, (s: string) => s.toUpperCase())
-											.trim(),
+									label: (item as any).label ?? formatLabel(collectionName),
 									href: `${basePath}/collections/${collectionName}`,
 									icon: resolveComponentRefIcon(
 										(item as any).icon as
@@ -250,12 +245,7 @@ function useServerNavigation(): NavigationGroup[] | undefined {
 								const globalName = (item as any).global as string;
 								return {
 									id: `global:${globalName}`,
-									label:
-										(item as any).label ??
-										globalName
-											.replace(/([A-Z])/g, " $1")
-											.replace(/^./, (s: string) => s.toUpperCase())
-											.trim(),
+									label: (item as any).label ?? formatLabel(globalName),
 									href: `${basePath}/globals/${globalName}`,
 									icon: resolveComponentRefIcon(
 										(item as any).icon as
