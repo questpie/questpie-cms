@@ -27,9 +27,13 @@ const DATABASE_URL =
 	process.env.DATABASE_URL || "postgres://localhost/barbershop";
 
 // ============================================================================
-// I18n Messages (Backend)
+// I18n Messages (Backend + Admin UI)
 // ============================================================================
 
+/**
+ * Backend messages for API responses and validation errors.
+ * These are used by the server for error messages, etc.
+ */
 const backendMessages = {
 	en: {
 		"appointment.created": "Appointment booked for {{date}} at {{time}}",
@@ -47,6 +51,50 @@ const backendMessages = {
 			"Nie je možné rezervovať termín v minulosti",
 		"barber.notAvailable": "Vybraný holič nie je v tomto čase dostupný",
 		"service.notOffered": "Vybranú službu tento holič neposkytuje",
+	},
+} as const;
+
+/**
+ * Admin UI messages for the barbershop app.
+ * These are fetched by the admin client via getAdminTranslations() RPC.
+ *
+ * The admin client will merge these with built-in admin messages
+ * (common.save, auth.login, etc.) automatically.
+ */
+const adminUiMessages = {
+	en: {
+		// Custom labels for barbershop
+		"barbershop.welcome": "Welcome to Barbershop Admin",
+		"barbershop.bookNow": "Book Now",
+		"barbershop.todaysAppointments": "Today's Appointments",
+		"barbershop.upcomingSlots": "Upcoming Slots",
+		"barbershop.activeBarbers": "Active Barbers",
+		"barbershop.totalServices": "Total Services",
+		"barbershop.pendingReviews": "Pending Reviews",
+		// Collection-specific labels
+		"collection.barbers.title": "Barbers",
+		"collection.barbers.description": "Manage your team of barbers",
+		"collection.services.title": "Services",
+		"collection.services.description": "Hair cutting and styling services",
+		"collection.appointments.title": "Appointments",
+		"collection.appointments.description": "Customer bookings and schedules",
+	},
+	sk: {
+		// Custom labels for barbershop
+		"barbershop.welcome": "Vitajte v Barbershop Admin",
+		"barbershop.bookNow": "Rezervovať",
+		"barbershop.todaysAppointments": "Dnešné rezervácie",
+		"barbershop.upcomingSlots": "Nadchádzajúce termíny",
+		"barbershop.activeBarbers": "Aktívni holiči",
+		"barbershop.totalServices": "Celkom služieb",
+		"barbershop.pendingReviews": "Čakajúce recenzie",
+		// Collection-specific labels
+		"collection.barbers.title": "Holiči",
+		"collection.barbers.description": "Spravujte váš tím holičov",
+		"collection.services.title": "Služby",
+		"collection.services.description": "Strihanie a úprava vlasov",
+		"collection.appointments.title": "Rezervácie",
+		"collection.appointments.description": "Zákaznícke rezervácie a rozvrhy",
 	},
 } as const;
 
@@ -93,8 +141,21 @@ const baseInstance = q({
 			"en-GB": "en",
 		},
 	})
-	// Add custom backend messages for i18n
-	.messages(backendMessages)
+	// Configure admin UI locales (separate from content locales)
+	// The admin interface can be in different languages than the content
+	.adminLocale({
+		locales: ["en", "sk"],
+		defaultLocale: "en",
+	})
+	// Add custom messages for both backend and admin UI
+	// Backend messages are used for API error messages
+	// Admin UI messages are fetched by the client via getAdminTranslations()
+	.messages({
+		...backendMessages,
+		// Merge admin UI messages (they get merged with built-in admin messages)
+		en: { ...backendMessages.en, ...adminUiMessages.en },
+		sk: { ...backendMessages.sk, ...adminUiMessages.sk },
+	})
 	// Configure authentication (Better Auth)
 	.auth({
 		emailAndPassword: {

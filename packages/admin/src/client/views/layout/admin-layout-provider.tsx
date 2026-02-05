@@ -135,6 +135,50 @@ export interface AdminLayoutProviderProps<
 	 */
 	authUnauthorizedFallback?: React.ReactNode;
 
+	// =========================================================================
+	// i18n Options
+	// =========================================================================
+
+	/**
+	 * Use server-side translations (fetched via getAdminTranslations RPC).
+	 * When true, translations are fetched from the server configured via
+	 * .adminLocale() and .messages() on QuestpieBuilder.
+	 *
+	 * @default false (for backwards compatibility)
+	 *
+	 * @example
+	 * ```tsx
+	 * // Server configures locales and messages
+	 * const cms = q()
+	 *   .use(adminModule)
+	 *   .adminLocale({ locales: ["en", "sk"], defaultLocale: "en" })
+	 *   .messages({ sk: { "common.save": "Ulozit" } })
+	 *   .build();
+	 *
+	 * // Client fetches from server
+	 * <AdminLayoutProvider
+	 *   admin={admin}
+	 *   client={client}
+	 *   useServerTranslations
+	 * >
+	 *   {children}
+	 * </AdminLayoutProvider>
+	 * ```
+	 */
+	useServerTranslations?: boolean;
+
+	/**
+	 * Fallback element to show while loading server translations.
+	 * Only used when useServerTranslations is true.
+	 */
+	translationsFallback?: React.ReactNode;
+
+	/**
+	 * Initial UI locale (admin interface language)
+	 * If not provided, reads from cookie or uses default from admin config
+	 */
+	initialUiLocale?: string;
+
 	/**
 	 * Children to render inside the layout
 	 * - Next.js: {children} from layout props
@@ -235,6 +279,10 @@ export function AdminLayoutProvider<TApp extends Questpie<any>>({
 	requiredRole = "admin",
 	authLoadingFallback,
 	authUnauthorizedFallback,
+	// i18n props
+	useServerTranslations,
+	translationsFallback,
+	initialUiLocale,
 	// Children
 	children,
 }: AdminLayoutProviderProps<TApp>): React.ReactElement {
@@ -298,7 +346,14 @@ export function AdminLayoutProvider<TApp extends Questpie<any>>({
 	}
 
 	const content = (
-		<AdminProvider admin={admin} client={client} authClient={authClient}>
+		<AdminProvider
+			admin={admin}
+			client={client}
+			authClient={authClient}
+			useServerTranslations={useServerTranslations}
+			translationsFallback={translationsFallback}
+			initialUiLocale={initialUiLocale}
+		>
 			{innerContent}
 		</AdminProvider>
 	);

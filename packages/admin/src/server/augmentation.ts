@@ -54,6 +54,29 @@ import type { I18nText } from "questpie/shared";
 import type { AnyBlockBuilder, AnyBlockDefinition } from "./block/index.js";
 
 // ============================================================================
+// Admin Locale Configuration
+// ============================================================================
+
+/**
+ * Admin locale configuration for UI language support.
+ * Separate from content locales - UI can have different languages than content.
+ *
+ * @example
+ * ```ts
+ * .adminLocale({
+ *   locales: ["en", "sk"],  // UI available in 2 languages
+ *   defaultLocale: "en",
+ * })
+ * ```
+ */
+export interface AdminLocaleConfig {
+	/** Available UI locales for admin interface */
+	locales: string[];
+	/** Default UI locale */
+	defaultLocale: string;
+}
+
+// ============================================================================
 // Admin Configuration Types
 // ============================================================================
 
@@ -1156,7 +1179,33 @@ declare module "questpie" {
 	 * Admin methods for QuestpieBuilder.
 	 * Added via runtime monkey patching in ./patch.ts.
 	 */
-	interface QuestpieBuilderExtensions extends QuestpieBuilderAdminMethods {}
+	interface QuestpieBuilderExtensions extends QuestpieBuilderAdminMethods {
+		/**
+		 * Configure admin UI locales (separate from content locales).
+		 *
+		 * UI locales control the admin interface language.
+		 * Content locales control which languages content can be edited in.
+		 * These don't need to match.
+		 *
+		 * @example
+		 * ```ts
+		 * const cms = q({ name: "my-app" })
+		 *   .use(adminModule)
+		 *   // Content can be in 10 languages
+		 *   .locale({
+		 *     locales: [{ code: "en" }, { code: "sk" }, { code: "de" }, ...],
+		 *     defaultLocale: "en",
+		 *   })
+		 *   // But admin UI only in 2 languages
+		 *   .adminLocale({
+		 *     locales: ["en", "sk"],
+		 *     defaultLocale: "en",
+		 *   })
+		 *   .build({ ... });
+		 * ```
+		 */
+		adminLocale(config: AdminLocaleConfig): this;
+	}
 
 	/**
 	 * Admin methods for CollectionBuilder.
@@ -1252,6 +1301,8 @@ declare module "questpie" {
 		blocks?: Record<string, AnyBlockDefinition>;
 		dashboard?: ServerDashboardConfig;
 		sidebar?: ServerSidebarConfig;
+		/** Admin UI locale configuration (separate from content locales) */
+		adminLocale?: AdminLocaleConfig;
 	}
 
 	// Extend CollectionBuilderState to include admin-specific properties

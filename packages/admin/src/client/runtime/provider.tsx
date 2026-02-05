@@ -25,6 +25,10 @@ import { createSimpleI18n, type SimpleMessages } from "../i18n/simple";
 import type { I18nAdapter } from "../i18n/types";
 import { ContentLocalesProvider } from "./content-locales-provider";
 import { buildNavigation, type NavigationGroup } from "./routes";
+import {
+	getUiLocaleFromCookie as getServerUiLocaleFromCookie,
+	TranslationsProvider,
+} from "./translations-provider";
 
 // ============================================================================
 // Constants
@@ -202,8 +206,39 @@ export interface AdminProviderProps {
 	/**
 	 * Optional custom i18n adapter
 	 * If not provided, uses the built-in simple i18n with admin messages
+	 * @deprecated Use useServerTranslations instead
 	 */
 	i18nAdapter?: I18nAdapter;
+
+	/**
+	 * Use server-side translations (fetched via getAdminTranslations RPC).
+	 * When true, translations are fetched from the server configured via
+	 * .adminLocale() and .messages() on QuestpieBuilder.
+	 *
+	 * @default false (for backwards compatibility)
+	 *
+	 * @example
+	 * ```tsx
+	 * // Server configures locales and messages
+	 * const cms = q()
+	 *   .use(adminModule)
+	 *   .adminLocale({ locales: ["en", "sk"], defaultLocale: "en" })
+	 *   .messages({ sk: { "common.save": "Ulozit" } })
+	 *   .build();
+	 *
+	 * // Client fetches from server
+	 * <AdminProvider admin={admin} client={client} useServerTranslations>
+	 *   {children}
+	 * </AdminProvider>
+	 * ```
+	 */
+	useServerTranslations?: boolean;
+
+	/**
+	 * Fallback element to show while loading server translations.
+	 * Only used when useServerTranslations is true.
+	 */
+	translationsFallback?: ReactNode;
 
 	/**
 	 * Children to render
@@ -241,6 +276,56 @@ function mergeMessages(
 }
 
 /**
+ * Legacy I18n Provider (client-side translations)
+ * Used when useServerTranslations is false
+ */
+interface LegacyI18nProviderProps {
+	admin: Admin;
+	locale: string;
+	localeConfig: { default?: string; supported?: string[] };
+	defaultLocale: string;
+	customI18nAdapter?: I18nAdapter;
+	children: ReactNode;
+}
+
+function LegacyI18nProvider({
+	admin,
+	locale,
+	localeConfig,
+	defaultLocale,
+	customI18nAdapter,
+	children,
+}: LegacyI18nProviderProps): ReactElement {
+	const i18nAdapterRef = useRef<I18nAdapter | null>(null);
+	if (!i18nAdapterRef.current) {
+		if (customI18nAdapter) {
+			i18nAdapterRef.current = customI18nAdapter;
+		} else {
+			// Get translations from admin builder state
+			const translations = admin.getTranslations() as
+				| Record<string, SimpleMessages>
+				| undefined;
+			const messages = mergeMessages(adminMessages, translations);
+
+			i18nAdapterRef.current = createSimpleI18n({
+				locale,
+				locales: localeConfig.supported ?? [DEFAULT_LOCALE],
+				messages,
+				fallbackLocale: defaultLocale,
+				// Persist UI locale to cookie when it changes
+				onLocaleChange: setUiLocaleCookie,
+			});
+		}
+	}
+
+	return (
+		<I18nProvider adapter={i18nAdapterRef.current}>
+			<ContentLocalesProvider>{children}</ContentLocalesProvider>
+		</I18nProvider>
+	);
+}
+
+/**
  * Admin provider component
  *
  * Creates a scoped Zustand store for admin state management.
@@ -275,6 +360,8 @@ export function AdminProvider({
 	initialUiLocale,
 	initialContentLocale,
 	i18nAdapter: customI18nAdapter,
+	useServerTranslations = false,
+	translationsFallback,
 	children,
 }: AdminProviderProps): ReactElement {
 	// Normalize admin input - accepts both AdminBuilder and Admin instance
@@ -294,8 +381,10 @@ export function AdminProvider({
 	const defaultLocale = localeConfig.default ?? DEFAULT_LOCALE;
 
 	// Resolve UI locale (admin interface language)
-	const resolvedUiLocale =
-		initialUiLocale ?? getUiLocaleFromCookie() ?? defaultLocale;
+	// When using server translations, prefer the server cookie
+	const resolvedUiLocale = useServerTranslations
+		? (initialUiLocale ?? getServerUiLocaleFromCookie() ?? defaultLocale)
+		: (initialUiLocale ?? getUiLocaleFromCookie() ?? defaultLocale);
 
 	// Resolve content locale (CMS content language)
 	const resolvedContentLocale =
@@ -324,30 +413,6 @@ export function AdminProvider({
 		}
 	}, [admin, basePath]);
 
-	// Create i18n adapter (once per provider instance)
-	// Note: i18n adapter uses UI locale for admin interface translations
-	const i18nAdapterRef = useRef<I18nAdapter | null>(null);
-	if (!i18nAdapterRef.current) {
-		if (customI18nAdapter) {
-			i18nAdapterRef.current = customI18nAdapter;
-		} else {
-			// Get translations from admin builder state
-			const translations = admin.getTranslations() as
-				| Record<string, SimpleMessages>
-				| undefined;
-			const messages = mergeMessages(adminMessages, translations);
-
-			i18nAdapterRef.current = createSimpleI18n({
-				locale: resolvedUiLocale,
-				locales: localeConfig.supported ?? [DEFAULT_LOCALE],
-				messages,
-				fallbackLocale: defaultLocale,
-				// Persist UI locale to cookie when it changes
-				onLocaleChange: setUiLocaleCookie,
-			});
-		}
-	}
-
 	// Get content locale from store for reactive updates
 	const contentLocale = useStore(storeRef.current, (s) => s.contentLocale);
 
@@ -359,11 +424,29 @@ export function AdminProvider({
 		}
 	}, [client, contentLocale]);
 
+	// Render with appropriate i18n provider
+	const i18nContent = useServerTranslations ? (
+		<TranslationsProvider
+			initialLocale={resolvedUiLocale}
+			fallback={translationsFallback}
+		>
+			<ContentLocalesProvider>{children}</ContentLocalesProvider>
+		</TranslationsProvider>
+	) : (
+		<LegacyI18nProvider
+			admin={admin}
+			locale={resolvedUiLocale}
+			localeConfig={localeConfig}
+			defaultLocale={defaultLocale}
+			customI18nAdapter={customI18nAdapter}
+		>
+			{children}
+		</LegacyI18nProvider>
+	);
+
 	return (
 		<AdminStoreContext.Provider value={storeRef.current}>
-			<I18nProvider adapter={i18nAdapterRef.current}>
-				<ContentLocalesProvider>{children}</ContentLocalesProvider>
-			</I18nProvider>
+			{i18nContent}
 		</AdminStoreContext.Provider>
 	);
 }

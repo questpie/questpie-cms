@@ -38,6 +38,7 @@ import { actionFunctions } from "./functions/execute-action.js";
 import { localeFunctions } from "./functions/locales.js";
 import { previewFunctions } from "./functions/preview.js";
 import { setupFunctions } from "./functions/setup.js";
+import { translationFunctions } from "./functions/translations.js";
 
 // Re-export admin preferences collection
 export { adminPreferencesCollection } from "../admin-preferences/collections/admin-preferences.collection.js";
@@ -81,6 +82,12 @@ export {
 	isSetupRequired,
 	setupFunctions,
 } from "./functions/setup.js";
+// Re-export translation functions for individual use
+export {
+	getAdminLocales,
+	getAdminTranslations,
+	translationFunctions,
+} from "./functions/translations.js";
 
 /**
  * Admin Module - the complete backend for QuestPie admin panel.
@@ -135,14 +142,15 @@ export const adminModule = q({ name: "questpie-admin" })
 	// Add admin-specific collections
 	.collections({
 		admin_saved_views: savedViewsCollection,
-		
+
 		admin_preferences: adminPreferencesCollection,
 	})
-	// Add setup, locale, preview, admin config, and action functions
+	// Add setup, locale, preview, admin config, action, and translation functions
 	.functions({
 		...setupFunctions,
 		...localeFunctions,
 		...previewFunctions,
 		...adminConfigFunctions,
 		...actionFunctions,
+		...translationFunctions,
 	});

@@ -19,6 +19,7 @@ import type {
 	ActionsConfigContext,
 	AdminCollectionConfig,
 	AdminGlobalConfig,
+	AdminLocaleConfig,
 	BuiltinActionType,
 	ComponentDefinition,
 	DashboardConfigContext,
@@ -526,6 +527,39 @@ function patchQuestpieBuilder() {
 		return new QuestpieBuilder({
 			...this.state,
 			sidebar,
+		});
+	};
+
+	/**
+	 * Configure admin UI locales (separate from content locales).
+	 *
+	 * UI locales control the admin interface language.
+	 * Content locales (set via .locale()) control which languages content can be edited in.
+	 * These don't need to match - you can have 10 content languages but only 2 UI languages.
+	 *
+	 * @example
+	 * ```ts
+	 * const cms = q({ name: "my-app" })
+	 *   .use(adminModule)
+	 *   // Content can be in many languages
+	 *   .locale({
+	 *     locales: [{ code: "en" }, { code: "sk" }, { code: "de" }, ...],
+	 *     defaultLocale: "en",
+	 *   })
+	 *   // But admin UI only in 2 languages
+	 *   .adminLocale({
+	 *     locales: ["en", "sk"],
+	 *     defaultLocale: "en",
+	 *   })
+	 *   .build({ ... });
+	 * ```
+	 */
+	proto.adminLocale = function (
+		config: AdminLocaleConfig,
+	): QuestpieBuilder<any> {
+		return new QuestpieBuilder({
+			...this.state,
+			adminLocale: config,
 		});
 	};
 }
