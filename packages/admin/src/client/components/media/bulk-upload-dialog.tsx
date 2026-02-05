@@ -21,7 +21,7 @@
  * ```
  */
 
-import { CheckCircle, Trash, WarningCircle, X } from "@phosphor-icons/react";
+import { Icon } from "@iconify/react";
 import * as React from "react";
 import { toast } from "sonner";
 import { type Asset, useUpload } from "../../hooks/use-upload";
@@ -117,8 +117,8 @@ function FileItem({ file, onRemove }: FileItemProps) {
 	const statusIcon = {
 		pending: null,
 		uploading: null,
-		success: <CheckCircle weight="fill" className="size-5 text-green-600" />,
-		error: <WarningCircle weight="fill" className="size-5 text-destructive" />,
+		success: <Icon icon="ph:check-circle-fill" className="size-5 text-green-600" />,
+		error: <Icon icon="ph:warning-circle-fill" className="size-5 text-destructive" />,
 	};
 
 	const statusColor = {
@@ -186,7 +186,7 @@ function FileItem({ file, onRemove }: FileItemProps) {
 					onClick={onRemove}
 					className="text-muted-foreground hover:text-destructive shrink-0"
 				>
-					<X weight="bold" />
+					<Icon icon="ph:x-bold" />
 				</Button>
 			)}
 		</div>

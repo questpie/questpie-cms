@@ -8,9 +8,15 @@ import { describe, expect, it } from "vitest";
 import { z } from "zod";
 import { builtInFields } from "#questpie/admin/client/builder/defaults/fields";
 import {
-	buildValidationSchema,
-	createFormSchema,
+	buildValidationSchema as buildValidationSchemaBase,
+	createFormSchema as createFormSchemaBase,
 } from "#questpie/admin/client/builder/validation";
+
+const buildValidationSchema = (fields: Record<string, any>) =>
+	buildValidationSchemaBase(fields, builtInFields);
+
+const createFormSchema = (fields: Record<string, any>) =>
+	createFormSchemaBase(fields, builtInFields);
 
 describe("buildValidationSchema", () => {
 	describe("simple fields", () => {

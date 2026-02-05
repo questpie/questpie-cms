@@ -1,33 +1,10 @@
 /**
  * RichText Editor Toolbar Components
  *
- * Icon-based toolbar using Phosphor icons for a clean, modern UI.
+ * Icon-based toolbar using Iconify icons (Phosphor set) for a clean, modern UI.
  */
 
-import {
-	ArrowClockwise,
-	ArrowCounterClockwise,
-	Code,
-	CodeBlock,
-	type Icon,
-	type IconWeight,
-	Image as ImageIcon,
-	Link as LinkIcon,
-	ListBullets,
-	ListNumbers,
-	MinusCircle,
-	Quotes,
-	Table as TableIcon,
-	TextAlignCenter,
-	TextAlignJustify,
-	TextAlignLeft,
-	TextAlignRight,
-	TextB,
-	TextH,
-	TextItalic,
-	TextStrikethrough,
-	TextUnderline,
-} from "@phosphor-icons/react";
+import { Icon } from "@iconify/react";
 import type { Editor } from "@tiptap/core";
 import * as React from "react";
 
@@ -41,26 +18,26 @@ import type { RichTextFeatures } from "./types";
  * Icon mapping for all editor actions
  */
 export const EDITOR_ICONS = {
-	undo: ArrowCounterClockwise,
-	redo: ArrowClockwise,
-	bold: TextB,
-	italic: TextItalic,
-	underline: TextUnderline,
-	strikethrough: TextStrikethrough,
-	code: Code,
-	heading: TextH,
-	bulletList: ListBullets,
-	orderedList: ListNumbers,
-	blockquote: Quotes,
-	codeBlock: CodeBlock,
-	horizontalRule: MinusCircle,
-	link: LinkIcon,
-	image: ImageIcon,
-	table: TableIcon,
-	alignLeft: TextAlignLeft,
-	alignCenter: TextAlignCenter,
-	alignRight: TextAlignRight,
-	alignJustify: TextAlignJustify,
+	undo: "ph:arrow-counter-clockwise",
+	redo: "ph:arrow-clockwise",
+	bold: "ph:text-b",
+	italic: "ph:text-italic",
+	underline: "ph:text-underline",
+	strikethrough: "ph:text-strikethrough",
+	code: "ph:code",
+	heading: "ph:text-h",
+	bulletList: "ph:list-bullets",
+	orderedList: "ph:list-numbers",
+	blockquote: "ph:quotes",
+	codeBlock: "ph:code-block",
+	horizontalRule: "ph:minus-circle",
+	link: "ph:link",
+	image: "ph:image",
+	table: "ph:table",
+	alignLeft: "ph:text-align-left",
+	alignCenter: "ph:text-align-center",
+	alignRight: "ph:text-align-right",
+	alignJustify: "ph:text-align-justify",
 } as const;
 
 export type ToolbarButtonProps = {
@@ -68,7 +45,7 @@ export type ToolbarButtonProps = {
 	disabled?: boolean;
 	title?: string;
 	onClick?: () => void;
-	icon?: Icon;
+	icon?: string;
 	children?: React.ReactNode;
 	shortcut?: string;
 	className?: string;
@@ -85,7 +62,7 @@ export function ToolbarButton({
 	disabled,
 	title,
 	onClick,
-	icon: IconComponent,
+	icon: iconName,
 	children,
 	shortcut,
 	className,
@@ -97,8 +74,8 @@ export function ToolbarButton({
 		return title;
 	}, [title, shortcut]);
 
-	const iconWeight: IconWeight = active ? "fill" : "regular";
-	const buttonSize = IconComponent ? "icon-xs" : "xs";
+	const iconSuffix = active ? "-fill" : "";
+	const buttonSize = iconName ? "icon-xs" : "xs";
 
 	return (
 		<Button
@@ -117,8 +94,8 @@ export function ToolbarButton({
 			)}
 			{...rest}
 		>
-			{IconComponent ? (
-				<IconComponent size={16} weight={iconWeight} />
+			{iconName ? (
+				<Icon icon={`${iconName}${iconSuffix}`} width={16} height={16} />
 			) : (
 				children
 			)}

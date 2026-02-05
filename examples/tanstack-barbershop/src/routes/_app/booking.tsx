@@ -99,7 +99,7 @@ function BookingPage() {
 	} = useQuery({
 		queryKey: ["slots", selectedBarber?.id, selectedDate, selectedService?.id],
 		queryFn: () =>
-			client.functions.getAvailableTimeSlots({
+			client.rpc.getAvailableTimeSlots({
 				date: format(selectedDate!, "yyyy-MM-dd"),
 				barberId: selectedBarber!.id,
 				serviceId: selectedService!.id,
@@ -124,7 +124,7 @@ function BookingPage() {
 	}, [isSlotsError, slotsError]);
 
 	const bookingMutation = useMutation({
-		mutationFn: (data: any) => client.functions.createBooking(data),
+		mutationFn: (data: any) => client.rpc.createBooking(data),
 		onSuccess: () => {
 			toast.success("Appointment booked successfully!", {
 				description: "We've sent a confirmation to your email.",

@@ -7,10 +7,12 @@
 import type { Questpie } from "../config/cms.js";
 import type { RequestContext } from "../config/context.js";
 import type { AccessMode, QuestpieConfig } from "../config/types.js";
+import type { RpcRouterTree } from "../rpc/types.js";
 
 export type AdapterConfig<TConfig extends QuestpieConfig = QuestpieConfig> = {
 	basePath?: string;
 	accessMode?: AccessMode;
+	rpc?: RpcRouterTree<any>;
 	extendContext?: (params: {
 		request: Request;
 		cms: Questpie<TConfig>;
@@ -69,7 +71,7 @@ export type AdapterRoutes = {
 	rpc: {
 		root: (
 			request: Request,
-			params: { name: string },
+			params: { path: string[] },
 			context?: AdapterContext,
 		) => Promise<Response>;
 		collection: (

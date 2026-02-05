@@ -15,7 +15,7 @@ import {
 	verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { DotsSixVertical } from "@phosphor-icons/react";
+import { Icon } from "@iconify/react";
 import { useEffect, useState } from "react";
 import { useResolveText, useTranslation } from "../../i18n/hooks";
 import { Checkbox } from "../ui/checkbox";
@@ -67,7 +67,7 @@ function SortableColumnItem({
 				{...attributes}
 				{...listeners}
 			>
-				<DotsSixVertical size={16} weight="bold" />
+				<Icon icon="ph:dots-six-vertical-bold" width={16} height={16} />
 			</button>
 			<label className="flex items-center gap-3 flex-1 cursor-pointer">
 				<Checkbox checked={isVisible} onCheckedChange={onToggle} />

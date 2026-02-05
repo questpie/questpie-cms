@@ -7,7 +7,7 @@
 
 "use client";
 
-import { DotsThreeVertical } from "@phosphor-icons/react";
+import { Icon } from "@iconify/react";
 import { useQueryClient } from "@tanstack/react-query";
 import * as React from "react";
 import type {
@@ -17,6 +17,7 @@ import type {
 	ActionQueryClient,
 	HeaderActionsConfig,
 } from "../../builder/collection/action-types";
+import { resolveIconElement } from "../../components/component-renderer";
 import { useResolveText } from "../../i18n/hooks";
 import { selectAuthClient, useAdminStore } from "../../runtime/provider";
 import { Button } from "../ui/button";
@@ -146,20 +147,20 @@ export function HeaderActions<TItem = any>({
 					<DropdownMenuTrigger
 						render={<Button variant="outline" size="icon" className="size-9" />}
 					>
-						<DotsThreeVertical className="size-4" />
+						<Icon icon="ph:dots-three-vertical" className="size-4" />
 						<span className="sr-only">More actions</span>
 					</DropdownMenuTrigger>
 					<DropdownMenuContent align="end">
 						{regularSecondary.map((action) => {
-							const Icon = action.icon as
-								| React.ComponentType<React.SVGProps<SVGSVGElement>>
-								| undefined;
+							const iconElement = resolveIconElement(action.icon, {
+								className: "mr-2 size-4",
+							});
 							return (
 								<DropdownMenuItem
 									key={action.id}
 									onClick={() => onOpenDialog?.(action)}
 								>
-									{Icon && <Icon className="mr-2 size-4" />}
+									{iconElement}
 									{resolveText(action.label)}
 								</DropdownMenuItem>
 							);
@@ -170,16 +171,16 @@ export function HeaderActions<TItem = any>({
 						)}
 
 						{destructiveSecondary.map((action) => {
-							const Icon = action.icon as
-								| React.ComponentType<React.SVGProps<SVGSVGElement>>
-								| undefined;
+							const iconElement = resolveIconElement(action.icon, {
+								className: "mr-2 size-4",
+							});
 							return (
 								<DropdownMenuItem
 									key={action.id}
 									variant="destructive"
 									onClick={() => onOpenDialog?.(action)}
 								>
-									{Icon && <Icon className="mr-2 size-4" />}
+									{iconElement}
 									{resolveText(action.label)}
 								</DropdownMenuItem>
 							);

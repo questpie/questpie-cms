@@ -1,6 +1,6 @@
 "use client";
 
-import { X } from "@phosphor-icons/react";
+import { Icon } from "@iconify/react";
 import { type KeyboardEvent, useCallback, useState } from "react";
 import { useResolveText } from "../../i18n/hooks";
 import { cn } from "../../lib/utils";
@@ -134,7 +134,7 @@ export function TagInput({
 								className="ml-1 rounded-full p-0.5 hover:bg-muted-foreground/20"
 								aria-label={`Remove ${tag}`}
 							>
-								<X className="size-3" />
+								<Icon icon="ph:x" className="size-3" />
 							</button>
 						)}
 					</Badge>

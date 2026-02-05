@@ -243,7 +243,24 @@ export const datetimeField = defineField<DatetimeFieldConfig, Date>()({
 		return getDatetimeOperators();
 	},
 
-	getMetadata(config: DatetimeFieldConfig): FieldMetadataBase {
+	getMetadata(config: DatetimeFieldConfig): FieldMetadataBase & {
+		min?: string;
+		max?: string;
+		precision?: number;
+		withTimezone?: boolean;
+	} {
+		// Convert Date objects to ISO strings for metadata
+		const minDate = config.min
+			? typeof config.min === "string"
+				? config.min
+				: config.min.toISOString()
+			: undefined;
+		const maxDate = config.max
+			? typeof config.max === "string"
+				? config.max
+				: config.max.toISOString()
+			: undefined;
+
 		return {
 			type: "datetime",
 			label: config.label,
@@ -253,6 +270,11 @@ export const datetimeField = defineField<DatetimeFieldConfig, Date>()({
 			readOnly: config.input === false,
 			writeOnly: config.output === false,
 			meta: config.meta,
+			// Datetime-specific constraints for admin UI
+			min: minDate,
+			max: maxDate,
+			precision: config.precision,
+			withTimezone: config.withTimezone,
 		};
 	},
 });

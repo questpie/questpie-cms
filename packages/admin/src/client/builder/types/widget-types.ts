@@ -5,6 +5,7 @@
  */
 
 import type * as React from "react";
+import type { ComponentReference } from "#questpie/admin/server";
 import type { I18nText } from "../../i18n/types";
 import type {
 	DynamicI18nText,
@@ -43,7 +44,7 @@ export interface BaseWidgetConfig {
 	/**
 	 * Widget icon
 	 */
-	icon?: IconComponent | string;
+	icon?: IconComponent | ComponentReference | string;
 
 	/**
 	 * Card visual variant
@@ -190,7 +191,7 @@ export interface QuickActionItem {
 	/** Action label */
 	label: I18nText;
 	/** Action icon */
-	icon?: IconComponent | string;
+	icon?: IconComponent | ComponentReference | string;
 	/** Link URL */
 	href?: string;
 	/** Click handler */
@@ -234,7 +235,7 @@ export interface ValueWidgetClassNames {
 	/** Label text */
 	label?: string;
 	/** Main icon */
-	icon?: string;
+	icon?: ComponentReference | string;
 	/** Content wrapper */
 	content?: string;
 	/** Main value display */
@@ -256,7 +257,7 @@ export interface ValueWidgetTrend {
 	/** Trend value (e.g., "+15.3%", "-5%") */
 	value: string;
 	/** Optional trend icon */
-	icon?: IconComponent;
+	icon?: IconComponent | ComponentReference;
 }
 
 /**
@@ -274,7 +275,7 @@ export interface ValueWidgetResult {
 	/** Footer text - supports i18n objects */
 	footer?: I18nText | string;
 	/** Main icon */
-	icon?: IconComponent;
+	icon?: IconComponent | ComponentReference;
 	/** Trend indicator */
 	trend?: ValueWidgetTrend;
 	/** Tailwind classes for each part */
@@ -432,7 +433,7 @@ export interface TimelineItem {
 	/** Timestamp */
 	timestamp: Date | string;
 	/** Icon */
-	icon?: IconComponent;
+	icon?: IconComponent | ComponentReference;
 	/** Status/color variant */
 	variant?: "default" | "success" | "warning" | "error" | "info";
 	/** Link URL */
@@ -655,7 +656,7 @@ export interface WidgetAction {
 	/**
 	 * Action icon
 	 */
-	icon?: IconComponent | string;
+	icon?: IconComponent | ComponentReference | string;
 
 	/**
 	 * Action handler

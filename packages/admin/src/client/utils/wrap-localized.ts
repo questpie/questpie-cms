@@ -10,11 +10,8 @@
 
 import type { BlockContent } from "#questpie/admin/client/blocks/types";
 import type { BlockDefinition } from "#questpie/admin/client/builder/block/types";
-import {
-	builtInFields,
-	createRegistryProxy,
-} from "#questpie/admin/client/builder/defaults/fields";
 import type { FieldDefinition } from "#questpie/admin/client/builder/field/field";
+import { createFieldRegistryProxy } from "#questpie/admin/client/builder/proxies";
 
 /**
  * I18n marker value wrapper
@@ -47,6 +44,7 @@ function wrapI18n<T>(value: T): I18nWrapper<T> {
  */
 function getNestedFields(
 	fieldDef: FieldDefinition | undefined,
+	registry: Record<string, FieldDefinition> | undefined,
 ): Record<string, FieldDefinition> | undefined {
 	if (!fieldDef) return undefined;
 
@@ -56,8 +54,9 @@ function getNestedFields(
 	// Object field - has `fields` callback
 	if (options.fields) {
 		if (typeof options.fields === "function") {
+			if (!registry) return undefined;
 			try {
-				return options.fields({ r: createRegistryProxy(builtInFields) });
+				return options.fields({ r: createFieldRegistryProxy(registry) });
 			} catch {
 				return undefined;
 			}
@@ -70,8 +69,9 @@ function getNestedFields(
 	// Array field with object items - has `item` callback
 	if (options.item) {
 		if (typeof options.item === "function") {
+			if (!registry) return undefined;
 			try {
-				return options.item({ r: createRegistryProxy(builtInFields) });
+				return options.item({ r: createFieldRegistryProxy(registry) });
 			} catch {
 				return undefined;
 			}
@@ -107,13 +107,14 @@ function isFieldComputed(fieldDef: FieldDefinition | undefined): boolean {
  */
 function hasLocalizedFields(
 	nestedFields: Record<string, FieldDefinition> | undefined,
+	registry: Record<string, FieldDefinition> | undefined,
 ): boolean {
 	if (!nestedFields) return false;
 	return Object.values(nestedFields).some((fieldDef) => {
 		if (isFieldLocalized(fieldDef)) return true;
 		// Check deeper nested fields
-		const deepNested = getNestedFields(fieldDef);
-		if (deepNested) return hasLocalizedFields(deepNested);
+		const deepNested = getNestedFields(fieldDef, registry);
+		if (deepNested) return hasLocalizedFields(deepNested, registry);
 		return false;
 	});
 }
@@ -149,6 +150,7 @@ function processObjectValue(
 	value: Record<string, unknown>,
 	nestedFields: Record<string, FieldDefinition>,
 	blocks?: Record<string, BlockDefinition>,
+	registry?: Record<string, FieldDefinition>,
 ): Record<string, unknown> {
 	const result: Record<string, unknown> = {};
 
@@ -174,10 +176,10 @@ function processObjectValue(
 
 		// Recursively process nested object fields
 		if (isObjectField(nestedFieldDef)) {
-			const deepNestedFields = getNestedFields(nestedFieldDef);
+			const deepNestedFields = getNestedFields(nestedFieldDef, registry);
 			if (
 				deepNestedFields &&
-				hasLocalizedFields(deepNestedFields) &&
+				hasLocalizedFields(deepNestedFields, registry) &&
 				typeof fieldValue === "object" &&
 				!Array.isArray(fieldValue)
 			) {
@@ -185,6 +187,7 @@ function processObjectValue(
 					fieldValue as Record<string, unknown>,
 					deepNestedFields,
 					blocks,
+					registry,
 				);
 				continue;
 			}
@@ -192,10 +195,10 @@ function processObjectValue(
 
 		// Recursively process nested array fields (only if item has localized fields)
 		if (isArrayField(nestedFieldDef)) {
-			const itemFields = getNestedFields(nestedFieldDef);
+			const itemFields = getNestedFields(nestedFieldDef, registry);
 			if (
 				itemFields &&
-				hasLocalizedFields(itemFields) &&
+				hasLocalizedFields(itemFields, registry) &&
 				Array.isArray(fieldValue)
 			) {
 				result[key] = fieldValue.map((item) => {
@@ -208,6 +211,7 @@ function processObjectValue(
 							item as Record<string, unknown>,
 							itemFields,
 							blocks,
+							registry,
 						);
 					}
 					return item;
@@ -235,6 +239,7 @@ function processObjectValue(
 function processBlocksValue(
 	content: BlockContent,
 	blocks: Record<string, BlockDefinition>,
+	registry?: Record<string, FieldDefinition>,
 ): BlockContent {
 	if (!content || !content._values) {
 		return content;
@@ -260,7 +265,7 @@ function processBlocksValue(
 		const blockFields = (blockDef as any).fields as
 			| Record<string, FieldDefinition>
 			| undefined;
-		if (!blockFields || !hasLocalizedFields(blockFields)) {
+		if (!blockFields || !hasLocalizedFields(blockFields, registry)) {
 			processedValues[blockId] = blockValues;
 			continue;
 		}
@@ -270,6 +275,7 @@ function processBlocksValue(
 			blockValues,
 			blockFields,
 			blocks,
+			registry,
 		);
 	}
 
@@ -308,6 +314,11 @@ export interface WrapLocalizedOptions {
 	fields: Record<string, FieldDefinition>;
 
 	/**
+	 * Field registry from admin builder (required for nested field callbacks)
+	 */
+	registry?: Record<string, FieldDefinition>;
+
+	/**
 	 * Block definitions (required if using blocks fields)
 	 */
 	blocks?: Record<string, BlockDefinition>;
@@ -340,6 +351,7 @@ export function wrapLocalizedNestedValues(
 	options: WrapLocalizedOptions,
 ): Record<string, unknown> {
 	const { fields, blocks } = options;
+	const registry = options.registry;
 	const result: Record<string, unknown> = {};
 
 	for (const [fieldName, fieldValue] of Object.entries(data)) {
@@ -357,10 +369,10 @@ export function wrapLocalizedNestedValues(
 
 		// Process object fields (only if has localized nested fields)
 		if (isObjectField(fieldDef)) {
-			const nestedFields = getNestedFields(fieldDef);
+			const nestedFields = getNestedFields(fieldDef, registry);
 			if (
 				nestedFields &&
-				hasLocalizedFields(nestedFields) &&
+				hasLocalizedFields(nestedFields, registry) &&
 				typeof fieldValue === "object" &&
 				!Array.isArray(fieldValue)
 			) {
@@ -368,6 +380,7 @@ export function wrapLocalizedNestedValues(
 					fieldValue as Record<string, unknown>,
 					nestedFields,
 					blocks,
+					registry,
 				);
 				continue;
 			}
@@ -375,10 +388,10 @@ export function wrapLocalizedNestedValues(
 
 		// Process array fields (only if item has localized fields)
 		if (isArrayField(fieldDef)) {
-			const itemFields = getNestedFields(fieldDef);
+			const itemFields = getNestedFields(fieldDef, registry);
 			if (
 				itemFields &&
-				hasLocalizedFields(itemFields) &&
+				hasLocalizedFields(itemFields, registry) &&
 				Array.isArray(fieldValue)
 			) {
 				result[fieldName] = fieldValue.map((item) => {
@@ -391,6 +404,7 @@ export function wrapLocalizedNestedValues(
 							item as Record<string, unknown>,
 							itemFields,
 							blocks,
+							registry,
 						);
 					}
 					return item;
@@ -404,6 +418,7 @@ export function wrapLocalizedNestedValues(
 			result[fieldName] = processBlocksValue(
 				fieldValue as BlockContent,
 				blocks,
+				registry,
 			);
 			continue;
 		}

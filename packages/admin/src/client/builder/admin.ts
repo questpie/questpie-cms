@@ -211,6 +211,41 @@ export class Admin<TState extends AdminBuilderState = AdminBuilderState> {
 		return result as ExtractBuilderStates<TState["pages"]>;
 	}
 
+	// ============================================================================
+	// Component Methods
+	// ============================================================================
+
+	/**
+	 * Get all registered component implementations.
+	 */
+	getComponents(): ExtractBuilderStates<TState["components"]> {
+		const components = this.state.components ?? {};
+		const result: Record<string, any> = {};
+
+		for (const [name, config] of Object.entries(components)) {
+			result[name] =
+				config && typeof config === "object" && "state" in config
+					? (config as any).state
+					: config;
+		}
+
+		return result as ExtractBuilderStates<TState["components"]>;
+	}
+
+	/**
+	 * Get a specific component implementation by name.
+	 */
+	getComponent(
+		name: string,
+	): ExtractBuilderState<TState["components"][string]> | undefined {
+		const config = (this.state.components as Record<string, any>)?.[name];
+		if (!config) return undefined;
+
+		return config && typeof config === "object" && "state" in config
+			? config.state
+			: config;
+	}
+
 	/**
 	 * Get configuration for a specific page.
 	 * Automatically extracts `.state` from builder.

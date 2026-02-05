@@ -7,7 +7,7 @@
 
 "use client";
 
-import { Warning } from "@phosphor-icons/react";
+import { Icon } from "@iconify/react";
 import * as React from "react";
 import {
   Dialog,
@@ -78,7 +78,7 @@ export function ConfirmationDialog({
           <div className="flex items-start gap-3">
             {config.destructive && (
               <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-destructive/10">
-                <Warning className="size-5 text-destructive" />
+                <Icon icon="ph:warning" className="size-5 text-destructive" />
               </div>
             )}
             <div className="space-y-1">

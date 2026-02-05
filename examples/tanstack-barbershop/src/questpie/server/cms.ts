@@ -1,5 +1,5 @@
-import { adminModule } from "@questpie/admin/server";
-import { ConsoleAdapter, pgBossAdapter, q, SmtpAdapter } from "questpie";
+import { adminModule, adminRpc } from "@questpie/admin/server";
+import { ConsoleAdapter, pgBossAdapter, q, rpc, SmtpAdapter } from "questpie";
 // Import jobs
 import { appointments } from "@/questpie/server/collections";
 import {
@@ -173,12 +173,6 @@ const baseInstance = q({
 export const cms = q({ name: "barbershop" })
 	// Include starter module for auth and file uploads
 	.use(baseInstance)
-	.functions({
-		getActiveBarbers,
-		getRevenueStats,
-		getAvailableTimeSlots,
-		createBooking,
-	})
 	// Build with runtime configuration
 	.build({
 		app: {
@@ -210,6 +204,16 @@ export const cms = q({ name: "barbershop" })
 		},
 	});
 
+const r = rpc();
+
+export const appRpc = r.router({
+	...adminRpc,
+	getActiveBarbers,
+	getRevenueStats,
+	getAvailableTimeSlots,
+	createBooking,
+});
+
 // ============================================================================
 // Type Exports
 // ============================================================================
@@ -219,6 +223,7 @@ export const cms = q({ name: "barbershop" })
  * Use this type with getApp<AppCMS>() in hooks and jobs.
  */
 export type AppCMS = typeof cms;
+export type AppRpc = typeof appRpc;
 
 /**
  * Base CMS type without functions - useful in function handlers to avoid circular dependencies.

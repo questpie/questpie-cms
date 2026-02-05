@@ -1,5 +1,5 @@
 import { Dialog as SheetPrimitive } from "@base-ui/react/dialog";
-import { XIcon } from "@phosphor-icons/react";
+import { Icon } from "@iconify/react";
 import type * as React from "react";
 import { cn } from "../../lib/utils";
 import { Button } from "./button";
@@ -67,7 +67,7 @@ function SheetContent({
               />
             }
           >
-            <XIcon />
+            <Icon icon="ph:x"  />
             <span className="sr-only">Close</span>
           </SheetPrimitive.Close>
         )}

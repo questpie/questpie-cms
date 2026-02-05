@@ -55,7 +55,7 @@ This is the source-of-truth guidance for AI agents working in this repo. It supe
 ## UI Component Conventions (packages/admin)
 
 - **Component library**: shadcn/ui with `@base-ui/react` primitives (NOT @radix-ui)
-- **Icons**: `@phosphor-icons/react` (NOT lucide-react)
+- **Icons**: `@iconify/react` with Phosphor icon set (`ph:icon-name`) (NOT lucide-react, NOT @phosphor-icons/react)
 - **Toast**: `sonner` - use `toast.error()`, `toast.success()` etc.
 - **Adding components**: `bunx shadcn@latest add <name>` from packages/admin
 

@@ -21,6 +21,7 @@ import {
 } from "../../components/ui/card";
 import { Skeleton } from "../../components/ui/skeleton";
 import { useGlobal, useGlobalUpdate } from "../../hooks/use-global";
+import { useGlobalServerValidation } from "../../hooks/use-server-validation";
 import { useTranslation } from "../../i18n/hooks";
 
 /**
@@ -140,9 +141,13 @@ export function GlobalForm<
 		},
 	});
 
+	// Get validation resolver - uses server JSON Schema for validation
+	const { resolver } = useGlobalServerValidation(globalName as string);
+
 	// Form setup
 	const form = useForm({
 		defaultValues: (globalData ?? {}) as any,
+		resolver,
 	});
 
 	// Reset form when data loads

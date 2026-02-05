@@ -136,15 +136,15 @@ export const createFetchHandler = (
 
 		// Root RPC routes
 		if (segments[0] === "rpc") {
-			const functionName = segments[1];
-			if (!functionName) {
+			const rpcPath = segments.slice(1);
+			if (rpcPath.length === 0) {
 				return errorResponse(
-					ApiError.badRequest("Function not specified"),
+					ApiError.badRequest("RPC path not specified"),
 					request,
 				);
 			}
 
-			return routes.rpc.root(request, { name: functionName }, context);
+			return routes.rpc.root(request, { path: rpcPath }, context);
 		}
 
 		// Collection RPC routes

@@ -53,8 +53,23 @@ export interface TipTapDocument {
 
 /**
  * Rich text field metadata - augmentable by external packages.
+ *
+ * @example Admin augmentation:
+ * ```ts
+ * declare module "@questpie/admin/server" {
+ *   interface RichTextFieldMeta {
+ *     admin?: {
+ *       placeholder?: string;
+ *       showCharacterCount?: boolean;
+ *     }
+ *   }
+ * }
+ * ```
  */
-export type RichTextFieldMeta = {};
+export interface RichTextFieldMeta {
+	/** Phantom property to prevent interface collapse - enables module augmentation */
+	_?: never;
+}
 
 // ============================================================================
 // Rich Text Field Configuration

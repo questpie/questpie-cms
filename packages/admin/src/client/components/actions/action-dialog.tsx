@@ -8,7 +8,7 @@
 
 "use client";
 
-import { SpinnerGap } from "@phosphor-icons/react";
+import { Icon } from "@iconify/react";
 import { useQueryClient } from "@tanstack/react-query";
 import * as React from "react";
 import {
@@ -28,6 +28,7 @@ import type {
 import type { FieldDefinition } from "../../builder/field/field";
 import { buildValidationSchema } from "../../builder/validation";
 import { useResolveText, useTranslation } from "../../i18n/hooks";
+import { selectAdmin, useAdminStore } from "../../runtime/provider";
 import { AutoFormFields } from "../../views/collection/auto-form-fields";
 import { Button } from "../ui/button";
 import {
@@ -62,8 +63,9 @@ export interface ActionDialogProps<TItem = any> {
  */
 function createActionFormResolver(
 	fields: Record<string, FieldDefinition>,
+	registry: Record<string, FieldDefinition>,
 ): Resolver<Record<string, any>> {
-	const schema = buildValidationSchema(fields);
+	const schema = buildValidationSchema(fields, registry);
 
 	return async (values) => {
 		const result = schema.safeParse(values);
@@ -112,12 +114,13 @@ function FormDialogContent<TItem>({
 	const { config } = handler;
 	const resolveText = useResolveText();
 	const { t } = useTranslation();
+	const admin = useAdminStore(selectAdmin);
 
 	// Create resolver from field definitions
-	const resolver = React.useMemo(
-		() => createActionFormResolver(config.fields),
-		[config.fields],
-	);
+	const resolver = React.useMemo(() => {
+		if (!admin) return undefined;
+		return createActionFormResolver(config.fields, admin.getFields());
+	}, [admin, config.fields]);
 
 	const form = useForm({
 		defaultValues: config.defaultValues || {},
@@ -269,7 +272,7 @@ function CustomDialogContent<TItem>({
 	if (loading) {
 		return (
 			<div className="flex h-32 items-center justify-center">
-				<SpinnerGap className="size-6 animate-spin text-muted-foreground" />
+				<Icon icon="ph:spinner-gap" className="size-6 animate-spin text-muted-foreground" />
 			</div>
 		);
 	}

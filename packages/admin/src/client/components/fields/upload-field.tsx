@@ -46,7 +46,7 @@ import {
 	verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { FolderOpen } from "@phosphor-icons/react";
+import { Icon } from "@iconify/react";
 import * as React from "react";
 import {
 	Controller,
@@ -383,7 +383,7 @@ function SingleUploadInner({
 					onClick={() => setIsPickerOpen(true)}
 					className="mt-2 w-full"
 				>
-					<FolderOpen weight="bold" className="mr-2 size-4" />
+					<Icon icon="ph:folder-open-bold" className="mr-2 size-4" />
 					Browse Library
 				</Button>
 			)}
@@ -717,7 +717,7 @@ function MultipleUploadInner({
 					onClick={() => setIsPickerOpen(true)}
 					className="mt-2 w-full"
 				>
-					<FolderOpen weight="bold" className="mr-2 size-4" />
+					<Icon icon="ph:folder-open-bold" className="mr-2 size-4" />
 					Browse Library
 				</Button>
 			)}

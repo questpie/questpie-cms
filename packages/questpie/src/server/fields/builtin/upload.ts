@@ -212,6 +212,9 @@ export const uploadField = defineField<UploadFieldConfig, string | string[]>()({
 			through: config.through,
 			sourceField: config.sourceField,
 			targetField: config.targetField,
+			// Mark as upload field for reliable detection in admin UI
+			// This avoids fragile detection based on targetCollection name
+			isUpload: true,
 			meta: config.meta,
 		};
 	},

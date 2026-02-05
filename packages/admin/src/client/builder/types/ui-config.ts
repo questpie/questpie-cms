@@ -4,6 +4,7 @@
  * Types for dashboard, sidebar, branding, and locale configuration.
  */
 
+import type { ComponentReference } from "#questpie/admin/server";
 import type { I18nText } from "../../i18n/types.js";
 import type { DynamicI18nText, IconComponent } from "./common";
 import type { WidgetConfig } from "./widget-types";
@@ -21,7 +22,7 @@ export interface DashboardAction {
 	/** Action label */
 	label: DynamicI18nText;
 	/** Action icon */
-	icon?: IconComponent;
+	icon?: IconComponent | ComponentReference;
 	/** Link URL */
 	href?: string;
 	/** Click handler */
@@ -71,7 +72,7 @@ export interface DashboardSection {
 	/** Section description */
 	description?: DynamicI18nText;
 	/** Section icon */
-	icon?: IconComponent;
+	icon?: IconComponent | ComponentReference;
 	/** Wrapper style */
 	wrapper?: "flat" | "card" | "collapsible";
 	/** Whether collapsed by default (for collapsible wrapper) */
@@ -129,7 +130,7 @@ export interface DashboardTabConfig {
 	/** Tab label */
 	label: DynamicI18nText;
 	/** Tab icon */
-	icon?: IconComponent;
+	icon?: IconComponent | ComponentReference;
 	/** Tab items (widgets or sections) */
 	items: DashboardLayoutItem[];
 	/** Badge text (e.g., count) */
@@ -186,7 +187,7 @@ export interface SidebarSection<TId extends string = string> {
 	/** Display title - supports inline translations */
 	title?: I18nText;
 	/** Section icon */
-	icon?: IconComponent;
+	icon?: IconComponent | ComponentReference;
 	/** Whether section is collapsed by default */
 	collapsed?: boolean;
 	/** Items in this section */
@@ -210,7 +211,7 @@ export interface SidebarCollectionItem {
 	/** Override display label (defaults to collection label) - supports inline translations */
 	label?: I18nText;
 	/** Override icon */
-	icon?: IconComponent;
+	icon?: IconComponent | ComponentReference;
 }
 
 export interface SidebarGlobalItem {
@@ -220,7 +221,7 @@ export interface SidebarGlobalItem {
 	/** Override display label (defaults to global label) - supports inline translations */
 	label?: I18nText;
 	/** Override icon */
-	icon?: IconComponent;
+	icon?: IconComponent | ComponentReference;
 }
 
 export interface SidebarPageItem {
@@ -230,7 +231,7 @@ export interface SidebarPageItem {
 	/** Override display label - supports inline translations */
 	label?: I18nText;
 	/** Override icon */
-	icon?: IconComponent;
+	icon?: IconComponent | ComponentReference;
 }
 
 export interface SidebarLinkItem {
@@ -240,7 +241,7 @@ export interface SidebarLinkItem {
 	/** Link URL */
 	href: string;
 	/** Icon */
-	icon?: IconComponent;
+	icon?: IconComponent | ComponentReference;
 	/** Open in new tab */
 	external?: boolean;
 }
@@ -255,7 +256,7 @@ export interface SidebarDividerItem {
 export interface BrandingConfig {
 	/** Brand name - supports inline translations */
 	name?: I18nText;
-	logo?: IconComponent;
+	logo?: IconComponent | ComponentReference;
 	favicon?: string;
 	primaryColor?: string;
 }

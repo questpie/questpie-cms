@@ -8,6 +8,7 @@ export default defineConfig({
 	dts: true,
 	shims: true,
 	external: ["bun"],
+	unbundle: true,
 	exports: {
 		// Export all files including internal chunks so TypeScript can resolve
 		// type references from internal .d.mts files

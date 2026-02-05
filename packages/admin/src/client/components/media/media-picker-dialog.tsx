@@ -22,7 +22,7 @@
  * ```
  */
 
-import { FunnelSimple, MagnifyingGlass } from "@phosphor-icons/react";
+import { Icon } from "@iconify/react";
 import * as React from "react";
 import { toast } from "sonner";
 import { useCollectionList } from "../../hooks/use-collection";
@@ -262,9 +262,9 @@ export function MediaPickerDialog({
 					<div className="flex flex-col gap-3 border-b pb-4 sm:flex-row">
 						{/* Search input */}
 						<div className="relative flex-1">
-							<MagnifyingGlass
+							<Icon
+								icon="ph:magnifying-glass-bold"
 								className="text-muted-foreground absolute left-3 top-1/2 size-4 -translate-y-1/2"
-								weight="bold"
 							/>
 							<Input
 								type="text"
@@ -283,7 +283,7 @@ export function MediaPickerDialog({
 							>
 								<SelectTrigger className="w-full sm:w-[180px]">
 									<div className="flex items-center gap-2">
-										<FunnelSimple weight="bold" className="size-4" />
+										<Icon icon="ph:funnel-simple-bold" className="size-4" />
 										<SelectValue />
 									</div>
 								</SelectTrigger>

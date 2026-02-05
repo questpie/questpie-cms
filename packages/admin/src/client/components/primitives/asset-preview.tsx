@@ -15,23 +15,7 @@
  */
 
 import * as React from "react";
-import {
-	File,
-	FileDoc,
-	FileImage,
-	FilePdf,
-	FileVideo,
-	FileAudio,
-	FileCode,
-	FileZip,
-	FileCsv,
-	Pencil,
-	Trash,
-	X,
-	SpinnerGap,
-	DotsSixVertical,
-	ArrowSquareOut,
-} from "@phosphor-icons/react";
+import { Icon } from "@iconify/react";
 import { cn } from "../../lib/utils";
 import { Button } from "../ui/button";
 import type { Asset } from "../../hooks/use-upload";
@@ -120,30 +104,30 @@ export interface AssetPreviewProps {
 // ============================================================================
 
 /**
- * Get icon component based on MIME type
+ * Get icon name based on MIME type
  */
-function getFileIcon(mimeType?: string) {
-	if (!mimeType) return File;
+function getFileIconName(mimeType?: string): string {
+	if (!mimeType) return "ph:file";
 
 	const type = mimeType.toLowerCase();
 
-	if (type.startsWith("image/")) return FileImage;
-	if (type.startsWith("video/")) return FileVideo;
-	if (type.startsWith("audio/")) return FileAudio;
-	if (type === "application/pdf") return FilePdf;
+	if (type.startsWith("image/")) return "ph:file-image";
+	if (type.startsWith("video/")) return "ph:file-video";
+	if (type.startsWith("audio/")) return "ph:file-audio";
+	if (type === "application/pdf") return "ph:file-pdf";
 	if (
 		type.includes("zip") ||
 		type.includes("compressed") ||
 		type.includes("archive")
 	)
-		return FileZip;
-	if (type.includes("csv") || type.includes("spreadsheet")) return FileCsv;
+		return "ph:file-zip";
+	if (type.includes("csv") || type.includes("spreadsheet")) return "ph:file-csv";
 	if (
 		type.includes("word") ||
 		type.includes("document") ||
 		type === "application/rtf"
 	)
-		return FileDoc;
+		return "ph:file-doc";
 	if (
 		type.includes("json") ||
 		type.includes("javascript") ||
@@ -151,9 +135,9 @@ function getFileIcon(mimeType?: string) {
 		type.includes("xml") ||
 		type.includes("html")
 	)
-		return FileCode;
+		return "ph:file-code";
 
-	return File;
+	return "ph:file";
 }
 
 /**
@@ -216,7 +200,7 @@ export function AssetPreview({
 	const mimeType = asset.mimeType || pendingFile?.type;
 	const size = asset.size || pendingFile?.size;
 	const isImageType = isImage(mimeType);
-	const FileIcon = getFileIcon(mimeType);
+	const fileIconName = getFileIconName(mimeType);
 	const extension = getExtension(filename, mimeType);
 
 	// Build thumbnail URL
@@ -268,9 +252,9 @@ export function AssetPreview({
 					/>
 				) : (
 					<div className="flex h-full w-full items-center justify-center">
-						<FileIcon
+						<Icon
+							icon={fileIconName}
 							className="text-muted-foreground size-8"
-							weight="regular"
 						/>
 					</div>
 				)}
@@ -279,9 +263,9 @@ export function AssetPreview({
 				{loading && (
 					<div className="bg-background/80 absolute inset-0 flex items-center justify-center">
 						<div className="relative">
-							<SpinnerGap
+							<Icon
+								icon="ph:spinner-gap"
 								className="text-muted-foreground size-6 animate-spin"
-								weight="regular"
 							/>
 							{typeof progress === "number" && (
 								<span className="text-muted-foreground absolute inset-0 flex items-center justify-center text-[10px] font-medium">
@@ -303,7 +287,7 @@ export function AssetPreview({
 								nativeButton={false}
 								render={<a href={href} onClick={(e) => e.stopPropagation()} />}
 							>
-								<ArrowSquareOut weight="bold" />
+								<Icon icon="ph:arrow-square-out-bold" />
 							</Button>
 						)}
 						{onEdit && (
@@ -316,7 +300,7 @@ export function AssetPreview({
 									onEdit();
 								}}
 							>
-								<Pencil weight="bold" />
+								<Icon icon="ph:pencil-bold" />
 							</Button>
 						)}
 						{onRemove && (
@@ -329,7 +313,7 @@ export function AssetPreview({
 									onRemove();
 								}}
 							>
-								<Trash weight="bold" />
+								<Icon icon="ph:trash-bold" />
 							</Button>
 						)}
 					</div>
@@ -364,7 +348,7 @@ export function AssetPreview({
 						className="text-muted-foreground hover:text-foreground -ml-1 cursor-grab touch-none active:cursor-grabbing"
 						{...dragHandleProps}
 					>
-						<DotsSixVertical className="size-4" weight="bold" />
+						<Icon icon="ph:dots-six-vertical-bold" className="size-4" />
 					</button>
 				)}
 
@@ -378,9 +362,9 @@ export function AssetPreview({
 							onError={() => setImageError(true)}
 						/>
 					) : (
-						<FileIcon
+						<Icon
+							icon={fileIconName}
 							className="text-muted-foreground size-4"
-							weight="regular"
 						/>
 					)}
 				</div>
@@ -397,9 +381,9 @@ export function AssetPreview({
 
 				{/* Loading indicator */}
 				{loading && (
-					<SpinnerGap
+					<Icon
+						icon="ph:spinner-gap"
 						className="text-muted-foreground size-4 shrink-0 animate-spin"
-						weight="regular"
 					/>
 				)}
 
@@ -414,7 +398,7 @@ export function AssetPreview({
 								nativeButton={false}
 								render={<a href={href} onClick={(e) => e.stopPropagation()} />}
 							>
-								<ArrowSquareOut weight="bold" />
+								<Icon icon="ph:arrow-square-out-bold" />
 							</Button>
 						)}
 						{onEdit && (
@@ -427,7 +411,7 @@ export function AssetPreview({
 									onEdit();
 								}}
 							>
-								<Pencil weight="bold" />
+								<Icon icon="ph:pencil-bold" />
 							</Button>
 						)}
 						{onRemove && (
@@ -441,7 +425,7 @@ export function AssetPreview({
 								}}
 								className="text-destructive hover:text-destructive"
 							>
-								<X weight="bold" />
+								<Icon icon="ph:x-bold" />
 							</Button>
 						)}
 					</div>
@@ -471,7 +455,7 @@ export function AssetPreview({
 					className="text-muted-foreground hover:text-foreground absolute left-2 top-2 z-10 cursor-grab touch-none rounded p-1 active:cursor-grabbing"
 					{...dragHandleProps}
 				>
-					<DotsSixVertical className="size-4" weight="bold" />
+					<Icon icon="ph:dots-six-vertical-bold" className="size-4" />
 				</button>
 			)}
 
@@ -486,9 +470,9 @@ export function AssetPreview({
 					/>
 				) : (
 					<div className="flex h-full w-full flex-col items-center justify-center gap-2">
-						<FileIcon
+						<Icon
+							icon={fileIconName}
 							className="text-muted-foreground size-12"
-							weight="regular"
 						/>
 						{extension && (
 							<span className="bg-muted text-muted-foreground rounded px-2 py-0.5 text-xs font-medium">
@@ -501,9 +485,9 @@ export function AssetPreview({
 				{/* Loading overlay */}
 				{loading && (
 					<div className="bg-background/80 absolute inset-0 flex flex-col items-center justify-center gap-2">
-						<SpinnerGap
+						<Icon
+							icon="ph:spinner-gap"
 							className="text-muted-foreground size-8 animate-spin"
-							weight="regular"
 						/>
 						{typeof progress === "number" && (
 							<>
@@ -533,7 +517,7 @@ export function AssetPreview({
 							onRemove();
 						}}
 					>
-						<X weight="bold" />
+						<Icon icon="ph:x-bold" />
 					</Button>
 				)}
 			</div>
@@ -564,7 +548,7 @@ export function AssetPreview({
 									<a href={href} onClick={(e) => e.stopPropagation()} />
 								}
 							>
-								<ArrowSquareOut weight="bold" />
+								<Icon icon="ph:arrow-square-out-bold" />
 							</Button>
 						)}
 						{onEdit && (
@@ -577,7 +561,7 @@ export function AssetPreview({
 									onEdit();
 								}}
 							>
-								<Pencil weight="bold" />
+								<Icon icon="ph:pencil-bold" />
 							</Button>
 						)}
 					</div>

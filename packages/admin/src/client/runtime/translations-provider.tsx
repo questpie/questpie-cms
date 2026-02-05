@@ -98,7 +98,7 @@ export function getAdminTranslationsQueryOptions(client: any, locale: string) {
 		queryKey: ["cms", "adminTranslations", locale] as const,
 		queryFn: async () => {
 			try {
-				const result = await client.functions.getAdminTranslations({ locale });
+				const result = await client.rpc.getAdminTranslations({ locale });
 				return result as {
 					locale: string;
 					messages: SimpleMessages;
@@ -138,7 +138,7 @@ export function getAdminLocalesQueryOptions(client: any) {
 		queryKey: ["cms", "adminLocales"] as const,
 		queryFn: async () => {
 			try {
-				const result = await client.functions.getAdminLocales({});
+				const result = await client.rpc.getAdminLocales({});
 				return result as {
 					locales: string[];
 					defaultLocale: string;

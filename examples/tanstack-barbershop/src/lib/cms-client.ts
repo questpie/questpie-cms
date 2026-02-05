@@ -5,9 +5,9 @@
  */
 
 import { createClient } from "questpie/client";
-import type { AppCMS } from "@/questpie/server/cms";
+import type { AppCMS, AppRpc } from "@/questpie/server/cms";
 
-export const client = createClient<AppCMS>({
+export const client = createClient<AppCMS, AppRpc>({
 	baseURL:
 		typeof window !== "undefined"
 			? window.location.origin

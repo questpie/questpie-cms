@@ -10,6 +10,7 @@ import type {
 	ValueWidgetConfig,
 	ValueWidgetResult,
 } from "../../builder/types/widget-types";
+import { resolveIconElement } from "../../components/component-renderer";
 import { useResolveText } from "../../i18n/hooks";
 import { cn } from "../../lib/utils";
 import { selectClient, useAdminStore } from "../../runtime";
@@ -113,9 +114,9 @@ export default function ValueWidget({ config }: ValueWidgetProps) {
 				{/* Trend indicator */}
 				{data.trend && (
 					<div className={cn("flex items-center gap-1 text-sm", cls.trend)}>
-						{TrendIcon && (
-							<TrendIcon className={cn("h-3 w-3", cls.trendIcon)} />
-						)}
+						{resolveIconElement(TrendIcon, {
+							className: cn("h-3 w-3", cls.trendIcon),
+						})}
 						<span>{data.trend.value}</span>
 					</div>
 				)}

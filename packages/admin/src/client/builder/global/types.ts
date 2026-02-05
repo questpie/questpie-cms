@@ -2,6 +2,7 @@
  * Global Builder Types
  */
 
+import type { ComponentReference } from "#questpie/admin/server";
 import type { I18nText } from "../../i18n/types.js";
 import type { AdminBuilder } from "../admin-builder";
 import type { IconComponent } from "../types/common";
@@ -14,7 +15,7 @@ export interface GlobalMeta {
 	label?: I18nText;
 	/** Description - supports inline translations */
 	description?: I18nText;
-	icon?: IconComponent | string;
+	icon?: IconComponent | ComponentReference | string;
 	group?: string;
 	order?: number;
 	hidden?: boolean;
@@ -39,7 +40,7 @@ export interface GlobalConfig<TApp = any> {
 	/**
 	 * Icon
 	 */
-	icon?: IconComponent | string;
+	icon?: IconComponent | ComponentReference | string;
 
 	/**
 	 * Field configurations
@@ -76,7 +77,7 @@ export interface GlobalBuilderState<
 	readonly label?: I18nText;
 	/** Description - supports inline translations */
 	readonly description?: I18nText;
-	readonly icon?: IconComponent;
+	readonly icon?: IconComponent | ComponentReference;
 	readonly fields?: Record<string, any>;
 	readonly form?: any;
 }

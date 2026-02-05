@@ -1,5 +1,5 @@
 import { Checkbox as CheckboxPrimitive } from "@base-ui/react/checkbox";
-import { CheckIcon, MinusIcon } from "@phosphor-icons/react";
+import { Icon } from "@iconify/react";
 import { cn } from "../../lib/utils";
 
 function Checkbox({
@@ -28,12 +28,12 @@ function Checkbox({
 					showIndeterminate && "hidden",
 				)}
 			>
-				<CheckIcon weight="bold" />
+				<Icon icon="ph:check-bold" />
 			</CheckboxPrimitive.Indicator>
 			{/* Manual indicator for indeterminate state */}
 			{showIndeterminate && (
 				<span className="[&>svg]:size-3.5 grid place-content-center text-current">
-					<MinusIcon weight="bold" />
+					<Icon icon="ph:minus-bold" />
 				</span>
 			)}
 		</CheckboxPrimitive.Root>

@@ -5,8 +5,8 @@
  * Provides media library functionality for managing uploaded files.
  */
 
-import { Images, UploadSimple } from "@phosphor-icons/react";
 import { lazy } from "react";
+import type { ComponentReference } from "#questpie/admin/server";
 import { AssetThumbnail } from "../../../views/collection/cells";
 import { coreAdminModule } from "../core";
 
@@ -51,7 +51,10 @@ export const assetsCollectionAdmin = coreAdminModule
 	.collection("assets")
 	.meta({
 		label: { key: "defaults.assets.label" },
-		icon: Images,
+		icon: {
+			type: "icon",
+			props: { name: "ph:image" },
+		} satisfies ComponentReference,
 		description: { key: "defaults.assets.description" },
 	})
 	.fields(({ r }) => ({
@@ -122,7 +125,10 @@ export const assetsCollectionAdmin = coreAdminModule
 						a.action({
 							id: "upload",
 							label: { key: "defaults.assets.actions.upload.label" },
-							icon: UploadSimple,
+							icon: {
+								type: "icon",
+								props: { name: "ph:upload-simple" },
+							} satisfies ComponentReference,
 							variant: "default",
 							handler: {
 								type: "dialog",

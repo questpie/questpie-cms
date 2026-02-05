@@ -5,7 +5,7 @@
  * Renders global settings form with sections, tabs, sidebar, validation.
  */
 
-import { Check, SpinnerGap } from "@phosphor-icons/react";
+import { Icon } from "@iconify/react";
 import { QuestpieClientError } from "questpie/client";
 import * as React from "react";
 import { FormProvider, useForm } from "react-hook-form";
@@ -16,6 +16,7 @@ import { LocaleSwitcher } from "../../components/locale-switcher";
 import { Button } from "../../components/ui/button";
 import { useGlobal, useGlobalUpdate } from "../../hooks/use-global";
 import { useGlobalFields } from "../../hooks/use-global-fields";
+import { useGlobalServerValidation } from "../../hooks/use-server-validation";
 import { useResolveText, useTranslation } from "../../i18n/hooks";
 import {
 	selectAdmin,
@@ -157,8 +158,12 @@ export default function GlobalFormView({
 		},
 	});
 
+	// Get validation resolver - uses server JSON Schema for validation
+	const { resolver } = useGlobalServerValidation(globalName);
+
 	const form = useForm({
 		defaultValues: (globalData ?? {}) as any,
+		resolver,
 	});
 
 	// Reset form when data loads
@@ -182,6 +187,7 @@ export default function GlobalFormView({
 			const transformedData = fieldsForTransform
 				? wrapLocalizedNestedValues(data, {
 						fields: fieldsForTransform,
+						registry: admin.getFields(),
 						blocks: admin.state.blocks,
 					})
 				: data;
@@ -255,7 +261,7 @@ export default function GlobalFormView({
 		return (
 			<div className="w-full">
 				<div className="flex h-64 items-center justify-center text-muted-foreground">
-					<SpinnerGap className="size-6 animate-spin" />
+					<Icon icon="ph:spinner-gap" className="size-6 animate-spin" />
 				</div>
 			</div>
 		);
@@ -334,12 +340,12 @@ export default function GlobalFormView({
 							>
 								{isSubmitting ? (
 									<>
-										<SpinnerGap className="size-4 animate-spin" />
+										<Icon icon="ph:spinner-gap" className="size-4 animate-spin" />
 										{t("common.loading")}
 									</>
 								) : (
 									<>
-										<Check size={16} />
+										<Icon icon="ph:check" width={16} height={16} />
 										{t("common.save")}
 									</>
 								)}

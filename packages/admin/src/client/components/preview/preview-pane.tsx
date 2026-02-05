@@ -7,7 +7,7 @@
 
 "use client";
 
-import { Spinner } from "@phosphor-icons/react";
+import { Icon } from "@iconify/react";
 import * as React from "react";
 import { cn } from "../../lib/utils.js";
 import type {
@@ -91,7 +91,7 @@ export const PreviewPane = React.forwardRef<PreviewPaneRef, PreviewPaneProps>(
 				try {
 					// Use type assertion since the client type may not include mintPreviewToken
 					// depending on which modules are used
-					const result = await (client as any).functions.mintPreviewToken({
+					const result = await (client as any).rpc.mintPreviewToken({
 						path: url,
 						ttlMs: 60 * 60 * 1000, // 1 hour
 					});
@@ -228,7 +228,10 @@ export const PreviewPane = React.forwardRef<PreviewPaneRef, PreviewPaneProps>(
 				{/* Loading overlay */}
 				{isLoading && (
 					<div className="absolute inset-0 z-10 flex items-center justify-center bg-muted/80">
-						<Spinner className="h-6 w-6 animate-spin text-muted-foreground" />
+						<Icon
+							icon="ph:spinner"
+							className="h-6 w-6 animate-spin text-muted-foreground"
+						/>
 						<span className="ml-2 text-sm text-muted-foreground">
 							Loading preview...
 						</span>
@@ -248,7 +251,10 @@ export const PreviewPane = React.forwardRef<PreviewPaneRef, PreviewPaneProps>(
 				{/* Refreshing indicator */}
 				{isRefreshing && !isLoading && (
 					<div className="absolute top-4 right-4 z-10 flex items-center gap-2 rounded-md bg-background px-3 py-2 shadow-md border">
-						<Spinner className="h-4 w-4 animate-spin text-muted-foreground" />
+						<Icon
+							icon="ph:spinner"
+							className="h-4 w-4 animate-spin text-muted-foreground"
+						/>
 						<span className="text-sm text-muted-foreground">Refreshing...</span>
 					</div>
 				)}

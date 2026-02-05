@@ -5,13 +5,14 @@
  * Uses WidgetCard for consistent styling.
  */
 
-import { Circle } from "@phosphor-icons/react";
+import { Icon as IconifyIcon } from "@iconify/react";
 import { useQuery } from "@tanstack/react-query";
 import type * as React from "react";
 import type {
 	TimelineItem,
 	TimelineWidgetConfig,
 } from "../../builder/types/widget-types";
+import { resolveIconElement } from "../../components/component-renderer";
 import { useResolveText } from "../../i18n/hooks";
 import { cn } from "../../lib/utils";
 import { selectClient, useAdminStore } from "../../runtime";
@@ -144,7 +145,9 @@ export default function TimelineWidget({
 		) : (
 			<div className="space-y-0">
 				{items.map((item, index) => {
-					const Icon = item.icon || Circle;
+					const iconElement = resolveIconElement(item.icon, {
+						className: "h-3 w-3 text-white",
+					});
 					const variant = item.variant || "default";
 					const isLast = index === items.length - 1;
 					const isClickable = !!(item.href && navigate);
@@ -163,7 +166,9 @@ export default function TimelineWidget({
 									variantStyles[variant],
 								)}
 							>
-								<Icon className="h-3 w-3 text-white" weight="bold" />
+								{iconElement ?? (
+									<IconifyIcon icon="ph:circle-bold" className="h-3 w-3 text-white" />
+								)}
 							</div>
 
 							{/* Content */}

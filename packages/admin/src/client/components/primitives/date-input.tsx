@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarBlank, X } from "@phosphor-icons/react";
+import { Icon } from "@iconify/react";
 import { format } from "date-fns";
 import { useState } from "react";
 import { DayPicker } from "react-day-picker";
@@ -68,15 +68,14 @@ export function DateInput({
 					className,
 				)}
 			>
-				<CalendarBlank className="size-4" />
+				<Icon icon="ph:calendar-blank" className="size-4" />
 				<span className="flex-1 text-left">
 					{value ? format(value, dateFormat) : resolveText(placeholder)}
 				</span>
 				{value && !disabled && (
-					<X
+					<Icon icon="ph:x"
 						className="size-4 opacity-50 hover:opacity-100"
-						onClick={handleClear}
-					/>
+						onClick={handleClear} />
 				)}
 			</PopoverTrigger>
 			<PopoverContent className="w-auto p-0" align="start">
@@ -211,15 +210,14 @@ export function DateTimeInput({
 					className,
 				)}
 			>
-				<CalendarBlank className="size-4" />
+				<Icon icon="ph:calendar-blank" className="size-4" />
 				<span className="flex-1 text-left">
 					{value ? format(value, dateFormat) : resolveText(placeholder)}
 				</span>
 				{value && !disabled && (
-					<X
+					<Icon icon="ph:x"
 						className="size-4 opacity-50 hover:opacity-100"
-						onClick={handleClear}
-					/>
+						onClick={handleClear} />
 				)}
 			</PopoverTrigger>
 			<PopoverContent className="w-auto p-0" align="start">
@@ -346,13 +344,12 @@ export function DateRangeInput({
 					className,
 				)}
 			>
-				<CalendarBlank className="size-4" />
+				<Icon icon="ph:calendar-blank" className="size-4" />
 				<span className="flex-1 text-left">{displayValue()}</span>
 				{(value.start || value.end) && !disabled && (
-					<X
+					<Icon icon="ph:x"
 						className="size-4 opacity-50 hover:opacity-100"
-						onClick={handleClear}
-					/>
+						onClick={handleClear} />
 				)}
 			</PopoverTrigger>
 			<PopoverContent className="w-auto p-0" align="start">

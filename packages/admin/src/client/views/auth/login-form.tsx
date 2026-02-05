@@ -2,12 +2,7 @@
  * Login Form - email/password authentication
  */
 
-import {
-	Envelope,
-	Lock,
-	SpinnerGap,
-	WarningCircle,
-} from "@phosphor-icons/react";
+import { Icon } from "@iconify/react";
 import * as React from "react";
 import { useForm } from "react-hook-form";
 import { Alert, AlertDescription } from "../../components/ui/alert";
@@ -119,9 +114,9 @@ export function LoginForm({
 					<FieldLabel htmlFor="email">{t("auth.email")}</FieldLabel>
 					<FieldContent>
 						<div className="relative">
-							<Envelope
+							<Icon
+								icon="ph:envelope-duotone"
 								className="text-muted-foreground absolute left-2 top-1/2 size-4 -translate-y-1/2"
-								weight="duotone"
 							/>
 							<Input
 								id="email"
@@ -148,9 +143,9 @@ export function LoginForm({
 					<FieldLabel htmlFor="password">{t("auth.password")}</FieldLabel>
 					<FieldContent>
 						<div className="relative">
-							<Lock
+							<Icon
+								icon="ph:lock-duotone"
 								className="text-muted-foreground absolute left-2 top-1/2 size-4 -translate-y-1/2"
-								weight="duotone"
 							/>
 							<Input
 								id="password"
@@ -205,7 +200,7 @@ export function LoginForm({
 			{/* Error Message */}
 			{error && (
 				<Alert variant="destructive">
-					<WarningCircle />
+					<Icon icon="ph:warning-circle" />
 					<AlertDescription>{error}</AlertDescription>
 				</Alert>
 			)}
@@ -219,7 +214,7 @@ export function LoginForm({
 			>
 				{isSubmitting ? (
 					<>
-						<SpinnerGap className="animate-spin" weight="bold" />
+						<Icon icon="ph:spinner-gap-bold" className="animate-spin" />
 						{t("auth.signingIn")}
 					</>
 				) : (

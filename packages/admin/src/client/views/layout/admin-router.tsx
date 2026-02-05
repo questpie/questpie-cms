@@ -13,7 +13,7 @@
  * - /admin/:customPage -> Custom pages
  */
 
-import { SpinnerGap } from "@phosphor-icons/react";
+import { Icon } from "@iconify/react";
 import * as React from "react";
 import type {
 	ComponentRegistry,
@@ -169,29 +169,17 @@ function useRouterProps(props: {
 	const storeDashboard = admin.getDashboard();
 	const storeDefaultViews = admin.getDefaultViews();
 
-	// Merge server dashboard config with local config (server takes priority for title/description/items)
+	// Server dashboard takes priority when it has items; otherwise fall back to local config
 	const mergedDashboard = React.useMemo<DashboardConfig | undefined>(() => {
-		const localConfig = props.dashboardConfig ?? storeDashboard;
 		const serverDashboard = serverConfig?.dashboard;
 
-		if (!serverDashboard) return localConfig;
+		// If server has items, use server config entirely
+		if (serverDashboard?.items?.length) {
+			return serverDashboard as DashboardConfig;
+		}
 
-		// Server dashboard config maps directly to DashboardConfig
-		// (icons in server widgets are ComponentReference but DashboardWidget accepts them as-is
-		// since the widget renderers handle icon resolution)
-		return {
-			...localConfig,
-			title: serverDashboard.title ?? localConfig?.title,
-			description: serverDashboard.description ?? localConfig?.description,
-			columns: serverDashboard.columns ?? localConfig?.columns,
-			gap: serverDashboard.gap ?? localConfig?.gap,
-			refreshInterval:
-				serverDashboard.refreshInterval ?? localConfig?.refreshInterval,
-			// Server items take priority if provided
-			items: serverDashboard.items?.length
-				? (serverDashboard.items as DashboardConfig["items"])
-				: localConfig?.items,
-		};
+		// Otherwise fall back to local config
+		return props.dashboardConfig ?? storeDashboard;
 	}, [props.dashboardConfig, storeDashboard, serverConfig?.dashboard]);
 
 	return {
@@ -373,7 +361,7 @@ function LazyPageRenderer({ config }: { config: PageDefinition<string> }) {
 	if (loading) {
 		return (
 			<div className="flex h-64 items-center justify-center text-muted-foreground">
-				<SpinnerGap className="size-6 animate-spin" />
+				<Icon icon="ph:spinner-gap" className="size-6 animate-spin" />
 			</div>
 		);
 	}

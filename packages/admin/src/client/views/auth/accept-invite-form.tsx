@@ -2,7 +2,7 @@
  * Accept Invite Form - complete registration after receiving invitation
  */
 
-import { Lock, SpinnerGap, User, WarningCircle } from "@phosphor-icons/react";
+import { Icon } from "@iconify/react";
 import * as React from "react";
 import { useForm } from "react-hook-form";
 import { Alert, AlertDescription } from "../../components/ui/alert";
@@ -123,9 +123,9 @@ export function AcceptInviteForm({
 					<FieldLabel htmlFor="accept-name">{t("auth.name")}</FieldLabel>
 					<FieldContent>
 						<div className="relative">
-							<User
+							<Icon
+								icon="ph:user-duotone"
 								className="text-muted-foreground absolute left-2 top-1/2 size-4 -translate-y-1/2"
-								weight="duotone"
 							/>
 							<Input
 								id="accept-name"
@@ -154,9 +154,9 @@ export function AcceptInviteForm({
 					</FieldLabel>
 					<FieldContent>
 						<div className="relative">
-							<Lock
+							<Icon
+								icon="ph:lock-duotone"
 								className="text-muted-foreground absolute left-2 top-1/2 size-4 -translate-y-1/2"
-								weight="duotone"
 							/>
 							<Input
 								id="accept-password"
@@ -190,9 +190,9 @@ export function AcceptInviteForm({
 					</FieldLabel>
 					<FieldContent>
 						<div className="relative">
-							<Lock
+							<Icon
+								icon="ph:lock-duotone"
 								className="text-muted-foreground absolute left-2 top-1/2 size-4 -translate-y-1/2"
-								weight="duotone"
 							/>
 							<Input
 								id="accept-confirm-password"
@@ -216,7 +216,7 @@ export function AcceptInviteForm({
 			{/* Error Message */}
 			{error && (
 				<Alert variant="destructive">
-					<WarningCircle />
+					<Icon icon="ph:warning-circle" />
 					<AlertDescription>{error}</AlertDescription>
 				</Alert>
 			)}
@@ -230,7 +230,7 @@ export function AcceptInviteForm({
 			>
 				{isSubmitting ? (
 					<>
-						<SpinnerGap className="animate-spin" weight="bold" />
+						<Icon icon="ph:spinner-gap-bold" className="animate-spin" />
 						{t("auth.acceptingInvite")}
 					</>
 				) : (

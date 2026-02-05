@@ -2,13 +2,7 @@
  * Setup Form - create first admin account
  */
 
-import {
-	Envelope,
-	Lock,
-	SpinnerGap,
-	User,
-	WarningCircle,
-} from "@phosphor-icons/react";
+import { Icon } from "@iconify/react";
 import * as React from "react";
 import { useForm } from "react-hook-form";
 import { Alert, AlertDescription } from "../../components/ui/alert";
@@ -108,10 +102,8 @@ export function SetupForm({
 					<FieldLabel htmlFor="name">{t("auth.name")}</FieldLabel>
 					<FieldContent>
 						<div className="relative">
-							<User
-								className="text-muted-foreground absolute left-2 top-1/2 size-4 -translate-y-1/2"
-								weight="duotone"
-							/>
+							<Icon icon="ph:user-duotone"
+								className="text-muted-foreground absolute left-2 top-1/2 size-4 -translate-y-1/2" />
 							<Input
 								id="name"
 								type="text"
@@ -137,10 +129,8 @@ export function SetupForm({
 					<FieldLabel htmlFor="email">{t("auth.email")}</FieldLabel>
 					<FieldContent>
 						<div className="relative">
-							<Envelope
-								className="text-muted-foreground absolute left-2 top-1/2 size-4 -translate-y-1/2"
-								weight="duotone"
-							/>
+							<Icon icon="ph:envelope-duotone"
+								className="text-muted-foreground absolute left-2 top-1/2 size-4 -translate-y-1/2" />
 							<Input
 								id="email"
 								type="email"
@@ -166,10 +156,8 @@ export function SetupForm({
 					<FieldLabel htmlFor="password">{t("auth.password")}</FieldLabel>
 					<FieldContent>
 						<div className="relative">
-							<Lock
-								className="text-muted-foreground absolute left-2 top-1/2 size-4 -translate-y-1/2"
-								weight="duotone"
-							/>
+							<Icon icon="ph:lock-duotone"
+								className="text-muted-foreground absolute left-2 top-1/2 size-4 -translate-y-1/2" />
 							<Input
 								id="password"
 								type="password"
@@ -199,10 +187,8 @@ export function SetupForm({
 					</FieldLabel>
 					<FieldContent>
 						<div className="relative">
-							<Lock
-								className="text-muted-foreground absolute left-2 top-1/2 size-4 -translate-y-1/2"
-								weight="duotone"
-							/>
+							<Icon icon="ph:lock-duotone"
+								className="text-muted-foreground absolute left-2 top-1/2 size-4 -translate-y-1/2" />
 							<Input
 								id="confirmPassword"
 								type="password"
@@ -225,7 +211,7 @@ export function SetupForm({
 			{/* Error Message */}
 			{error && (
 				<Alert variant="destructive">
-					<WarningCircle />
+					<Icon icon="ph:warning-circle"  />
 					<AlertDescription>{error}</AlertDescription>
 				</Alert>
 			)}
@@ -239,7 +225,7 @@ export function SetupForm({
 			>
 				{isSubmitting ? (
 					<>
-						<SpinnerGap className="animate-spin" weight="bold" />
+						<Icon icon="ph:spinner-gap-bold" className="animate-spin" />
 						{t("auth.creatingAdmin")}
 					</>
 				) : (

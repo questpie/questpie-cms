@@ -9,7 +9,7 @@
 
 "use client";
 
-import { Eye, SignOut, X } from "@phosphor-icons/react";
+import { Icon } from "@iconify/react";
 import * as React from "react";
 import type { CollectionBuilderState } from "../../builder/collection/types.js";
 import type { ComponentRegistry } from "../../builder/types/field-types.js";
@@ -164,7 +164,7 @@ function LivePreviewContent({
 			{/* Header */}
 			<div className="flex items-center justify-between border-b px-4 py-2 shrink-0">
 				<div className="flex items-center gap-2">
-					<Eye className="h-4 w-4 text-muted-foreground" />
+					<Icon icon="ph:eye" className="h-4 w-4 text-muted-foreground" />
 					<span className="font-medium">{t("preview.livePreview")}</span>
 				</div>
 
@@ -194,11 +194,11 @@ function LivePreviewContent({
 						className="gap-1.5"
 						title="Exit preview mode and clear draft cookie"
 					>
-						<SignOut className="h-4 w-4" />
+						<Icon icon="ph:sign-out" className="h-4 w-4" />
 						<span className="hidden sm:inline">Exit Preview</span>
 					</Button>
 					<Button variant="ghost" size="icon" onClick={onClose}>
-						<X className="h-4 w-4" />
+						<Icon icon="ph:x" className="h-4 w-4" />
 						<span className="sr-only">{t("common.close")}</span>
 					</Button>
 				</div>
@@ -365,7 +365,7 @@ export function LivePreviewButton({
 			disabled={disabled}
 			title="Live Preview"
 		>
-			<Eye className="size-4" />
+			<Icon icon="ph:eye" className="size-4" />
 			<span className="sr-only">Live Preview</span>
 		</Button>
 	);

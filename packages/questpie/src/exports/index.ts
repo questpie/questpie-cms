@@ -16,6 +16,7 @@ import { auth } from "#questpie/server/integrated/auth/config.js";
 import { email } from "#questpie/server/integrated/mailer/template.js";
 import { job } from "#questpie/server/integrated/queue/job.js";
 import { starterModule } from "#questpie/server/modules/starter/index.js";
+import { rpc } from "#questpie/server/rpc/factory.js";
 
 // Create the base builder with default fields
 const baseBuilder = questpie({ name: "questpie" }).fields(defaultFields);
@@ -82,10 +83,15 @@ const q = Object.assign(callableQ, {
 	 * @example export default q.config({ app: cms, cli: { migrations: { directory: "./migrations" } } })
 	 */
 	config,
+
+	/**
+	 * Create standalone RPC contract builder.
+	 */
+	rpc,
 });
 
 export { q };
 
 // Re-export standalone functions for backwards compatibility
 // Prefer using q.collection(), q.job(), etc. for better type inference
-export { collection, global, job, fn, email, auth, config };
+export { collection, global, job, fn, email, auth, config, rpc };

@@ -8,37 +8,13 @@
 
 "use client";
 
-import * as PhosphorIcons from "@phosphor-icons/react";
 import * as React from "react";
 import type {
 	ActionDefinition,
 	ActionsConfig,
 } from "../builder/collection/action-types";
 import type { FieldDefinition } from "../builder/field/field";
-import type { IconComponent } from "../builder/types/common";
 import { useCollectionSchema } from "./use-collection-schema";
-
-// ============================================================================
-// Icon Resolution
-// ============================================================================
-
-/**
- * Resolve a ComponentReference icon to an IconComponent
- */
-function resolveServerIcon(
-	icon: { type: string; props: Record<string, unknown> } | undefined,
-): IconComponent | undefined {
-	if (!icon?.props?.name) return undefined;
-
-	const name = String(icon.props.name);
-	const iconName = name.includes(":") ? name.split(":").pop()! : name;
-
-	const resolved = (PhosphorIcons as Record<string, unknown>)[iconName];
-	if (typeof resolved === "function") {
-		return resolved as IconComponent;
-	}
-	return undefined;
-}
 
 // ============================================================================
 // Server Action Mapping
@@ -54,7 +30,7 @@ function mapServerAction(
 	const action: ActionDefinition & { scope?: string } = {
 		id: serverAction.id,
 		label: serverAction.label,
-		icon: resolveServerIcon(serverAction.icon),
+		icon: serverAction.icon,
 		variant: serverAction.variant,
 		scope: serverAction.scope,
 		handler: {

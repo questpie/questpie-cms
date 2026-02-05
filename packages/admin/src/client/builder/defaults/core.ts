@@ -6,9 +6,11 @@
  */
 
 import { AdminBuilder } from "../admin-builder";
+import { builtInComponents } from "./components";
 import { builtInFields } from "./fields";
 import { builtInPages } from "./pages";
 import { builtInViews } from "./views";
+import { builtInWidgets } from "./widgets";
 
 /**
  * Core admin module - contains all built-in fields, views, and pages.
@@ -34,9 +36,11 @@ import { builtInViews } from "./views";
  * ```
  */
 export const coreAdminModule = AdminBuilder.empty()
-  .fields(builtInFields)
-  .views(builtInViews)
-  .pages(builtInPages);
+	.fields(builtInFields)
+	.components(builtInComponents)
+	.views(builtInViews)
+	.pages(builtInPages)
+	.widgets(builtInWidgets);
 
 /**
  * Type of core admin module state

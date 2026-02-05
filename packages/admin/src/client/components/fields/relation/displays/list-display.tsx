@@ -2,7 +2,7 @@
  * List Display - vertical list with action buttons
  */
 
-import { ArrowRight, DotsSixVertical, Pencil, X } from "@phosphor-icons/react";
+import { Icon } from "@iconify/react";
 import * as React from "react";
 import { CollectionEditLink } from "../../../admin-link";
 import { Button } from "../../../ui/button";
@@ -34,7 +34,7 @@ export function ListDisplay({
                 className="cursor-grab text-muted-foreground hover:text-foreground"
                 aria-label="Drag to reorder"
               >
-                <DotsSixVertical className="h-4 w-4" />
+                <Icon icon="ph:dots-six-vertical" className="h-4 w-4" />
               </button>
             )}
 
@@ -63,7 +63,7 @@ export function ListDisplay({
                 title="Edit"
                 aria-label="Edit item"
               >
-                <Pencil className="h-3 w-3" />
+                <Icon icon="ph:pencil" className="h-3 w-3" />
               </Button>
             )}
 
@@ -78,7 +78,7 @@ export function ListDisplay({
                 title="Remove"
                 aria-label="Remove item"
               >
-                <X className="h-3 w-3" />
+                <Icon icon="ph:x" className="h-3 w-3" />
               </Button>
             )}
           </div>
@@ -108,7 +108,7 @@ export function ListDisplay({
                   <CollectionIcon className="size-3 text-muted-foreground" />
                 )}
                 {displayText}
-                <Pencil className="size-3" />
+                <Icon icon="ph:pencil" className="size-3" />
               </button>
             </li>
           );
@@ -127,7 +127,7 @@ export function ListDisplay({
                   <CollectionIcon className="size-3 text-muted-foreground" />
                 )}
                 {displayText}
-                <ArrowRight className="size-3" />
+                <Icon icon="ph:arrow-right" className="size-3" />
               </CollectionEditLink>
             </li>
           );

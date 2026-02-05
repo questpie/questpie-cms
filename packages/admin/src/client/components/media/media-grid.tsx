@@ -21,7 +21,7 @@
  * ```
  */
 
-import { Check } from "@phosphor-icons/react";
+import { Icon } from "@iconify/react";
 import * as React from "react";
 import type { Asset } from "../../hooks/use-upload";
 import { cn } from "../../lib/utils";
@@ -208,7 +208,7 @@ function AssetItem({
 							: "border-white bg-black/20 backdrop-blur-sm group-hover:bg-black/40",
 					)}
 				>
-					{selected && <Check weight="bold" className="size-3 text-white" />}
+					{selected && <Icon icon="ph:check-bold" className="size-3 text-white" />}
 				</div>
 			)}
 

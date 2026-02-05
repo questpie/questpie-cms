@@ -11,7 +11,7 @@
  * - Responsive: Popover on desktop, Drawer on mobile
  */
 
-import { Plus } from "@phosphor-icons/react";
+import { Icon } from "@iconify/react";
 import { createQuestpieQueryOptions } from "@questpie/tanstack-query";
 import { useQueryClient } from "@tanstack/react-query";
 import type { Questpie } from "questpie";
@@ -470,7 +470,7 @@ export function RelationPicker<T extends Questpie<any>>({
 						title={createLabel}
 						aria-label={createLabel}
 					>
-						<Plus className="h-4 w-4" />
+						<Icon icon="ph:plus" className="h-4 w-4" />
 					</Button>
 				</div>
 			)}

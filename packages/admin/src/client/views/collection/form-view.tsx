@@ -5,14 +5,7 @@
  * This is the default edit view registered in the admin view registry.
  */
 
-import {
-	Check,
-	ClockCounterClockwise,
-	DotsThreeVertical,
-	Eye,
-	SpinnerGap,
-	Warning,
-} from "@phosphor-icons/react";
+import { Icon } from "@iconify/react";
 import { createQuestpieQueryOptions } from "@questpie/tanstack-query";
 import { useQueryClient } from "@tanstack/react-query";
 import { QuestpieClientError } from "questpie/client";
@@ -38,6 +31,7 @@ import type {
 import { ActionButton } from "../../components/actions/action-button";
 import { ActionDialog } from "../../components/actions/action-dialog";
 import { ConfirmationDialog } from "../../components/actions/confirmation-dialog";
+import { resolveIconElement } from "../../components/component-renderer";
 import { LocaleSwitcher } from "../../components/locale-switcher";
 import {
 	LivePreviewMode,
@@ -60,7 +54,10 @@ import {
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "../../components/ui/dropdown-menu";
-import { useCollectionValidation } from "../../hooks";
+import {
+	useCollectionValidation,
+	usePreferServerValidation,
+} from "../../hooks";
 import {
 	useCollectionCreate,
 	useCollectionDelete,
@@ -301,9 +298,17 @@ export default function FormView({
 	const updateMutation = useCollectionUpdate(collection as any);
 	const deleteMutation = useCollectionDelete(collection as any);
 
+	// Get validation resolver - prefer server validation (AJV with JSON Schema) over client validation
+	const clientResolver = useCollectionValidation(collection);
+	const resolver = usePreferServerValidation(
+		collection,
+		{ mode: isEditMode ? "update" : "create" },
+		clientResolver,
+	);
+
 	const form = useForm({
 		defaultValues: (transformedItem ?? defaultValuesProp ?? {}) as any,
-		resolver: useCollectionValidation(collection),
+		resolver,
 	});
 
 	// Autosave state
@@ -411,6 +416,7 @@ export default function FormView({
 		const transformedData = resolvedFields
 			? wrapLocalizedNestedValues(data, {
 					fields: resolvedFields,
+					registry: admin.getFields(),
 					blocks: admin.state.blocks,
 				})
 			: data;
@@ -952,7 +958,7 @@ export default function FormView({
 		return (
 			<div className="w-full">
 				<div className="flex h-64 items-center justify-center text-muted-foreground">
-					<SpinnerGap className="size-6 animate-spin" />
+					<Icon icon="ph:spinner-gap" className="size-6 animate-spin" />
 				</div>
 			</div>
 		);
@@ -1002,13 +1008,13 @@ export default function FormView({
 										<>
 											{isSaving && (
 												<Badge variant="secondary" className="gap-1.5">
-													<SpinnerGap className="size-3 animate-spin" />
+													<Icon icon="ph:spinner-gap" className="size-3 animate-spin" />
 													{t("autosave.saving")}
 												</Badge>
 											)}
 											{!isSaving && form.formState.isDirty && (
 												<Badge variant="outline" className="gap-1.5">
-													<ClockCounterClockwise className="size-3" />
+													<Icon icon="ph:clock-counter-clockwise" className="size-3" />
 													{t("autosave.unsavedChanges")}
 												</Badge>
 											)}
@@ -1017,7 +1023,7 @@ export default function FormView({
 													variant="secondary"
 													className="gap-1.5 text-muted-foreground"
 												>
-													<Check className="size-3" />
+													<Icon icon="ph:check" className="size-3" />
 													{t("autosave.saved")} {formatTimeAgo(lastSaved)}
 												</Badge>
 											)}
@@ -1082,7 +1088,7 @@ export default function FormView({
 									onClick={() => setIsLivePreviewOpen(true)}
 									title={t("preview.livePreview")}
 								>
-									<Eye className="size-4" />
+									<Icon icon="ph:eye" className="size-4" />
 									<span className="sr-only">{t("preview.livePreview")}</span>
 								</Button>
 							)}
@@ -1106,12 +1112,12 @@ export default function FormView({
 							>
 								{isSubmitting ? (
 									<>
-										<SpinnerGap className="size-4 animate-spin" />
+										<Icon icon="ph:spinner-gap" className="size-4 animate-spin" />
 										{t("common.loading")}
 									</>
 								) : (
 									<>
-										<Check size={16} />
+										<Icon icon="ph:check" width={16} height={16} />
 										{t("common.save")}
 									</>
 								)}
@@ -1129,21 +1135,21 @@ export default function FormView({
 											/>
 										}
 									>
-										<DotsThreeVertical className="size-4" />
+										<Icon icon="ph:dots-three-vertical" className="size-4" />
 										<span className="sr-only">{t("common.moreActions")}</span>
 									</DropdownMenuTrigger>
 									<DropdownMenuContent align="end">
 										{regularSecondary.map((action) => {
-											const Icon = action.icon as
-												| React.ComponentType<React.SVGProps<SVGSVGElement>>
-												| undefined;
+											const iconElement = resolveIconElement(action.icon, {
+												className: "mr-2 size-4",
+											});
 											return (
 												<DropdownMenuItem
 													key={action.id}
 													onClick={() => handleActionClick(action)}
 													disabled={actionLoading}
 												>
-													{Icon && <Icon className="mr-2 size-4" />}
+													{iconElement}
 													{resolveText(action.label)}
 												</DropdownMenuItem>
 											);
@@ -1155,9 +1161,9 @@ export default function FormView({
 											)}
 
 										{destructiveSecondary.map((action) => {
-											const Icon = action.icon as
-												| React.ComponentType<React.SVGProps<SVGSVGElement>>
-												| undefined;
+											const iconElement = resolveIconElement(action.icon, {
+												className: "mr-2 size-4",
+											});
 											return (
 												<DropdownMenuItem
 													key={action.id}
@@ -1165,7 +1171,7 @@ export default function FormView({
 													onClick={() => handleActionClick(action)}
 													disabled={actionLoading}
 												>
-													{Icon && <Icon className="mr-2 size-4" />}
+													{iconElement}
 													{resolveText(action.label)}
 												</DropdownMenuItem>
 											);
@@ -1196,7 +1202,7 @@ export default function FormView({
 				<DialogContent showCloseButton={false}>
 					<DialogHeader>
 						<DialogTitle className="flex items-center gap-2">
-							<Warning className="size-5 text-amber-500" weight="fill" />
+							<Icon icon="ph:warning-fill" className="size-5 text-amber-500" />
 							{t("confirm.localeChange")}
 						</DialogTitle>
 						<DialogDescription>

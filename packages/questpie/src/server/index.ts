@@ -30,6 +30,11 @@ export type {
 } from "#questpie/shared/type-utils.js";
 export * from "./adapters/http.js";
 export * from "./collection/builder/index.js";
+// Access control utilities
+export {
+	type AccessRuleEvaluationContext,
+	executeAccessRule,
+} from "./collection/crud/shared/access-control.js";
 // Transaction utilities with afterCommit support
 export {
 	getCurrentTransaction,
@@ -71,4 +76,5 @@ export * from "./integrated/storage/signed-url.js";
 export * from "./migration/index.js";
 export * from "./modules/core/core.module.js";
 export * from "./modules/starter/index.js";
+export * from "./rpc/index.js";
 export * from "./utils/drizzle-to-zod.js";

@@ -2,7 +2,7 @@
  * Cards Display - card grid with image, title, subtitle, meta
  */
 
-import { Pencil, X } from "@phosphor-icons/react";
+import { Icon } from "@iconify/react";
 import * as React from "react";
 import { useResolveText } from "../../../../i18n/hooks";
 import { CollectionEditLink } from "../../../admin-link";
@@ -91,7 +91,7 @@ export function CardsDisplay({
 												}}
 												aria-label="Edit item"
 											>
-												<Pencil className="size-3" />
+												<Icon icon="ph:pencil" className="size-3" />
 											</Button>
 										)}
 										{actions?.onRemove && (
@@ -107,7 +107,7 @@ export function CardsDisplay({
 												}}
 												aria-label="Remove item"
 											>
-												<X className="size-3" />
+												<Icon icon="ph:x" className="size-3" />
 											</Button>
 										)}
 									</div>

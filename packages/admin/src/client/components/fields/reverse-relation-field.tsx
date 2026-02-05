@@ -22,7 +22,7 @@
  * ```
  */
 
-import { Plus, Spinner } from "@phosphor-icons/react";
+import { Icon } from "@iconify/react";
 import { createQuestpieQueryOptions } from "@questpie/tanstack-query";
 import { useQueryClient } from "@tanstack/react-query";
 import * as React from "react";
@@ -472,7 +472,7 @@ export function ReverseRelationField({
 					</div>
 				)}
 				<div className="flex items-center gap-2 text-muted-foreground">
-					<Spinner className="size-4 animate-spin" />
+					<Icon icon="ph:spinner" className="size-4 animate-spin" />
 					<span className="text-sm">{t("relation.loading")}</span>
 				</div>
 			</div>
@@ -508,11 +508,11 @@ export function ReverseRelationField({
 			name: actionLabel,
 		});
 		const buttonLabel = resolvedCreateLabel || defaultLabel;
-		const buttonIcon = <Plus className="size-4" />;
+		const buttonIcon = <Icon icon="ph:plus" className="size-4" />;
 		const buttonContent =
 			variant === "icon" ? null : (
 				<>
-					<Plus className="size-4 mr-1" />
+					<Icon icon="ph:plus" className="size-4 mr-1" />
 					{buttonLabel}
 				</>
 			);

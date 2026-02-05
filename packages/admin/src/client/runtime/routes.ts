@@ -5,8 +5,10 @@
  */
 
 import type { Questpie } from "questpie";
+import type { ComponentReference } from "#questpie/admin/server";
 import type { CollectionNames, GlobalNames, IconComponent } from "../builder";
 import type { Admin } from "../builder/admin";
+import { isComponentReference } from "../components/component-renderer";
 import type { I18nText } from "../i18n/types";
 import { formatLabel } from "../lib/utils";
 
@@ -159,7 +161,8 @@ export type NavigationItem = {
 	id: string;
 	label: I18nText;
 	href: string;
-	icon?: IconComponent;
+	/** Icon - can be a React component or a server-defined ComponentReference */
+	icon?: IconComponent | ComponentReference;
 	group?: string;
 	order?: number;
 	type: "collection" | "global" | "page" | "dashboard" | "link";
@@ -183,7 +186,8 @@ export type NavigationElement = NavigationItem | NavigationDivider;
 export type NavigationGroup = {
 	id?: string;
 	label?: I18nText;
-	icon?: IconComponent;
+	/** Icon - can be a React component or a server-defined ComponentReference */
+	icon?: IconComponent | ComponentReference;
 	collapsed?: boolean;
 	items: NavigationElement[];
 };
@@ -295,17 +299,34 @@ function resolveLabel(label: unknown, fallback: string): I18nText {
 }
 
 /**
- * Resolve icon to IconComponent
- * Only accepts React components, not strings
+ * Resolve icon to IconComponent or ComponentReference.
+ * Handles:
+ * - React components (IconComponent)
+ * - Server-defined component references ({ type: "icon", props: { name: "..." } })
+ * - undefined/null
  */
-function resolveIcon(icon: unknown): IconComponent | undefined {
-	// IconComponent is a React component type, not a string
-	if (
-		typeof icon === "function" ||
-		(typeof icon === "object" && icon !== null)
-	) {
+function resolveIcon(
+	icon: unknown,
+): IconComponent | ComponentReference | undefined {
+	if (!icon) {
+		return undefined;
+	}
+
+	// Handle ComponentReference from server (e.g., { type: "icon", props: { name: "ph:users" } })
+	if (isComponentReference(icon)) {
+		return icon;
+	}
+
+	// Handle React component
+	if (typeof icon === "function") {
 		return icon as IconComponent;
 	}
+
+	// Handle object that might be a React component (e.g., forwardRef result)
+	if (typeof icon === "object" && icon !== null && "$$typeof" in icon) {
+		return icon as IconComponent;
+	}
+
 	return undefined;
 }
 

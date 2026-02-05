@@ -1,7 +1,7 @@
 "use client";
 
 import { Menu as MenuPrimitive } from "@base-ui/react/menu";
-import { CaretRightIcon, CheckIcon } from "@phosphor-icons/react";
+import { Icon } from "@iconify/react";
 import type * as React from "react";
 import { cn } from "../../lib/utils";
 
@@ -121,7 +121,7 @@ function DropdownMenuSubTrigger({
 			{...props}
 		>
 			{children}
-			<CaretRightIcon className="ml-auto size-4" />
+			<Icon icon="ph:caret-right" className="ml-auto size-4" />
 		</MenuPrimitive.SubmenuTrigger>
 	);
 }
@@ -171,7 +171,7 @@ function DropdownMenuCheckboxItem({
 				data-slot="dropdown-menu-checkbox-item-indicator"
 			>
 				<MenuPrimitive.CheckboxItemIndicator>
-					<CheckIcon />
+					<Icon icon="ph:check"  />
 				</MenuPrimitive.CheckboxItemIndicator>
 			</span>
 			{children}
@@ -207,7 +207,7 @@ function DropdownMenuRadioItem({
 				data-slot="dropdown-menu-radio-item-indicator"
 			>
 				<MenuPrimitive.RadioItemIndicator>
-					<CheckIcon />
+					<Icon icon="ph:check"  />
 				</MenuPrimitive.RadioItemIndicator>
 			</span>
 			{children}

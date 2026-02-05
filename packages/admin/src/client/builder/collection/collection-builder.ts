@@ -7,6 +7,7 @@
 
 import type { Questpie } from "questpie";
 import type { SetProperty } from "questpie/shared";
+import type { ComponentReference } from "#questpie/admin/server";
 import type { I18nText } from "../../i18n/types.js";
 import type { AdminBuilder } from "../admin-builder";
 import type {
@@ -144,7 +145,7 @@ type TypedSectionConfig<TFieldNames extends string> = {
 type TypedTabConfig<TFieldNames extends string> = {
 	id: string;
 	label: I18nText;
-	icon?: IconComponent;
+	icon?: IconComponent | ComponentReference;
 	fields?: (TFieldNames | { field: TFieldNames; className?: string })[];
 	sections?: TypedSectionConfig<TFieldNames>[];
 	tabs?: TypedTabConfig<TFieldNames>[];
@@ -171,7 +172,7 @@ export class CollectionBuilder<TState extends CollectionBuilderState> {
 	 */
 	meta(meta: {
 		label?: I18nText;
-		icon?: IconComponent;
+		icon?: IconComponent | ComponentReference;
 		description?: I18nText;
 	}): CollectionBuilder<TState> {
 		return new CollectionBuilder({

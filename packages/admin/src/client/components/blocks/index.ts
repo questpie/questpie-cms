@@ -42,7 +42,6 @@ export {
 	BlockIcon,
 	BlockTypeIcon,
 	type BlockTypeIconProps,
-	DEFAULT_BLOCK_ICONS,
 } from "./block-type-icon.js";
 
 // Utilities

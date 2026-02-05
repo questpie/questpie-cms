@@ -29,7 +29,7 @@
  * ```
  */
 
-import { q, starterModule } from "questpie";
+import { q, rpc, starterModule } from "questpie";
 import { adminFields } from "../../fields/index.js";
 import { adminPreferencesCollection } from "../admin-preferences/collections/admin-preferences.collection.js";
 import { savedViewsCollection } from "../admin-preferences/collections/saved-views.collection.js";
@@ -89,6 +89,17 @@ export {
 	translationFunctions,
 } from "./functions/translations.js";
 
+const r = rpc();
+
+export const adminRpc = r.router({
+	...setupFunctions,
+	...localeFunctions,
+	...previewFunctions,
+	...adminConfigFunctions,
+	...actionFunctions,
+	...translationFunctions,
+});
+
 /**
  * Admin Module - the complete backend for QuestPie admin panel.
  *
@@ -144,13 +155,4 @@ export const adminModule = q({ name: "questpie-admin" })
 		admin_saved_views: savedViewsCollection,
 
 		admin_preferences: adminPreferencesCollection,
-	})
-	// Add setup, locale, preview, admin config, action, and translation functions
-	.functions({
-		...setupFunctions,
-		...localeFunctions,
-		...previewFunctions,
-		...adminConfigFunctions,
-		...actionFunctions,
-		...translationFunctions,
 	});

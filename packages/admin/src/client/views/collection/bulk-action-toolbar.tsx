@@ -10,7 +10,7 @@
 
 "use client";
 
-import { CaretDown, Funnel, X } from "@phosphor-icons/react";
+import { Icon } from "@iconify/react";
 import { useQueryClient } from "@tanstack/react-query";
 import type { Table } from "@tanstack/react-table";
 import * as React from "react";
@@ -21,6 +21,7 @@ import type {
 	ActionQueryClient,
 } from "../../builder/collection/action-types";
 import { ConfirmationDialog } from "../../components/actions/confirmation-dialog";
+import { resolveIconElement } from "../../components/component-renderer";
 import { Button } from "../../components/ui/button";
 import {
 	DropdownMenu,
@@ -291,12 +292,12 @@ export function BulkActionToolbar<TItem = any>({
 										onClick={onOpenFilters}
 										className="h-6 px-2 text-xs gap-2"
 									>
-										<Funnel size={14} weight="fill" className="text-primary" />
+										<Icon icon="ph:funnel-fill" width={14} height={14} className="text-primary" />
 										{t("viewOptions.activeFilters", { count: filterCount })}
 									</Button>
 								) : (
 									<>
-										<Funnel size={14} weight="fill" className="text-primary" />
+										<Icon icon="ph:funnel-fill" width={14} height={14} className="text-primary" />
 										<span className="text-sm font-medium whitespace-nowrap">
 											{t("viewOptions.activeFilters", { count: filterCount })}
 										</span>
@@ -343,7 +344,7 @@ export function BulkActionToolbar<TItem = any>({
 									disabled={isSelectingAll}
 								>
 									{t("common.selectAll").split(" ")[0]}
-									<CaretDown className="size-3" />
+									<Icon icon="ph:caret-down" className="size-3" />
 								</DropdownMenuTrigger>
 								<DropdownMenuContent align="center" side="top" sideOffset={8}>
 									<DropdownMenuItem
@@ -382,20 +383,20 @@ export function BulkActionToolbar<TItem = any>({
 										disabled={isLoading}
 									>
 										{t("common.actions")}
-										<CaretDown className="size-3" />
+										<Icon icon="ph:caret-down" className="size-3" />
 									</DropdownMenuTrigger>
 									<DropdownMenuContent align="center" side="top" sideOffset={8}>
 										{regularActions.map((action) => {
-											const Icon = action.icon as
-												| React.ComponentType<React.SVGProps<SVGSVGElement>>
-												| undefined;
+											const iconElement = resolveIconElement(action.icon, {
+												className: "mr-2 size-4",
+											});
 											return (
 												<DropdownMenuItem
 													key={action.id}
 													onClick={() => handleActionClick(action)}
 													disabled={isDisabled(action) || isLoading}
 												>
-													{Icon && <Icon className="mr-2 size-4" />}
+													{iconElement}
 													{resolveText(action.label)}
 												</DropdownMenuItem>
 											);
@@ -407,9 +408,9 @@ export function BulkActionToolbar<TItem = any>({
 											)}
 
 										{destructiveActions.map((action) => {
-											const Icon = action.icon as
-												| React.ComponentType<React.SVGProps<SVGSVGElement>>
-												| undefined;
+											const iconElement = resolveIconElement(action.icon, {
+												className: "mr-2 size-4",
+											});
 											return (
 												<DropdownMenuItem
 													key={action.id}
@@ -417,7 +418,7 @@ export function BulkActionToolbar<TItem = any>({
 													onClick={() => handleActionClick(action)}
 													disabled={isDisabled(action) || isLoading}
 												>
-													{Icon && <Icon className="mr-2 size-4" />}
+													{iconElement}
 													{resolveText(action.label)}
 												</DropdownMenuItem>
 											);
@@ -433,7 +434,7 @@ export function BulkActionToolbar<TItem = any>({
 								onClick={() => table.resetRowSelection()}
 								className="size-7 shrink-0"
 							>
-								<X className="size-4" />
+								<Icon icon="ph:x" className="size-4" />
 								<span className="sr-only">
 									{t("collection.clearSelection")}
 								</span>

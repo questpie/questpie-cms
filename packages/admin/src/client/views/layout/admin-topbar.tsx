@@ -1,10 +1,4 @@
-import {
-	CaretDown,
-	MagnifyingGlassIcon,
-	MonitorIcon,
-	MoonIcon,
-	SunIcon,
-} from "@phosphor-icons/react";
+import { Icon } from "@iconify/react";
 import * as React from "react";
 import { Button } from "../../components/ui/button";
 import {
@@ -74,7 +68,7 @@ export function AdminTopbar({
 												>
 													{CrumbIcon && <CrumbIcon className="size-3.5" />}
 													{crumbLabel}
-													<CaretDown className="size-3 opacity-50" />
+													<Icon icon="ph:caret-down" className="size-3 opacity-50" />
 												</button>
 											}
 										/>
@@ -131,7 +125,7 @@ export function AdminTopbar({
 					className="gap-2 w-auto md:w-64 justify-between text-muted-foreground"
 				>
 					<span className="flex items-center gap-2">
-						<MagnifyingGlassIcon />
+						<Icon icon="ph:magnifying-glass"  />
 						<span className="hidden sm:inline">Search...</span>
 					</span>
 					<Kbd className="hidden md:inline-flex">
@@ -144,23 +138,23 @@ export function AdminTopbar({
 						<DropdownMenuTrigger
 							render={
 								<Button variant="ghost" size="icon">
-									<SunIcon className="size-4 scale-100 rotate-0 transition-all dark:scale-0 dark:-rotate-90" />
-									<MoonIcon className="absolute size-4 scale-0 rotate-90 transition-all dark:scale-100 dark:rotate-0" />
+									<Icon icon="ph:sun" className="size-4 scale-100 rotate-0 transition-all dark:scale-0 dark:-rotate-90" />
+									<Icon icon="ph:moon" className="absolute size-4 scale-0 rotate-90 transition-all dark:scale-100 dark:rotate-0" />
 									<span className="sr-only">Toggle theme</span>
 								</Button>
 							}
 						/>
 						<DropdownMenuContent align="end">
 							<DropdownMenuItem onClick={() => setTheme("light")}>
-								<SunIcon className="mr-2 size-4" />
+								<Icon icon="ph:sun" className="mr-2 size-4" />
 								Light
 							</DropdownMenuItem>
 							<DropdownMenuItem onClick={() => setTheme("dark")}>
-								<MoonIcon className="mr-2 size-4" />
+								<Icon icon="ph:moon" className="mr-2 size-4" />
 								Dark
 							</DropdownMenuItem>
 							<DropdownMenuItem onClick={() => setTheme("system")}>
-								<MonitorIcon className="mr-2 size-4" />
+								<Icon icon="ph:monitor" className="mr-2 size-4" />
 								System
 							</DropdownMenuItem>
 						</DropdownMenuContent>

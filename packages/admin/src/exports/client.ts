@@ -1,23 +1,55 @@
 /**
  * @questpie/admin/client - Client-Side Admin UI
  *
- * All client-side exports for building admin UIs.
+ * The admin package provides React component registries for rendering
+ * server-defined schemas. The server is the single source of truth for
+ * all configuration - the client only provides React implementations.
  *
- * @example
- * ```ts
- * import { qa, adminModule } from "@questpie/admin/client";
+ * ## Architecture
  *
- * const admin = qa()
- *   .use(adminModule)
- *   .collections({ posts: postsAdmin });
  * ```
+ * SERVER (questpie + adminModule)     CLIENT (@questpie/admin)
+ * ─────────────────────────────────   ───────────────────────────
+ * - Field schemas                     - Field components
+ * - Validation rules                  - View components
+ * - Admin metadata (labels, icons)    - Page components
+ * - List/form layouts                 - Block renderers
+ * - Actions                           - Preview components
+ *           │
+ *           │ Introspection API
+ *           ▼
+ *     Client renders based on
+ *     server configuration
+ * ```
+ *
+ * ## Quick Start
+ *
+ * ```tsx
+ * import { qa, adminModule, AdminRouter } from "@questpie/admin/client";
+ *
+ * // 1. Create admin instance with component registries
+ * const admin = qa().use(adminModule);
+ *
+ * // 2. Render in your app
+ * function App() {
+ *   return <AdminRouter admin={admin} />;
+ * }
+ * ```
+ *
+ * @packageDocumentation
  */
 
 // ============================================================================
-// Admin Module - The main "batteries included" module
+// CORE API
+// The essential exports for setting up admin
 // ============================================================================
 
-// Core module for advanced users who want minimal setup
+export {
+	Admin,
+	type AppAdmin,
+	type InferAdminCMS,
+} from "#questpie/admin/client/builder/admin.js";
+// Pre-built modules with component registries
 export {
 	type CoreAdminModule,
 	coreAdminModule,
@@ -26,93 +58,9 @@ export {
 	type AdminModule,
 	adminModule,
 } from "#questpie/admin/client/builder/defaults/starter.js";
-
-// ============================================================================
-// Builder API
-// ============================================================================
-
-export {
-	Admin,
-	type AppAdmin,
-	type InferAdminCMS,
-} from "#questpie/admin/client/builder/admin.js";
-export { AdminBuilder } from "#questpie/admin/client/builder/admin-builder.js";
-export type { AdminBuilderState } from "#questpie/admin/client/builder/admin-types.js";
-// Collection builder
-export { collection } from "#questpie/admin/client/builder/collection/collection.js";
-export { CollectionBuilder } from "#questpie/admin/client/builder/collection/collection-builder.js";
-export type {
-	AutoSaveConfig,
-	CollectionBuilderState,
-	CollectionConfig,
-	ColumnConfig,
-	ColumnConfigObject,
-	ListViewConfig,
-} from "#questpie/admin/client/builder/collection/types.js";
-// Field builder
-export {
-	FieldBuilder,
-	type FieldBuilderState,
-	type FieldDefinition,
-	field,
-} from "#questpie/admin/client/builder/field/field.js";
-// Global builder
-export { global } from "#questpie/admin/client/builder/global/global.js";
-export { GlobalBuilder } from "#questpie/admin/client/builder/global/global-builder.js";
-export type {
-	GlobalBuilderState,
-	GlobalConfig,
-} from "#questpie/admin/client/builder/global/types.js";
-// Helpers
-export {
-	type AdminHelpers,
-	createAdminHelpers,
-} from "#questpie/admin/client/builder/helpers.js";
-// Page builder
-export {
-	PageBuilder,
-	type PageBuilderState,
-	type PageDefinition,
-	page,
-} from "#questpie/admin/client/builder/page/page.js";
+// Entry point
 export { qa } from "#questpie/admin/client/builder/qa.js";
-// Sidebar builder
-export {
-	SectionBuilder,
-	type SectionBuilderState,
-	SidebarBuilder,
-	type SidebarBuilderState,
-	type SidebarItemForApp,
-	section,
-	sidebar,
-	type TypedSidebarCollectionItem,
-	type TypedSidebarGlobalItem,
-	type TypedSidebarItem,
-} from "#questpie/admin/client/builder/sidebar/sidebar-builder.js";
-// View builders
-export {
-	EditViewBuilder,
-	type EditViewBuilderState,
-	type EditViewDefinition,
-	editView,
-	ListViewBuilder,
-	type ListViewBuilderState,
-	type ListViewDefinition,
-	listView,
-} from "#questpie/admin/client/builder/view/view.js";
-// Widget builder
-export {
-	WidgetBuilder,
-	type WidgetBuilderState,
-	type WidgetDefinition,
-	widget,
-} from "#questpie/admin/client/builder/widget/widget.js";
-
-// ============================================================================
-// Types
-// ============================================================================
-
-// Registry types (for module augmentation)
+// Registry types for module augmentation
 export type {
 	AdminTypeRegistry,
 	IsRegistered,
@@ -121,86 +69,211 @@ export type {
 	RegisteredCollectionNames,
 	RegisteredGlobalNames,
 } from "#questpie/admin/client/builder/registry.js";
-// Common types
-export type {
-	BaseFieldProps,
-	IconComponent,
-	MaybeLazyComponent,
-} from "#questpie/admin/client/builder/types/common.js";
-// Field types
-export type {
-	ArrayFieldConfig,
-	ComponentRegistry,
-	EmbeddedCollectionProps,
-	EmbeddedFieldConfig,
-	FieldComponentProps,
-	FieldLayoutItem,
-	FieldUIConfig,
-	FormSidebarConfig,
-	FormViewConfig,
-	LayoutMode,
-	RelationFieldConfig,
-	RichTextConfig,
-	SectionLayout,
-	SelectOption,
-	TabConfig,
-	TabsLayout,
-	WrapperMode,
-} from "#questpie/admin/client/builder/types/field-types.js";
-
-// UI config types
-export type {
-	BrandingConfig,
-	DashboardConfig,
-	LocaleConfig,
-	SidebarCollectionItem,
-	SidebarConfig,
-	SidebarDividerItem,
-	SidebarGlobalItem,
-	SidebarItem,
-	SidebarLinkItem,
-	SidebarPageItem,
-	SidebarSection,
-} from "#questpie/admin/client/builder/types/ui-config.js";
-
-export type { DefaultViewsConfig } from "#questpie/admin/client/builder/types/views.js";
-// Widget types
-export type {
-	AnyWidgetConfig,
-	BaseWidgetConfig,
-	ChartWidgetConfig,
-	CustomWidgetConfig,
-	DashboardWidgetConfig,
-	GenericWidgetConfig,
-	KnownWidgetType,
-	QuickActionsWidgetConfig,
-	RecentItemsWidgetConfig,
-	StatsWidgetConfig,
-	WidgetAction,
-	WidgetComponentProps,
-	WidgetConfig,
-	WidgetDataSource,
-} from "#questpie/admin/client/builder/types/widget-types.js";
-
-// I18n messages
+// Typed hooks factory
 export {
-	adminMessagesCS,
-	adminMessagesDE,
-	adminMessagesEN,
-	adminMessagesES,
-	adminMessagesFR,
-	adminMessagesPL,
-	adminMessagesPT,
-	adminMessagesSK,
-} from "#questpie/admin/client/i18n/messages/index.js";
-// I18n types
+	createTypedHooks,
+	type TypedHooks,
+} from "#questpie/admin/client/hooks/typed-hooks.js";
+// Auth client
+export {
+	createAdminAuthClient,
+	useAuthClient,
+} from "#questpie/admin/client/hooks/use-auth.js";
+// Runtime provider
 export type {
-	I18nContext,
-	I18nText,
-} from "#questpie/admin/client/i18n/types.js";
+	AdminProviderProps,
+	AdminState,
+	AdminStore,
+} from "#questpie/admin/client/runtime/index.js";
+export {
+	AdminProvider,
+	selectAdmin,
+	selectBasePath,
+	selectClient,
+	selectNavigate,
+	useAdminStore,
+	useShallow,
+} from "#questpie/admin/client/runtime/index.js";
+export { AdminLayout } from "#questpie/admin/client/views/layout/admin-layout.js";
+export { AdminLayoutProvider } from "#questpie/admin/client/views/layout/admin-layout-provider.js";
+// Router and layout
+export {
+	AdminRouter,
+	type AdminRouterProps,
+} from "#questpie/admin/client/views/layout/admin-router.js";
 
 // ============================================================================
-// Type Helpers
+// RENDERERS
+// Components for rendering server-defined content on the frontend
+// ============================================================================
+
+export type {
+	BlockCategory,
+	BlockContent,
+	BlockNode,
+	BlockRendererProps,
+} from "#questpie/admin/client/blocks/index.js";
+// Block renderer (for displaying block content)
+// Block prefetch (for SSR data fetching)
+export {
+	type BlockPrefetch,
+	type BlockPrefetchContext,
+	type BlockPrefetchData,
+	BlockPrefetchError,
+	type BlockPrefetchParams,
+	type BlockPrefetchResult,
+	type BlockRegistry,
+	BlockRenderer,
+	type BlockRendererComponent,
+	type BlockRendererComponentProps,
+	type BlockRendererDefinition,
+	createBlockRegistry,
+	EMPTY_BLOCK_CONTENT,
+	isBlockContent,
+	prefetchBlockData,
+	type TypedBlockPrefetch,
+} from "#questpie/admin/client/blocks/index.js";
+// Rich text renderer (for displaying TipTap content)
+export {
+	RichTextRenderer,
+	type RichTextStyles,
+	type TipTapDoc,
+	type TipTapNode,
+} from "#questpie/admin/components/rich-text/index.js";
+
+// ============================================================================
+// PREVIEW
+// Live preview system for headless frontend integration
+// ============================================================================
+
+// Preview message types
+export type {
+	AdminToPreviewMessage,
+	BlockClickedMessage,
+	FieldClickedMessage,
+	FocusFieldMessage,
+	PreviewConfig,
+	PreviewReadyMessage,
+	PreviewRefreshMessage,
+	PreviewToAdminMessage,
+	RefreshCompleteMessage,
+	SelectBlockMessage,
+} from "#questpie/admin/client/preview/index.js";
+// Frontend preview components
+export {
+	type BlockScopeContextValue,
+	// Block scope for field resolution
+	BlockScopeProvider,
+	type BlockScopeProviderProps,
+	// Message type guards
+	isAdminToPreviewMessage,
+	isPreviewToAdminMessage,
+	PreviewBanner,
+	type PreviewBannerProps,
+	PreviewField,
+	type PreviewFieldProps,
+	PreviewProvider,
+	StandalonePreviewField,
+	type UseCollectionPreviewOptions,
+	type UseCollectionPreviewResult,
+	useBlockScope,
+	useCollectionPreview,
+	usePreviewContext,
+	useResolveFieldPath,
+} from "#questpie/admin/client/preview/index.js";
+
+// ============================================================================
+// AUTH PAGES
+// Pre-built authentication pages
+// ============================================================================
+
+export { AuthGuard } from "#questpie/admin/client/components/auth/auth-guard.js";
+export { AuthLoading } from "#questpie/admin/client/components/auth/auth-loading.js";
+
+// Component renderer (for server-defined component references)
+export {
+	Badge,
+	type BadgeProps,
+	ComponentRenderer,
+	type ComponentRendererProps,
+	type ComponentRendererRegistry,
+	createIconRenderer,
+	IconifyIcon,
+	type IconifyIconProps,
+	isComponentReference,
+	resolveIconElement,
+} from "#questpie/admin/client/components/component-renderer.js";
+export { AcceptInviteForm } from "#questpie/admin/client/views/auth/accept-invite-form.js";
+export { AuthLayout } from "#questpie/admin/client/views/auth/auth-layout.js";
+export { ForgotPasswordForm } from "#questpie/admin/client/views/auth/forgot-password-form.js";
+// Auth forms (for custom layouts)
+export { LoginForm } from "#questpie/admin/client/views/auth/login-form.js";
+export { ResetPasswordForm } from "#questpie/admin/client/views/auth/reset-password-form.js";
+export {
+	SetupForm,
+	type SetupFormValues,
+} from "#questpie/admin/client/views/auth/setup-form.js";
+export { AcceptInvitePage } from "#questpie/admin/client/views/pages/accept-invite-page.js";
+export { DashboardPage } from "#questpie/admin/client/views/pages/dashboard-page.js";
+export { ForgotPasswordPage } from "#questpie/admin/client/views/pages/forgot-password-page.js";
+export { InvitePage } from "#questpie/admin/client/views/pages/invite-page.js";
+export { LoginPage } from "#questpie/admin/client/views/pages/login-page.js";
+export { ResetPasswordPage } from "#questpie/admin/client/views/pages/reset-password-page.js";
+export {
+	SetupPage,
+	type SetupPageProps,
+} from "#questpie/admin/client/views/pages/setup-page.js";
+
+// ============================================================================
+// HOOKS
+// Essential hooks for data fetching and state
+// ============================================================================
+
+// Collection hooks
+export {
+	useCollectionCreate,
+	useCollectionDelete,
+	useCollectionItem,
+	useCollectionList,
+	useCollectionUpdate,
+} from "#questpie/admin/client/hooks/use-collection.js";
+// User hooks
+export { useCurrentUser } from "#questpie/admin/client/hooks/use-current-user.js";
+// Global hooks
+export {
+	useGlobal,
+	useGlobalUpdate,
+} from "#questpie/admin/client/hooks/use-global.js";
+// Media query hooks
+export {
+	useIsDesktop,
+	useIsMobile,
+	useMediaQuery,
+} from "#questpie/admin/client/hooks/use-media-query.js";
+// Setup hooks
+export {
+	type SetupStatus,
+	useSetupStatus,
+} from "#questpie/admin/client/hooks/use-setup-status.js";
+
+// ============================================================================
+// UTILITIES
+// Helper functions and components
+// ============================================================================
+
+// Admin link
+export { AdminLink } from "#questpie/admin/client/components/admin-link.js";
+// Locale flags
+export {
+	type FlagConfig,
+	getCountryCode,
+	getFlagConfig,
+	getFlagUrl,
+} from "#questpie/admin/client/utils/locale-to-flag.js";
+
+// ============================================================================
+// TYPE HELPERS
+// Type utilities for working with the CMS
 // ============================================================================
 
 import type { CollectionInfer, Questpie } from "questpie";
@@ -249,236 +322,64 @@ export type CollectionFieldKeys<
 	: never;
 
 // ============================================================================
-// Runtime
+// ADVANCED / INTERNAL
+// For custom field/view implementations and extensions
+// These may change between versions
 // ============================================================================
 
+// Block types (for implementing custom block renderers)
 export type {
-	AdminProviderProps,
-	AdminState,
-	AdminStore,
-} from "#questpie/admin/client/runtime/index.js";
-export {
-	AdminProvider,
-	selectAdmin,
-	selectAuthClient,
-	selectBasePath,
-	selectBrandName,
-	selectClient,
-	selectContentLocale,
-	selectNavigate,
-	selectNavigation,
-	selectSetContentLocale,
-	useAdminStore,
-	useShallow,
-} from "#questpie/admin/client/runtime/index.js";
-
-// ============================================================================
-// Hooks
-// ============================================================================
-
-export {
-	createAdminAuthClient,
-	// Typed hooks factory (recommended for new projects)
-	createTypedHooks,
-	type TypedHooks,
-	useAuthClient,
-	useCollectionCreate,
-	useCollectionDelete,
-	useCollectionItem,
-	useCollectionList,
-	useCollectionUpdate,
-	useCurrentUser,
-	useGlobal,
-	useGlobalUpdate,
-	useSavedViews,
-	useSetupStatus,
-} from "#questpie/admin/client/hooks/index.js";
-
-export {
-	useIsDesktop,
-	useIsMobile,
-	useMediaQuery,
-} from "#questpie/admin/client/hooks/use-media-query.js";
-
-// ============================================================================
-// Components
-// ============================================================================
-
-export { AdminLink } from "#questpie/admin/client/components/admin-link.js";
-export { AuthGuard } from "#questpie/admin/client/components/auth/auth-guard.js";
-export { AuthLoading } from "#questpie/admin/client/components/auth/auth-loading.js";
-export {
-	RichTextRenderer,
-	type RichTextStyles,
-	type TipTapDoc,
-	type TipTapNode,
-} from "#questpie/admin/components/rich-text/index.js";
-
-// ============================================================================
-// Views
-// ============================================================================
-
-export { AcceptInviteForm } from "#questpie/admin/client/views/auth/accept-invite-form.js";
-// Auth views
-export { AuthLayout } from "#questpie/admin/client/views/auth/auth-layout.js";
-export { ForgotPasswordForm } from "#questpie/admin/client/views/auth/forgot-password-form.js";
-export { LoginForm } from "#questpie/admin/client/views/auth/login-form.js";
-export { ResetPasswordForm } from "#questpie/admin/client/views/auth/reset-password-form.js";
-export {
-	SetupForm,
-	type SetupFormValues,
-} from "#questpie/admin/client/views/auth/setup-form.js";
-export {
-	default as FormView,
-	type FormViewProps,
-	type FormViewRegistryConfig,
-} from "#questpie/admin/client/views/collection/form-view.js";
-// Collection views
-export {
-	default as TableView,
-	type TableViewConfig,
-	type TableViewProps,
-} from "#questpie/admin/client/views/collection/table-view.js";
-// Dashboard views
-export { DashboardGrid } from "#questpie/admin/client/views/dashboard/dashboard-grid.js";
-export { DashboardWidget } from "#questpie/admin/client/views/dashboard/dashboard-widget.js";
-// Global views
-export { GlobalForm } from "#questpie/admin/client/views/globals/global-form.js";
-export { AdminLayout } from "#questpie/admin/client/views/layout/admin-layout.js";
-export { AdminLayoutProvider } from "#questpie/admin/client/views/layout/admin-layout-provider.js";
-export {
-	AdminRouter,
-	type AdminRouterProps,
-} from "#questpie/admin/client/views/layout/admin-router.js";
-export { AdminSidebar } from "#questpie/admin/client/views/layout/admin-sidebar.js";
-export { AdminTopbar } from "#questpie/admin/client/views/layout/admin-topbar.js";
-export { AcceptInvitePage } from "#questpie/admin/client/views/pages/accept-invite-page.js";
-export { DashboardPage } from "#questpie/admin/client/views/pages/dashboard-page.js";
-export { ForgotPasswordPage } from "#questpie/admin/client/views/pages/forgot-password-page.js";
-export { InvitePage } from "#questpie/admin/client/views/pages/invite-page.js";
-// Pages
-export { LoginPage } from "#questpie/admin/client/views/pages/login-page.js";
-export { ResetPasswordPage } from "#questpie/admin/client/views/pages/reset-password-page.js";
-export {
-	SetupPage,
-	type SetupPageProps,
-} from "#questpie/admin/client/views/pages/setup-page.js";
-
-// ============================================================================
-// Utils
-// ============================================================================
-
-export {
-	type FlagConfig,
-	getCountryCode,
-	getFlagConfig,
-	getFlagUrl,
-} from "#questpie/admin/client/utils/locale-to-flag.js";
-
-// ============================================================================
-// Block System
-// ============================================================================
-
-// Block types
-export type {
-	BlockCategory,
-	BlockContent,
-	BlockNode,
-	BlockPrefetch,
-	BlockRendererProps,
+	AllBlockData,
+	AllBlockValues,
+	BlockComponentProps,
+	BlockValues,
+	ExtractBlockFieldValues,
+	ExtractBlockPrefetchData,
+	ExtractServerBlocks,
+	ServerBlockNames,
+	TypedBlockRendererProps,
 } from "#questpie/admin/client/blocks/index.js";
-// Block renderer component
-// Block prefetch utilities (for SSR data fetching)
-// Block renderer registry (type-safe server-defined blocks → client renderers)
-export {
-	type AllBlockData,
-	type AllBlockValues,
-	type BlockComponentProps,
-	type BlockPrefetchContext,
-	type BlockPrefetchData,
-	BlockPrefetchError,
-	type BlockPrefetchParams,
-	type BlockPrefetchResult,
-	type BlockRegistry,
-	BlockRenderer,
-	type BlockRendererComponent,
-	type BlockRendererComponentProps,
-	type BlockRendererDefinition,
-	type BlockValues,
-	createBlockNode,
-	createBlockRegistry,
-	EMPTY_BLOCK_CONTENT,
-	type ExtractBlockFieldValues,
-	type ExtractBlockPrefetchData,
-	type ExtractServerBlocks,
-	isBlockContent,
-	prefetchBlockData,
-	type ServerBlockNames,
-	type TypedBlockPrefetch,
-	type TypedBlockRendererProps,
-} from "#questpie/admin/client/blocks/index.js";
+export { createBlockNode } from "#questpie/admin/client/blocks/index.js";
 export type {
 	BlockBuilderState,
 	BlockDefinition,
 	InferBlockValues,
 } from "#questpie/admin/client/builder/block/index.js";
-// Block builder
+// Block builder (for defining custom blocks)
 export {
 	BlockBuilder,
 	block,
 } from "#questpie/admin/client/builder/block/index.js";
-
-// ============================================================================
-// Preview System
-// ============================================================================
-
-// Admin-side preview components
+// Field definition factory (for custom field components)
 export {
-	PreviewPane,
-	type PreviewPaneProps,
-	type PreviewPaneRef,
-	PreviewToggleButton,
-	type PreviewToggleButtonProps,
-} from "#questpie/admin/client/components/preview/index.js";
-// Preview message types
+	FieldBuilder,
+	type FieldBuilderState,
+	type FieldDefinition,
+	field,
+} from "#questpie/admin/client/builder/field/field.js";
+// Component types (for implementing custom fields)
 export type {
-	AdminToPreviewMessage,
-	BlockClickedMessage,
-	FieldClickedMessage,
-	FocusFieldMessage,
-	PreviewConfig,
-	PreviewReadyMessage,
-	PreviewRefreshMessage,
-	PreviewToAdminMessage,
-	RefreshCompleteMessage,
-	SelectBlockMessage,
-} from "#questpie/admin/client/preview/index.js";
-// Frontend preview hook and components
+	BaseFieldProps,
+	IconComponent,
+	MaybeLazyComponent,
+} from "#questpie/admin/client/builder/types/common.js";
+export type {
+	ComponentRegistry,
+	FieldComponentProps,
+	FormViewConfig,
+} from "#questpie/admin/client/builder/types/field-types.js";
+// View definition factories (for custom views)
 export {
-	type BlockScopeContextValue,
-	// Block scope (for block field resolution)
-	BlockScopeProvider,
-	type BlockScopeProviderProps,
-	isAdminToPreviewMessage,
-	isPreviewToAdminMessage,
-	PreviewBanner,
-	type PreviewBannerProps,
-	PreviewField,
-	type PreviewFieldProps,
-	PreviewProvider,
-	StandalonePreviewField,
-	type UseCollectionPreviewOptions,
-	type UseCollectionPreviewResult,
-	useBlockScope,
-	useCollectionPreview,
-	usePreviewContext,
-	useResolveFieldPath,
-} from "#questpie/admin/client/preview/index.js";
-
-// ============================================================================
-// Focus System (for preview click-to-focus)
-// ============================================================================
-
+	EditViewBuilder,
+	type EditViewBuilderState,
+	type EditViewDefinition,
+	editView,
+	ListViewBuilder,
+	type ListViewBuilderState,
+	type ListViewDefinition,
+	listView,
+} from "#questpie/admin/client/builder/view/view.js";
+// Focus system (for preview click-to-focus)
 export {
 	type FocusContextValue,
 	FocusProvider,
@@ -491,3 +392,36 @@ export {
 	useIsBlockFocused,
 	useIsFieldFocused,
 } from "#questpie/admin/client/context/focus-context.js";
+// Widget builder (for defining custom widgets)
+export {
+	WidgetBuilder,
+	type WidgetBuilderState,
+	type WidgetDefinition,
+	widget,
+} from "#questpie/admin/client/builder/widget/widget.js";
+// Widget types (for implementing custom widgets)
+export type {
+	WidgetComponentProps,
+	WidgetConfig,
+	AnyWidgetConfig,
+	BaseWidgetConfig,
+	StatsWidgetConfig,
+	ChartWidgetConfig,
+	RecentItemsWidgetConfig,
+	QuickActionsWidgetConfig,
+	ValueWidgetConfig,
+	TableWidgetConfig,
+	TimelineWidgetConfig,
+	ProgressWidgetConfig,
+	CustomWidgetConfig,
+} from "#questpie/admin/client/builder/types/widget-types.js";
+// Widget augmentation types
+export type {
+	BaseWidgetAdminMeta,
+	WidgetTypeRegistry,
+} from "#questpie/admin/augmentation.js";
+// I18n types
+export type {
+	I18nContext,
+	I18nText,
+} from "#questpie/admin/client/i18n/types.js";

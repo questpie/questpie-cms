@@ -134,6 +134,7 @@ export {
 	// Action functions
 	actionFunctions,
 	adminModule,
+	adminRpc,
 	createFirstAdmin,
 	// Preview helpers (server-only, crypto-based)
 	// For browser-safe preview utilities, use @questpie/admin/shared

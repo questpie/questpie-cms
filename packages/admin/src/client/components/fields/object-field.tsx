@@ -5,7 +5,7 @@
  * Supports wrapper modes (flat, collapsible) and layout modes (stack, inline, grid).
  */
 
-import { CaretDown, CaretRight } from "@phosphor-icons/react";
+import { Icon } from "@iconify/react";
 import * as React from "react";
 
 import type { FieldDefinition } from "../../builder/field/field";
@@ -183,9 +183,9 @@ export function ObjectField({
 				>
 					<div className="flex items-center gap-2">
 						{isCollapsed ? (
-							<CaretRight className="h-4 w-4" />
+							<Icon icon="ph:caret-right" className="h-4 w-4" />
 						) : (
-							<CaretDown className="h-4 w-4" />
+							<Icon icon="ph:caret-down" className="h-4 w-4" />
 						)}
 						<span className="font-medium">{resolveText(label ?? name)}</span>
 						{required && <span className="text-destructive">*</span>}

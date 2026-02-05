@@ -6,7 +6,6 @@ import type {
 	BuilderCollectionsMap,
 	BuilderEmailTemplatesMap,
 	BuilderFieldsMap,
-	BuilderFunctionsMap,
 	BuilderGlobalsMap,
 	BuilderJobsMap,
 	QuestpieBuilderState,
@@ -51,26 +50,13 @@ import type {
 	UnsetProperty,
 } from "#questpie/shared/type-utils.js";
 
-type QuestpieFromState<
-	TState extends QuestpieBuilderState<
-		string,
-		any,
-		any,
-		any,
-		any,
-		any,
-		any,
-		any,
-		any
-	>,
-> = Questpie<
+type QuestpieFromState<TState extends QuestpieBuilderState> = Questpie<
 	Prettify<
 		TypeMerge<
 			QuestpieConfig,
 			{
 				collections: TState["collections"];
 				globals: TState["globals"];
-				functions: TState["functions"];
 				auth: TState["auth"];
 				queue: { jobs: TState["jobs"]; adapter: QueueAdapter };
 				email: { templates: TState["emailTemplates"]; adapter: MailAdapter };
@@ -116,17 +102,7 @@ type QuestpieFromState<
  */
 // biome-ignore lint/suspicious/noUnsafeDeclarationMerging: Declaration merging is intentional for extension pattern
 export class QuestpieBuilder<
-	TState extends QuestpieBuilderState<
-		string,
-		any,
-		any,
-		any,
-		any,
-		any,
-		any,
-		any,
-		any
-	> = QuestpieBuilderState,
+	TState extends QuestpieBuilderState = QuestpieBuilderState,
 > {
 	public readonly state: TState;
 	/**
@@ -147,7 +123,6 @@ export class QuestpieBuilder<
 			globals: {},
 			jobs: {},
 			emailTemplates: {},
-			functions: {},
 			fields: {},
 			auth: {},
 			locale: undefined,
@@ -232,39 +207,6 @@ export class QuestpieBuilder<
 			globals: {
 				...this.state.globals,
 				...globals,
-			},
-		} as any);
-	}
-
-	/**
-	 * Define root RPC functions (as a map for type-safe access)
-	 *
-	 * @example
-	 * ```ts
-	 * .functions({
-	 *   ping: pingFunction,
-	 * })
-	 * ```
-	 */
-	functions<TNewFunctions extends BuilderFunctionsMap>(
-		functions: TNewFunctions,
-	): QuestpieBuilder<
-		SetProperty<
-			TState,
-			"functions",
-			Prettify<
-				TypeMerge<
-					UnsetProperty<TState["functions"], keyof TNewFunctions>,
-					TNewFunctions
-				>
-			>
-		>
-	> {
-		return new QuestpieBuilder({
-			...this.state,
-			functions: {
-				...this.state.functions,
-				...functions,
 			},
 		} as any);
 	}
@@ -570,7 +512,6 @@ export class QuestpieBuilder<
 			globals: BuilderGlobalsMap;
 			jobs: BuilderJobsMap;
 			emailTemplates: BuilderEmailTemplatesMap;
-			functions: BuilderFunctionsMap;
 			fields: BuilderFieldsMap;
 			auth: BetterAuthOptions | Record<never, never>;
 			locale?: any;
@@ -607,10 +548,6 @@ export class QuestpieBuilder<
 						>,
 						TOtherState["emailTemplates"]
 					>;
-					functions: TypeMerge<
-						UnsetProperty<TState["functions"], keyof TOtherState["functions"]>,
-						TOtherState["functions"]
-					>;
 					fields: TypeMerge<
 						UnsetProperty<TState["fields"], keyof TOtherState["fields"]>,
 						TOtherState["fields"]
@@ -642,10 +579,6 @@ export class QuestpieBuilder<
 			emailTemplates: {
 				...this.state.emailTemplates,
 				...otherState.emailTemplates,
-			},
-			functions: {
-				...this.state.functions,
-				...otherState.functions,
 			},
 			fields: {
 				...this.state.fields,
@@ -804,7 +737,7 @@ export class QuestpieBuilder<
 	 *   },
 	 * });
 	 *
-	 * const cms = q.functions({ getStats }).build({ ... });
+	 * const appRpc = rpc().router({ getStats });
 	 * ```
 	 */
 	fn<TInput, TOutput>(
@@ -867,7 +800,6 @@ export class QuestpieBuilder<
 			secret: runtimeConfig.secret,
 			collections: this.state.collections,
 			globals: this.state.globals,
-			functions: this.state.functions,
 			locale: this.state.locale,
 			auth: this.state.auth,
 			storage: runtimeConfig.storage,
@@ -909,19 +841,8 @@ export class QuestpieBuilder<
  * This allows packages to augment QuestpieBuilderExtensions and have those
  * methods appear on QuestpieBuilder instances.
  */
-export interface QuestpieBuilder<
-	TState extends QuestpieBuilderState<
-		string,
-		any,
-		any,
-		any,
-		any,
-		any,
-		any,
-		any,
-		any
-	>,
-> extends QuestpieBuilderExtensions {}
+export interface QuestpieBuilder<TState extends QuestpieBuilderState>
+	extends QuestpieBuilderExtensions {}
 
 /**
  * Helper function to start building a Questpie instance
@@ -971,24 +892,13 @@ export function questpie<TName extends string>(config: { name: TName }) {
  * Type for a callable QuestpieBuilder.
  * Can be invoked as a function to create new builders, while also having all builder methods.
  */
-export type CallableQuestpieBuilder<
-	TState extends QuestpieBuilderState<
-		string,
-		any,
-		any,
-		any,
-		any,
-		any,
-		any,
-		any,
-		any
-	>,
-> = QuestpieBuilder<TState> &
-	(<TName extends string>(config: {
-		name: TName;
-	}) => QuestpieBuilder<
-		QuestpieBuilderState<TName, {}, {}, {}, {}, {}, {}, never, TState["fields"]>
-	>);
+export type CallableQuestpieBuilder<TState extends QuestpieBuilderState> =
+	QuestpieBuilder<TState> &
+		(<TName extends string>(config: {
+			name: TName;
+		}) => QuestpieBuilder<
+			QuestpieBuilderState<TName, {}, {}, {}, {}, {}, never, TState["fields"]>
+		>);
 
 /**
  * Create a callable QuestpieBuilder that can be both invoked as a function
@@ -1014,19 +924,9 @@ export type CallableQuestpieBuilder<
  *   .build({ ... });
  * ```
  */
-export function createCallableBuilder<
-	TState extends QuestpieBuilderState<
-		string,
-		any,
-		any,
-		any,
-		any,
-		any,
-		any,
-		any,
-		any
-	>,
->(builder: QuestpieBuilder<TState>): CallableQuestpieBuilder<TState> {
+export function createCallableBuilder<TState extends QuestpieBuilderState>(
+	builder: QuestpieBuilder<TState>,
+): CallableQuestpieBuilder<TState> {
 	// Create the callable function
 	const callable = <TName extends string>(config: { name: TName }) => {
 		// Create new builder with same fields but fresh state

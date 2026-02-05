@@ -20,7 +20,7 @@ export function useAdminConfig(
 			if (!client || !(client as any).functions?.getAdminConfig) {
 				return {};
 			}
-			return (client as any).functions.getAdminConfig();
+			return (client as any).rpc.getAdminConfig();
 		},
 		staleTime: 5 * 60 * 1000,
 		gcTime: 30 * 60 * 1000,

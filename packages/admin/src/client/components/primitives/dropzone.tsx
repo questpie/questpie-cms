@@ -15,7 +15,7 @@
  */
 
 import * as React from "react";
-import { CloudArrowUp, SpinnerGap } from "@phosphor-icons/react";
+import { Icon } from "@iconify/react";
 import { cn } from "../../lib/utils";
 
 // ============================================================================
@@ -367,10 +367,8 @@ export function Dropzone({
           <div className="flex items-center justify-center">
             {loading ? (
               <div className="relative">
-                <SpinnerGap
-                  className="text-muted-foreground size-10 animate-spin"
-                  weight="regular"
-                />
+                <Icon icon="ph:spinner-gap"
+                  className="text-muted-foreground size-10 animate-spin" />
                 {typeof progress === "number" && (
                   <span className="text-muted-foreground absolute inset-0 flex items-center justify-center text-xs font-medium">
                     {progress}%
@@ -378,13 +376,11 @@ export function Dropzone({
                 )}
               </div>
             ) : (
-              <CloudArrowUp
+              <Icon icon="ph:cloud-arrow-up"
                 className={cn(
                   "size-10 transition-colors",
                   isDragging ? "text-primary" : "text-muted-foreground",
-                )}
-                weight="regular"
-              />
+                )} />
             )}
           </div>
 

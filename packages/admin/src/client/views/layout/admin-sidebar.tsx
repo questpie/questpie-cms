@@ -5,20 +5,10 @@
  * Automatically reads from AdminProvider context when props are not provided.
  */
 
-import * as PhosphorIcons from "@phosphor-icons/react";
-import {
-	CaretDownIcon,
-	CaretUpDown,
-	Check,
-	Globe,
-	SignOut,
-	User,
-	UserCircle,
-} from "@phosphor-icons/react";
+import { Icon } from "@iconify/react";
 import * as React from "react";
 import { toast } from "sonner";
-import type { ComponentReference } from "#questpie/admin/server";
-import type { IconComponent } from "../../builder/types/common";
+import { ComponentRenderer } from "../../components/component-renderer";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -148,36 +138,13 @@ export interface AdminSidebarProps {
 }
 
 // ============================================================================
-// Icon Resolution
-// ============================================================================
-
-/**
- * Resolve a ComponentReference<"icon"> to an IconComponent.
- * Uses Phosphor icons by looking up the icon name from props.
- */
-function resolveComponentRefIcon(
-	ref: ComponentReference<"icon"> | undefined,
-): IconComponent | undefined {
-	if (!ref?.props?.name) return undefined;
-
-	const name = String(ref.props.name);
-	// Handle "ph:IconName" format (strip prefix)
-	const iconName = name.includes(":") ? name.split(":").pop()! : name;
-
-	const icon = (PhosphorIcons as Record<string, unknown>)[iconName];
-	if (typeof icon === "function") {
-		return icon as IconComponent;
-	}
-	return undefined;
-}
-
-// ============================================================================
 // Internal Hook - Build navigation from server config
 // ============================================================================
 
 /**
- * Build NavigationGroup[] from server sidebar config, using local navigation
- * as fallback data for collection/global/page items.
+ * Build NavigationGroup[] from server sidebar config, using server
+ * collection/global metadata for labels/icons and local navigation
+ * only for page items (which are client-only).
  */
 function useServerNavigation(): NavigationGroup[] | undefined {
 	const { data: serverConfig } = useAdminConfig();
@@ -188,12 +155,15 @@ function useServerNavigation(): NavigationGroup[] | undefined {
 		const sections = serverConfig?.sidebar?.sections;
 		if (!sections?.length) return undefined;
 
-		// Build a lookup map from local navigation items
-		const localItemMap = new Map<string, NavigationItem>();
+		// Build a lookup map from local navigation for page items only
+		const pageMap = new Map<string, NavigationItem>();
 		for (const group of storeNavigation ?? []) {
 			for (const element of group.items) {
 				if (element.type !== "divider" && "id" in element) {
-					localItemMap.set(element.id, element as NavigationItem);
+					const navItem = element as NavigationItem;
+					if (navItem.type === "page") {
+						pageMap.set(navItem.id, navItem);
+					}
 				}
 			}
 		}
@@ -201,86 +171,50 @@ function useServerNavigation(): NavigationGroup[] | undefined {
 		return sections.map((section) => ({
 			id: section.id,
 			label: section.title,
-			icon: resolveComponentRefIcon(
-				section.icon as ComponentReference<"icon"> | undefined,
-			),
+			icon: section.icon,
 			collapsed: section.collapsed,
 			items: section.items
 				.map((item): NavigationElement | undefined => {
 					switch (item.type) {
 						case "collection": {
-							const found = localItemMap.get(
-								`collection:${(item as any).collection}`,
-							);
-							if (!found) {
-								// Build from server meta if not in local config
-								const collectionName = (item as any).collection as string;
-								return {
-									id: `collection:${collectionName}`,
-									label: (item as any).label ?? formatLabel(collectionName),
-									href: `${basePath}/collections/${collectionName}`,
-									icon: resolveComponentRefIcon(
-										(item as any).icon as
-											| ComponentReference<"icon">
-											| undefined,
-									),
-									type: "collection" as const,
-									order: 0,
-								};
-							}
+							const collectionName = (item as any).collection as string;
+							const meta = serverConfig?.collections?.[collectionName];
 							return {
-								...found,
-								label: (item as any).label ?? found.label,
-								icon:
-									resolveComponentRefIcon(
-										(item as any).icon as
-											| ComponentReference<"icon">
-											| undefined,
-									) ?? found.icon,
+								id: `collection:${collectionName}`,
+								label:
+									(item as any).label ??
+									meta?.label ??
+									formatLabel(collectionName),
+								href: `${basePath}/collections/${collectionName}`,
+								icon: (item as any).icon ?? meta?.icon,
+								type: "collection" as const,
+								order: 0,
 							};
 						}
 
 						case "global": {
-							const found = localItemMap.get(`global:${(item as any).global}`);
-							if (!found) {
-								const globalName = (item as any).global as string;
-								return {
-									id: `global:${globalName}`,
-									label: (item as any).label ?? formatLabel(globalName),
-									href: `${basePath}/globals/${globalName}`,
-									icon: resolveComponentRefIcon(
-										(item as any).icon as
-											| ComponentReference<"icon">
-											| undefined,
-									),
-									type: "global" as const,
-									order: 0,
-								};
-							}
+							const globalName = (item as any).global as string;
+							const meta = serverConfig?.globals?.[globalName];
 							return {
-								...found,
-								label: (item as any).label ?? found.label,
-								icon:
-									resolveComponentRefIcon(
-										(item as any).icon as
-											| ComponentReference<"icon">
-											| undefined,
-									) ?? found.icon,
+								id: `global:${globalName}`,
+								label:
+									(item as any).label ??
+									meta?.label ??
+									formatLabel(globalName),
+								href: `${basePath}/globals/${globalName}`,
+								icon: (item as any).icon ?? meta?.icon,
+								type: "global" as const,
+								order: 0,
 							};
 						}
 
 						case "page": {
-							const found = localItemMap.get(`page:${(item as any).pageId}`);
+							const found = pageMap.get(`page:${(item as any).pageId}`);
 							if (!found) return undefined;
 							return {
 								...found,
 								label: (item as any).label ?? found.label,
-								icon:
-									resolveComponentRefIcon(
-										(item as any).icon as
-											| ComponentReference<"icon">
-											| undefined,
-									) ?? found.icon,
+								icon: (item as any).icon ?? found.icon,
 							};
 						}
 
@@ -289,9 +223,7 @@ function useServerNavigation(): NavigationGroup[] | undefined {
 								id: `link:${(item as any).href}`,
 								label: (item as any).label ?? "",
 								href: (item as any).href,
-								icon: resolveComponentRefIcon(
-									(item as any).icon as ComponentReference<"icon"> | undefined,
-								),
+								icon: (item as any).icon,
 								type: "link" as const,
 								order: 0,
 							};
@@ -305,7 +237,7 @@ function useServerNavigation(): NavigationGroup[] | undefined {
 				})
 				.filter((i): i is NavigationElement => i !== undefined),
 		}));
-	}, [serverConfig?.sidebar, storeNavigation, basePath]);
+	}, [serverConfig, storeNavigation, basePath]);
 }
 
 // ============================================================================
@@ -342,20 +274,38 @@ function useSidebarProps(props: {
 // ============================================================================
 
 /**
- * Render an IconComponent (handles lazy loading)
+ * Render an icon - handles ComponentReference and React components.
+ *
+ * @example
+ * ```tsx
+ * // React component
+ * <RenderIcon icon={UsersIcon} />
+ *
+ * // Server-defined reference
+ * <RenderIcon icon={{ type: "icon", props: { name: "ph:users" } }} />
+ * ```
  */
-function RenderIcon(props: { icon: IconComponent; className?: string }) {
-	// // Handle different icon types
-	// if (typeof icon === "function") {
-	// 	// Check if it's a lazy component or regular component
-	// 	const IconComp = icon as React.ComponentType<{ className?: string }>;
-	// 	return (
-	// 		<Suspense fallback={<span className={cn("size-4", className)} />}>
-	// 			<IconComp className={cn("size-4 shrink-0", className)} />
-	// 		</Suspense>
-	// 	);
-	// }
-	return <props.icon className={cn("size-4 shrink-0", props.className)} />;
+function RenderIcon(props: {
+	icon: NavigationItem["icon"];
+	className?: string;
+}) {
+	const { icon, className } = props;
+
+	if (!icon) {
+		return null;
+	}
+
+	if (typeof icon === "object" && icon !== null && "type" in icon) {
+		return (
+			<ComponentRenderer
+				reference={icon as any}
+				additionalProps={{ className: cn("size-4 shrink-0", className) }}
+			/>
+		);
+	}
+
+	const IconComp = icon as React.ComponentType<{ className?: string }>;
+	return <IconComp className={cn("size-4 shrink-0", className)} />;
 }
 
 function QuestpieSymbol({ className }: { className?: string }) {
@@ -573,12 +523,11 @@ function NavGroup({
 					{group.icon && <RenderIcon icon={group.icon} className="size-3.5" />}
 					<span className="flex-1 font-mono  text-left">{groupLabel}</span>
 					{group.collapsed !== undefined && (
-						<CaretDownIcon
+						<Icon icon="ph:caret-down"
 							className={cn(
 								"size-3.5 transition-transform",
 								isCollapsed && "-rotate-90",
-							)}
-						/>
+							)} />
 					)}
 				</SidebarGroupLabel>
 			)}
@@ -727,7 +676,7 @@ function UserFooter() {
 							)}
 						>
 							<div className="flex size-8 shrink-0 items-center justify-center bg-sidebar-primary/10 text-sidebar-primary border border-sidebar-primary/20">
-								<User className="size-4" weight="bold" />
+								<Icon icon="ph:user-bold" className="size-4" />
 							</div>
 							{!collapsed && (
 								<>
@@ -739,7 +688,7 @@ function UserFooter() {
 											{displayEmail}
 										</span>
 									</div>
-									<CaretUpDown className="ml-auto size-3.5 text-sidebar-foreground/40" />
+									<Icon icon="ph:caret-up-down" className="ml-auto size-3.5 text-sidebar-foreground/40" />
 								</>
 							)}
 						</DropdownMenuTrigger>
@@ -762,14 +711,14 @@ function UserFooter() {
 							<DropdownMenuSeparator />
 							{/* My Account - link to user detail */}
 							<DropdownMenuItem onClick={handleMyAccount}>
-								<UserCircle className="size-4" />
+								<Icon icon="ph:user-circle" className="size-4" />
 								{t("auth.myAccount")}
 							</DropdownMenuItem>
 							{/* UI Language Switcher */}
 							{hasMultipleUiLocales && (
 								<DropdownMenuSub>
 									<DropdownMenuSubTrigger>
-										<Globe />
+										<Icon icon="ph:globe"  />
 										{t("locale.uiLanguage")}
 									</DropdownMenuSubTrigger>
 									<DropdownMenuPortal>
@@ -792,7 +741,7 @@ function UserFooter() {
 													</span>
 													<span className="flex-1">{locale.label}</span>
 													{locale.code === uiLocale && (
-														<Check className="size-4 text-primary" />
+														<Icon icon="ph:check" className="size-4 text-primary" />
 													)}
 												</DropdownMenuItem>
 											))}
@@ -802,7 +751,7 @@ function UserFooter() {
 							)}
 							<DropdownMenuSeparator />
 							<DropdownMenuItem variant="destructive" onClick={handleLogout}>
-								<SignOut className="size-4" />
+								<Icon icon="ph:sign-out" className="size-4" />
 								{t("auth.logout")}
 							</DropdownMenuItem>
 						</DropdownMenuContent>

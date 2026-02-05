@@ -8,7 +8,7 @@
  * Integrates with react-hook-form via Controller.
  */
 
-import { Code, ListBullets, WarningCircle } from "@phosphor-icons/react";
+import { Icon } from "@iconify/react";
 import * as React from "react";
 import { Controller, useFormContext } from "react-hook-form";
 import { useResolveText } from "../../i18n/hooks";
@@ -171,7 +171,7 @@ export function JsonField({
 										disabled={disabled}
 										title="Code editor"
 									>
-										<Code weight="bold" />
+										<Icon icon="ph:code-bold" />
 									</Button>
 									<Button
 										type="button"
@@ -181,7 +181,7 @@ export function JsonField({
 										disabled={disabled}
 										title="Form editor"
 									>
-										<ListBullets weight="bold" />
+										<Icon icon="ph:list-bullets-bold" />
 									</Button>
 								</div>
 							)}
@@ -339,7 +339,7 @@ function JsonCodeEditor({
 				{/* Parse error indicator */}
 				{parseError && (
 					<div className="text-destructive absolute right-2 top-2 flex items-center gap-1 text-xs">
-						<WarningCircle weight="fill" className="size-3" />
+						<Icon icon="ph:warning-circle-fill" className="size-3" />
 						{parseError}
 					</div>
 				)}

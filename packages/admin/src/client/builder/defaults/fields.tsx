@@ -127,11 +127,25 @@ export const textField = field("text", {
 	config: {} as TextFieldConfig,
 	createZod: (opts) => {
 		let schema = z.string();
+		if (opts.minLength) {
+			schema = schema.min(
+				opts.minLength,
+				`Must be at least ${opts.minLength} characters`,
+			);
+		}
 		if (opts.maxLength) {
 			schema = schema.max(
 				opts.maxLength,
 				`Must be at most ${opts.maxLength} characters`,
 			);
+		}
+		if (opts.pattern) {
+			// Support pattern from server metadata validation
+			const regex =
+				typeof opts.pattern === "string"
+					? new RegExp(opts.pattern)
+					: opts.pattern;
+			schema = schema.regex(regex, "Invalid format");
 		}
 		return wrapOptional(schema, opts.required);
 	},
@@ -175,6 +189,12 @@ export const textareaField = field("textarea", {
 	config: {} as TextareaFieldConfig,
 	createZod: (opts) => {
 		let schema = z.string();
+		if (opts.minLength) {
+			schema = schema.min(
+				opts.minLength,
+				`Must be at least ${opts.minLength} characters`,
+			);
+		}
 		if (opts.maxLength) {
 			schema = schema.max(
 				opts.maxLength,

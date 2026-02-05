@@ -7,7 +7,7 @@
 
 "use client";
 
-import { MagnifyingGlass, X } from "@phosphor-icons/react";
+import { Icon } from "@iconify/react";
 import * as React from "react";
 import type { BlockDefinition } from "../../builder/block/types.js";
 import { cn } from "../../lib/utils.js";
@@ -91,7 +91,7 @@ export function BlockLibraryContent({
 							className="h-7 w-7"
 							onClick={onClose}
 						>
-							<X className="h-4 w-4" />
+							<Icon icon="ph:x" className="h-4 w-4" />
 						</Button>
 					)}
 				</div>
@@ -100,7 +100,7 @@ export function BlockLibraryContent({
 			{/* Search */}
 			<div className="p-3">
 				<div className="relative">
-					<MagnifyingGlass className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+					<Icon icon="ph:magnifying-glass" className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
 					<Input
 						ref={searchInputRef}
 						placeholder="Search blocks..."
@@ -138,7 +138,7 @@ export function BlockLibraryContent({
 												onClick={() => onSelect(block.name)}
 											>
 												<BlockIcon
-													icon={block.icon || "Cube"}
+													icon={block.icon}
 													size={16}
 													className="text-muted-foreground flex-shrink-0"
 												/>

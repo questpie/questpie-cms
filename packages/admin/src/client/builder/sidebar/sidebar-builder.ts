@@ -24,6 +24,7 @@
  */
 
 import type { Questpie } from "questpie";
+import type { ComponentReference } from "#questpie/admin/server";
 import type { I18nText } from "../../i18n/types.js";
 import type { IconComponent } from "../types/common";
 import type {
@@ -99,7 +100,7 @@ export type SidebarItemForApp<TApp> = TypedSidebarItem<
 export interface SectionBuilderState {
 	id: string;
 	title?: I18nText;
-	icon?: IconComponent;
+	icon?: IconComponent | ComponentReference;
 	collapsed?: boolean;
 	items: SidebarItem[];
 }
@@ -190,7 +191,7 @@ export class SectionBuilder<
 	 */
 	collection(
 		collection: TCollectionNames,
-		options?: { label?: I18nText; icon?: IconComponent },
+		options?: { label?: I18nText; icon?: IconComponent | ComponentReference },
 	): this {
 		this.state.items.push({
 			type: "collection",
@@ -206,7 +207,7 @@ export class SectionBuilder<
 	 */
 	global(
 		global: TGlobalNames,
-		options?: { label?: I18nText; icon?: IconComponent },
+		options?: { label?: I18nText; icon?: IconComponent | ComponentReference },
 	): this {
 		this.state.items.push({
 			type: "global",
@@ -222,7 +223,10 @@ export class SectionBuilder<
 	link(
 		label: I18nText,
 		href: string,
-		options?: { icon?: IconComponent; external?: boolean },
+		options?: {
+			icon?: IconComponent | ComponentReference;
+			external?: boolean;
+		},
 	): this {
 		this.state.items.push({
 			type: "link",
@@ -238,7 +242,7 @@ export class SectionBuilder<
 	 */
 	page(
 		pageId: string,
-		options?: { label?: I18nText; icon?: IconComponent },
+		options?: { label?: I18nText; icon?: IconComponent | ComponentReference },
 	): this {
 		this.state.items.push({
 			type: "page",

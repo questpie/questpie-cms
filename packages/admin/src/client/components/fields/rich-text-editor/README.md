@@ -4,7 +4,7 @@ Modern, icon-based rich text editor built on Tiptap with feature presets for com
 
 ## Features
 
-- 🎨 **Icon-based toolbar** using Phosphor icons
+- 🎨 **Icon-based toolbar** using Iconify icons (Phosphor set)
 - ⌨️ **Keyboard shortcuts** (⌘B, ⌘I, ⌘U, etc.)
 - 🎯 **Feature presets** for quick configuration
 - 🧩 **Modular architecture** for easy customization

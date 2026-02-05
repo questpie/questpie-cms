@@ -45,15 +45,6 @@ type JsonFunctionCaller<TDefinition extends JsonFunctionDefinition<any, any>> =
 		context?: RequestContext,
 	) => Promise<InferFunctionOutput<TDefinition>>;
 
-type RootFunctionsAPI<TFunctions extends FunctionsMap> = {
-	[K in keyof ExtractJsonFunctions<TFunctions>]: ExtractJsonFunctions<TFunctions>[K] extends JsonFunctionDefinition<
-		any,
-		any
-	>
-		? JsonFunctionCaller<ExtractJsonFunctions<TFunctions>[K]>
-		: never;
-};
-
 type CollectionFunctionsAPI<TCollection, _TCollections> = {
 	[K in keyof ExtractJsonFunctions<
 		CollectionFunctions<TCollection>
@@ -160,28 +151,10 @@ type GlobalAPI<
 	GlobalFunctionsAPI<TGlobal>;
 
 export type QuestpieApi<TConfig extends QuestpieConfig = QuestpieConfig> =
-	QuestpieAPI<TConfig> & RootFunctionsAPI<NonNullable<TConfig["functions"]>>;
+	QuestpieAPI<TConfig>;
 
 export class QuestpieAPI<TConfig extends QuestpieConfig = QuestpieConfig> {
-	constructor(private readonly cms: Questpie<TConfig>) {
-		this.registerRootFunctions();
-	}
-
-	private registerRootFunctions() {
-		const functions = this.cms.getFunctions() as FunctionsMap;
-
-		for (const [name, definition] of Object.entries(functions)) {
-			if (definition.mode === "raw") continue;
-			if (name in this) {
-				throw new Error(`Function "${name}" collides with existing API keys.`);
-			}
-
-			Object.defineProperty(this, name, {
-				get: () => this.createJsonFunctionCaller(definition),
-				enumerable: true,
-			});
-		}
-	}
+	constructor(private readonly cms: Questpie<TConfig>) {}
 
 	private createJsonFunctionCaller(
 		definition: JsonFunctionDefinition<any, any>,

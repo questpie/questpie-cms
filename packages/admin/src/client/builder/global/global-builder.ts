@@ -6,6 +6,7 @@
  */
 
 import type { SetProperty } from "questpie/shared";
+import type { ComponentReference } from "#questpie/admin/server";
 import type { I18nText } from "../../i18n/types.js";
 import type { AdminBuilder } from "../admin-builder";
 import type {
@@ -68,7 +69,7 @@ export class GlobalBuilder<TState extends GlobalBuilderState> {
 	 */
 	meta(meta: {
 		label?: I18nText;
-		icon?: IconComponent;
+		icon?: IconComponent | ComponentReference;
 		description?: I18nText;
 	}): GlobalBuilder<TState> {
 		return new GlobalBuilder({

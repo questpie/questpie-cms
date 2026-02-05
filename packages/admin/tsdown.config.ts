@@ -9,6 +9,7 @@ export default defineConfig({
 	clean: true,
 
 	treeshake: true,
+	unbundle: true,
 	dts: true,
 
 	// Copy CSS files instead of bundling them

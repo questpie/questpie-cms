@@ -101,7 +101,10 @@ export type FormFieldProps = BaseFieldProps & {
  */
 export type TextFieldProps = BaseFieldProps & {
 	type?: "text" | "email" | "password" | "url" | "tel" | "search";
+	minLength?: number;
 	maxLength?: number;
+	/** Regex pattern for validation (from server metadata) */
+	pattern?: string | RegExp;
 	autoComplete?: string;
 };
 
@@ -120,6 +123,7 @@ export type NumberFieldProps = BaseFieldProps & {
  */
 export type TextareaFieldProps = BaseFieldProps & {
 	rows?: number;
+	minLength?: number;
 	maxLength?: number;
 	autoResize?: boolean;
 };

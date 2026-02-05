@@ -1,6 +1,6 @@
 "use client";
 
-import { Clock, X } from "@phosphor-icons/react";
+import { Icon } from "@iconify/react";
 import { useResolveText } from "../../i18n/hooks";
 import { cn } from "../../lib/utils";
 import type { TimeInputProps } from "./types";
@@ -54,7 +54,7 @@ export function TimeInput({
 					className,
 				)}
 			>
-				<Clock className="size-4 text-muted-foreground" />
+				<Icon icon="ph:clock" className="size-4 text-muted-foreground" />
 				<input
 					type="time"
 					id={id}
@@ -79,7 +79,7 @@ export function TimeInput({
 						className="text-muted-foreground hover:text-foreground"
 						tabIndex={-1}
 					>
-						<X className="size-4" />
+						<Icon icon="ph:x" className="size-4" />
 					</button>
 				)}
 			</div>

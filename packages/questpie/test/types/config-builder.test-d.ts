@@ -10,7 +10,6 @@ import type { QuestpieBuilder } from "#questpie/server/config/builder.js";
 import { questpie } from "#questpie/server/config/builder.js";
 import type { Questpie } from "#questpie/server/config/cms.js";
 import { builtinFields } from "#questpie/server/fields/builtin/defaults.js";
-import { fn } from "#questpie/server/functions/define-function.js";
 import { job } from "#questpie/server/integrated/queue/job.js";
 import type {
 	Equal,
@@ -54,11 +53,6 @@ const sendEmailJob = job({
 	handler: async ({ payload }) => {
 		// Send email
 	},
-});
-
-const pingFunction = fn({
-	schema: z.object({ message: z.string() }),
-	handler: async ({ input }) => ({ pong: input.message }),
 });
 
 // ============================================================================
@@ -131,21 +125,6 @@ type _builderWithJobsHasJobs = Expect<
 >;
 
 // ============================================================================
-// .functions() method tests
-// ============================================================================
-
-// .functions() should accumulate functions
-const withFunctions = questpie({ name: "app" }).functions({
-	ping: pingFunction,
-});
-
-// Functions should be typed
-type BuilderWithFunctions = typeof withFunctions;
-type _builderWithFunctionsHasFunctions = Expect<
-	Extends<BuilderWithFunctions, { $inferCms: any }>
->;
-
-// ============================================================================
 // .use() method tests (module composition)
 // ============================================================================
 
@@ -180,9 +159,6 @@ const fullBuilder = questpie({ name: "full-app" })
 	})
 	.jobs({
 		sendEmail: sendEmailJob,
-	})
-	.functions({
-		ping: pingFunction,
 	});
 
 // All parts should be typed
@@ -192,9 +168,6 @@ type _fullHasCollections = Expect<
 >;
 type _fullHasGlobals = Expect<
 	Equal<HasKey<FullCms["config"], "globals">, true>
->;
-type _fullHasFunctions = Expect<
-	Equal<HasKey<FullCms["config"], "functions">, true>
 >;
 
 // ============================================================================

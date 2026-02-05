@@ -6,7 +6,7 @@
 
 "use client";
 
-import { Plus } from "@phosphor-icons/react";
+import { Icon } from "@iconify/react";
 import * as React from "react";
 import { cn } from "../../lib/utils.js";
 import { Button } from "../ui/button.js";
@@ -73,7 +73,7 @@ export function BlockInsertButton({
 					{/* Add button that appears on hover - overlays other content */}
 					<div className="pointer-events-none absolute inset-x-0 top-1/2 flex -translate-y-1/2 items-center justify-center opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100">
 						<div className="pointer-events-auto flex items-center gap-1 rounded-full bg-primary px-2 py-0.5 text-xs text-primary-foreground shadow-sm">
-							<Plus size={10} weight="bold" />
+							<Icon icon="ph:plus-bold" width={10} height={10} />
 							<span>Add</span>
 						</div>
 					</div>
@@ -95,7 +95,7 @@ export function BlockInsertButton({
 					/>
 				}
 			>
-				<Plus className="mr-2 h-4 w-4" />
+				<Icon icon="ph:plus" className="mr-2 h-4 w-4" />
 				Add block
 			</PopoverTrigger>
 			<PopoverContent className="w-72 p-0" align="start">

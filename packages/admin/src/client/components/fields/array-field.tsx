@@ -5,7 +5,7 @@
  * When `item` prop is provided, delegates to ObjectArrayField for object items.
  */
 
-import { CaretDown, CaretUp, Plus, Trash } from "@phosphor-icons/react";
+import { Icon } from "@iconify/react";
 import * as React from "react";
 import { useFieldArray, useFormContext, useWatch } from "react-hook-form";
 import type { FieldComponentProps } from "../../builder";
@@ -240,7 +240,7 @@ export function ArrayField({
 											title="Move up"
 											aria-label="Move item up"
 										>
-											<CaretUp className="h-3 w-3" />
+											<Icon icon="ph:caret-up" className="h-3 w-3" />
 										</Button>
 										<Button
 											type="button"
@@ -252,7 +252,7 @@ export function ArrayField({
 											title="Move down"
 											aria-label="Move item down"
 										>
-											<CaretDown className="h-3 w-3" />
+											<Icon icon="ph:caret-down" className="h-3 w-3" />
 										</Button>
 									</div>
 								)}
@@ -267,7 +267,7 @@ export function ArrayField({
 										title="Remove"
 										aria-label="Remove item"
 									>
-										<Trash className="h-3 w-3" />
+										<Icon icon="ph:trash" className="h-3 w-3" />
 									</Button>
 								)}
 							</div>
@@ -283,7 +283,7 @@ export function ArrayField({
 					onClick={handleAdd}
 					disabled={disabled}
 				>
-					<Plus className="h-4 w-4" />
+					<Icon icon="ph:plus" className="h-4 w-4" />
 					{addLabel}
 				</Button>
 			)}

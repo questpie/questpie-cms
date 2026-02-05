@@ -25,6 +25,7 @@ import {
 	getFieldName,
 	isFieldReference,
 } from "../../builder/types/field-types";
+import { resolveIconElement } from "../../components/component-renderer";
 import { getGridColumnsClass } from "../../components/fields/field-utils";
 import {
 	Accordion,
@@ -701,7 +702,7 @@ function renderTabs({
 			<TabsList variant="line">
 				{visibleTabs.map((tab) => (
 					<TabsTrigger key={tab.id} value={tab.id}>
-						{tab.icon && <tab.icon className="mr-2 size-4" />}
+						{resolveIconElement(tab.icon, { className: "mr-2 size-4" })}
 						{resolveText(tab.label, tab.id, formValues)}
 					</TabsTrigger>
 				))}

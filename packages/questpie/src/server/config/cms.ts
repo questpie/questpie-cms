@@ -54,7 +54,7 @@ import type {
 	AnyGlobal,
 	AnyGlobalBuilder,
 } from "#questpie/shared/type-utils.js";
-import type { GetFunctions, GetMessageKeys, QuestpieConfig } from "./types.js";
+import type { GetMessageKeys, QuestpieConfig } from "./types.js";
 
 export class Questpie<TConfig extends QuestpieConfig = QuestpieConfig> {
 	static readonly __internal = {
@@ -63,7 +63,6 @@ export class Questpie<TConfig extends QuestpieConfig = QuestpieConfig> {
 
 	private _collections: Record<string, Collection<AnyCollectionState>> = {};
 	private _globals: Record<string, AnyGlobal> = {};
-	private _functions: GetFunctions<TConfig>;
 	public readonly config: TConfig;
 	private resolvedLocales: Locale[] | null = null;
 	private pgConnectionString?: string;
@@ -137,8 +136,6 @@ export class Questpie<TConfig extends QuestpieConfig = QuestpieConfig> {
 		if (config.globals) {
 			this.registerGlobals(config.globals);
 		}
-
-		this._functions = (config.functions || {}) as GetFunctions<TConfig>;
 
 		// Initialize database client from config
 		if ("url" in config.db) {
@@ -402,10 +399,6 @@ export class Questpie<TConfig extends QuestpieConfig = QuestpieConfig> {
 				: never;
 	} {
 		return this._globals as any;
-	}
-
-	public getFunctions(): GetFunctions<TConfig> {
-		return this._functions;
 	}
 
 	public getTables(): Record<string, PgTable> {

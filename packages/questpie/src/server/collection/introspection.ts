@@ -413,6 +413,7 @@ export async function introspectCollection(
 		// Use admin config label/description/icon if available
 		label: adminConfig?.config?.label,
 		description: adminConfig?.config?.description,
+		// Keep full ComponentReference for icon (client resolves via component registry)
 		icon: adminConfig?.config?.icon?.props?.name as string | undefined,
 		fields,
 		access,

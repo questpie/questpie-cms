@@ -9,17 +9,7 @@
  */
 
 import * as React from "react";
-import {
-	File,
-	FileImage,
-	FileVideo,
-	FileAudio,
-	FilePdf,
-	FileDoc,
-	FileZip,
-	FileCode,
-	ArrowSquareOut,
-} from "@phosphor-icons/react";
+import { Icon } from "@iconify/react";
 import { Button } from "../../../../components/ui/button";
 import { cn } from "../../../../lib/utils";
 
@@ -66,27 +56,27 @@ export interface AssetThumbnailProps {
 // Helpers
 // ============================================================================
 
-function getFileIcon(mimeType?: string) {
-	if (!mimeType) return File;
+function getFileIcon(mimeType?: string): string {
+	if (!mimeType) return "ph:file";
 
 	const type = mimeType.toLowerCase();
 
-	if (type.startsWith("image/")) return FileImage;
-	if (type.startsWith("video/")) return FileVideo;
-	if (type.startsWith("audio/")) return FileAudio;
-	if (type === "application/pdf") return FilePdf;
+	if (type.startsWith("image/")) return "ph:file-image";
+	if (type.startsWith("video/")) return "ph:file-video";
+	if (type.startsWith("audio/")) return "ph:file-audio";
+	if (type === "application/pdf") return "ph:file-pdf";
 	if (
 		type.includes("zip") ||
 		type.includes("compressed") ||
 		type.includes("archive")
 	)
-		return FileZip;
+		return "ph:file-zip";
 	if (
 		type.includes("word") ||
 		type.includes("document") ||
 		type === "application/rtf"
 	)
-		return FileDoc;
+		return "ph:file-doc";
 	if (
 		type.includes("json") ||
 		type.includes("javascript") ||
@@ -94,9 +84,9 @@ function getFileIcon(mimeType?: string) {
 		type.includes("xml") ||
 		type.includes("html")
 	)
-		return FileCode;
+		return "ph:file-code";
 
-	return File;
+	return "ph:file";
 }
 
 function isImage(mimeType?: string): boolean {
@@ -150,7 +140,7 @@ export function AssetThumbnail({
 	const isImageType = isImage(mimeType);
 	const isVideoType = isVideo(mimeType);
 	const isAudioType = isAudio(mimeType);
-	const FileIcon = getFileIcon(mimeType);
+	const fileIcon = getFileIcon(mimeType);
 
 	// No URL means no preview
 	if (!url) {
@@ -244,7 +234,7 @@ export function AssetThumbnail({
 				onClick={handleClick}
 			>
 				<div className="size-10 rounded border bg-muted flex items-center justify-center">
-					<FileIcon className="size-5 text-muted-foreground" weight="regular" />
+					<Icon icon={fileIcon} className="size-5 text-muted-foreground" />
 				</div>
 			</div>
 		);
@@ -284,10 +274,7 @@ export function AssetThumbnail({
 						</video>
 					) : (
 						<div className="flex flex-col items-center justify-center gap-4 p-12">
-							<FileIcon
-								className="size-20 text-muted-foreground"
-								weight="regular"
-							/>
+							<Icon icon={fileIcon} className="size-20 text-muted-foreground" />
 							<p className="text-sm text-muted-foreground">
 								{filename || "Video"}
 							</p>
@@ -299,10 +286,7 @@ export function AssetThumbnail({
 			{/* Audio Preview */}
 			{isAudioType && (
 				<div className="flex flex-col items-center justify-center gap-4 p-8">
-					<FileIcon
-						className="size-16 text-muted-foreground"
-						weight="regular"
-					/>
+					<Icon icon={fileIcon} className="size-16 text-muted-foreground" />
 					{showControls && (
 						<audio src={url} controls className="w-full max-w-md" preload="metadata">
 							Your browser does not support the audio tag.
@@ -319,7 +303,7 @@ export function AssetThumbnail({
 			{/* Other File Types */}
 			{!isImageType && !isVideoType && !isAudioType && (
 				<div className="flex flex-col items-center justify-center gap-4 p-12">
-					<FileIcon className="size-20 text-muted-foreground" weight="regular" />
+					<Icon icon={fileIcon} className="size-20 text-muted-foreground" />
 					<p className="text-sm text-muted-foreground">{filename || "File"}</p>
 				</div>
 			)}
@@ -333,7 +317,7 @@ export function AssetThumbnail({
 					nativeButton={false}
 					render={<a href={url} target="_blank" rel="noopener noreferrer" />}
 				>
-					<ArrowSquareOut weight="bold" />
+					<Icon icon="ph:arrow-square-out-bold" />
 				</Button>
 			</div>
 		</div>

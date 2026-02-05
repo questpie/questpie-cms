@@ -8,7 +8,7 @@
  * - Responsive: Popover on desktop, Drawer on mobile
  */
 
-import { Pencil, Plus } from "@phosphor-icons/react";
+import { Icon } from "@iconify/react";
 import { createQuestpieQueryOptions } from "@questpie/tanstack-query";
 import { useQueryClient } from "@tanstack/react-query";
 import type { Questpie } from "questpie";
@@ -332,7 +332,7 @@ export function RelationSelect<T extends Questpie<any>>({
 								aria-label={t("collection.edit", { name: labelText })}
 								className="rounded-none border-l-0"
 							>
-								<Pencil className="h-4 w-4" />
+								<Icon icon="ph:pencil" className="h-4 w-4" />
 							</Button>
 						)}
 
@@ -347,7 +347,7 @@ export function RelationSelect<T extends Questpie<any>>({
 							aria-label={createLabel}
 							className="border-l-0 rounded-l-none"
 						>
-							<Plus className="h-4 w-4" />
+							<Icon icon="ph:plus" className="h-4 w-4" />
 						</Button>
 					</div>
 				)}

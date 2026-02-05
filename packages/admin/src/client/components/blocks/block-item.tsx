@@ -8,7 +8,7 @@
 
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { CaretDown, CaretRight, DotsSixVertical } from "@phosphor-icons/react";
+import { Icon } from "@iconify/react";
 import * as React from "react";
 import type { BlockNode } from "../../blocks/types.js";
 import { useFocusOptional } from "../../context/focus-context.js";
@@ -129,7 +129,7 @@ export function BlockItem({ block, level, index, parentId }: BlockItemProps) {
 					{...attributes}
 					{...listeners}
 				>
-					<DotsSixVertical className="h-4 w-4 text-muted-foreground" />
+					<Icon icon="ph:dots-six-vertical" className="h-4 w-4 text-muted-foreground" />
 				</button>
 
 				{/* Expand/collapse for layout blocks */}
@@ -140,9 +140,9 @@ export function BlockItem({ block, level, index, parentId }: BlockItemProps) {
 						className="p-0.5 text-muted-foreground hover:text-foreground"
 					>
 						{isExpanded ? (
-							<CaretDown className="h-4 w-4" />
+							<Icon icon="ph:caret-down" className="h-4 w-4" />
 						) : (
-							<CaretRight className="h-4 w-4" />
+							<Icon icon="ph:caret-right" className="h-4 w-4" />
 						)}
 					</button>
 				) : null}

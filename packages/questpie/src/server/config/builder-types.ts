@@ -7,7 +7,6 @@ import type {
 	LocaleConfig,
 	StorageConfig,
 } from "#questpie/server/config/types.js";
-import type { FunctionDefinition } from "#questpie/server/functions/types.js";
 import type { TranslationsConfig } from "#questpie/server/i18n/types.js";
 import type { KVConfig } from "#questpie/server/integrated/kv/index.js";
 import type { LoggerConfig } from "#questpie/server/integrated/logger/index.js";
@@ -30,7 +29,6 @@ export type BuilderEmailTemplatesMap = Record<
 	string,
 	EmailTemplateDefinition<any, any>
 >;
-export type BuilderFunctionsMap = Record<string, FunctionDefinition>;
 export type BuilderFieldsMap = Record<string, any>; // Field factory functions
 export type BuilderMapValues<TMap extends Record<PropertyKey, any>> =
 	TMap[keyof TMap];
@@ -46,7 +44,6 @@ export interface QuestpieBuilderState<
 	TGlobals extends BuilderGlobalsMap = BuilderGlobalsMap,
 	TJobs extends BuilderJobsMap = BuilderJobsMap,
 	TEmailTemplates extends BuilderEmailTemplatesMap = BuilderEmailTemplatesMap,
-	TFunctions extends BuilderFunctionsMap = BuilderFunctionsMap,
 	TAuth extends BetterAuthOptions | Record<never, never> = Record<never, never>,
 	TMessageKeys extends string = never,
 	TBuilderFields extends BuilderFieldsMap = BuilderFieldsMap,
@@ -56,7 +53,6 @@ export interface QuestpieBuilderState<
 	globals: TGlobals;
 	jobs: TJobs;
 	emailTemplates: TEmailTemplates;
-	functions: TFunctions;
 
 	/**
 	 * Registered field types for the Field Builder system.
@@ -154,7 +150,6 @@ export interface QuestpieRuntimeConfig<TDbConfig extends DbConfig = DbConfig> {
  */
 export type EmptyNamedBuilderState<TName extends string> = QuestpieBuilderState<
 	TName,
-	EmptyBuilderMap,
 	EmptyBuilderMap,
 	EmptyBuilderMap,
 	EmptyBuilderMap,

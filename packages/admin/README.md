@@ -132,19 +132,17 @@ declare module "@questpie/admin/client" {
 ```typescript
 // src/admin/sidebar.ts
 import { qa } from "@questpie/admin/client";
-import { HouseIcon, FileTextIcon } from "@phosphor-icons/react";
-
 export const sidebarConfig = qa
   .sidebar()
   .section("main", (s) =>
     s.items([
-      { type: "link", label: "Dashboard", href: "/admin", icon: HouseIcon },
+      { type: "link", label: "Dashboard", href: "/admin", icon: "ph:house" },
     ]),
   )
   .section("content", (s) =>
     s
       .title("Content")
-      .icon(FileTextIcon)
+      .icon("ph:file-text")
       .items([{ type: "collection", collection: "posts", icon: FileTextIcon }]),
   );
 ```

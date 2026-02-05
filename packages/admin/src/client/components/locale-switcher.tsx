@@ -1,4 +1,4 @@
-import { CaretDown, Check } from "@phosphor-icons/react";
+import { Icon } from "@iconify/react";
 import type * as React from "react";
 import { useMemo, useState } from "react";
 import { useResolveText } from "../i18n/hooks";
@@ -158,7 +158,7 @@ export function LocaleSwitcher({
 				onClick={(e) => e.stopPropagation()}
 			>
 				{content}
-				<CaretDown className="size-2.5" />
+				<Icon icon="ph:caret-down" className="size-2.5" />
 			</DropdownMenuTrigger>
 			<DropdownMenuContent align="start" className="min-w-[140px]">
 				{localeOptions.map((locale) => (
@@ -187,7 +187,7 @@ export function LocaleSwitcher({
 							</span>
 						)}
 						{locale.code === resolvedValue && (
-							<Check className="ml-auto size-3" />
+							<Icon icon="ph:check" className="ml-auto size-3" />
 						)}
 					</DropdownMenuItem>
 				))}

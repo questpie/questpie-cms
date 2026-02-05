@@ -6,7 +6,7 @@
 
 "use client";
 
-import { X } from "@phosphor-icons/react";
+import { Icon } from "@iconify/react";
 import * as React from "react";
 import type { BlockNode } from "../../blocks/types.js";
 import type { FieldDefinition } from "../../builder/field/field.js";
@@ -59,7 +59,7 @@ export function BlockForm() {
 					onClick={handleClose}
 					title="Close"
 				>
-					<X className="h-4 w-4" />
+					<Icon icon="ph:x" className="h-4 w-4" />
 				</Button>
 			</div>
 

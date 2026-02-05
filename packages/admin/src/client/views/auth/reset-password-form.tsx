@@ -2,12 +2,7 @@
  * Reset Password Form - set new password with token
  */
 
-import {
-	CheckCircle,
-	Lock,
-	SpinnerGap,
-	WarningCircle,
-} from "@phosphor-icons/react";
+import { Icon } from "@iconify/react";
 import * as React from "react";
 import { useForm } from "react-hook-form";
 import { Alert, AlertDescription } from "../../components/ui/alert";
@@ -114,7 +109,7 @@ export function ResetPasswordForm({
 		return (
 			<div className={cn("space-y-4 text-center", className)}>
 				<div className="bg-primary/10 mx-auto flex size-12 items-center justify-center">
-					<CheckCircle className="text-primary size-6" weight="duotone" />
+					<Icon icon="ph:check-circle-duotone" className="text-primary size-6" />
 				</div>
 				<div className="space-y-2">
 					<h3 className="text-sm font-medium">Password reset successful</h3>
@@ -147,9 +142,9 @@ export function ResetPasswordForm({
 					<FieldLabel htmlFor="password">{t("auth.newPassword")}</FieldLabel>
 					<FieldContent>
 						<div className="relative">
-							<Lock
+							<Icon
+								icon="ph:lock-duotone"
 								className="text-muted-foreground absolute left-2 top-1/2 size-4 -translate-y-1/2"
-								weight="duotone"
 							/>
 							<Input
 								id="password"
@@ -183,9 +178,9 @@ export function ResetPasswordForm({
 					</FieldLabel>
 					<FieldContent>
 						<div className="relative">
-							<Lock
+							<Icon
+								icon="ph:lock-duotone"
 								className="text-muted-foreground absolute left-2 top-1/2 size-4 -translate-y-1/2"
-								weight="duotone"
 							/>
 							<Input
 								id="confirmPassword"
@@ -209,7 +204,7 @@ export function ResetPasswordForm({
 			{/* Error Message */}
 			{error && (
 				<Alert variant="destructive">
-					<WarningCircle />
+					<Icon icon="ph:warning-circle" />
 					<AlertDescription>{error}</AlertDescription>
 				</Alert>
 			)}
@@ -223,7 +218,7 @@ export function ResetPasswordForm({
 			>
 				{isSubmitting ? (
 					<>
-						<SpinnerGap className="animate-spin" weight="bold" />
+						<Icon icon="ph:spinner-gap-bold" className="animate-spin" />
 						{t("auth.resettingPassword")}
 					</>
 				) : (

@@ -2,6 +2,7 @@
  * Collection Builder Types
  */
 
+import type { ComponentReference } from "#questpie/admin/server";
 import type { I18nText } from "../../i18n/types.js";
 import type { AdminBuilder } from "../admin-builder";
 import type { FieldDefinition } from "../field/field";
@@ -15,7 +16,7 @@ import type { ActionsConfig } from "./action-types";
 export interface CollectionMeta {
 	/** Display label - supports inline translations */
 	label?: I18nText;
-	icon?: IconComponent | string;
+	icon?: IconComponent | ComponentReference | string;
 	group?: string;
 	order?: number;
 	hidden?: boolean;
@@ -198,7 +199,7 @@ export interface CollectionConfig<TFieldNames extends string = string> {
 	/**
 	 * Icon
 	 */
-	icon?: IconComponent | string;
+	icon?: IconComponent | ComponentReference | string;
 
 	/**
 	 * Description - supports inline translations
@@ -313,7 +314,7 @@ export interface CollectionBuilderState<
 	readonly label?: I18nText;
 	/** Description - supports inline translations */
 	readonly description?: I18nText;
-	readonly icon?: IconComponent;
+	readonly icon?: IconComponent | ComponentReference;
 	readonly fields?: Record<string, FieldDefinition<any, any>>;
 	readonly list?: any; // View result from .list() callback
 	readonly form?: any; // View result from .form() callback

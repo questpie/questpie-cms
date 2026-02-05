@@ -9,6 +9,7 @@
  */
 
 import type * as React from "react";
+import type { ComponentReference } from "#questpie/admin/server";
 import type { I18nText } from "../../i18n/types";
 import type { FieldDefinition } from "../field/field";
 import type { IconComponent, MaybeLazyComponent } from "../types/common";
@@ -257,8 +258,8 @@ export interface ActionDefinition<TItem = any> {
 	id: string;
 	/** Display label */
 	label: I18nText;
-	/** Icon component */
-	icon?: IconComponent;
+	/** Icon component or server-defined component reference */
+	icon?: IconComponent | ComponentReference;
 	/** Button variant */
 	variant?: ActionVariant;
 	/** Whether action is visible (static or dynamic) */

@@ -32,6 +32,7 @@
 
 import type { SetProperty } from "questpie/shared";
 import type * as React from "react";
+import type { ComponentReference } from "#questpie/admin/server";
 import type {
 	BlockCategory,
 	BlockPrefetch,
@@ -40,7 +41,6 @@ import type {
 import type { I18nText } from "../../i18n/types.js";
 import type { AdminBuilder } from "../admin-builder.js";
 import type { ExtractBlocks, ExtractFields } from "../admin-types.js";
-import type { createRegistryProxy } from "../defaults/fields.js";
 import type { FieldDefinition } from "../field/field.js";
 import {
 	createFieldRegistryProxy,
@@ -72,7 +72,9 @@ type AdminAppBlocks<TAdminApp> =
  * Legacy type alias for backwards compatibility.
  * @deprecated Use FieldRegistryProxy from "../proxies.js" instead
  */
-export type LegacyFieldRegistryProxy = ReturnType<typeof createRegistryProxy>;
+export type LegacyFieldRegistryProxy = ReturnType<
+	typeof createFieldRegistryProxy
+>;
 
 /**
  * Block builder class with fluent API.
@@ -123,9 +125,11 @@ export class BlockBuilder<TState extends BlockBuilderState> {
 
 	/**
 	 * Set the icon for the block.
-	 * Use Phosphor icon names (e.g., "Image", "Columns", "TextAa").
+	 * Prefer ComponentReference from server config; string icons are legacy.
 	 */
-	icon(icon: string): BlockBuilder<TState & { icon: string }> {
+	icon(
+		icon: ComponentReference | string,
+	): BlockBuilder<TState & { icon: ComponentReference | string }> {
 		return new BlockBuilder({ ...this.state, icon });
 	}
 

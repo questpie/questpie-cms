@@ -1,4 +1,4 @@
-import { Minus, Plus } from "@phosphor-icons/react";
+import { Icon } from "@iconify/react";
 import { useResolveText } from "../../i18n/hooks";
 import { cn } from "../../lib/utils";
 import { Button } from "../ui/button";
@@ -72,7 +72,7 @@ export function NumberInput({
 					disabled={disabled || (min !== undefined && (value ?? 0) <= min)}
 					tabIndex={-1}
 				>
-					<Minus className="size-3" />
+					<Icon icon="ph:minus" className="size-3" />
 				</Button>
 				<Input
 					id={id}
@@ -103,7 +103,7 @@ export function NumberInput({
 					disabled={disabled || (max !== undefined && (value ?? 0) >= max)}
 					tabIndex={-1}
 				>
-					<Plus className="size-3" />
+					<Icon icon="ph:plus" className="size-3" />
 				</Button>
 			</div>
 		);

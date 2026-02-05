@@ -7,6 +7,7 @@
 
 import type * as React from "react";
 import { useMemo } from "react";
+import type { ComponentReference } from "#questpie/admin/server";
 import type {
 	DateFilterConfig,
 	DateFilterPreset,
@@ -29,8 +30,11 @@ export type StatsWidgetConfig = {
 	filterFn?: () => Record<string, any>;
 	/** Date filter preset (evaluated at render time) */
 	dateFilter?: DateFilterConfig;
-	/** Icon component or name */
-	icon?: React.ComponentType<{ className?: string }> | string;
+	/** Icon component or server-defined reference */
+	icon?:
+		| React.ComponentType<{ className?: string }>
+		| ComponentReference
+		| string;
 	/** Color variant for the stat card */
 	variant?: "default" | "primary" | "success" | "warning" | "danger";
 };
@@ -208,16 +212,10 @@ export default function StatsWidget({ config }: StatsWidgetProps) {
 		? resolveText(label)
 		: formatCollectionName(collection);
 
-	// Resolve icon - only use if it's a component, not a string
-	const IconComponent =
-		Icon && typeof Icon !== "string"
-			? (Icon as React.ComponentType<{ className?: string }>)
-			: undefined;
-
 	return (
 		<WidgetCard
 			title={displayLabel}
-			icon={IconComponent}
+			icon={Icon}
 			isLoading={isLoading}
 			loadingSkeleton={<StatsWidgetSkeleton />}
 			error={

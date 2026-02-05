@@ -4,7 +4,7 @@
  * Uses the same cell components as TableView for consistent rendering.
  */
 
-import { ArrowRight, Pencil, X } from "@phosphor-icons/react";
+import { Icon } from "@iconify/react";
 import * as React from "react";
 import { CollectionEditLink } from "../../../admin-link";
 import { Button } from "../../../ui/button";
@@ -90,7 +90,7 @@ export function TableDisplay({
 												onClick={() => actions.onEdit?.(item)}
 												aria-label="Edit item"
 											>
-												<Pencil className="size-4" />
+												<Icon icon="ph:pencil" className="size-4" />
 											</Button>
 										)}
 
@@ -104,7 +104,7 @@ export function TableDisplay({
 												onClick={() => actions.onRemove?.(item)}
 												aria-label="Remove item"
 											>
-												<X className="size-4" />
+												<Icon icon="ph:x" className="size-4" />
 											</Button>
 										)}
 
@@ -115,7 +115,7 @@ export function TableDisplay({
 												id={item.id}
 												className="text-primary hover:underline"
 											>
-												<ArrowRight className="size-4" />
+												<Icon icon="ph:arrow-right" className="size-4" />
 											</CollectionEditLink>
 										)}
 									</div>

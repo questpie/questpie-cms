@@ -65,6 +65,7 @@ export class AdminBuilder<TState extends AdminBuilderState> {
 	static empty<TApp = any>(): AdminBuilder<{
 		"~app": TApp;
 		fields: {};
+		components: {};
 		listViews: {};
 		editViews: {};
 		pages: {};
@@ -82,6 +83,7 @@ export class AdminBuilder<TState extends AdminBuilderState> {
 		return new AdminBuilder({
 			"~app": undefined as TApp,
 			fields: {},
+			components: {},
 			listViews: {},
 			editViews: {},
 			pages: {},
@@ -115,6 +117,27 @@ export class AdminBuilder<TState extends AdminBuilderState> {
 			fields: {
 				...this.state.fields,
 				...fields,
+			},
+		} as any);
+	}
+
+	/**
+	 * Register component implementations
+	 */
+	components<TNewComponents extends Record<string, any>>(
+		components: TNewComponents,
+	): AdminBuilder<
+		SetProperty<
+			TState,
+			"components",
+			Prettify<TypeMerge<TState["components"], TNewComponents>>
+		>
+	> {
+		return new AdminBuilder({
+			...this.state,
+			components: {
+				...this.state.components,
+				...components,
 			},
 		} as any);
 	}
@@ -186,7 +209,11 @@ export class AdminBuilder<TState extends AdminBuilderState> {
 	pages<TNewPages extends Record<string, any>>(
 		pages: TNewPages,
 	): AdminBuilder<
-		SetProperty<TState, "pages", Prettify<TypeMerge<TState["pages"], TNewPages>>>
+		SetProperty<
+			TState,
+			"pages",
+			Prettify<TypeMerge<TState["pages"], TNewPages>>
+		>
 	> {
 		return new AdminBuilder({
 			...this.state,

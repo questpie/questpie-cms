@@ -1,6 +1,6 @@
 "use client";
 
-import { CaretUpDown, CircleNotch, X } from "@phosphor-icons/react";
+import { Icon } from "@iconify/react";
 import { useQuery } from "@tanstack/react-query";
 import type * as React from "react";
 import { useCallback, useDeferredValue, useId, useMemo, useState } from "react";
@@ -214,10 +214,10 @@ export function SelectSingle<TValue extends string = string>({
 						}}
 						className="rounded-sm opacity-50 hover:opacity-100 hover:bg-muted p-0.5 -mr-1"
 					>
-						<X className="size-3" />
+						<Icon icon="ph:x" className="size-3" />
 					</span>
 				)}
-				<CaretUpDown className="size-3.5 opacity-50" />
+				<Icon icon="ph:caret-up-down" className="size-3.5 opacity-50" />
 			</div>
 		</Button>
 	);
@@ -232,7 +232,7 @@ export function SelectSingle<TValue extends string = string>({
 			<CommandList>
 				{showLoading && (
 					<div className="flex items-center justify-center py-6">
-						<CircleNotch className="size-4 animate-spin text-muted-foreground" />
+						<Icon icon="ph:circle-notch" className="size-4 animate-spin text-muted-foreground" />
 					</div>
 				)}
 				<CommandEmpty>{resolvedEmptyMessage}</CommandEmpty>

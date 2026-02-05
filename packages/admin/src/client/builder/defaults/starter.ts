@@ -20,7 +20,7 @@
  * ```
  */
 
-import { Images, Users } from "@phosphor-icons/react";
+import type { ComponentReference } from "#questpie/admin/server";
 import { qa } from "../qa";
 import { assetsCollectionAdmin } from "./collections/assets";
 import { userCollectionAdmin } from "./collections/user";
@@ -56,8 +56,22 @@ export const adminModule = coreAdminModule
 	.sidebar(
 		qa.sidebar().section("administration", (s) =>
 			s.title({ key: "defaults.sidebar.administration" }).items([
-				{ type: "collection", collection: "user", icon: Users },
-				{ type: "collection", collection: "assets", icon: Images },
+				{
+					type: "collection",
+					collection: "user",
+					icon: {
+						type: "icon",
+						props: { name: "ph:users" },
+					} satisfies ComponentReference,
+				},
+				{
+					type: "collection",
+					collection: "assets",
+					icon: {
+						type: "icon",
+						props: { name: "ph:image" },
+					} satisfies ComponentReference,
+				},
 			]),
 		),
 	);

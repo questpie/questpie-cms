@@ -11,6 +11,7 @@ import type { CollectionConfig } from "./collection/types";
 import type { FieldDefinition } from "./field/field";
 import type { GlobalConfig } from "./global/types";
 import type { PageDefinition } from "./page/page";
+import type { MaybeLazyComponent } from "./types/common";
 import type {
 	BrandingConfig,
 	DashboardConfig,
@@ -48,6 +49,7 @@ export type WidgetDefinitionMap = Record<string, WidgetDefinition<string, any>>;
 export type CollectionConfigMap = Record<string, CollectionConfig>;
 export type GlobalConfigMap = Record<string, GlobalConfig<any>>;
 export type BlockDefinitionMap = Record<string, BlockDefinition>;
+export type ComponentDefinitionMap = Record<string, MaybeLazyComponent<any>>;
 
 export type EmptyMap = Record<never, never>;
 
@@ -66,6 +68,7 @@ export type EmptyMap = Record<never, never>;
 export interface AdminBuilderState<
 	TApp = any,
 	TFields extends FieldDefinitionMap = FieldDefinitionMap,
+	TComponents extends ComponentDefinitionMap = ComponentDefinitionMap,
 	TListViews extends ListViewDefinitionMap = ListViewDefinitionMap,
 	TEditViews extends EditViewDefinitionMap = EditViewDefinitionMap,
 	TPages extends PageDefinitionMap = PageDefinitionMap,
@@ -79,6 +82,7 @@ export interface AdminBuilderState<
 
 	// Extensible definitions (like collections/globals/jobs in questpie)
 	fields: TFields;
+	components: TComponents;
 	listViews: TListViews;
 	editViews: TEditViews;
 	pages: TPages;
@@ -106,6 +110,7 @@ export interface AdminBuilderState<
 export interface EmptyBuilderState extends AdminBuilderState<any> {
 	"~app": any;
 	fields: EmptyMap;
+	components: EmptyMap;
 	listViews: EmptyMap;
 	editViews: EmptyMap;
 	pages: EmptyMap;

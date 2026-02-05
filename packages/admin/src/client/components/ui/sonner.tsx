@@ -2,13 +2,7 @@
 
 import type * as React from "react";
 import { Toaster as Sonner, type ToasterProps } from "sonner";
-import {
-	Info,
-	Warning,
-	XCircle,
-	Spinner,
-	CheckCircleIcon,
-} from "@phosphor-icons/react";
+import { Icon } from "@iconify/react";
 
 export interface AdminToasterProps extends ToasterProps {
 	/**
@@ -25,11 +19,11 @@ const Toaster = ({ theme = "system", ...props }: AdminToasterProps) => {
 			className="toaster group"
 			richColors
 			icons={{
-				success: <CheckCircleIcon className="size-4" />,
-				info: <Info className="size-4" />,
-				warning: <Warning className="size-4" />,
-				error: <XCircle className="size-4" />,
-				loading: <Spinner className="size-4 animate-spin" />,
+				success: <Icon icon="ph:check-circle" className="size-4" />,
+				info: <Icon icon="ph:info" className="size-4" />,
+				warning: <Icon icon="ph:warning" className="size-4" />,
+				error: <Icon icon="ph:x-circle" className="size-4" />,
+				loading: <Icon icon="ph:spinner" className="size-4 animate-spin" />,
 			}}
 			style={
 				{

@@ -7,7 +7,6 @@ import type {
 	FieldDefinition,
 	FieldDefinitionState,
 } from "#questpie/server/fields/types.js";
-import type { FunctionsMap } from "#questpie/server/functions/types.js";
 import type { TranslationsConfig } from "#questpie/server/i18n/types.js";
 import type {
 	Collection,
@@ -331,11 +330,6 @@ export interface QuestpieConfig {
 	globals?: Record<string, AnyGlobalOrBuilder>;
 
 	/**
-	 * RPC functions (root-level)
-	 */
-	functions?: FunctionsMap;
-
-	/**
 	 * Global localization settings
 	 */
 	locale?: LocaleConfig;
@@ -470,9 +464,6 @@ export interface QuestpieConfig {
  */
 export type GetCollections<T extends QuestpieConfig> = T["collections"];
 export type GetGlobals<T extends QuestpieConfig> = NonNullable<T["globals"]>;
-export type GetFunctions<T extends QuestpieConfig> = NonNullable<
-	T["functions"]
->;
 export type GetAuth<T extends QuestpieConfig> = T["auth"];
 export type GetDbConfig<T extends QuestpieConfig> = T["db"];
 

@@ -156,6 +156,15 @@ export {
 	type UseServerActionsReturn,
 	useServerActions,
 } from "./use-server-actions";
+// Server validation hooks (AJV-based, uses server JSON Schema)
+export {
+	type ServerValidationResult,
+	type UseServerValidationOptions,
+	useGlobalServerValidation,
+	usePreferServerValidation,
+	useServerValidation,
+	type ValidationMode,
+} from "./use-server-validation";
 // Setup status hook
 export { type SetupStatus, useSetupStatus } from "./use-setup-status";
 // Upload hook

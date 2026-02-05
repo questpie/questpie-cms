@@ -11,14 +11,7 @@
  * - Highlights: Shows search term highlighted in record titles
  */
 
-import {
-	File,
-	Folder,
-	Gear,
-	MagnifyingGlass,
-	Plus,
-	Spinner,
-} from "@phosphor-icons/react";
+import { Icon } from "@iconify/react";
 import * as React from "react";
 import { useMemo, useState, useCallback, useRef, useEffect } from "react";
 import { Kbd } from "../../components/ui/kbd";
@@ -51,6 +44,26 @@ export interface GlobalSearchProps {
 	onClose: () => void;
 	navigate: (path: string) => void;
 	basePath?: string;
+}
+
+// ============================================================================
+// Default Icon Components (Iconify wrappers)
+// ============================================================================
+
+function FolderIcon({ className }: { className?: string }) {
+	return <Icon icon="ph:folder" className={className} />;
+}
+
+function GearIcon({ className }: { className?: string }) {
+	return <Icon icon="ph:gear" className={className} />;
+}
+
+function PlusIcon({ className }: { className?: string }) {
+	return <Icon icon="ph:plus" className={className} />;
+}
+
+function FileIcon({ className }: { className?: string }) {
+	return <Icon icon="ph:file" className={className} />;
 }
 
 // ============================================================================
@@ -118,7 +131,7 @@ function SearchGroup({
 				{items.map((item, idx) => {
 					const globalIndex = startIndex + idx;
 					const isSelected = globalIndex === selectedIndex;
-					const Icon = item.icon;
+					const ItemIcon = item.icon;
 
 					return (
 						<button
@@ -133,8 +146,8 @@ function SearchGroup({
 									: "hover:bg-accent/50 hover:text-accent-foreground",
 							)}
 						>
-							{Icon && (
-								<Icon className="h-4 w-4 text-muted-foreground shrink-0" />
+							{ItemIcon && (
+								<ItemIcon className="h-4 w-4 text-muted-foreground shrink-0" />
 							)}
 							<div className="flex flex-col items-start min-w-0">
 								{item.highlights?.title ? (
@@ -203,7 +216,7 @@ export function GlobalSearch({
 		for (const [name, config] of Object.entries(collections)) {
 			const label = resolveText((config as any).label, name);
 			// Get icon from collection config (getCollections already extracts .state)
-			const icon = (config as any)?.icon || Folder;
+			const icon = (config as any)?.icon || FolderIcon;
 			items.push({
 				id: `col-${name}`,
 				type: "collection",
@@ -218,7 +231,7 @@ export function GlobalSearch({
 		for (const [name, config] of Object.entries(globals)) {
 			const label = resolveText((config as any).label, name);
 			// Get icon from global config (getGlobals already extracts .state)
-			const icon = (config as any)?.icon || Gear;
+			const icon = (config as any)?.icon || GearIcon;
 			items.push({
 				id: `glob-${name}`,
 				type: "global",
@@ -239,7 +252,7 @@ export function GlobalSearch({
 				type: "action",
 				label: t("globalSearch.createNew", { name: label }),
 				href: `${basePath}/collections/${name}/create`,
-				icon: collectionIcon || Plus,
+				icon: collectionIcon || PlusIcon,
 				keywords: ["create", "new", "add", name],
 			});
 		}
@@ -265,7 +278,7 @@ export function GlobalSearch({
 			// Use resolveText for proper localization of collection label
 			const collectionLabel = resolveText((collectionConfig as any)?.label, collectionName);
 			// Get icon from collection config (getCollections already extracts .state)
-			const icon = (collectionConfig as any)?.icon || File;
+			const icon = (collectionConfig as any)?.icon || FileIcon;
 
 			return {
 				id: `record-${collectionName}-${doc.id}`,
@@ -376,7 +389,7 @@ export function GlobalSearch({
 			<ResponsiveDialogContent className="p-0 gap-0 max-w-2xl">
 				{/* Search Input */}
 				<div className="flex items-center border-b px-3">
-					<MagnifyingGlass className="mr-2 h-5 w-5 text-muted-foreground shrink-0" />
+					<Icon icon="ph:magnifying-glass" className="mr-2 h-5 w-5 text-muted-foreground shrink-0" />
 					<input
 						ref={inputRef}
 						className="flex h-14 w-full rounded-none bg-transparent py-3 text-base outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50"
@@ -387,7 +400,7 @@ export function GlobalSearch({
 						autoFocus
 					/>
 					<div className="flex items-center gap-1 shrink-0">
-						{isSearching && <Spinner className="h-4 w-4 animate-spin text-muted-foreground" />}
+						{isSearching && <Icon icon="ph:spinner" className="h-4 w-4 animate-spin text-muted-foreground" />}
 						<Kbd>ESC</Kbd>
 					</div>
 				</div>
@@ -438,7 +451,7 @@ export function GlobalSearch({
 						<div className="py-8 text-center text-sm text-muted-foreground">
 							{isSearching ? (
 								<div className="flex items-center justify-center gap-2">
-									<Spinner className="h-4 w-4 animate-spin" />
+									<Icon icon="ph:spinner" className="h-4 w-4 animate-spin" />
 									<span>{t("globalSearch.searching")}</span>
 								</div>
 							) : (

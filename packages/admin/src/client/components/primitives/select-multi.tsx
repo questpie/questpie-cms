@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, CircleNotch, Plus, X } from "@phosphor-icons/react";
+import { Icon } from "@iconify/react";
 import type * as React from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useIsMobile } from "../../hooks/use-media-query";
@@ -237,7 +237,7 @@ export function SelectMulti<TValue extends string = string>({
 									onClick={(e) => handleRemove(val, e)}
 									className="rounded-full hover:bg-muted-foreground/20 p-0.5"
 								>
-									<X className="size-2.5" />
+									<Icon icon="ph:x" className="size-2.5" />
 								</button>
 							)}
 						</Badge>
@@ -256,10 +256,10 @@ export function SelectMulti<TValue extends string = string>({
 						onClick={handleClearAll}
 						className="rounded-sm opacity-50 hover:opacity-100 hover:bg-muted p-0.5"
 					>
-						<X className="size-3" />
+						<Icon icon="ph:x" className="size-3" />
 					</button>
 				)}
-				<Plus className="size-3.5 opacity-50" />
+				<Icon icon="ph:plus" className="size-3.5 opacity-50" />
 			</div>
 		</div>
 	);
@@ -274,7 +274,7 @@ export function SelectMulti<TValue extends string = string>({
 			<CommandList>
 				{showLoading && (
 					<div className="flex items-center justify-center py-6">
-						<CircleNotch className="size-4 animate-spin text-muted-foreground" />
+						<Icon icon="ph:circle-notch" className="size-4 animate-spin text-muted-foreground" />
 					</div>
 				)}
 				<CommandEmpty>{resolvedEmptyMessage}</CommandEmpty>
@@ -298,7 +298,7 @@ export function SelectMulti<TValue extends string = string>({
 											: "border-muted-foreground/30",
 									)}
 								>
-									{isSelected && <Check className="size-3" />}
+									{isSelected && <Icon icon="ph:check" className="size-3" />}
 								</div>
 								{option.icon}
 								<span className="truncate">{resolveText(option.label)}</span>

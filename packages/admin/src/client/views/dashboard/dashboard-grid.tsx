@@ -21,6 +21,7 @@ import type {
 	WidgetComponentProps,
 	WidgetConfig,
 } from "../../builder";
+import { resolveIconElement } from "../../components/component-renderer";
 import {
 	Accordion,
 	AccordionContent,
@@ -212,10 +213,9 @@ function DashboardHeader({
 			{actions && actions.length > 0 && (
 				<div className="flex items-center gap-2 shrink-0">
 					{actions.map((action) => {
-						const Icon =
-							action.icon && typeof action.icon !== "string"
-								? action.icon
-								: null;
+						const iconElement = resolveIconElement(action.icon, {
+							className: "h-4 w-4 mr-2",
+						});
 						const variant = action.variant || "default";
 
 						return (
@@ -225,7 +225,7 @@ function DashboardHeader({
 								size="sm"
 								onClick={() => handleActionClick(action)}
 							>
-								{Icon && <Icon className="h-4 w-4 mr-2" />}
+								{iconElement}
 								{resolveText(action.label)}
 							</Button>
 						);
@@ -465,7 +465,9 @@ function TabsRenderer({
 			>
 				{tabConfigs.map((tab) => (
 					<TabsTrigger key={tab.id} value={tab.id}>
-						{tab.icon && <tab.icon className="h-4 w-4 mr-2" />}
+						{resolveIconElement(tab.icon, {
+							className: "h-4 w-4 mr-2",
+						})}
 						{resolveText(tab.label)}
 						{tab.badge !== undefined && (
 							<span className="ml-2 rounded-full bg-muted px-2 py-0.5 text-xs">

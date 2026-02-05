@@ -9,14 +9,7 @@
  * - Ability to restore previous versions
  */
 
-import {
-	ArrowCounterClockwise,
-	CaretDown,
-	CaretRight,
-	Clock,
-	ClockCounterClockwise,
-	User,
-} from "@phosphor-icons/react";
+import { Icon } from "@iconify/react";
 import { useQuery } from "@tanstack/react-query";
 import type { Questpie } from "questpie";
 import * as React from "react";
@@ -227,7 +220,7 @@ export function VersionHistory<T extends Questpie<any>>({
 			<Card>
 				<CardHeader>
 					<CardTitle className="flex items-center gap-2">
-						<ClockCounterClockwise className="h-5 w-5" />
+						<Icon icon="ph:clock-counter-clockwise" className="h-5 w-5" />
 						Version History
 					</CardTitle>
 				</CardHeader>
@@ -243,7 +236,7 @@ export function VersionHistory<T extends Questpie<any>>({
 			<Card>
 				<CardHeader>
 					<CardTitle className="flex items-center gap-2">
-						<ClockCounterClockwise className="h-5 w-5" />
+						<Icon icon="ph:clock-counter-clockwise" className="h-5 w-5" />
 						Version History
 					</CardTitle>
 				</CardHeader>
@@ -262,7 +255,7 @@ export function VersionHistory<T extends Questpie<any>>({
 			<Card>
 				<CardHeader>
 					<CardTitle className="flex items-center gap-2">
-						<ClockCounterClockwise className="h-5 w-5" />
+						<Icon icon="ph:clock-counter-clockwise" className="h-5 w-5" />
 						Version History
 					</CardTitle>
 				</CardHeader>
@@ -279,7 +272,7 @@ export function VersionHistory<T extends Questpie<any>>({
 		<Card>
 			<CardHeader>
 				<CardTitle className="flex items-center gap-2">
-					<ClockCounterClockwise className="h-5 w-5" />
+					<Icon icon="ph:clock-counter-clockwise" className="h-5 w-5" />
 					Version History
 				</CardTitle>
 				<CardDescription>
@@ -304,9 +297,9 @@ export function VersionHistory<T extends Questpie<any>>({
 										onClick={() => toggleVersion(version.id)}
 									>
 										{isExpanded ? (
-											<CaretDown className="h-4 w-4" />
+											<Icon icon="ph:caret-down" className="h-4 w-4" />
 										) : (
-											<CaretRight className="h-4 w-4" />
+											<Icon icon="ph:caret-right" className="h-4 w-4" />
 										)}
 									</Button>
 
@@ -323,12 +316,12 @@ export function VersionHistory<T extends Questpie<any>>({
 										{/* Metadata */}
 										<div className="flex items-center gap-4 text-xs text-muted-foreground">
 											<div className="flex items-center gap-1">
-												<Clock className="h-3 w-3" />
+												<Icon icon="ph:clock" className="h-3 w-3" />
 												{formatDate(version.createdAt)}
 											</div>
 											{version.createdBy && (
 												<div className="flex items-center gap-1">
-													<User className="h-3 w-3" />
+													<Icon icon="ph:user" className="h-3 w-3" />
 													{version.createdBy.name || version.createdBy.email}
 												</div>
 											)}
@@ -392,7 +385,7 @@ export function VersionHistory<T extends Questpie<any>>({
 														onClick={() => handleRestore(version.id)}
 														className="mt-2"
 													>
-														<ArrowCounterClockwise className="mr-2 h-3 w-3" />
+														<Icon icon="ph:arrow-counter-clockwise" className="mr-2 h-3 w-3" />
 														Restore this version
 													</Button>
 												)}

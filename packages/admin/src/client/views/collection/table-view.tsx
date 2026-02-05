@@ -5,7 +5,7 @@
  * This is the default list view registered in the admin view registry.
  */
 
-import { SlidersHorizontalIcon, SpinnerGap } from "@phosphor-icons/react";
+import { Icon } from "@iconify/react";
 import {
 	type ColumnDef,
 	flexRender,
@@ -749,7 +749,7 @@ export default function TableView({
 		return (
 			<div className="container">
 				<div className="flex h-64 items-center justify-center text-muted-foreground">
-					<SpinnerGap className="size-6 animate-spin" />
+					<Icon icon="ph:spinner-gap" className="size-6 animate-spin" />
 				</div>
 			</div>
 		);
@@ -828,7 +828,7 @@ export default function TableView({
 											onClick={() => setIsSheetOpen(true)}
 											className="gap-2"
 										>
-											<SlidersHorizontalIcon size={16} />
+											<Icon icon="ph:sliders-horizontal" width={16} height={16} />
 											{t("viewOptions.title")}
 										</Button>
 									</ToolbarSection>
@@ -988,7 +988,7 @@ export default function TableView({
 
 				{/* Footer - Item count */}
 				<div className="text-sm text-muted-foreground flex items-center gap-2">
-					{isSearchActive && <SpinnerGap className="size-3 animate-spin" />}
+					{isSearchActive && <Icon icon="ph:spinner-gap" className="size-3 animate-spin" />}
 					{filteredItems.length} item{filteredItems.length !== 1 ? "s" : ""}
 					{isSearching && searchData?.total !== undefined && (
 						<span>

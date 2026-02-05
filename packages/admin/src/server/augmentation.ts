@@ -41,7 +41,6 @@ import type {
 	BuilderCollectionsMap,
 	BuilderEmailTemplatesMap,
 	BuilderFieldsMap,
-	BuilderFunctionsMap,
 	BuilderGlobalsMap,
 	BuilderJobsMap,
 	CollectionBuilderState,
@@ -1287,7 +1286,6 @@ declare module "questpie" {
 		TGlobals extends BuilderGlobalsMap = BuilderGlobalsMap,
 		TJobs extends BuilderJobsMap = BuilderJobsMap,
 		TEmailTemplates extends BuilderEmailTemplatesMap = BuilderEmailTemplatesMap,
-		TFunctions extends BuilderFunctionsMap = BuilderFunctionsMap,
 		TAuth extends BetterAuthOptions | Record<never, never> = Record<
 			never,
 			never

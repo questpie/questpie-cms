@@ -545,6 +545,12 @@ export interface RelationFieldMetadata extends FieldMetadataBase {
 	onUpdate?: ReferentialAction;
 	/** Relation name for disambiguation */
 	relationName?: string;
+	/**
+	 * Indicates this is an upload field (file/asset relation).
+	 * When true, admin UI should render upload component instead of relation picker.
+	 * This flag enables reliable detection regardless of target collection name.
+	 */
+	isUpload?: boolean;
 	/** Internal: Original config.to for runtime resolution */
 	_toConfig?: unknown;
 	/** Internal: Original config.through for runtime resolution */

@@ -2,7 +2,7 @@
 
 import { mergeProps } from "@base-ui/react/merge-props";
 import { useRender } from "@base-ui/react/use-render";
-import { SidebarIcon } from "@phosphor-icons/react";
+import { Icon } from "@iconify/react";
 import { cva, type VariantProps } from "class-variance-authority";
 import * as React from "react";
 import { useIsMobile } from "../../hooks/use-mobile";
@@ -266,7 +266,7 @@ function SidebarTrigger({
 			}}
 			{...props}
 		>
-			<SidebarIcon />
+			<Icon icon="ph:sidebar"  />
 			<span className="sr-only">Toggle Sidebar</span>
 		</Button>
 	);

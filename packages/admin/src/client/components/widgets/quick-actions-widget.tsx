@@ -5,9 +5,10 @@
  * Uses WidgetCard for consistent styling.
  */
 
-import { ArrowRight } from "@phosphor-icons/react";
+import { Icon } from "@iconify/react";
 import type * as React from "react";
 import type { QuickActionsWidgetConfig } from "../../builder/types/widget-types";
+import { resolveIconElement } from "../../components/component-renderer";
 import { useResolveText } from "../../i18n/hooks";
 import { cn, formatCollectionName } from "../../lib/utils";
 import { WidgetCard } from "../../views/dashboard/widget-card";
@@ -99,10 +100,9 @@ export default function QuickActionsWidget({
 			<WidgetCard title={title}>
 				<div className="grid grid-cols-2 gap-2">
 					{parsedActions.map((action) => {
-						const Icon =
-							action.icon && typeof action.icon !== "string"
-								? action.icon
-								: null;
+						const iconElement = resolveIconElement(action.icon, {
+							className: "h-4 w-4",
+						});
 
 						return (
 							<button
@@ -114,14 +114,14 @@ export default function QuickActionsWidget({
 									variantStyles[action.variant],
 								)}
 							>
-								{Icon && (
+								{iconElement && (
 									<div
 										className={cn(
 											"flex h-9 w-9 items-center justify-center rounded-md",
 											iconVariantStyles[action.variant],
 										)}
 									>
-										<Icon className="h-4 w-4" />
+										{iconElement}
 									</div>
 								)}
 								<span className="text-xs font-medium">{action.label}</span>
@@ -138,8 +138,9 @@ export default function QuickActionsWidget({
 		<WidgetCard title={title}>
 			<div className="space-y-1 -mx-1">
 				{parsedActions.map((action) => {
-					const Icon =
-						action.icon && typeof action.icon !== "string" ? action.icon : null;
+					const iconElement = resolveIconElement(action.icon, {
+						className: "h-4 w-4",
+					});
 
 					return (
 						<button
@@ -151,20 +152,20 @@ export default function QuickActionsWidget({
 								variantStyles[action.variant],
 							)}
 						>
-							{Icon && (
+							{iconElement && (
 								<div
 									className={cn(
 										"flex h-8 w-8 shrink-0 items-center justify-center rounded-md",
 										iconVariantStyles[action.variant],
 									)}
 								>
-									<Icon className="h-4 w-4" />
+									{iconElement}
 								</div>
 							)}
 							<span className="flex-1 text-sm font-medium truncate">
 								{action.label}
 							</span>
-							<ArrowRight className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+							<Icon icon="ph:arrow-right" className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
 						</button>
 					);
 				})}

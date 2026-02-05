@@ -4,6 +4,24 @@ import type { z } from "zod";
 
 export type FunctionType = "query" | "mutation";
 
+export interface FunctionAccessContext<TApp = any> {
+	app: TApp;
+	session?: any | null;
+	db: any;
+	locale?: string;
+	request?: Request;
+}
+
+export type FunctionAccessRule<TApp = any> =
+	| boolean
+	| ((ctx: FunctionAccessContext<TApp>) => boolean | Promise<boolean>);
+
+export type FunctionAccess<TApp = any> =
+	| FunctionAccessRule<TApp>
+	| {
+			execute?: FunctionAccessRule<TApp>;
+	  };
+
 // ============================================================================
 // Function Context Types
 // ============================================================================
@@ -131,13 +149,10 @@ export interface RawFunctionHandlerArgs<TApp = any> {
  * })
  * ```
  */
-export type JsonFunctionDefinition<
-	TInput = any,
-	TOutput = any,
-	TApp = any,
-> = {
+export type JsonFunctionDefinition<TInput = any, TOutput = any, TApp = any> = {
 	mode?: "json";
 	type?: FunctionType;
+	access?: FunctionAccess<TApp>;
 	schema: z.ZodSchema<TInput>;
 	outputSchema?: z.ZodSchema<TOutput>;
 	handler: (
@@ -165,14 +180,13 @@ export type JsonFunctionDefinition<
 export type RawFunctionDefinition<TApp = any> = {
 	mode: "raw";
 	type?: FunctionType;
+	access?: FunctionAccess<TApp>;
 	handler: (args: RawFunctionHandlerArgs<TApp>) => Response | Promise<Response>;
 };
 
-export type FunctionDefinition<
-	TInput = any,
-	TOutput = any,
-	TApp = any,
-> = JsonFunctionDefinition<TInput, TOutput, TApp> | RawFunctionDefinition<TApp>;
+export type FunctionDefinition<TInput = any, TOutput = any, TApp = any> =
+	| JsonFunctionDefinition<TInput, TOutput, TApp>
+	| RawFunctionDefinition<TApp>;
 
 export type FunctionsMap = Record<string, FunctionDefinition>;
 export type JsonFunctionsMap = Record<string, JsonFunctionDefinition<any, any>>;

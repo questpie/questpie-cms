@@ -5,6 +5,7 @@
  */
 
 import type { z } from "zod";
+import type { ComponentReference } from "#questpie/admin/server";
 import type { I18nText } from "../../i18n/types.js";
 import type { ActionDefinition } from "../collection/action-types";
 import type {
@@ -587,7 +588,7 @@ export interface SectionLayout {
 export interface TabConfig {
 	id: string;
 	label: DynamicI18nText;
-	icon?: IconComponent;
+	icon?: IconComponent | ComponentReference;
 	fields: FieldLayoutItem[];
 	// Conditional visibility (hidden: false/undefined = visible, true = hidden)
 	hidden?: boolean | ((values: Record<string, any>) => boolean);

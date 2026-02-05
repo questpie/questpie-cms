@@ -2,7 +2,7 @@
  * Grid Display - compact grid with thumbnails
  */
 
-import { Pencil, X } from "@phosphor-icons/react";
+import { Icon } from "@iconify/react";
 import * as React from "react";
 import { CollectionEditLink } from "../../../admin-link";
 import { Button } from "../../../ui/button";
@@ -70,7 +70,7 @@ export function GridDisplay({
                     }}
                     aria-label="Edit item"
                   >
-                    <Pencil className="size-3" />
+                    <Icon icon="ph:pencil" className="size-3" />
                   </Button>
                 )}
                 {actions?.onRemove && (
@@ -86,7 +86,7 @@ export function GridDisplay({
                     }}
                     aria-label="Remove item"
                   >
-                    <X className="size-3" />
+                    <Icon icon="ph:x" className="size-3" />
                   </Button>
                 )}
               </div>

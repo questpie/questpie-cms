@@ -428,7 +428,9 @@ function buildNestedFieldDefinitions(
 function resolveFieldType(metadata: FieldMetadata): string {
 	if (metadata.type === "relation") {
 		const relationMeta = metadata as RelationFieldMetadata;
-		if (relationMeta.targetCollection === "assets") {
+		// Check isUpload flag first (explicit marker from upload field)
+		// Fallback to targetCollection === "assets" for backwards compatibility
+		if (relationMeta.isUpload || relationMeta.targetCollection === "assets") {
 			return "upload";
 		}
 	}
@@ -476,4 +478,16 @@ function isSystemField(fieldName: string): boolean {
 		"_locale",
 	];
 	return systemFields.includes(fieldName);
+}
+
+/**
+ * Check if a field should be hidden from list views.
+ * writeOnly fields (output: false) should not appear in lists.
+ */
+export function isListViewField(metadata: FieldMetadata): boolean {
+	// writeOnly fields should not appear in list views
+	if (metadata.writeOnly) {
+		return false;
+	}
+	return true;
 }

@@ -5,7 +5,7 @@
  * for type-safe action configuration in collection builders.
  */
 
-import { Copy, Plus, Trash } from "@phosphor-icons/react";
+import type { ComponentReference } from "#questpie/admin/server";
 import { buildPrefillUrl } from "../../hooks/use-prefill-params";
 import type { FormViewActionsConfig } from "../types/field-types";
 import type {
@@ -64,7 +64,10 @@ function createCreateAction<TItem>(
 	return {
 		id: "create",
 		label: "Create",
-		icon: Plus,
+		icon: {
+			type: "icon",
+			props: { name: "ph:plus" },
+		} satisfies ComponentReference,
 		variant: "default",
 		handler: {
 			type: "navigate",
@@ -83,7 +86,10 @@ function createDuplicateAction<TItem>(
 	return {
 		id: "duplicate",
 		label: "Duplicate",
-		icon: Copy,
+		icon: {
+			type: "icon",
+			props: { name: "ph:copy" },
+		} satisfies ComponentReference,
 		variant: "ghost",
 		// Default visibility: only show when exactly 1 item selected
 		visible: (ctx) => {
@@ -126,7 +132,10 @@ function createDeleteManyAction<TItem>(
 	return {
 		id: "deleteMany",
 		label: "Delete Selected",
-		icon: Trash,
+		icon: {
+			type: "icon",
+			props: { name: "ph:trash" },
+		} satisfies ComponentReference,
 		variant: "destructive",
 		confirmation: {
 			title: "Delete selected items?",
@@ -156,7 +165,10 @@ function createDeleteAction<TItem>(
 	return {
 		id: "delete",
 		label: "Delete",
-		icon: Trash,
+		icon: {
+			type: "icon",
+			props: { name: "ph:trash" },
+		} satisfies ComponentReference,
 		variant: "destructive",
 		confirmation: {
 			title: "Delete item?",

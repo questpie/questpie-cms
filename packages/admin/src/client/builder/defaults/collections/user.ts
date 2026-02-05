@@ -5,7 +5,7 @@
  * Works with Better Auth's user model (admin plugin).
  */
 
-import { LockKey, UserPlus, UsersIcon } from "@phosphor-icons/react";
+import type { ComponentReference } from "#questpie/admin/server";
 import { coreAdminModule } from "../core";
 
 /**
@@ -29,7 +29,10 @@ export const userCollectionAdmin = coreAdminModule
 	.collection("user")
 	.meta({
 		label: { key: "defaults.users.label" },
-		icon: UsersIcon,
+		icon: {
+			type: "icon",
+			props: { name: "ph:users" },
+		} satisfies ComponentReference,
 		description: { key: "defaults.users.description" },
 	})
 	.fields(({ r }) => ({
@@ -86,7 +89,10 @@ export const userCollectionAdmin = coreAdminModule
 						a.action({
 							id: "createUser",
 							label: { key: "defaults.users.actions.createUser.label" },
-							icon: UserPlus,
+							icon: {
+								type: "icon",
+								props: { name: "ph:user-plus" },
+							} satisfies ComponentReference,
 							variant: "default",
 							handler: {
 								type: "form",
@@ -229,7 +235,10 @@ export const userCollectionAdmin = coreAdminModule
 					a.action({
 						id: "resetPassword",
 						label: { key: "defaults.users.actions.resetPassword.label" },
-						icon: LockKey,
+						icon: {
+							type: "icon",
+							props: { name: "ph:lock-key" },
+						} satisfies ComponentReference,
 						handler: {
 							type: "form",
 							config: {

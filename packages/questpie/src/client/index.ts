@@ -83,7 +83,6 @@ export class UploadError extends Error {
 
 import type {
 	AnyGlobal,
-	GetFunctions,
 	GetGlobal,
 	Questpie,
 } from "#questpie/exports/index.js";
@@ -213,18 +212,17 @@ type JsonFunctionCaller<TDefinition extends JsonFunctionDefinition<any, any>> =
 		input: InferFunctionInput<TDefinition>,
 	) => Promise<InferFunctionOutput<TDefinition>>;
 
-type RootFunctionsAPI<T extends Questpie> =
-	GetFunctions<T["config"]> extends Record<string, any>
+type RpcClientAPI<TRouter> =
+	TRouter extends Record<string, any>
 		? {
-				[K in keyof ExtractJsonFunctions<
-					GetFunctions<T["config"]>
-				>]: ExtractJsonFunctions<
-					GetFunctions<T["config"]>
-				>[K] extends JsonFunctionDefinition<any, any>
-					? JsonFunctionCaller<
-							ExtractJsonFunctions<GetFunctions<T["config"]>>[K]
-						>
-					: never;
+				[K in keyof TRouter]: TRouter[K] extends JsonFunctionDefinition<
+					any,
+					any
+				>
+					? JsonFunctionCaller<TRouter[K]>
+					: TRouter[K] extends Record<string, any>
+						? RpcClientAPI<TRouter[K]>
+						: never;
 			}
 		: {};
 
@@ -564,10 +562,13 @@ type SearchAPI = {
 /**
  * Questpie Client
  */
-export type QuestpieClient<T extends Questpie<any>> = {
-	collections: CollectionsAPI<T>;
-	globals: GlobalsAPI<T>;
-	functions: RootFunctionsAPI<T>;
+export type QuestpieClient<
+	TCMS extends Questpie<any>,
+	TRPC extends Record<string, any> = Record<string, never>,
+> = {
+	collections: CollectionsAPI<TCMS>;
+	globals: GlobalsAPI<TCMS>;
+	rpc: RpcClientAPI<TRPC>;
 	search: SearchAPI;
 	setLocale?: (locale?: string) => void;
 	getLocale?: () => string | undefined;
@@ -588,13 +589,14 @@ export type QuestpieClient<T extends Questpie<any>> = {
  * // Type-safe collections
  * const posts = await client.collections.posts.find({ limit: 10 })
  *
- * // Type-safe functions
- * const result = await client.functions.addToCart({ productId: '123' })
+ * // Type-safe RPC
+ * const result = await client.rpc.addToCart({ productId: '123' })
  * ```
  */
-export function createClient<T extends Questpie<any>>(
-	config: QuestpieClientConfig,
-): QuestpieClient<T> {
+export function createClient<
+	TCMS extends Questpie<any>,
+	TRPC extends Record<string, any> = Record<string, never>,
+>(config: QuestpieClientConfig): QuestpieClient<TCMS, TRPC> {
 	const fetcher = config.fetch || globalThis.fetch;
 	const basePath = config.basePath ?? "/cms";
 	const normalizedBasePath = basePath.startsWith("/")
@@ -706,7 +708,7 @@ export function createClient<T extends Questpie<any>>(
 	/**
 	 * Collections API
 	 */
-	const collections = new Proxy({} as CollectionsAPI<T>, {
+	const collections = new Proxy({} as CollectionsAPI<TCMS>, {
 		get(_, collectionName: string) {
 			const base = {
 				find: async (options: any = {}) => {
@@ -974,7 +976,7 @@ export function createClient<T extends Questpie<any>>(
 	/**
 	 * Globals API
 	 */
-	const globals = new Proxy({} as GlobalsAPI<T>, {
+	const globals = new Proxy({} as GlobalsAPI<TCMS>, {
 		get(_, globalName: string) {
 			const base = {
 				get: async (
@@ -1043,17 +1045,34 @@ export function createClient<T extends Questpie<any>>(
 		},
 	});
 
-	/**
-	 * Root functions API
-	 */
-	const functions = new Proxy({} as RootFunctionsAPI<T>, {
-		get(_, functionName: string) {
-			return async (input: any) => {
-				return request(`${cmsBasePath}/rpc/${functionName}`, {
+	const createRpcProcedureProxy = (segments: string[]): any => {
+		const callable = async (input: any) => {
+			return request(`${cmsBasePath}/rpc/${segments.join("/")}`, {
+				method: "POST",
+				body: JSON.stringify(input),
+			});
+		};
+
+		return new Proxy(callable, {
+			get(_, prop) {
+				if (prop === "then") return undefined;
+				if (typeof prop !== "string") return undefined;
+				return createRpcProcedureProxy([...segments, prop]);
+			},
+			apply(_, __, args: unknown[]) {
+				const input = args[0];
+				return request(`${cmsBasePath}/rpc/${segments.join("/")}`, {
 					method: "POST",
 					body: JSON.stringify(input),
 				});
-			};
+			},
+		});
+	};
+
+	const rpc = new Proxy({} as RpcClientAPI<TRPC>, {
+		get(_, prop) {
+			if (typeof prop !== "string") return undefined;
+			return createRpcProcedureProxy([prop]);
 		},
 	});
 
@@ -1078,7 +1097,7 @@ export function createClient<T extends Questpie<any>>(
 	return {
 		collections,
 		globals,
-		functions,
+		rpc,
 		search,
 		setLocale: (locale?: string) => {
 			currentLocale = locale;

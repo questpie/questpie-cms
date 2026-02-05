@@ -211,7 +211,12 @@ export const timeField = defineField<TimeFieldConfig, string>()({
 		return getTimeOperators();
 	},
 
-	getMetadata(config: TimeFieldConfig): FieldMetadataBase {
+	getMetadata(config: TimeFieldConfig): FieldMetadataBase & {
+		min?: string;
+		max?: string;
+		withSeconds?: boolean;
+		precision?: number;
+	} {
 		return {
 			type: "time",
 			label: config.label,
@@ -221,6 +226,11 @@ export const timeField = defineField<TimeFieldConfig, string>()({
 			readOnly: config.input === false,
 			writeOnly: config.output === false,
 			meta: config.meta,
+			// Time-specific constraints for admin UI
+			min: config.min,
+			max: config.max,
+			withSeconds: config.withSeconds,
+			precision: config.precision,
 		};
 	},
 });

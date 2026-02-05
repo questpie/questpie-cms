@@ -1,4 +1,4 @@
-import { Funnel, X } from "@phosphor-icons/react";
+import { Icon } from "@iconify/react";
 import type * as React from "react";
 import { useResolveText } from "../../i18n/hooks";
 import type { I18nText } from "../../i18n/types";
@@ -67,7 +67,7 @@ export function FilterBadge({
 
 	return (
 		<Badge variant="secondary" className={cn("gap-1.5", className)}>
-			<Funnel size={12} weight="fill" />
+			<Icon icon="ph:funnel-fill" width={12} height={12} />
 			{count} active {pluralLabel}
 			{onClear && (
 				<button
@@ -76,7 +76,7 @@ export function FilterBadge({
 					className="ml-1 hover:text-foreground transition-colors"
 					aria-label={`Clear ${pluralLabel}`}
 				>
-					<X size={10} />
+					<Icon icon="ph:x" width={10} height={10} />
 				</button>
 			)}
 		</Badge>

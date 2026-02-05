@@ -15,6 +15,7 @@ import type {
 	ActionHelpers,
 	ActionQueryClient,
 } from "../../builder/collection/action-types";
+import { resolveIconElement } from "../../components/component-renderer";
 import { useResolveText } from "../../i18n/hooks";
 import { selectAuthClient, useAdminStore } from "../../runtime/provider";
 import { Button } from "../ui/button";
@@ -197,10 +198,9 @@ export function ActionButton<TItem = any>({
 		await executeAction();
 	};
 
-	// Render icon - cast to ComponentType since we know icons are direct components
-	const Icon = action.icon as
-		| React.ComponentType<React.SVGProps<SVGSVGElement>>
-		| undefined;
+	const iconElement = resolveIconElement(action.icon, {
+		"data-icon": "inline-start",
+	});
 
 	return (
 		<>
@@ -211,7 +211,7 @@ export function ActionButton<TItem = any>({
 				disabled={isDisabled || isLoading}
 				className={className}
 			>
-				{Icon && <Icon data-icon="inline-start" />}
+				{iconElement}
 				{!iconOnly && resolveText(action.label)}
 			</Button>
 

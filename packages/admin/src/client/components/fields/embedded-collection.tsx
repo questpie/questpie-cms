@@ -4,7 +4,7 @@
  * Manages embedded collections with inline, modal, or drawer editing.
  */
 
-import { CaretDown, CaretUp, Pencil, Plus, Trash } from "@phosphor-icons/react";
+import { Icon } from "@iconify/react";
 import * as React from "react";
 import { useFieldArray, useFormContext, useWatch } from "react-hook-form";
 import type { EmbeddedCollectionProps } from "../../builder";
@@ -221,7 +221,7 @@ export function EmbeddedCollectionField({
 														title="Move up"
 														aria-label="Move item up"
 													>
-														<CaretUp className="h-3 w-3" />
+														<Icon icon="ph:caret-up" className="h-3 w-3" />
 													</Button>
 													<Button
 														type="button"
@@ -233,7 +233,7 @@ export function EmbeddedCollectionField({
 														title="Move down"
 														aria-label="Move item down"
 													>
-														<CaretDown className="h-3 w-3" />
+														<Icon icon="ph:caret-down" className="h-3 w-3" />
 													</Button>
 												</>
 											)}
@@ -251,7 +251,7 @@ export function EmbeddedCollectionField({
 													title={readOnly ? "View" : "Edit"}
 													aria-label={readOnly ? "View item" : "Edit item"}
 												>
-													<Pencil className="h-3 w-3" />
+													<Icon icon="ph:pencil" className="h-3 w-3" />
 												</Button>
 											)}
 											{!readOnly && canRemove && (
@@ -265,7 +265,7 @@ export function EmbeddedCollectionField({
 													title="Remove"
 													aria-label="Remove item"
 												>
-													<Trash className="h-3 w-3" />
+													<Icon icon="ph:trash" className="h-3 w-3" />
 												</Button>
 											)}
 										</div>
@@ -287,7 +287,7 @@ export function EmbeddedCollectionField({
 					onClick={handleAdd}
 					disabled={disabled}
 				>
-					<Plus className="h-4 w-4" />
+					<Icon icon="ph:plus" className="h-4 w-4" />
 					{addLabel}
 				</Button>
 			)}

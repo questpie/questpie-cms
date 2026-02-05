@@ -65,8 +65,23 @@ export interface BlocksDocument {
 
 /**
  * Blocks field metadata - augmentable by external packages.
+ *
+ * @example Admin augmentation:
+ * ```ts
+ * declare module "@questpie/admin/server" {
+ *   interface BlocksFieldMeta {
+ *     admin?: {
+ *       addLabel?: string;
+ *       emptyMessage?: string;
+ *     }
+ *   }
+ * }
+ * ```
  */
-export type BlocksFieldMeta = {};
+export interface BlocksFieldMeta {
+	/** Phantom property to prevent interface collapse - enables module augmentation */
+	_?: never;
+}
 
 // ============================================================================
 // Blocks Field Configuration

@@ -7,7 +7,7 @@
 
 "use client";
 
-import { ArrowsOutSimple, X } from "@phosphor-icons/react";
+import { Icon } from "@iconify/react";
 import * as React from "react";
 import type { PreviewConfig } from "../../builder/collection/types.js";
 import {
@@ -137,7 +137,7 @@ export function FormWithPreview({
 						className="fixed bottom-4 right-4 z-50 shadow-lg"
 						onClick={() => setIsPreviewVisible(true)}
 					>
-						<ArrowsOutSimple className="mr-2 h-4 w-4" />
+						<Icon icon="ph:arrows-out-simple" className="mr-2 h-4 w-4" />
 						Preview
 					</Button>
 
@@ -152,7 +152,7 @@ export function FormWithPreview({
 										size="icon"
 										onClick={() => setIsPreviewVisible(false)}
 									>
-										<X className="h-4 w-4" />
+										<Icon icon="ph:x" className="h-4 w-4" />
 									</Button>
 								</div>
 								<div className="flex-1">
@@ -236,7 +236,7 @@ export function FormWithPreview({
 										onClick={() => setIsPreviewFullscreen(true)}
 										title="Fullscreen"
 									>
-										<ArrowsOutSimple className="h-3 w-3" />
+										<Icon icon="ph:arrows-out-simple" className="h-3 w-3" />
 									</Button>
 									<Button
 										variant="ghost"
@@ -245,7 +245,7 @@ export function FormWithPreview({
 										onClick={() => setIsPreviewVisible(false)}
 										title="Close preview"
 									>
-										<X className="h-3 w-3" />
+										<Icon icon="ph:x" className="h-3 w-3" />
 									</Button>
 								</div>
 							</div>
@@ -285,7 +285,7 @@ export function FormWithPreview({
 									size="icon"
 									onClick={() => setIsPreviewFullscreen(false)}
 								>
-									<X className="h-4 w-4" />
+									<Icon icon="ph:x" className="h-4 w-4" />
 								</Button>
 							</div>
 							<div className="flex-1">
@@ -325,7 +325,7 @@ export function PreviewToggle({
 			onClick={onToggle}
 			className={className}
 		>
-			<ArrowsOutSimple className="mr-2 h-4 w-4" />
+			<Icon icon="ph:arrows-out-simple" className="mr-2 h-4 w-4" />
 			{isVisible ? "Hide Preview" : "Show Preview"}
 		</Button>
 	);

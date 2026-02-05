@@ -5,6 +5,7 @@
  */
 
 import type * as React from "react";
+import type { ComponentReference } from "#questpie/admin/server";
 import type {
 	BlockCategory,
 	BlockPrefetch,
@@ -23,8 +24,8 @@ export type BlockBuilderState = {
 	label?: I18nText;
 	/** Description shown in block picker */
 	description?: I18nText;
-	/** Icon name (Phosphor icons) */
-	icon?: string;
+	/** Icon reference (server-defined) or legacy icon name */
+	icon?: ComponentReference | string;
 	/** Category for grouping in block picker */
 	category?: BlockCategory;
 	/** Field definitions for block values */
@@ -58,8 +59,8 @@ export type BlockDefinition<
 	label?: I18nText;
 	/** Description */
 	description?: I18nText;
-	/** Icon name */
-	icon?: string;
+	/** Icon reference (server-defined) or legacy icon name */
+	icon?: ComponentReference | string;
 	/** Category */
 	category?: BlockCategory;
 	/** Field definitions */

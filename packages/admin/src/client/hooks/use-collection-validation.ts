@@ -58,7 +58,7 @@ export function useCollectionValidation<
 	const schema = useMemo(() => {
 		if (!admin) return undefined;
 		if (!fields || Object.keys(fields).length === 0) return undefined;
-		return createFormSchema(fields);
+		return createFormSchema(fields, admin.getFields());
 	}, [admin, fields]);
 	const errorMap = useValidationErrorMap();
 

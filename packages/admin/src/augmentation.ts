@@ -116,6 +116,26 @@ export interface TextFieldAdminMeta extends BaseAdminMeta {
 }
 
 /**
+ * Email field admin options
+ */
+export interface EmailFieldAdminMeta extends BaseAdminMeta {
+	placeholder?: string;
+	/** Show domain hint (e.g., "@company.com") */
+	domainHint?: string;
+}
+
+/**
+ * URL field admin options
+ */
+export interface UrlFieldAdminMeta extends BaseAdminMeta {
+	placeholder?: string;
+	/** Show protocol dropdown (http/https) */
+	showProtocolDropdown?: boolean;
+	/** Default protocol if not provided */
+	defaultProtocol?: "http" | "https";
+}
+
+/**
  * Textarea field admin options
  */
 export interface TextareaFieldAdminMeta extends BaseAdminMeta {
@@ -216,6 +236,48 @@ export interface UploadFieldAdminMeta extends BaseAdminMeta {
 	dropzoneText?: string;
 }
 
+/**
+ * Rich text field admin options
+ */
+export interface RichTextFieldAdminMeta extends BaseAdminMeta {
+	/** Placeholder text when editor is empty */
+	placeholder?: string;
+	/** Output format for the content */
+	outputFormat?: "json" | "html" | "markdown" | "text";
+	/** Show character count */
+	showCharacterCount?: boolean;
+	/** Maximum characters allowed */
+	maxCharacters?: number;
+	/** Minimum characters required */
+	minCharacters?: number;
+	/** Enable image uploads within editor */
+	enableImages?: boolean;
+	/** Collection to use for image uploads */
+	imageCollection?: string;
+	/** Enable media library integration */
+	enableMediaLibrary?: boolean;
+}
+
+/**
+ * Blocks field admin options
+ */
+export interface BlocksFieldAdminMeta extends BaseAdminMeta {
+	/** Label for add block button */
+	addLabel?: string;
+	/** Message shown when no blocks present */
+	emptyMessage?: string;
+	/** Maximum number of blocks allowed */
+	maxBlocks?: number;
+	/** Minimum number of blocks required */
+	minBlocks?: number;
+	/** Enable drag & drop reordering */
+	sortable?: boolean;
+	/** Show block type selector as dropdown or grid */
+	selectorDisplayAs?: "dropdown" | "grid";
+	/** Default collapsed state for blocks */
+	defaultCollapsed?: boolean;
+}
+
 // ============================================================================
 // Union type for all admin metas (useful for generic handling)
 // ============================================================================
@@ -223,6 +285,8 @@ export interface UploadFieldAdminMeta extends BaseAdminMeta {
 export type AnyAdminMeta =
 	| TextFieldAdminMeta
 	| TextareaFieldAdminMeta
+	| EmailFieldAdminMeta
+	| UrlFieldAdminMeta
 	| NumberFieldAdminMeta
 	| BooleanFieldAdminMeta
 	| DateFieldAdminMeta
@@ -232,4 +296,44 @@ export type AnyAdminMeta =
 	| ObjectFieldAdminMeta
 	| ArrayFieldAdminMeta
 	| JsonFieldAdminMeta
-	| UploadFieldAdminMeta;
+	| UploadFieldAdminMeta
+	| RichTextFieldAdminMeta
+	| BlocksFieldAdminMeta;
+
+// ============================================================================
+// Widget Augmentation Types
+// ============================================================================
+
+/**
+ * Base widget admin meta (common options for all widgets)
+ */
+export interface BaseWidgetAdminMeta {
+	/** Default grid span */
+	span?: number;
+	/** Default refresh interval */
+	refreshInterval?: number;
+}
+
+/**
+ * Registry interface for widget types.
+ * Users can augment this to add custom widget type configs.
+ *
+ * @example
+ * ```ts
+ * declare module "@questpie/admin" {
+ *   interface WidgetTypeRegistry {
+ *     myCustomWidget: { fetchFn: (client: any) => Promise<MyData> };
+ *   }
+ * }
+ * ```
+ */
+export interface WidgetTypeRegistry {
+	stats: {};
+	chart: {};
+	recentItems: {};
+	quickActions: {};
+	value: {};
+	table: {};
+	timeline: {};
+	progress: {};
+}

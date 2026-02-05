@@ -344,7 +344,19 @@ export const numberField = defineField<NumberFieldConfig, number>()({
 		return getNumberOperators();
 	},
 
-	getMetadata(config: NumberFieldConfig): FieldMetadataBase {
+	getMetadata(config: NumberFieldConfig): FieldMetadataBase & {
+		mode?: string;
+		integer?: boolean;
+		step?: number;
+	} {
+		// Determine if this is an integer type
+		const isInteger =
+			config.int ||
+			config.mode === "integer" ||
+			config.mode === "smallint" ||
+			config.mode === "bigint" ||
+			config.mode === undefined; // default is integer
+
 		return {
 			type: "number",
 			label: config.label,
@@ -358,6 +370,10 @@ export const numberField = defineField<NumberFieldConfig, number>()({
 				max: config.max,
 			},
 			meta: config.meta,
+			// Number-specific metadata for admin UI
+			mode: config.mode,
+			integer: isInteger,
+			step: config.step,
 		};
 	},
 });

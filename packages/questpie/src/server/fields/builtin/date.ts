@@ -204,7 +204,22 @@ export const dateField = defineField<DateFieldConfig, string>()({
 		return getDateOperators();
 	},
 
-	getMetadata(config: DateFieldConfig): FieldMetadataBase {
+	getMetadata(config: DateFieldConfig): FieldMetadataBase & {
+		min?: string;
+		max?: string;
+	} {
+		// Convert Date objects to ISO strings for metadata
+		const minDate = config.min
+			? typeof config.min === "string"
+				? config.min
+				: config.min.toISOString().split("T")[0]
+			: undefined;
+		const maxDate = config.max
+			? typeof config.max === "string"
+				? config.max
+				: config.max.toISOString().split("T")[0]
+			: undefined;
+
 		return {
 			type: "date",
 			label: config.label,
@@ -214,6 +229,9 @@ export const dateField = defineField<DateFieldConfig, string>()({
 			readOnly: config.input === false,
 			writeOnly: config.output === false,
 			meta: config.meta,
+			// Date-specific constraints for admin UI
+			min: minDate,
+			max: maxDate,
 		};
 	},
 });
