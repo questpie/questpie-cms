@@ -12,7 +12,7 @@ import * as React from "react";
 import type {
 	ActionDefinition,
 	ActionsConfig,
-} from "../builder/collection/action-types";
+} from "../builder/types/action-types";
 import type { FieldDefinition } from "../builder/field/field";
 import { useCollectionSchema } from "./use-collection-schema";
 

@@ -9,7 +9,7 @@
 
 import { Icon } from "@iconify/react";
 import * as React from "react";
-import type { PreviewConfig } from "../../builder/collection/types.js";
+import type { PreviewConfig } from "../../builder/types/collection-types.js";
 import {
 	FocusProvider,
 	type FocusState,

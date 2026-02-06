@@ -6,7 +6,6 @@
 
 import { describe, it, expect, expectTypeOf } from "vitest";
 import { AdminBuilder } from "#questpie/admin/client/builder/admin-builder";
-import { SidebarBuilder } from "#questpie/admin/client/builder/sidebar/sidebar-builder";
 import {
   createTextField,
   createEmailField,
@@ -26,29 +25,6 @@ describe("AdminBuilder.empty()", () => {
     expect(admin.state.editViews).toEqual({});
     expect(admin.state.widgets).toEqual({});
     expect(admin.state.pages).toEqual({});
-    expect(admin.state.collections).toEqual({});
-    expect(admin.state.globals).toEqual({});
-  });
-
-  it("should have default dashboard config", () => {
-    const admin = AdminBuilder.empty();
-
-    expect(admin.state.dashboard).toEqual({
-      layout: "grid",
-      widgets: [],
-    });
-  });
-
-  it("should have default sidebar config", () => {
-    const admin = AdminBuilder.empty();
-
-    expect(admin.state.sidebar).toEqual({ sections: [] });
-  });
-
-  it("should have default branding config (empty)", () => {
-    const admin = AdminBuilder.empty();
-
-    expect(admin.state.branding).toEqual({});
   });
 
   it("should have default locale config", () => {
@@ -210,253 +186,6 @@ describe("AdminBuilder.pages()", () => {
   });
 });
 
-describe("AdminBuilder.collections()", () => {
-  it("should accept collection config objects", () => {
-    const admin = AdminBuilder.empty().collections({
-      posts: { name: "posts", fields: {} },
-    });
-
-    expect(admin.state.collections.posts).toBeDefined();
-    expect(admin.state.collections.posts.name).toBe("posts");
-  });
-
-  it("should accept collection builders", async () => {
-    const { collection } =
-      await import("#questpie/admin/client/builder/collection/collection");
-    const postsBuilder = collection("posts");
-
-    const admin = AdminBuilder.empty().collections({
-      posts: postsBuilder,
-    });
-
-    expect(admin.state.collections.posts).toBeDefined();
-  });
-
-  it("should merge with existing collections", () => {
-    const admin = AdminBuilder.empty()
-      .collections({ posts: { name: "posts" } })
-      .collections({ pages: { name: "pages" } });
-
-    expect(admin.state.collections.posts).toBeDefined();
-    expect(admin.state.collections.pages).toBeDefined();
-  });
-
-  it("should not mutate original builder", () => {
-    const original = AdminBuilder.empty();
-    const withCollections = original.collections({
-      posts: { name: "posts" },
-    });
-
-    expect(original.state.collections).toEqual({});
-    expect(withCollections.state.collections.posts).toBeDefined();
-  });
-});
-
-describe("AdminBuilder.globals()", () => {
-  it("should accept global config objects", () => {
-    const admin = AdminBuilder.empty().globals({
-      settings: { name: "settings", fields: {} },
-    });
-
-    expect(admin.state.globals.settings).toBeDefined();
-  });
-
-  it("should accept global builders", async () => {
-    const { global } =
-      await import("#questpie/admin/client/builder/global/global");
-    const settingsBuilder = global("settings");
-
-    const admin = AdminBuilder.empty().globals({
-      settings: settingsBuilder,
-    });
-
-    expect(admin.state.globals.settings).toBeDefined();
-  });
-
-  it("should merge with existing globals", () => {
-    const admin = AdminBuilder.empty()
-      .globals({ settings: { name: "settings" } })
-      .globals({ theme: { name: "theme" } });
-
-    expect(admin.state.globals.settings).toBeDefined();
-    expect(admin.state.globals.theme).toBeDefined();
-  });
-
-  it("should not mutate original builder", () => {
-    const original = AdminBuilder.empty();
-    const withGlobals = original.globals({
-      settings: { name: "settings" },
-    });
-
-    expect(original.state.globals).toEqual({});
-    expect(withGlobals.state.globals.settings).toBeDefined();
-  });
-});
-
-describe("AdminBuilder.dashboard()", () => {
-  it("should set dashboard config", () => {
-    const admin = AdminBuilder.empty().dashboard({
-      layout: "custom",
-      widgets: [{ id: "stats", type: "stats" }],
-    });
-
-    expect(admin.state.dashboard).toEqual({
-      layout: "custom",
-      widgets: [{ id: "stats", type: "stats" }],
-    });
-  });
-
-  it("should replace existing dashboard config", () => {
-    const admin = AdminBuilder.empty()
-      .dashboard({ layout: "grid", widgets: [] })
-      .dashboard({ layout: "custom", widgets: [{ id: "a" }] });
-
-    expect(admin.state.dashboard.layout).toBe("custom");
-  });
-
-  it("should not mutate original builder", () => {
-    const original = AdminBuilder.empty();
-    const withDashboard = original.dashboard({ layout: "custom", widgets: [] });
-
-    expect(original.state.dashboard.layout).toBe("grid");
-    expect(withDashboard.state.dashboard.layout).toBe("custom");
-  });
-});
-
-describe("AdminBuilder.sidebar()", () => {
-  it("should accept SidebarConfig object", () => {
-    const admin = AdminBuilder.empty().sidebar({
-      sections: [
-        {
-          id: "content",
-          title: "Content",
-          items: [],
-        },
-      ],
-    });
-
-    expect(admin.state.sidebar.sections).toHaveLength(1);
-    expect(admin.state.sidebar.sections[0].id).toBe("content");
-  });
-
-  it("should accept SidebarBuilder", () => {
-    const sidebarBuilder = SidebarBuilder.create().section("content", (s) =>
-      s.title("Content").items([]),
-    );
-
-    const admin = AdminBuilder.empty().sidebar(sidebarBuilder);
-
-    expect(admin.state.sidebar.sections).toHaveLength(1);
-    expect(admin.state.sidebar.sections[0].id).toBe("content");
-  });
-
-  it("should merge sections (new appends to existing)", () => {
-    const admin = AdminBuilder.empty()
-      .sidebar({ sections: [{ id: "a", items: [] }] })
-      .sidebar({ sections: [{ id: "b", items: [] }] });
-
-    // Both sections should be present (a first, then b appended)
-    expect(admin.state.sidebar.sections).toHaveLength(2);
-    expect(admin.state.sidebar.sections[0].id).toBe("a");
-    expect(admin.state.sidebar.sections[1].id).toBe("b");
-  });
-
-  it("should replace section with same id", () => {
-    const admin = AdminBuilder.empty()
-      .sidebar({ sections: [{ id: "content", title: "Original", items: [] }] })
-      .sidebar({ sections: [{ id: "content", title: "Updated", items: [] }] });
-
-    // Only one section, with the updated title
-    expect(admin.state.sidebar.sections).toHaveLength(1);
-    expect(admin.state.sidebar.sections[0].id).toBe("content");
-    expect(admin.state.sidebar.sections[0].title).toBe("Updated");
-  });
-
-  it("should not mutate original builder", () => {
-    const original = AdminBuilder.empty();
-    const withSidebar = original.sidebar({
-      sections: [{ id: "content", items: [] }],
-    });
-
-    expect(original.state.sidebar.sections).toHaveLength(0);
-    expect(withSidebar.state.sidebar.sections).toHaveLength(1);
-  });
-});
-
-describe("AdminBuilder.extendSidebar()", () => {
-  it("should extend existing sidebar sections", () => {
-    const admin = AdminBuilder.empty()
-      .sidebar({
-        sections: [{ id: "content", title: "Content", items: [] }],
-      })
-      .extendSidebar((s) =>
-        s.extend("content", (sec) =>
-          sec.addItems([{ type: "collection", collection: "posts" }]),
-        ),
-      );
-
-    expect(admin.state.sidebar.sections[0].items).toHaveLength(1);
-  });
-
-  it("should allow adding new sections", () => {
-    const admin = AdminBuilder.empty()
-      .sidebar({
-        sections: [{ id: "content", title: "Content", items: [] }],
-      })
-      .extendSidebar((s) =>
-        s.append("settings", (sec) => sec.title("Settings").items([])),
-      );
-
-    expect(admin.state.sidebar.sections).toHaveLength(2);
-    expect(admin.state.sidebar.sections[1].id).toBe("settings");
-  });
-
-  it("should not mutate original builder", () => {
-    const original = AdminBuilder.empty().sidebar({
-      sections: [{ id: "content", title: "Content", items: [] }],
-    });
-
-    const extended = original.extendSidebar((s) =>
-      s.append("settings", (sec) => sec.title("Settings").items([])),
-    );
-
-    expect(original.state.sidebar.sections).toHaveLength(1);
-    expect(extended.state.sidebar.sections).toHaveLength(2);
-  });
-});
-
-describe("AdminBuilder.branding()", () => {
-  it("should set branding config", () => {
-    const admin = AdminBuilder.empty().branding({
-      name: "My Admin",
-      logo: "/logo.png",
-      primaryColor: "#3b82f6",
-    });
-
-    expect(admin.state.branding).toEqual({
-      name: "My Admin",
-      logo: "/logo.png",
-      primaryColor: "#3b82f6",
-    });
-  });
-
-  it("should replace existing branding config", () => {
-    const admin = AdminBuilder.empty()
-      .branding({ name: "Admin 1" })
-      .branding({ name: "Admin 2" });
-
-    expect(admin.state.branding.name).toBe("Admin 2");
-  });
-
-  it("should not mutate original builder", () => {
-    const original = AdminBuilder.empty();
-    const withBranding = original.branding({ name: "My Admin" });
-
-    expect(original.state.branding).toEqual({});
-    expect(withBranding.state.branding.name).toBe("My Admin");
-  });
-});
-
 describe("AdminBuilder.locale()", () => {
   it("should set locale config", () => {
     const admin = AdminBuilder.empty().locale({
@@ -592,10 +321,6 @@ describe("AdminBuilder state immutability", () => {
       .views({ table: createTableView(), form: createFormView() })
       .widgets({ stats: createStatsWidget() })
       .pages({ dashboard: createDashboardPage() })
-      .collections({ posts: { name: "posts" } })
-      .globals({ settings: { name: "settings" } })
-      .dashboard({ layout: "grid", widgets: [] })
-      .branding({ name: "Test" })
       .locale({ default: "en", supported: ["en"] })
       .defaultViews({ list: "table" });
 
@@ -604,9 +329,6 @@ describe("AdminBuilder state immutability", () => {
     expect(admin.state.editViews.form).toBeDefined();
     expect(admin.state.widgets.stats).toBeDefined();
     expect(admin.state.pages.dashboard).toBeDefined();
-    expect(admin.state.collections.posts).toBeDefined();
-    expect(admin.state.globals.settings).toBeDefined();
-    expect(admin.state.branding.name).toBe("Test");
   });
 });
 

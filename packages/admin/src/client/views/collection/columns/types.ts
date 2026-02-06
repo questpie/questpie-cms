@@ -4,7 +4,7 @@
  * Type definitions for column building system
  */
 
-import type { ListViewConfig } from "../../../builder/collection/types";
+import type { ListViewConfig } from "../../../builder/types/collection-types";
 import type { FieldDefinition } from "../../../builder/field/field";
 
 /**

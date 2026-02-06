@@ -118,6 +118,354 @@ const baseInstance = q({
 	.globals({
 		siteSettings,
 	})
+	// Sidebar navigation
+	.sidebar(({ s, c }) =>
+		s.sidebar({
+			sections: [
+				s.section({
+					id: "overview",
+					title: { en: "Overview", sk: "Prehľad" },
+					items: [
+						{
+							type: "link",
+							label: { en: "Dashboard", sk: "Dashboard" },
+							href: "/admin",
+						},
+						{
+							type: "global",
+							global: "siteSettings",
+							label: { en: "Site Settings", sk: "Nastavenia webu" },
+						},
+					],
+				}),
+				s.section({
+					id: "operations",
+					title: { en: "Operations", sk: "Prevádzka" },
+					items: [
+						{
+							type: "collection",
+							collection: "appointments",
+							label: { en: "Appointments", sk: "Rezervácie" },
+						},
+						{
+							type: "collection",
+							collection: "reviews",
+							label: { en: "Reviews", sk: "Recenzie" },
+						},
+					],
+				}),
+				s.section({
+					id: "content",
+					title: { en: "Content", sk: "Obsah" },
+					items: [
+						{
+							type: "collection",
+							collection: "pages",
+							label: { en: "Pages", sk: "Stránky" },
+						},
+						{
+							type: "collection",
+							collection: "services",
+							label: { en: "Services", sk: "Služby" },
+						},
+					],
+				}),
+				s.section({
+					id: "team",
+					title: { en: "Team", sk: "Tím" },
+					items: [
+						{
+							type: "collection",
+							collection: "barbers",
+							label: { en: "Barbers", sk: "Holiči" },
+						},
+						{
+							type: "collection",
+							collection: "barberServices",
+							label: { en: "Barber Services", sk: "Služby holičov" },
+						},
+					],
+				}),
+				s.section({
+					id: "external",
+					title: { en: "External", sk: "Externé" },
+					items: [
+						{
+							type: "link",
+							label: { en: "Open Website", sk: "Otvoriť web" },
+							href: "/",
+							external: true,
+						},
+					],
+				}),
+			],
+		}),
+	)
+	// Branding
+	.branding({
+		name: { en: "Barbershop Control", sk: "Riadenie barbershopu" },
+	})
+	// Dashboard
+	.dashboard(({ d }: any) =>
+		d.dashboard({
+			title: { en: "Barbershop Control", sk: "Riadenie barbershopu" },
+			description: {
+				en: "Live operations, content, and business performance overview",
+				sk: "Prehľad prevádzky, obsahu a výkonu podniku v reálnom čase",
+			},
+			columns: 4,
+			realtime: true,
+			items: [
+				{
+					type: "section",
+					label: { en: "Today", sk: "Dnes" },
+					layout: "grid",
+					columns: 4,
+					items: [
+						{
+							id: "appointments-today",
+							type: "stats",
+							collection: "appointments",
+							label: { en: "Today's Appointments", sk: "Dnešné rezervácie" },
+							dateFilter: { field: "scheduledAt", range: "today" },
+							variant: "primary",
+							span: 1,
+						},
+						{
+							id: "pending-appointments",
+							type: "stats",
+							collection: "appointments",
+							label: { en: "Pending", sk: "Čakajúce" },
+							filter: { status: "pending" },
+							variant: "warning",
+							span: 1,
+						},
+						{
+							id: "active-barbers",
+							type: "stats",
+							collection: "barbers",
+							label: { en: "Active Barbers", sk: "Aktívni holiči" },
+							filter: { isActive: true },
+							variant: "success",
+							span: 1,
+						},
+						{
+							id: "published-pages",
+							type: "stats",
+							collection: "pages",
+							label: { en: "Published Pages", sk: "Publikované stránky" },
+							filter: { isPublished: true },
+							variant: "default",
+							span: 1,
+						},
+					],
+				},
+				{
+					type: "section",
+					label: { en: "Business", sk: "Biznis" },
+					layout: "grid",
+					columns: 4,
+					items: [
+						{
+							id: "monthly-revenue",
+							type: "value",
+							span: 2,
+							cardVariant: "featured",
+							refreshInterval: 1000 * 60 * 5,
+							fetchFn: async ({ app }: any) => {
+								const now = new Date();
+								const currentStart = new Date(
+									now.getFullYear(),
+									now.getMonth(),
+									1,
+								).toISOString();
+								const currentEnd = now.toISOString();
+								const previousStart = new Date(
+									now.getFullYear(),
+									now.getMonth() - 1,
+									1,
+								).toISOString();
+								const previousEnd = new Date(
+									now.getFullYear(),
+									now.getMonth(),
+									0,
+									23,
+									59,
+									59,
+									999,
+								).toISOString();
+
+								const [currentStats, previousStats] = await Promise.all([
+									app.api.functions.getRevenueStats({
+										startDate: currentStart,
+										endDate: currentEnd,
+										completedOnly: true,
+									}),
+									app.api.functions.getRevenueStats({
+										startDate: previousStart,
+										endDate: previousEnd,
+										completedOnly: true,
+									}),
+								]);
+
+								const change =
+									previousStats.totalRevenue === 0
+										? currentStats.totalRevenue > 0
+											? 100
+											: 0
+										: Math.round(
+												((currentStats.totalRevenue -
+													previousStats.totalRevenue) /
+													previousStats.totalRevenue) *
+													100,
+											);
+
+								const revenue = currentStats.totalRevenue / 100;
+
+								return {
+									value: revenue,
+									formatted: `${revenue.toLocaleString()} €`,
+									label: {
+										en: "Monthly Revenue",
+										sk: "Mesačné tržby",
+									},
+									subtitle: {
+										en: `${currentStats.appointmentCount} completed appointments`,
+										sk: `${currentStats.appointmentCount} dokončených rezervácií`,
+									},
+									trend: {
+										value: `${change >= 0 ? "+" : ""}${change}%`,
+									},
+								};
+							},
+						},
+						{
+							id: "revenue-goal",
+							type: "progress",
+							span: 1,
+							showPercentage: true,
+							title: { en: "Monthly Goal", sk: "Mesačný cieľ" },
+							fetchFn: async ({ app }: any) => {
+								const now = new Date();
+								const currentStart = new Date(
+									now.getFullYear(),
+									now.getMonth(),
+									1,
+								).toISOString();
+								const stats = await app.api.functions.getRevenueStats({
+									startDate: currentStart,
+									endDate: now.toISOString(),
+									completedOnly: true,
+								});
+								const target = 500000;
+
+								return {
+									current: stats.totalRevenue,
+									target,
+									label: `${(stats.totalRevenue / 100).toLocaleString()} € / ${(target / 100).toLocaleString()} €`,
+									subtitle:
+										stats.totalRevenue >= target
+											? "Goal reached"
+											: `${((target - stats.totalRevenue) / 100).toLocaleString()} € to go`,
+								};
+							},
+						},
+						{
+							id: "appointments-by-status",
+							type: "chart",
+							collection: "appointments",
+							field: "status",
+							chartType: "pie",
+							label: {
+								en: "Appointments by Status",
+								sk: "Rezervácie podľa stavu",
+							},
+							span: 1,
+						},
+					],
+				},
+				{
+					type: "section",
+					label: { en: "Operations", sk: "Prevádzka" },
+					layout: "grid",
+					columns: 4,
+					items: [
+						{
+							id: "recent-appointments",
+							type: "recentItems",
+							collection: "appointments",
+							label: { en: "Recent Appointments", sk: "Posledné rezervácie" },
+							limit: 6,
+							dateField: "scheduledAt",
+							subtitleFields: ["status"],
+							span: 2,
+						},
+						{
+							id: "activity-stream",
+							type: "timeline",
+							title: { en: "Activity", sk: "Aktivita" },
+							maxItems: 8,
+							showTimestamps: true,
+							timestampFormat: "relative",
+							fetchFn: async ({ app }: any) => {
+								const res =
+									await app.api.collections.appointments.find({
+										limit: 8,
+										orderBy: { updatedAt: "desc" },
+									});
+
+								return res.docs.map((apt: any) => ({
+									id: apt.id,
+									title: apt.displayTitle || apt.id,
+									description: `Status: ${apt.status}`,
+									timestamp: apt.updatedAt || apt.createdAt,
+									variant:
+										apt.status === "completed"
+											? "success"
+											: apt.status === "cancelled" || apt.status === "no-show"
+												? "error"
+												: apt.status === "confirmed"
+													? "info"
+													: "warning",
+									href: `/admin/collections/appointments/${apt.id}`,
+								}));
+							},
+							span: 1,
+						},
+						{
+							id: "quick-actions",
+							type: "quickActions",
+							title: { en: "Quick Actions", sk: "Rýchle akcie" },
+							layout: "list",
+							quickActions: [
+								{
+									label: {
+										en: "New Appointment",
+										sk: "Nová rezervácia",
+									},
+									href: "/admin/collections/appointments/create",
+									variant: "primary",
+								},
+								{
+									label: { en: "Add Barber", sk: "Pridať holiča" },
+									href: "/admin/collections/barbers/create",
+								},
+								{
+									label: {
+										en: "Edit Site Settings",
+										sk: "Upraviť nastavenia webu",
+									},
+									href: "/admin/globals/siteSettings",
+									variant: "outline",
+								},
+							],
+							span: 1,
+						},
+					],
+				},
+			],
+		}),
+	)
 	// Define background jobs
 	.jobs({
 		sendAppointmentConfirmation,

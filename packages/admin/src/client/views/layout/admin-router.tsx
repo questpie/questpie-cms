@@ -160,16 +160,36 @@ function useRouterProps(props: {
 	// Subscribe to admin from store reactively
 	const admin = useAdminStore((s) => s.admin);
 
-	// Fetch server-side admin config for dashboard
+	// Fetch server-side admin config
 	const { data: serverConfig } = useAdminConfig();
 
-	const storeCollections = admin.getCollections();
-	const storeGlobals = admin.getGlobals();
 	const storePages = admin.getPages();
-	const storeDashboard = admin.getDashboard();
 	const storeDefaultViews = admin.getDefaultViews();
 
-	// Server dashboard takes priority when it has items; otherwise fall back to local config
+	// Build collection/global configs from server config keys (for route matching)
+	const serverCollections = React.useMemo<Record<string, any>>(() => {
+		if (props.collections) return props.collections;
+		const result: Record<string, any> = {};
+		if (serverConfig?.collections) {
+			for (const name of Object.keys(serverConfig.collections)) {
+				result[name] = serverConfig.collections[name] ?? {};
+			}
+		}
+		return result;
+	}, [props.collections, serverConfig?.collections]);
+
+	const serverGlobals = React.useMemo<Record<string, any>>(() => {
+		if (props.globals) return props.globals;
+		const result: Record<string, any> = {};
+		if (serverConfig?.globals) {
+			for (const name of Object.keys(serverConfig.globals)) {
+				result[name] = serverConfig.globals[name] ?? {};
+			}
+		}
+		return result;
+	}, [props.globals, serverConfig?.globals]);
+
+	// Server dashboard takes priority
 	const mergedDashboard = React.useMemo<DashboardConfig | undefined>(() => {
 		const serverDashboard = serverConfig?.dashboard;
 
@@ -178,17 +198,16 @@ function useRouterProps(props: {
 			return serverDashboard as DashboardConfig;
 		}
 
-		// Otherwise fall back to local config
-		return props.dashboardConfig ?? storeDashboard;
-	}, [props.dashboardConfig, storeDashboard, serverConfig?.dashboard]);
+		// Otherwise fall back to local prop
+		return props.dashboardConfig;
+	}, [props.dashboardConfig, serverConfig?.dashboard]);
 
 	return {
-		collections: props.collections ?? storeCollections,
-		globals: props.globals ?? storeGlobals,
+		collections: serverCollections,
+		globals: serverGlobals,
 		pages: props.pages ?? storePages,
 		dashboardConfig: mergedDashboard,
-		DashboardComponent:
-			props.DashboardComponent ?? (storeDashboard as any)?.component,
+		DashboardComponent: props.DashboardComponent,
 		defaultViews: props.defaultViews ?? storeDefaultViews,
 	};
 }

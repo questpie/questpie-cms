@@ -617,6 +617,20 @@ export interface ServerDashboardConfig {
 }
 
 // ============================================================================
+// Server-Side Branding Configuration
+// ============================================================================
+
+/**
+ * Branding configuration for the admin panel.
+ */
+export interface ServerBrandingConfig {
+	/** Admin panel name */
+	name?: I18nText;
+	/** Logo configuration */
+	logo?: unknown;
+}
+
+// ============================================================================
 // Server-Side Sidebar Configuration
 // ============================================================================
 
@@ -1238,6 +1252,18 @@ export interface QuestpieBuilderAdminMethods {
 	 * ```
 	 */
 	sidebar(configFn: (ctx: SidebarConfigContext) => ServerSidebarConfig): this;
+
+	/**
+	 * Configure admin branding (name, logo).
+	 *
+	 * @example
+	 * ```ts
+	 * .branding({
+	 *   name: { en: "My App", sk: "Moja Appka" },
+	 * })
+	 * ```
+	 */
+	branding(config: ServerBrandingConfig): this;
 }
 
 /**
@@ -1475,6 +1501,7 @@ declare module "questpie" {
 		blocks?: Record<string, AnyBlockDefinition>;
 		dashboard?: ServerDashboardConfig;
 		sidebar?: ServerSidebarConfig;
+		branding?: ServerBrandingConfig;
 		/** Admin UI locale configuration (separate from content locales) */
 		adminLocale?: AdminLocaleConfig;
 	}

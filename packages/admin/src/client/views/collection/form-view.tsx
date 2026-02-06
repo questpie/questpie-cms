@@ -12,17 +12,17 @@ import { QuestpieClientError } from "questpie/client";
 import * as React from "react";
 import { FormProvider, useForm, useWatch } from "react-hook-form";
 import { toast } from "sonner";
-import { getDefaultFormActions } from "../../builder/collection/action-registry";
+import { getDefaultFormActions } from "../../builder/types/action-registry";
 import type {
 	ActionContext,
 	ActionDefinition,
 	ActionHelpers,
 	ActionQueryClient,
-} from "../../builder/collection/action-types";
+} from "../../builder/types/action-types";
 import type {
 	CollectionBuilderState,
 	PreviewConfig,
-} from "../../builder/collection/types";
+} from "../../builder/types/collection-types";
 import type {
 	ComponentRegistry,
 	FormViewActionsConfig,

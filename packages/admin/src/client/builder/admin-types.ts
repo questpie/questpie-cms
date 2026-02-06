@@ -7,17 +7,10 @@
 
 import type { SimpleMessages } from "../i18n/simple";
 import type { BlockDefinition } from "./block/types";
-import type { CollectionConfig } from "./collection/types";
 import type { FieldDefinition } from "./field/field";
-import type { GlobalConfig } from "./global/types";
 import type { PageDefinition } from "./page/page";
 import type { MaybeLazyComponent } from "./types/common";
-import type {
-	BrandingConfig,
-	DashboardConfig,
-	LocaleConfig,
-	SidebarConfig,
-} from "./types/ui-config";
+import type { LocaleConfig } from "./types/ui-config";
 import type { DefaultViewsConfig } from "./types/views";
 import type { EditViewDefinition, ListViewDefinition } from "./view/view";
 import type { WidgetDefinition } from "./widget/widget";
@@ -46,8 +39,6 @@ export type EditViewDefinitionMap = Record<
 >;
 export type PageDefinitionMap = Record<string, PageDefinition<string>>;
 export type WidgetDefinitionMap = Record<string, WidgetDefinition<string, any>>;
-export type CollectionConfigMap = Record<string, CollectionConfig>;
-export type GlobalConfigMap = Record<string, GlobalConfig<any>>;
 export type BlockDefinitionMap = Record<string, BlockDefinition>;
 export type ComponentDefinitionMap = Record<string, MaybeLazyComponent<any>>;
 
@@ -73,8 +64,6 @@ export interface AdminBuilderState<
 	TEditViews extends EditViewDefinitionMap = EditViewDefinitionMap,
 	TPages extends PageDefinitionMap = PageDefinitionMap,
 	TWidgets extends WidgetDefinitionMap = WidgetDefinitionMap,
-	TCollections extends CollectionConfigMap = CollectionConfigMap,
-	TGlobals extends GlobalConfigMap = GlobalConfigMap,
 	TBlocks extends BlockDefinitionMap = BlockDefinitionMap,
 > {
 	// Context for deep inference
@@ -89,14 +78,7 @@ export interface AdminBuilderState<
 	widgets: TWidgets;
 	blocks: TBlocks;
 
-	// UI configs per collection/global
-	collections: TCollections;
-	globals: TGlobals;
-
 	// App-level UI configs (last wins)
-	dashboard: DashboardConfig;
-	sidebar: SidebarConfig;
-	branding: BrandingConfig;
 	locale: LocaleConfig;
 	defaultViews: DefaultViewsConfig;
 
@@ -116,8 +98,6 @@ export interface EmptyBuilderState extends AdminBuilderState<any> {
 	pages: EmptyMap;
 	widgets: EmptyMap;
 	blocks: EmptyMap;
-	collections: EmptyMap;
-	globals: EmptyMap;
 	defaultViews: DefaultViewsConfig;
 	translations: Record<never, never>;
 }

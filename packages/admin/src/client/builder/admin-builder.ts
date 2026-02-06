@@ -26,9 +26,7 @@ import type { CollectionBuilder } from "./collection/collection-builder";
 import { global } from "./global/global";
 import type { GlobalBuilder } from "./global/global-builder";
 import { type PageBuilder, page } from "./page/page";
-import { SidebarBuilder } from "./sidebar/sidebar-builder";
 import type { MaybeLazyComponent } from "./types/common";
-import type { SidebarConfig } from "./types/ui-config";
 import type { DefaultViewsConfig } from "./types/views";
 import { type WidgetBuilder, widget } from "./widget/widget";
 
@@ -71,11 +69,6 @@ export class AdminBuilder<TState extends AdminBuilderState> {
 		pages: {};
 		widgets: {};
 		blocks: {};
-		collections: {};
-		globals: {};
-		dashboard: { layout: "grid"; widgets: [] };
-		sidebar: { sections: [] };
-		branding: {};
 		locale: { default: string; supported: string[] };
 		defaultViews: {};
 		translations: {};
@@ -89,11 +82,6 @@ export class AdminBuilder<TState extends AdminBuilderState> {
 			pages: {},
 			widgets: {},
 			blocks: {},
-			collections: {},
-			globals: {},
-			dashboard: { layout: "grid", widgets: [] },
-			sidebar: { sections: [] },
-			branding: {},
 			locale: DEFAULT_LOCALE_CONFIG,
 			defaultViews: {},
 			translations: {},
@@ -356,9 +344,6 @@ export class AdminBuilder<TState extends AdminBuilderState> {
 					| "widgets"
 					| "pages"
 					| "blocks"
-					| "collections"
-					| "globals"
-					| "sidebar"
 					| "translations"
 				>,
 				{
@@ -378,28 +363,6 @@ export class AdminBuilder<TState extends AdminBuilderState> {
 					blocks: Prettify<
 						TypeMerge<TState["blocks"], TOther["state"]["blocks"]>
 					>;
-					collections: Prettify<
-						TypeMerge<TState["collections"], TOther["state"]["collections"]>
-					>;
-					globals: Prettify<
-						TypeMerge<TState["globals"], TOther["state"]["globals"]>
-					>;
-					sidebar: TOther["state"]["sidebar"] extends { sections: any[] }
-						? {
-								sections: [
-									...(TState["sidebar"] extends { sections: infer S }
-										? S extends any[]
-											? S
-											: []
-										: []),
-									...(TOther["state"]["sidebar"] extends { sections: infer S }
-										? S extends any[]
-											? S
-											: []
-										: []),
-								];
-							}
-						: TState["sidebar"];
 					translations: Prettify<
 						TypeMerge<TState["translations"], TOther["state"]["translations"]>
 					>;
@@ -409,15 +372,6 @@ export class AdminBuilder<TState extends AdminBuilderState> {
 	> {
 		const otherState = (other as any).state;
 
-		// Merge sidebar sections
-		const currentSections = (this.state.sidebar as any)?.sections ?? [];
-		const otherSections = otherState.sidebar?.sections ?? [];
-		const mergedSidebar = {
-			...this.state.sidebar,
-			...otherState.sidebar,
-			sections: [...currentSections, ...otherSections],
-		};
-
 		return new AdminBuilder({
 			...this.state,
 			fields: { ...this.state.fields, ...otherState.fields },
@@ -426,188 +380,10 @@ export class AdminBuilder<TState extends AdminBuilderState> {
 			widgets: { ...this.state.widgets, ...otherState.widgets },
 			pages: { ...this.state.pages, ...otherState.pages },
 			blocks: { ...this.state.blocks, ...otherState.blocks },
-			collections: { ...this.state.collections, ...otherState.collections },
-			globals: { ...this.state.globals, ...otherState.globals },
-			sidebar: mergedSidebar,
 			translations: mergeTranslations(
 				this.state.translations as TranslationsMap,
 				otherState.translations,
 			),
-		} as any);
-	}
-
-	/**
-	 * Register collection configs
-	 */
-	collections<TNewCollections extends Record<string, any>>(
-		collections: TNewCollections,
-	): AdminBuilder<
-		SetProperty<
-			TState,
-			"collections",
-			Prettify<TypeMerge<TState["collections"], TNewCollections>>
-		>
-	> {
-		return new AdminBuilder({
-			...this.state,
-			collections: {
-				...this.state.collections,
-				...collections,
-			},
-		} as any);
-	}
-
-	/**
-	 * Register global configs
-	 */
-	globals<TNewGlobals extends Record<string, any>>(
-		globals: TNewGlobals,
-	): AdminBuilder<
-		SetProperty<
-			TState,
-			"globals",
-			Prettify<TypeMerge<TState["globals"], TNewGlobals>>
-		>
-	> {
-		return new AdminBuilder({
-			...this.state,
-			globals: {
-				...this.state.globals,
-				...globals,
-			},
-		} as any);
-	}
-
-	/**
-	 * Set dashboard config
-	 */
-	dashboard(config: any): AdminBuilder<TState> {
-		return new AdminBuilder({
-			...this.state,
-			dashboard: config,
-		} as any);
-	}
-
-	/**
-	 * Set sidebar config
-	 *
-	 * Merges new sections with existing sections from modules.
-	 * Sections with the same ID will be replaced, new sections are appended.
-	 * Accepts either a SidebarConfig object or a SidebarBuilder.
-	 *
-	 * @example
-	 * ```ts
-	 * // Using config object - merges with existing sections
-	 * .sidebar({ sections: [...] })
-	 *
-	 * // Using builder - merges with existing sections
-	 * .sidebar(
-	 *   qa.sidebar()
-	 *     .section("content", s => s.title("Content").items([...]))
-	 * )
-	 * ```
-	 */
-	sidebar<TSectionIds extends string>(
-		config: SidebarConfig<TSectionIds> | SidebarBuilder<TSectionIds>,
-	): AdminBuilder<
-		SetProperty<
-			TState,
-			"sidebar",
-			SidebarConfig<
-				| (TState["sidebar"] extends SidebarConfig<infer TIds> ? TIds : never)
-				| TSectionIds
-			>
-		>
-	> {
-		const newSidebarConfig =
-			config instanceof SidebarBuilder ? config.build() : config;
-
-		// Merge sections: existing sections + new sections (new replaces existing with same id)
-		const currentSections =
-			(this.state.sidebar as SidebarConfig<string>)?.sections ?? [];
-		const newSections = newSidebarConfig.sections ?? [];
-
-		// Build a map of new sections by id for quick lookup
-		const newSectionsMap = new Map<string, (typeof newSections)[number]>(
-			newSections.map((section) => [section.id, section]),
-		);
-
-		// Keep existing sections that are not being replaced
-		const mergedSections = currentSections.filter(
-			(section) => !newSectionsMap.has(section.id as string),
-		);
-
-		// Append all new sections
-		mergedSections.push(...newSections);
-
-		return new AdminBuilder({
-			...this.state,
-			sidebar: { ...newSidebarConfig, sections: mergedSections },
-		} as any);
-	}
-
-	/**
-	 * Extend existing sidebar configuration
-	 *
-	 * Allows modifying the current sidebar by extending sections,
-	 * adding new sections, or reordering.
-	 *
-	 * @example
-	 * ```ts
-	 * // After using a module with sidebar
-	 * .use(coreAdminModule)
-	 * .extendSidebar(s => s
-	 *   // Add section at the beginning
-	 *   .prepend("dashboard", sec => sec
-	 *     .title("Dashboard")
-	 *     .items([{ type: "link", label: "Home", href: "/" }])
-	 *   )
-	 *   // Extend existing section from coreModule
-	 *   .extend("content", sec => sec
-	 *     .addItems([{ type: "collection", collection: "posts" }])
-	 *   )
-	 *   // Add section at the end
-	 *   .append("settings", sec => sec
-	 *     .title("Settings")
-	 *     .items([{ type: "global", global: "siteSettings" }])
-	 *   )
-	 * )
-	 * ```
-	 */
-	extendSidebar<TNewSectionIds extends string>(
-		configure: (
-			builder: SidebarBuilder<
-				TState["sidebar"] extends SidebarConfig<infer TIds> ? TIds : never
-			>,
-		) => SidebarBuilder<TNewSectionIds>,
-	): AdminBuilder<
-		SetProperty<
-			TState,
-			"sidebar",
-			SidebarConfig<
-				| (TState["sidebar"] extends SidebarConfig<infer TIds> ? TIds : never)
-				| TNewSectionIds
-			>
-		>
-	> {
-		const currentSidebar = this.state.sidebar as SidebarConfig<string>;
-		const builder = SidebarBuilder.from(currentSidebar);
-		const configured = configure(builder as any);
-		const newSidebar = configured.build();
-
-		return new AdminBuilder({
-			...this.state,
-			sidebar: newSidebar,
-		} as any);
-	}
-
-	/**
-	 * Set branding config
-	 */
-	branding(config: any): AdminBuilder<TState> {
-		return new AdminBuilder({
-			...this.state,
-			branding: config,
 		} as any);
 	}
 

@@ -101,30 +101,12 @@ export function buildRoutes<TApp extends Questpie<any>>(
 	const path = (...segments: string[]) =>
 		[basePath, ...segments].filter(Boolean).join("/");
 
-	// Build collection routes
-	const collectionNames = admin.getCollectionNames();
+	// Collection/global routes are now driven by server config.
+	// buildRoutes returns empty collections/globals; the sidebar uses server navigation.
 	const collections = {} as AdminRoutes<TApp>["collections"];
-
-	for (const name of collectionNames) {
-		(collections as Record<string, CollectionRoutes<string>>)[name] = {
-			list: () => path("collections", name),
-			create: () => path("collections", name, "create"),
-			edit: (id: string) => path("collections", name, id, "edit"),
-			view: (id: string) => path("collections", name, id),
-		};
-	}
-
-	// Build global routes
-	const globalNames = admin.getGlobalNames();
 	const globals = {} as AdminRoutes<TApp>["globals"];
 
-	for (const name of globalNames) {
-		(globals as Record<string, GlobalRoutes>)[name] = {
-			edit: () => path("globals", name),
-		};
-	}
-
-	// Build page routes
+	// Build page routes (pages are still client-side)
 	const pageConfigs = admin.getPages();
 	const pages: Record<string, PageRoutes> = {};
 
@@ -216,52 +198,13 @@ export function buildNavigation<TApp extends Questpie<any>>(
 		id: "dashboard",
 		label: "Dashboard",
 		href: routes.dashboard(),
-		icon: undefined, // Icon should be provided via sidebar config
+		icon: undefined,
 		type: "dashboard",
 		order: -1000,
 	});
 
-	// Add collections
-	for (const [name, config] of Object.entries(admin.getCollections())) {
-		// Access meta for new builder state structure
-		const meta = config.meta ?? config;
-		if ((meta as any).hidden) continue;
-
-		const collectionRoutes = (
-			routes.collections as Record<string, CollectionRoutes<string>>
-		)[name];
-		if (!collectionRoutes) continue;
-
-		items.push({
-			id: `collection:${name}`,
-			label: resolveLabel((meta as any).label, name),
-			href: collectionRoutes.list(),
-			icon: resolveIcon((meta as any).icon),
-			group: (meta as any).group,
-			order: (meta as any).order ?? 0,
-			type: "collection",
-		});
-	}
-
-	// Add globals
-	for (const [name, config] of Object.entries(admin.getGlobals())) {
-		// Access meta for new builder state structure
-		const meta = config.meta ?? config;
-		if ((meta as any).hidden) continue;
-
-		const globalRoutes = (routes.globals as Record<string, GlobalRoutes>)[name];
-		if (!globalRoutes) continue;
-
-		items.push({
-			id: `global:${name}`,
-			label: resolveLabel((meta as any).label, name),
-			href: globalRoutes.edit(),
-			icon: resolveIcon((meta as any).icon),
-			group: (meta as any).group,
-			order: (meta as any).order ?? 0,
-			type: "global",
-		});
-	}
+	// Collection/global navigation is now driven by server config (useServerNavigation).
+	// Only pages are added here as they're client-only.
 
 	// Add pages
 	for (const [name, config] of Object.entries(admin.getPages())) {
@@ -278,8 +221,8 @@ export function buildNavigation<TApp extends Questpie<any>>(
 		});
 	}
 
-	// Group items
-	return groupNavigationItems(items, admin);
+	// Return ungrouped items (server sidebar handles grouping)
+	return items.length > 0 ? [{ items }] : [];
 }
 
 /**
@@ -330,148 +273,3 @@ function resolveIcon(
 	return undefined;
 }
 
-/**
- * Group navigation items based on sidebar configuration
- */
-function groupNavigationItems<TApp extends Questpie<any>>(
-	items: NavigationItem[],
-	admin: Admin,
-): NavigationGroup[] {
-	const sidebarConfig = admin.getSidebar();
-
-	// New format: sections with typed items
-	if (sidebarConfig.sections?.length) {
-		return sidebarConfig.sections.map((section: any) => ({
-			id: section.id,
-			label: resolveLabel(section.title, ""),
-			icon: resolveIcon(section.icon),
-			collapsed: section.collapsed,
-			items: section.items
-				.map((item: any): NavigationElement | undefined => {
-					// Handle different item types
-					switch (item.type) {
-						case "collection": {
-							const found = items.find(
-								(i) => i.id === `collection:${item.collection}`,
-							);
-							if (!found) return undefined;
-							// Apply overrides from sidebar config
-							return {
-								...found,
-								label: item.label ?? found.label,
-								icon: resolveIcon(item.icon) ?? found.icon,
-							};
-						}
-
-						case "global": {
-							const found = items.find((i) => i.id === `global:${item.global}`);
-							if (!found) return undefined;
-							// Apply overrides from sidebar config
-							return {
-								...found,
-								label: item.label ?? found.label,
-								icon: resolveIcon(item.icon) ?? found.icon,
-							};
-						}
-
-						case "page": {
-							const found = items.find((i) => i.id === `page:${item.pageId}`);
-							if (!found) return undefined;
-							// Apply overrides from sidebar config
-							return {
-								...found,
-								label: item.label ?? found.label,
-								icon: resolveIcon(item.icon) ?? found.icon,
-							};
-						}
-
-						case "link":
-							return {
-								id: `link:${item.href}`,
-								label: resolveLabel(item.label, ""),
-								href: item.href,
-								icon: resolveIcon(item.icon),
-								type: "link" as const,
-								order: 0,
-							};
-
-						case "divider":
-							return { type: "divider" } as NavigationDivider;
-
-						default:
-							return undefined;
-					}
-				})
-				.filter(
-					(i: NavigationElement | undefined): i is NavigationElement =>
-						i !== undefined,
-				),
-		}));
-	}
-
-	// Legacy format: groups (backward compatibility)
-	if ((sidebarConfig as any).groups?.length) {
-		return (sidebarConfig as any).groups.map((group: any) => ({
-			label: resolveLabel(group.label, ""),
-			items: group.items
-				.map((item: any): NavigationElement | undefined => {
-					if (typeof item === "string") {
-						// Find by collection/global/page name
-						return items.find(
-							(i) =>
-								i.id === `collection:${item}` ||
-								i.id === `global:${item}` ||
-								i.id === `page:${item}` ||
-								i.id === item,
-						);
-					}
-					// Custom item
-					return {
-						id: item.id,
-						label: resolveLabel(item.label, item.id),
-						href: item.href ?? "#",
-						icon: resolveIcon(item.icon),
-						type: "link" as const,
-						order: (item as any).order ?? 0,
-					};
-				})
-				.filter(
-					(i: NavigationElement | undefined): i is NavigationElement =>
-						i !== undefined,
-				),
-		}));
-	}
-
-	// Auto-group by group property (fallback)
-	const groups = new Map<string | undefined, NavigationItem[]>();
-
-	// Sort items by order
-	const sortedItems = [...items].sort(
-		(a, b) => (a.order ?? 0) - (b.order ?? 0),
-	);
-
-	for (const item of sortedItems) {
-		const groupKey = item.group;
-		if (!groups.has(groupKey)) {
-			groups.set(groupKey, []);
-		}
-		groups.get(groupKey)!.push(item);
-	}
-
-	// Convert to array, ungrouped items first
-	const result: NavigationGroup[] = [];
-
-	// Add ungrouped items first
-	const ungrouped = groups.get(undefined);
-	if (ungrouped?.length) {
-		result.push({ items: ungrouped });
-	}
-
-	// Add grouped items
-	for (const [label, groupItems] of groups) {
-		if (label === undefined) continue;
-		result.push({ label, items: groupItems });
-	}
-
-	return result;
-}

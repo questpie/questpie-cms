@@ -17,6 +17,7 @@ export type AdminConfigItemMeta = {
 export type AdminConfigResponse = {
 	dashboard?: ServerDashboardConfig;
 	sidebar?: ServerSidebarConfig;
+	branding?: { name?: I18nText; logo?: any };
 	blocks?: Record<string, BlockSchema>;
 	collections?: Record<string, AdminConfigItemMeta>;
 	globals?: Record<string, AdminConfigItemMeta>;

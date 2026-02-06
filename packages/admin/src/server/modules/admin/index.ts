@@ -157,9 +157,83 @@ export const adminModule = q({ name: "questpie-admin" })
 	.use(starterModule)
 	// Register admin-specific field types (richText, blocks)
 	.fields(adminFields)
-	// Add admin-specific collections
+	// Add admin-specific collections with admin UI config
 	.collections({
-		admin_saved_views: savedViewsCollection,
+		// Override auth collections with admin UI config
+		user: starterModule.state.collections.user
+			.admin(({ c }) => ({
+				label: { key: "defaults.users.label" },
+				icon: c.icon("ph:users"),
+				description: { key: "defaults.users.description" },
+			}))
+			.list(({ v, f, a }) =>
+				v.table({
+					columns: [f.name, f.email, f.role, f.banned],
+					searchable: [f.name, f.email],
+					defaultSort: { field: f.name, direction: "asc" },
+					actions: {
+						header: { primary: [a.create] },
+						bulk: [a.deleteMany],
+					},
+				}),
+			)
+			.form(({ v, f }) =>
+				v.form({
+					sections: [
+						{
+							label: { key: "defaults.users.sections.basicInfo" },
+							fields: [f.name, f.email],
+						},
+						{
+							label: { key: "defaults.users.sections.permissions" },
+							fields: [f.role, f.emailVerified],
+						},
+						{
+							label: { key: "defaults.users.sections.accessControl" },
+							fields: [f.banned, f.banReason],
+						},
+					],
+				}),
+			),
 
+		assets: starterModule.state.collections.assets.admin(({ c }) => ({
+			label: { key: "defaults.assets.label" },
+			icon: c.icon("ph:image"),
+			description: { key: "defaults.assets.description" },
+		})),
+
+		// Hide internal auth collections
+		session: starterModule.state.collections.session.admin({ hidden: true }),
+		account: starterModule.state.collections.account.admin({ hidden: true }),
+		verification: starterModule.state.collections.verification.admin({
+			hidden: true,
+		}),
+		apikey: starterModule.state.collections.apikey.admin({ hidden: true }),
+
+		// Admin-specific collections
+		admin_saved_views: savedViewsCollection,
 		admin_preferences: adminPreferencesCollection,
-	});
+	})
+	// Default sidebar
+	.sidebar(({ s, c }) =>
+		s.sidebar({
+			sections: [
+				s.section({
+					id: "administration",
+					title: { key: "defaults.sidebar.administration" },
+					items: [
+						{
+							type: "collection",
+							collection: "user",
+							icon: c.icon("ph:users"),
+						},
+						{
+							type: "collection",
+							collection: "assets",
+							icon: c.icon("ph:image"),
+						},
+					],
+				}),
+			],
+		}),
+	);

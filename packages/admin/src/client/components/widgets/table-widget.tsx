@@ -20,7 +20,6 @@ import { useCollectionList } from "../../hooks/use-collection";
 import { useResolveText } from "../../i18n/hooks";
 import type { I18nText } from "../../i18n/types";
 import { cn, formatLabel } from "../../lib/utils";
-import { selectAdmin, useAdminStore } from "../../runtime";
 import { DefaultCell } from "../../views/collection/cells/primitive-cells";
 import { WidgetCard } from "../../views/dashboard/widget-card";
 import { TableWidgetSkeleton } from "./widget-skeletons";
@@ -110,7 +109,6 @@ export default function TableWidget({
 	navigate,
 }: TableWidgetProps) {
 	const resolveText = useResolveText();
-	const admin = useAdminStore(selectAdmin);
 
 	const {
 		collection,
@@ -127,12 +125,8 @@ export default function TableWidget({
 	// Normalize columns (convert strings to objects)
 	const columns = rawColumns.map(normalizeColumn);
 
-	// Get collection config and field definitions from admin
-	const collections = admin?.getCollections() ?? {};
-	const collectionConfig = collections[collection];
-	const fields = (collectionConfig as any)?.fields as
-		| Record<string, FieldDefinition>
-		| undefined;
+	// Field definitions are not available from server config (schema-driven)
+	const fields = undefined as Record<string, FieldDefinition> | undefined;
 
 	// Build query options
 	const queryOptions: any = { limit };

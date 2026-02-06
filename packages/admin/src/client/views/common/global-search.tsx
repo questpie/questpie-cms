@@ -22,7 +22,8 @@ import {
 import { useDebouncedValue, useGlobalSearch } from "../../hooks/use-search";
 import { useResolveText, useTranslation } from "../../i18n/hooks";
 import { cn } from "../../lib/utils";
-import { selectAdmin, selectBasePath, useAdminStore } from "../../runtime";
+import { selectBasePath, useAdminStore } from "../../runtime";
+import { useAdminConfig } from "../../hooks/use-admin-config";
 
 // ============================================================================
 // Types
@@ -186,8 +187,8 @@ export function GlobalSearch({
 	const { t } = useTranslation();
 	const resolveText = useResolveText();
 
-	// Get admin state
-	const admin = useAdminStore(selectAdmin);
+	// Get admin config from server
+	const { data: serverConfig } = useAdminConfig();
 	const storeBasePath = useAdminStore(selectBasePath);
 	const basePath = basePathProp ?? storeBasePath ?? "/admin";
 
@@ -206,11 +207,11 @@ export function GlobalSearch({
 		enabled: debouncedQuery.trim().length >= 2,
 	});
 
-	// Build navigation items from admin config
+	// Build navigation items from server config
 	const navItems = useMemo(() => {
 		const items: SearchItem[] = [];
-		const collections = admin?.getCollections() ?? {};
-		const globals = admin?.getGlobals() ?? {};
+		const collections = serverConfig?.collections ?? {};
+		const globals = serverConfig?.globals ?? {};
 
 		// Add collections
 		for (const [name, config] of Object.entries(collections)) {
@@ -258,7 +259,7 @@ export function GlobalSearch({
 		}
 
 		return items;
-	}, [admin, basePath, resolveText, t]);
+	}, [serverConfig, basePath, resolveText, t]);
 
 	// Filter navigation items based on query (client-side)
 	const filteredNavItems = useMemo(
@@ -270,7 +271,7 @@ export function GlobalSearch({
 	const recordItems = useMemo(() => {
 		if (!searchResults?.docs) return [];
 
-		const collections = admin?.getCollections() ?? {};
+		const collections = serverConfig?.collections ?? {};
 
 		return searchResults.docs.map((doc): SearchItem => {
 			const collectionName = doc._collection;
@@ -290,7 +291,7 @@ export function GlobalSearch({
 				highlights: doc._search?.highlights,
 			};
 		});
-	}, [searchResults, admin, basePath, resolveText]);
+	}, [searchResults, serverConfig, basePath, resolveText]);
 
 	// Group navigation items by type
 	const groupedNavItems = useMemo(() => {

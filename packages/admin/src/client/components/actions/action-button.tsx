@@ -14,7 +14,7 @@ import type {
 	ActionDefinition,
 	ActionHelpers,
 	ActionQueryClient,
-} from "../../builder/collection/action-types";
+} from "../../builder/types/action-types";
 import { resolveIconElement } from "../../components/component-renderer";
 import { useResolveText } from "../../i18n/hooks";
 import { selectAuthClient, useAdminStore } from "../../runtime/provider";

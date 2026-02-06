@@ -18,7 +18,7 @@ import {
   DialogTitle,
 } from "../ui/dialog";
 import { Button } from "../ui/button";
-import type { ConfirmationConfig } from "../../builder/collection/action-types";
+import type { ConfirmationConfig } from "../../builder/types/action-types";
 
 export interface ConfirmationDialogProps {
   /** Whether the dialog is open */

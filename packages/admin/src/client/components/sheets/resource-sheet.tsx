@@ -31,7 +31,6 @@
 import * as React from "react";
 import {
 	LocaleScopeProvider,
-	selectAdmin,
 	selectBasePath,
 	selectNavigate,
 	useAdminStore,
@@ -119,7 +118,6 @@ export function ResourceSheet(props: ResourceSheetProps) {
 	const { open, onOpenChange, onSave, side = "right" } = props;
 	const navigate = useAdminStore(selectNavigate);
 	const basePath = useAdminStore(selectBasePath);
-	const admin = useAdminStore(selectAdmin);
 
 	const handleSuccess = React.useCallback(
 		(data: any) => {
@@ -139,8 +137,8 @@ export function ResourceSheet(props: ResourceSheetProps) {
 							collection={props.collection}
 							id={props.itemId}
 							defaultValues={props.defaultValues}
-							config={admin?.getCollectionConfig(props.collection)}
-							allCollectionsConfig={admin?.getCollections()}
+							config={undefined}
+							allCollectionsConfig={undefined}
 							navigate={navigate}
 							basePath={basePath}
 							onSuccess={handleSuccess}
@@ -149,8 +147,8 @@ export function ResourceSheet(props: ResourceSheetProps) {
 					) : (
 						<GlobalFormView
 							global={props.global}
-							config={admin?.getGlobalConfig(props.global)}
-							allGlobalsConfig={admin?.getGlobals()}
+							config={undefined}
+							allGlobalsConfig={undefined}
 							navigate={navigate}
 							basePath={basePath}
 							onSuccess={handleSuccess}

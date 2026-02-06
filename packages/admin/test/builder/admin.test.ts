@@ -7,8 +7,6 @@
 import { describe, it, expect } from "vitest";
 import { Admin } from "#questpie/admin/client/builder/admin";
 import { AdminBuilder } from "#questpie/admin/client/builder/admin-builder";
-import { collection } from "#questpie/admin/client/builder/collection/collection";
-import { global } from "#questpie/admin/client/builder/global/global";
 import { page } from "#questpie/admin/client/builder/page/page";
 import {
   createTextField,
@@ -43,199 +41,20 @@ describe("Admin constructor", () => {
     const state = {
       "~app": undefined,
       fields: { text: createTextField() },
+      components: {},
       listViews: {},
       editViews: {},
       widgets: {},
       pages: {},
-      collections: {},
-      globals: {},
-      dashboard: { layout: "grid" as const, widgets: [] },
-      sidebar: { sections: [] },
-      branding: {},
+      blocks: {},
       locale: { default: "en", supported: ["en"] },
       defaultViews: {},
+      translations: {},
     };
 
     const admin = new Admin(state);
 
     expect(admin.state).toBe(state);
-  });
-});
-
-describe("Admin.getCollectionNames()", () => {
-  it("should return all collection names", () => {
-    const builder = AdminBuilder.empty().collections({
-      posts: { name: "posts" },
-      pages: { name: "pages" },
-      users: { name: "users" },
-    });
-
-    const admin = Admin.from(builder);
-
-    expect(admin.getCollectionNames()).toEqual(["posts", "pages", "users"]);
-  });
-
-  it("should return empty array when no collections", () => {
-    const admin = Admin.from(AdminBuilder.empty());
-
-    expect(admin.getCollectionNames()).toEqual([]);
-  });
-});
-
-describe("Admin.getCollections()", () => {
-  it("should return all collection configurations", () => {
-    const builder = AdminBuilder.empty().collections({
-      posts: { name: "posts", fields: {} },
-      pages: { name: "pages", fields: {} },
-    });
-
-    const admin = Admin.from(builder);
-    const collections = admin.getCollections();
-
-    expect(collections.posts).toBeDefined();
-    expect(collections.pages).toBeDefined();
-  });
-
-  it("should extract state from collection builders", () => {
-    const postsBuilder = collection("posts").meta({ label: "Blog Posts" });
-
-    const builder = AdminBuilder.empty().collections({
-      posts: postsBuilder,
-    });
-
-    const admin = Admin.from(builder);
-    const collections = admin.getCollections();
-
-    // Should extract .state from builder
-    expect(collections.posts.name).toBe("posts");
-    expect(collections.posts.label).toBe("Blog Posts");
-  });
-
-  it("should pass through plain config objects", () => {
-    const builder = AdminBuilder.empty().collections({
-      posts: { name: "posts", label: "Posts" },
-    });
-
-    const admin = Admin.from(builder);
-    const collections = admin.getCollections();
-
-    expect(collections.posts).toEqual({ name: "posts", label: "Posts" });
-  });
-});
-
-describe("Admin.getCollectionConfig()", () => {
-  it("should return specific collection config", () => {
-    const builder = AdminBuilder.empty().collections({
-      posts: { name: "posts", label: "Blog Posts" },
-    });
-
-    const admin = Admin.from(builder);
-    const config = admin.getCollectionConfig("posts");
-
-    expect(config).toEqual({ name: "posts", label: "Blog Posts" });
-  });
-
-  it("should return undefined for non-existent collection", () => {
-    const admin = Admin.from(AdminBuilder.empty());
-    const config = admin.getCollectionConfig("nonexistent");
-
-    expect(config).toBeUndefined();
-  });
-
-  it("should extract state from builder", () => {
-    const postsBuilder = collection("posts").meta({ label: "Posts" });
-
-    const builder = AdminBuilder.empty().collections({
-      posts: postsBuilder,
-    });
-
-    const admin = Admin.from(builder);
-    const config = admin.getCollectionConfig("posts");
-
-    expect(config?.name).toBe("posts");
-    expect(config?.label).toBe("Posts");
-  });
-});
-
-describe("Admin.getGlobalNames()", () => {
-  it("should return all global names", () => {
-    const builder = AdminBuilder.empty().globals({
-      settings: { name: "settings" },
-      theme: { name: "theme" },
-    });
-
-    const admin = Admin.from(builder);
-
-    expect(admin.getGlobalNames()).toEqual(["settings", "theme"]);
-  });
-
-  it("should return empty array when no globals", () => {
-    const admin = Admin.from(AdminBuilder.empty());
-
-    expect(admin.getGlobalNames()).toEqual([]);
-  });
-});
-
-describe("Admin.getGlobals()", () => {
-  it("should return all global configurations", () => {
-    const builder = AdminBuilder.empty().globals({
-      settings: { name: "settings", fields: {} },
-      theme: { name: "theme", fields: {} },
-    });
-
-    const admin = Admin.from(builder);
-    const globals = admin.getGlobals();
-
-    expect(globals.settings).toBeDefined();
-    expect(globals.theme).toBeDefined();
-  });
-
-  it("should extract state from global builders", () => {
-    const settingsBuilder = global("settings").meta({ label: "Site Settings" });
-
-    const builder = AdminBuilder.empty().globals({
-      settings: settingsBuilder,
-    });
-
-    const admin = Admin.from(builder);
-    const globals = admin.getGlobals();
-
-    expect(globals.settings.name).toBe("settings");
-    expect(globals.settings.label).toBe("Site Settings");
-  });
-});
-
-describe("Admin.getGlobalConfig()", () => {
-  it("should return specific global config", () => {
-    const builder = AdminBuilder.empty().globals({
-      settings: { name: "settings", label: "Site Settings" },
-    });
-
-    const admin = Admin.from(builder);
-    const config = admin.getGlobalConfig("settings");
-
-    expect(config).toEqual({ name: "settings", label: "Site Settings" });
-  });
-
-  it("should return undefined for non-existent global", () => {
-    const admin = Admin.from(AdminBuilder.empty());
-    const config = admin.getGlobalConfig("nonexistent");
-
-    expect(config).toBeUndefined();
-  });
-
-  it("should extract state from builder", () => {
-    const settingsBuilder = global("settings").meta({ label: "Settings" });
-
-    const builder = AdminBuilder.empty().globals({
-      settings: settingsBuilder,
-    });
-
-    const admin = Admin.from(builder);
-    const config = admin.getGlobalConfig("settings");
-
-    expect(config?.name).toBe("settings");
-    expect(config?.label).toBe("Settings");
   });
 });
 
@@ -289,83 +108,6 @@ describe("Admin.getPageConfig()", () => {
     const config = admin.getPageConfig("nonexistent");
 
     expect(config).toBeUndefined();
-  });
-});
-
-describe("Admin.getDashboard()", () => {
-  it("should return dashboard config", () => {
-    const builder = AdminBuilder.empty().dashboard({
-      layout: "custom",
-      widgets: [{ id: "stats", type: "stats" }],
-    });
-
-    const admin = Admin.from(builder);
-    const dashboard = admin.getDashboard();
-
-    expect(dashboard).toEqual({
-      layout: "custom",
-      widgets: [{ id: "stats", type: "stats" }],
-    });
-  });
-
-  it("should return default dashboard when not configured", () => {
-    const admin = Admin.from(AdminBuilder.empty());
-    const dashboard = admin.getDashboard();
-
-    expect(dashboard).toEqual({
-      layout: "grid",
-      widgets: [],
-    });
-  });
-});
-
-describe("Admin.getSidebar()", () => {
-  it("should return sidebar config", () => {
-    const builder = AdminBuilder.empty().sidebar({
-      sections: [
-        { id: "content", title: "Content", items: [] },
-        { id: "settings", title: "Settings", items: [] },
-      ],
-    });
-
-    const admin = Admin.from(builder);
-    const sidebar = admin.getSidebar();
-
-    expect(sidebar.sections).toHaveLength(2);
-    expect(sidebar.sections[0].id).toBe("content");
-  });
-
-  it("should return empty sections when not configured", () => {
-    const admin = Admin.from(AdminBuilder.empty());
-    const sidebar = admin.getSidebar();
-
-    expect(sidebar.sections).toEqual([]);
-  });
-});
-
-describe("Admin.getBranding()", () => {
-  it("should return branding config", () => {
-    const builder = AdminBuilder.empty().branding({
-      name: "My Admin",
-      logo: "/logo.png",
-      primaryColor: "#3b82f6",
-    });
-
-    const admin = Admin.from(builder);
-    const branding = admin.getBranding();
-
-    expect(branding).toEqual({
-      name: "My Admin",
-      logo: "/logo.png",
-      primaryColor: "#3b82f6",
-    });
-  });
-
-  it("should return empty object when not configured", () => {
-    const admin = Admin.from(AdminBuilder.empty());
-    const branding = admin.getBranding();
-
-    expect(branding).toEqual({});
   });
 });
 
@@ -580,35 +322,7 @@ describe("Admin.getWidgets()", () => {
   });
 });
 
-describe("Admin - Complex State Extraction", () => {
-  it("should handle mixed builder and config objects", () => {
-    const postsBuilder = collection("posts").meta({ label: "Posts" });
-    const pagesConfig = { name: "pages", label: "Pages" };
-
-    const settingsBuilder = global("settings").meta({ label: "Settings" });
-    const themeConfig = { name: "theme", label: "Theme" };
-
-    const builder = AdminBuilder.empty()
-      .collections({
-        posts: postsBuilder,
-        pages: pagesConfig,
-      })
-      .globals({
-        settings: settingsBuilder,
-        theme: themeConfig,
-      });
-
-    const admin = Admin.from(builder);
-
-    // Collections
-    expect(admin.getCollectionConfig("posts")?.label).toBe("Posts");
-    expect(admin.getCollectionConfig("pages")?.label).toBe("Pages");
-
-    // Globals
-    expect(admin.getGlobalConfig("settings")?.label).toBe("Settings");
-    expect(admin.getGlobalConfig("theme")?.label).toBe("Theme");
-  });
-
+describe("Admin - Complete State Extraction", () => {
   it("should work with complete admin configuration", () => {
     const builder = AdminBuilder.empty()
       .fields({
@@ -624,22 +338,6 @@ describe("Admin - Complex State Extraction", () => {
       })
       .pages({
         dashboard: createDashboardPage(),
-      })
-      .collections({
-        posts: { name: "posts" },
-      })
-      .globals({
-        settings: { name: "settings" },
-      })
-      .sidebar({
-        sections: [{ id: "content", items: [] }],
-      })
-      .dashboard({
-        layout: "grid",
-        widgets: [],
-      })
-      .branding({
-        name: "Test Admin",
       })
       .locale({
         default: "en",
@@ -657,11 +355,6 @@ describe("Admin - Complex State Extraction", () => {
     expect(Object.keys(admin.getEditViews())).toHaveLength(1);
     expect(Object.keys(admin.getWidgets())).toHaveLength(1);
     expect(Object.keys(admin.getPages())).toHaveLength(1);
-    expect(admin.getCollectionNames()).toHaveLength(1);
-    expect(admin.getGlobalNames()).toHaveLength(1);
-    expect(admin.getSidebar().sections).toHaveLength(1);
-    expect(admin.getDashboard().layout).toBe("grid");
-    expect(admin.getBranding().name).toBe("Test Admin");
     expect(admin.getDefaultLocale()).toBe("en");
     expect(admin.getAvailableLocales()).toEqual(["en", "sk"]);
     expect(admin.getDefaultViews().list).toBe("table");

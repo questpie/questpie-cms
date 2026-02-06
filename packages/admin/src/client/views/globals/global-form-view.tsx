@@ -10,7 +10,7 @@ import { QuestpieClientError } from "questpie/client";
 import * as React from "react";
 import { FormProvider, useForm } from "react-hook-form";
 import { toast } from "sonner";
-import type { GlobalBuilderState } from "../../builder/global/types";
+import type { GlobalBuilderState } from "../../builder/types/global-types";
 import type { ComponentRegistry } from "../../builder/types/field-types";
 import { LocaleSwitcher } from "../../components/locale-switcher";
 import { Button } from "../../components/ui/button";

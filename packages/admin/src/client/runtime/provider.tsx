@@ -19,7 +19,7 @@ import {
 import { createStore, useStore } from "zustand";
 import type { adminModule } from "#questpie/admin/server/index.js";
 import { Admin, type AdminInput } from "../builder/admin";
-import { I18nProvider, resolveTextSync } from "../i18n/hooks";
+import { I18nProvider } from "../i18n/hooks";
 import { adminMessages } from "../i18n/messages";
 import { createSimpleI18n, type SimpleMessages } from "../i18n/simple";
 import type { I18nAdapter } from "../i18n/types";
@@ -157,7 +157,7 @@ function createAdminStore({
 
 		// Derived values (computed once, updated when needed)
 		navigation: buildNavigation(admin, { basePath }),
-		brandName: resolveTextSync(admin.getBranding().name, "Admin"),
+		brandName: "Admin",
 	}));
 }
 
@@ -458,7 +458,6 @@ export function AdminProvider({
 			storeRef.current.setState({
 				admin,
 				navigation: buildNavigation(admin, { basePath }),
-				brandName: resolveTextSync(admin.getBranding().name, "Admin"),
 				realtime: realtimeConfig,
 			});
 		}
@@ -497,9 +496,42 @@ export function AdminProvider({
 
 	return (
 		<AdminStoreContext.Provider value={storeRef.current}>
+			<BrandingSync />
 			{i18nContent}
 		</AdminStoreContext.Provider>
 	);
+}
+
+// ============================================================================
+// Branding Sync (reads server config and updates store)
+// ============================================================================
+
+function BrandingSync() {
+	const store = useContext(AdminStoreContext);
+	useEffect(() => {
+		if (!store) return;
+		const client = store.getState().client;
+		if (!client || !(client as any).rpc?.getAdminConfig) return;
+
+		(client as any)
+			.rpc.getAdminConfig()
+			.then((config: any) => {
+				if (config?.branding?.name) {
+					const name = config.branding.name;
+					const resolved =
+						typeof name === "string"
+							? name
+							: typeof name === "object" && name !== null
+								? (name.en ?? Object.values(name)[0] ?? "Admin")
+								: "Admin";
+					store.setState({ brandName: resolved as string });
+				}
+			})
+			.catch(() => {
+				// Fail silently - keep default "Admin"
+			});
+	}, [store]);
+	return null;
 }
 
 // ============================================================================

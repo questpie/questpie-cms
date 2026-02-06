@@ -17,11 +17,11 @@ import {
 } from "@tanstack/react-table";
 import * as React from "react";
 import { useMemo, useState } from "react";
-import type { ActionsConfig } from "../../builder/collection/action-types";
+import type { ActionsConfig } from "../../builder/types/action-types";
 import type {
 	CollectionBuilderState,
 	ListViewConfig,
-} from "../../builder/collection/types";
+} from "../../builder/types/collection-types";
 import { ActionDialog } from "../../components/actions/action-dialog";
 import { HeaderActions } from "../../components/actions/header-actions";
 import { FilterBuilderSheet } from "../../components/filter-builder/filter-builder-sheet";

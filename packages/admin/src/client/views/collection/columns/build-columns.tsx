@@ -10,7 +10,7 @@ import type * as React from "react";
 import {
 	type ColumnConfig,
 	normalizeColumnConfig,
-} from "../../../builder/collection/types";
+} from "../../../builder/types/collection-types";
 import type { FieldDefinition } from "../../../builder/field/field";
 import { LocaleSwitcher } from "../../../components/locale-switcher";
 import { useResolveText } from "../../../i18n/hooks";

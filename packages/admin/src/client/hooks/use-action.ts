@@ -11,7 +11,7 @@ import { createQuestpieQueryOptions } from "@questpie/tanstack-query";
 import { useQueryClient } from "@tanstack/react-query";
 import * as React from "react";
 import { toast } from "sonner";
-import { getDefaultActionsConfig } from "../builder/collection/action-registry";
+import { getDefaultActionsConfig } from "../builder/types/action-registry";
 import type {
 	ActionContext,
 	ActionDefinition,
@@ -19,7 +19,7 @@ import type {
 	ActionQueryClient,
 	ActionsConfig,
 	HeaderActionsConfig,
-} from "../builder/collection/action-types";
+} from "../builder/types/action-types";
 import { useTranslation } from "../i18n/hooks";
 import {
 	selectAuthClient,

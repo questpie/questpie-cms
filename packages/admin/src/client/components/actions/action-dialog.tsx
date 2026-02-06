@@ -24,7 +24,7 @@ import type {
 	ActionHelpers,
 	DialogHandler,
 	FormHandler,
-} from "../../builder/collection/action-types";
+} from "../../builder/types/action-types";
 import type { FieldDefinition } from "../../builder/field/field";
 import { buildValidationSchema } from "../../builder/validation";
 import { useResolveText, useTranslation } from "../../i18n/hooks";

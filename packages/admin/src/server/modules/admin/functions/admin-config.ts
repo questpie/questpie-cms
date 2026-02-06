@@ -390,6 +390,7 @@ const getAdminConfigSchema = z.object({}).optional();
 const getAdminConfigOutputSchema = z.object({
 	dashboard: z.unknown().optional(),
 	sidebar: z.unknown().optional(),
+	branding: z.unknown().optional(),
 	blocks: z.record(z.string(), z.unknown()).optional(),
 	collections: z.record(z.string(), z.unknown()).optional(),
 	globals: z.record(z.string(), z.unknown()).optional(),
@@ -483,10 +484,16 @@ export const getAdminConfig = fn({
 		const response: {
 			dashboard?: unknown;
 			sidebar?: unknown;
+			branding?: { name?: unknown; logo?: unknown };
 			blocks?: Record<string, unknown>;
 			collections?: Record<string, unknown>;
 			globals?: Record<string, unknown>;
 		} = {};
+
+		// Branding config
+		if (state.branding) {
+			response.branding = state.branding;
+		}
 
 		// 3. Dashboard: assign IDs, process access, strip non-serializable
 		if (state.dashboard) {

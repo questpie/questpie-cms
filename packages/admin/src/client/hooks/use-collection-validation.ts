@@ -50,11 +50,7 @@ export function useCollectionValidation<
 	TFieldValues extends FieldValues = FieldValues,
 >(collection: string): Resolver<TFieldValues> | undefined {
 	const admin = useAdminStore(selectAdmin);
-	const collections = admin?.getCollections();
-	const config = collections?.[collection];
-	const { fields } = useCollectionFields(collection, {
-		fallbackFields: config?.fields,
-	});
+	const { fields } = useCollectionFields(collection);
 	const schema = useMemo(() => {
 		if (!admin) return undefined;
 		if (!fields || Object.keys(fields).length === 0) return undefined;

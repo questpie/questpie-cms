@@ -534,6 +534,15 @@ function patchQuestpieBuilder() {
 		});
 	};
 
+	proto.branding = function (
+		config: { name?: unknown; logo?: unknown },
+	): QuestpieBuilder<any> {
+		return new QuestpieBuilder({
+			...this.state,
+			branding: config,
+		});
+	};
+
 	/**
 	 * Configure admin UI locales (separate from content locales).
 	 *

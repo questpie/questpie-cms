@@ -97,98 +97,6 @@ export class Admin<TState extends AdminBuilderState = AdminBuilderState> {
 	}
 
 	// ============================================================================
-	// Collection Methods
-	// ============================================================================
-
-	/**
-	 * Get all collection names
-	 */
-	getCollectionNames(): string[] {
-		return Object.keys(this.state.collections ?? {});
-	}
-
-	/**
-	 * Get all collection configurations.
-	 * Automatically extracts `.state` from builders.
-	 */
-	getCollections(): ExtractBuilderStates<TState["collections"]> {
-		const collections = this.state.collections ?? {};
-		const result: Record<string, any> = {};
-
-		for (const [name, config] of Object.entries(collections)) {
-			// Extract state from builders, pass through plain configs
-			result[name] =
-				config && typeof config === "object" && "state" in config
-					? (config as any).state
-					: config;
-		}
-
-		return result as ExtractBuilderStates<TState["collections"]>;
-	}
-
-	/**
-	 * Get configuration for a specific collection.
-	 * Automatically extracts `.state` from builder.
-	 */
-	getCollectionConfig(
-		name: string,
-	): ExtractBuilderState<TState["collections"][string]> | undefined {
-		const config = (this.state.collections as Record<string, any>)?.[name];
-		if (!config) return undefined;
-
-		// Extract state from builder, pass through plain config
-		return config && typeof config === "object" && "state" in config
-			? config.state
-			: config;
-	}
-
-	// ============================================================================
-	// Global Methods
-	// ============================================================================
-
-	/**
-	 * Get all global names
-	 */
-	getGlobalNames(): string[] {
-		return Object.keys(this.state.globals ?? {});
-	}
-
-	/**
-	 * Get all global configurations.
-	 * Automatically extracts `.state` from builders.
-	 */
-	getGlobals(): ExtractBuilderStates<TState["globals"]> {
-		const globals = this.state.globals ?? {};
-		const result: Record<string, any> = {};
-
-		for (const [name, config] of Object.entries(globals)) {
-			// Extract state from builders, pass through plain configs
-			result[name] =
-				config && typeof config === "object" && "state" in config
-					? (config as any).state
-					: config;
-		}
-
-		return result as ExtractBuilderStates<TState["globals"]>;
-	}
-
-	/**
-	 * Get configuration for a specific global.
-	 * Automatically extracts `.state` from builder.
-	 */
-	getGlobalConfig(
-		name: string,
-	): ExtractBuilderState<TState["globals"][string]> | undefined {
-		const config = (this.state.globals as Record<string, any>)?.[name];
-		if (!config) return undefined;
-
-		// Extract state from builder, pass through plain config
-		return config && typeof config === "object" && "state" in config
-			? config.state
-			: config;
-	}
-
-	// ============================================================================
 	// Page Methods
 	// ============================================================================
 
@@ -265,27 +173,6 @@ export class Admin<TState extends AdminBuilderState = AdminBuilderState> {
 	// ============================================================================
 	// UI Configuration Methods
 	// ============================================================================
-
-	/**
-	 * Get dashboard configuration
-	 */
-	getDashboard(): TState["dashboard"] {
-		return this.state.dashboard ?? ({} as TState["dashboard"]);
-	}
-
-	/**
-	 * Get sidebar configuration
-	 */
-	getSidebar(): TState["sidebar"] & { groups?: any[] } {
-		return (this.state.sidebar ?? {}) as TState["sidebar"] & { groups?: any[] };
-	}
-
-	/**
-	 * Get branding configuration
-	 */
-	getBranding(): TState["branding"] {
-		return this.state.branding ?? ({} as TState["branding"]);
-	}
 
 	/**
 	 * Get default views configuration

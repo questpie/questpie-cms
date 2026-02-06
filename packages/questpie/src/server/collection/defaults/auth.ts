@@ -19,7 +19,7 @@ export const usersCollection = q
 // Session Collection
 export const sessionsCollection = q
 	.collection("session")
-	.options({ timestamps: false })
+	.options({ timestamps: true })
 	.fields((f) => ({
 		userId: f.text({ required: true, maxLength: 255 }),
 		token: f.text({ required: true, maxLength: 255, unique: true }),
@@ -33,7 +33,7 @@ export const sessionsCollection = q
 // Account Collection (Social Logins)
 export const accountsCollection = q
 	.collection("account")
-	.options({ timestamps: false })
+	.options({ timestamps: true })
 	.fields((f) => ({
 		userId: f.text({ required: true, maxLength: 255 }),
 		accountId: f.text({ required: true, maxLength: 255 }),
@@ -51,7 +51,7 @@ export const accountsCollection = q
 // Verification Collection
 export const verificationsCollection = q
 	.collection("verification")
-	.options({ timestamps: false })
+	.options({ timestamps: true })
 	.fields((f) => ({
 		identifier: f.text({ required: true, maxLength: 255 }),
 		value: f.text({ required: true, maxLength: 255 }),

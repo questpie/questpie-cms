@@ -19,7 +19,7 @@ import type {
 	ActionDefinition,
 	ActionHelpers,
 	ActionQueryClient,
-} from "../../builder/collection/action-types";
+} from "../../builder/types/action-types";
 import { ConfirmationDialog } from "../../components/actions/confirmation-dialog";
 import { resolveIconElement } from "../../components/component-renderer";
 import { Button } from "../../components/ui/button";

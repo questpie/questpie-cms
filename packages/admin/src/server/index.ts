@@ -58,6 +58,7 @@ export type {
 	ServerActionResult,
 	ServerActionSuccess,
 	ServerActionsConfig,
+	ServerBrandingConfig,
 	ServerChartWidget,
 	ServerCustomWidget,
 	ServerDashboardConfig,

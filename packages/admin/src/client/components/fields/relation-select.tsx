@@ -17,7 +17,8 @@ import { toast } from "sonner";
 import { useCollectionItem } from "../../hooks/use-collection";
 import { useResolveText, useTranslation } from "../../i18n/hooks";
 import { cn } from "../../lib/utils";
-import { selectAdmin, selectClient, useAdminStore } from "../../runtime";
+import { selectClient, useAdminStore } from "../../runtime";
+import { useAdminConfig } from "../../hooks/use-admin-config";
 import { SelectSingle } from "../primitives/select-single";
 import type { SelectOption } from "../primitives/types";
 import { ResourceSheet } from "../sheets/resource-sheet";
@@ -133,11 +134,10 @@ export function RelationSelect<T extends Questpie<any>>({
 		string | undefined
 	>();
 
-	// Get admin config for target collection
-	const admin = useAdminStore(selectAdmin);
+	// Get admin config for target collection from server
+	const { data: serverConfig } = useAdminConfig();
 	const client = useAdminStore(selectClient);
-	const collections = admin?.getCollections() ?? {};
-	const targetConfig = collections[targetCollection];
+	const targetConfig = serverConfig?.collections?.[targetCollection];
 	const CollectionIcon = (targetConfig as any)?.icon as
 		| React.ComponentType<{ className?: string }>
 		| undefined;

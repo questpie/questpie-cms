@@ -11,7 +11,7 @@
 
 import { Icon } from "@iconify/react";
 import * as React from "react";
-import type { CollectionBuilderState } from "../../builder/collection/types.js";
+import type { CollectionBuilderState } from "../../builder/types/collection-types.js";
 import type { ComponentRegistry } from "../../builder/types/field-types.js";
 import {
 	FocusProvider,
@@ -25,7 +25,6 @@ import { useTranslation } from "../../i18n/hooks.js";
 import { cn } from "../../lib/utils.js";
 import {
 	LocaleScopeProvider,
-	selectAdmin,
 	selectBasePath,
 	selectNavigate,
 	useAdminStore,
@@ -99,7 +98,6 @@ function LivePreviewContent({
 	const isMobile = useIsMobile();
 	const navigate = useAdminStore(selectNavigate);
 	const basePath = useAdminStore(selectBasePath);
-	const admin = useAdminStore(selectAdmin);
 	const [activeTab, setActiveTab] = React.useState<"form" | "preview">("form");
 
 	// Access FocusContext
@@ -154,10 +152,9 @@ function LivePreviewContent({
 		[focusContext],
 	);
 
-	// Get config from admin if not provided
-	const resolvedConfig = config ?? admin?.getCollectionConfig(collection);
-	const resolvedAllCollections =
-		allCollectionsConfig ?? admin?.getCollections();
+	// Use provided config or undefined (schema-driven)
+	const resolvedConfig = config;
+	const resolvedAllCollections = allCollectionsConfig;
 
 	return (
 		<div className="fixed inset-0 z-50 bg-background flex flex-col">

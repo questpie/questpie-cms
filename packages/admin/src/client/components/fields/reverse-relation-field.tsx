@@ -35,11 +35,11 @@ import {
 } from "../../hooks/use-collection";
 import { useResolveText, useTranslation } from "../../i18n/hooks";
 import {
-	selectAdmin,
 	selectClient,
 	useAdminStore,
 	useScopedLocale,
 } from "../../runtime";
+import { useAdminConfig } from "../../hooks/use-admin-config";
 import { SelectSingle } from "../primitives/select-single";
 import type { SelectOption } from "../primitives/types";
 import { ResourceSheet } from "../sheets/resource-sheet";
@@ -100,13 +100,12 @@ export function ReverseRelationField({
 		string | undefined
 	>();
 
-	// Get admin config for source collection
-	const admin = useAdminStore(selectAdmin);
+	// Get admin config from server
+	const { data: serverConfig } = useAdminConfig();
 	const client = useAdminStore(selectClient);
 	// Use scoped locale (from LocaleScopeProvider in ResourceSheet) or global locale
 	const { locale: contentLocale } = useScopedLocale();
-	const collections = admin?.getCollections() ?? {};
-	const sourceConfig = collections[sourceCollection];
+	const sourceConfig = serverConfig?.collections?.[sourceCollection];
 	const CollectionIcon = (sourceConfig as any)?.icon as
 		| React.ComponentType<{ className?: string }>
 		| undefined;
