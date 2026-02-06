@@ -219,15 +219,16 @@ export const appRpc = r.router({
 // ============================================================================
 
 /**
- * Full CMS type including all modules, collections, globals, jobs, and functions.
+ * Full CMS runtime type including modules, collections, globals, and jobs.
  * Use this type with getApp<AppCMS>() in hooks and jobs.
  */
 export type AppCMS = typeof cms;
 export type AppRpc = typeof appRpc;
 
 /**
- * Base CMS type without functions - useful in function handlers to avoid circular dependencies.
- * Use this with getApp<BaseCMS>() when defining functions that need to reference the CMS.
+ * Base CMS shape without runtime/RPC coupling - useful in RPC handlers
+ * to avoid circular dependencies.
+ * Use this with getApp<BaseCMS>() when defining procedures that need to reference the CMS.
  *
  * @example
  * ```ts
@@ -238,7 +239,7 @@ export type AppRpc = typeof appRpc;
  *   handler: async ({ app }) => {
  *     const cms = getApp<BaseCMS>(app);
  *     return cms.api.collections.posts.find();
- *   }
+ *   },
  * });
  * ```
  */
