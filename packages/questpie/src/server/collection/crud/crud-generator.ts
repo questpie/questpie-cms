@@ -98,8 +98,7 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 		private i18nTable: PgTable | null,
 		private versionsTable: PgTable | null,
 		private i18nVersionsTable: PgTable | null,
-		private db: any,
-		private getVirtuals?: (context: any) => TState["virtuals"],
+		private db: any,_getVirtuals?: (context: any) => TState["virtuals"],
 		private getVirtualsWithAliases?: (
 			context: any,
 			i18nCurrentTable: PgTable | null,
@@ -2380,6 +2379,8 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 
 			// Generate unique storage key
 			const key = `${crypto.randomUUID()}-${file.name}`;
+			const visibility: StorageVisibility =
+				uploadOptions.visibility || "public";
 
 			// Upload file to storage using streaming when available
 			// Streaming is more memory-efficient for large files
@@ -2391,6 +2392,7 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 				await this.cms.storage.use().putStream(key, nodeStream, {
 					contentType: file.type,
 					contentLength: file.size,
+					visibility,
 				});
 			} else {
 				// Fallback to buffer-based upload for files without stream support
@@ -2398,13 +2400,12 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 				await this.cms.storage.use().put(key, new Uint8Array(buffer), {
 					contentType: file.type,
 					contentLength: file.size,
+					visibility,
 				});
 			}
 
 			// Normalize MIME type (remove charset etc)
 			const mimeType = file.type.split(";")[0]?.trim() || file.type;
-			const visibility: StorageVisibility =
-				uploadOptions.visibility || "public";
 
 			// Create record using the existing create method
 			const createFn = this.createCreate();

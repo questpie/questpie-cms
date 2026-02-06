@@ -100,9 +100,7 @@ export class CollectionBuilder<TState extends CollectionBuilderState> {
 		TKeys extends ReadonlyArray<
 			keyof TState["fields"] | `${keyof TState["fields"] & string}:nested`
 		>,
-	>(
-		keys: TKeys,
-	): CollectionBuilder<SetProperty<TState, "localized", TKeys>> {
+	>(keys: TKeys): CollectionBuilder<SetProperty<TState, "localized", TKeys>> {
 		const newState = {
 			...this.state,
 			localized: keys,
@@ -503,18 +501,30 @@ export class CollectionBuilder<TState extends CollectionBuilderState> {
 		const uploadFields = Collection.uploadCols();
 
 		// Create afterRead hook for URL generation
-		// Note: hook context uses 'app' not 'cms'
 		const uploadAfterReadHook = async ({ data, app }: any) => {
 			if (!app?.storage || !data?.key) return;
 
 			const fileVisibility: StorageVisibility = data.visibility || "public";
 
-			// Use storage service URL generation
 			if (fileVisibility === "private") {
 				data.url = await app.storage.use().getSignedUrl(data.key);
 			} else {
 				data.url = await app.storage.use().getUrl(data.key);
 			}
+		};
+
+		// Create afterChange hook to sync visibility with storage
+		const uploadAfterChangeHook = async ({
+			data,
+			original,
+			app,
+			operation,
+		}: any) => {
+			if (operation !== "update") return;
+			if (!app?.storage || !data?.key) return;
+			if (!original || original.visibility === data.visibility) return;
+
+			await app.storage.use().setVisibility(data.key, data.visibility);
 		};
 
 		// Merge existing afterRead hooks with upload hook
@@ -525,6 +535,14 @@ export class CollectionBuilder<TState extends CollectionBuilderState> {
 				: [existingAfterRead, uploadAfterReadHook]
 			: uploadAfterReadHook;
 
+		// Merge existing afterChange hooks with upload hook
+		const existingAfterChange = this.state.hooks?.afterChange;
+		const mergedAfterChange = existingAfterChange
+			? Array.isArray(existingAfterChange)
+				? [...existingAfterChange, uploadAfterChangeHook]
+				: [existingAfterChange, uploadAfterChangeHook]
+			: uploadAfterChangeHook;
+
 		const newState = {
 			...this.state,
 			fields: {
@@ -533,11 +551,12 @@ export class CollectionBuilder<TState extends CollectionBuilderState> {
 			},
 			output: {
 				...(this.state.output || {}),
-				url: "" as string, // Type marker
+				url: "" as string,
 			},
 			hooks: {
 				...this.state.hooks,
 				afterRead: mergedAfterRead,
+				afterChange: mergedAfterChange,
 			},
 			upload: options,
 		} as any;
@@ -545,8 +564,6 @@ export class CollectionBuilder<TState extends CollectionBuilderState> {
 		const newBuilder = new CollectionBuilder(newState);
 
 		// Copy callback functions
-		newBuilder._virtualsFn = this._virtualsFn;
-		newBuilder._relationsFn = this._relationsFn;
 		newBuilder._indexesFn = this._indexesFn;
 
 		return newBuilder;
