@@ -51,7 +51,6 @@ import {
 import {
 	extractLocalizedFieldNames,
 	extractNestedLocalizationSchemas,
-	hasLocalizedFields,
 	type NestedLocalizationSchema,
 } from "#questpie/server/collection/crud/shared/field-extraction.js";
 import {
@@ -111,16 +110,14 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 		private i18nTable: PgTable | null,
 		private versionsTable: PgTable | null,
 		private i18nVersionsTable: PgTable | null,
-		private db: any,
-		private getVirtuals?: (context: any) => TState["virtuals"],
+		private db: any,_getVirtuals?: (context: any) => TState["virtuals"],
 		private getVirtualsWithAliases?: (
 			context: any,
 			i18nCurrentTable: PgTable | null,
 			i18nFallbackTable: PgTable | null,
 		) => TState["virtuals"],
 		private getTitleExpression?: (context: any) => TitleExpressionSQL,
-		private getVirtualsForVersions?: (context: any) => TState["virtuals"],
-		private getVirtualsForVersionsWithAliases?: (
+		private getVirtualsForVersions?: (context: any) => TState["virtual_getVirtualsForVersionsWithAliases?: (
 			context: any,
 			i18nVersionsCurrentTable: PgTable | null,
 			i18nVersionsFallbackTable: PgTable | null,
@@ -2531,12 +2528,12 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 
 			// Generate unique storage key
 			const key = `${crypto.randomUUID()}-${file.name}`;
+			const visibility: StorageVisibility =
+				uploadOptions.visibility || "public";
 
 			// Upload file to storage using streaming when available
 			// Normalize MIME type (remove charset etc)
 			const mimeType = file.type.split(";")[0]?.trim() || file.type;
-			const visibility: StorageVisibility =
-				uploadOptions.visibility || "public";
 
 			// Streaming is more memory-efficient for large files
 			if (file.stream) {
