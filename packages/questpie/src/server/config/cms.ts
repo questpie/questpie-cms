@@ -215,6 +215,7 @@ export class Questpie<TConfig extends QuestpieConfig = QuestpieConfig> {
 			database: drizzleAdapter(this.db, {
 				provider: "pg",
 				schema: this.getSchema(),
+				transaction: true,
 			}),
 		}) as typeof this.auth;
 
