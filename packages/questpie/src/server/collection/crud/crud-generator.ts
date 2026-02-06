@@ -117,7 +117,8 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 			i18nFallbackTable: PgTable | null,
 		) => TState["virtuals"],
 		private getTitleExpression?: (context: any) => TitleExpressionSQL,
-		private getVirtualsForVersions?: (context: any) => TState["virtual_getVirtualsForVersionsWithAliases?: (
+		private getVirtualsForVersions?: (context: any) => TState["virtuals"],
+		private getVirtualsForVersionsWithAliases?: (
 			context: any,
 			i18nVersionsCurrentTable: PgTable | null,
 			i18nVersionsFallbackTable: PgTable | null,
