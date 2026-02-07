@@ -121,18 +121,37 @@ type InferRelationTypeFromConfig<TConfig> = TConfig extends {
       : "many"
     : "one";
 
+/** Infer upload relation type: through → manyToMany, else one */
+type InferUploadRelationType<TConfig> = TConfig extends { through: string }
+  ? "manyToMany"
+  : "one";
+
+/** Infer upload target collection: config.to or default "assets" */
+type InferUploadTargetCollection<TConfig> = TConfig extends {
+  to: infer TTo extends string;
+}
+  ? TTo
+  : "assets";
+
 export type InferRelationConfigsFromFields<
   TFields extends Record<string, FieldDefinition<FieldDefinitionState>>,
 > = {
   [K in keyof TFields as TFields[K] extends FieldDefinition<infer TState>
-    ? TState["type"] extends "relation"
+    ? TState["type"] extends "relation" | "upload"
       ? K
       : never
     : never]: TFields[K] extends FieldDefinition<infer TState>
-    ? RelationConfig & {
-        type: InferRelationTypeFromConfig<TState["config"]>;
-        collection: InferRelationTargetName<TState["config"]["to"]>;
-      }
+    ? TState["type"] extends "relation"
+      ? RelationConfig & {
+          type: InferRelationTypeFromConfig<TState["config"]>;
+          collection: InferRelationTargetName<TState["config"]["to"]>;
+        }
+      : TState["type"] extends "upload"
+        ? RelationConfig & {
+            type: InferUploadRelationType<TState["config"]>;
+            collection: InferUploadTargetCollection<TState["config"]>;
+          }
+        : never
     : never;
 };
 

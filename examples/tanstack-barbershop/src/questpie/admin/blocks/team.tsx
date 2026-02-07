@@ -8,7 +8,6 @@
 import { ArrowRight, User } from "@phosphor-icons/react";
 import type { BlockRendererProps } from "@questpie/admin/client";
 import { cn } from "../../../lib/utils";
-import { builder } from "../builder";
 
 type Barber = {
   id: string;
@@ -25,14 +24,13 @@ type TeamValues = {
   limit: number;
 };
 
-function TeamRenderer({ values, data }: BlockRendererProps<TeamValues>) {
+export function TeamRenderer({ values, data }: BlockRendererProps<TeamValues>) {
   const { barbers = [] } = (data as { barbers: Barber[] }) || {};
 
   const columnsClass = {
     "2": "md:grid-cols-2",
     "3": "md:grid-cols-2 lg:grid-cols-3",
-    "4": "md:grid-cols-2 lg:grid-cols-4",
-  }[values.columns || "3"];
+    "4": "md:grid-cols-2 lg:grid-cols-4" }[values.columns || "3"];
 
   return (
     <section className="py-20 px-6 bg-muted/30">
@@ -116,39 +114,4 @@ function TeamRenderer({ values, data }: BlockRendererProps<TeamValues>) {
   );
 }
 
-export const teamBlock = builder
-  .block("team")
-  .label({ en: "Team", sk: "Tím" })
-  .description({
-    en: "Display team members",
-    sk: "Zobrazenie členov tímu",
-  })
-  .icon("Users")
-  .category("sections")
-  .fields(({ r }) => ({
-    title: r.text({
-      label: { en: "Title", sk: "Titulok" },
-      localized: true,
-    }),
-    subtitle: r.textarea({
-      label: { en: "Subtitle", sk: "Podtitulok" },
-      localized: true,
-    }),
-    columns: r.select({
-      label: { en: "Columns", sk: "Stĺpce" },
-      options: [
-        { value: "2", label: "2" },
-        { value: "3", label: "3" },
-        { value: "4", label: "4" },
-      ],
-      defaultValue: "3",
-    }),
-    limit: r.number({
-      label: { en: "Max Members", sk: "Max členov" },
-      defaultValue: 6,
-      min: 1,
-      max: 12,
-    }),
-  }))
-  .renderer(TeamRenderer)
-  .build();
+

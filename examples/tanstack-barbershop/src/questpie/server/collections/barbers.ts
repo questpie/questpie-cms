@@ -76,7 +76,7 @@ export const barbers = qb
       slug: f.text({ required: true, maxLength: 255, input: "optional" }),
       email: f.email({
         label: { en: "Email Address", sk: "Emailová adresa" },
-        meta: { admin: { placeholder: "barber@example.com" } },
+        meta: { admin: { placeholder: "barber@example.com" } } as any,
         required: true,
         maxLength: 255,
       }),
@@ -185,7 +185,7 @@ export const barbers = qb
             }),
             url: f.url({
               label: { en: "URL", sk: "URL" },
-              meta: { admin: { placeholder: "https://..." } },
+              meta: { admin: { placeholder: "https://..." } } as any,
             }),
           }),
         }),
@@ -212,8 +212,8 @@ export const barbers = qb
     };
   })
   .indexes(({ table }) => [
-    uniqueIndex("barbers_slug_unique").on(table.slug),
-    uniqueIndex("barbers_email_unique").on(table.email),
+    uniqueIndex("barbers_slug_unique").on(table.slug as any),
+    uniqueIndex("barbers_email_unique").on(table.email as any),
   ])
   .title(({ f }) => f.name)
   .admin(({ c }) => ({

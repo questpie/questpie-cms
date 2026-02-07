@@ -11,7 +11,7 @@ const config = defineConfig({
     devtools(),
     nitro({
       preset: "bun",
-    }),
+    }) as any,
     // this is the plugin that enables path aliases
     viteTsConfigPaths({
       projects: ["./tsconfig.json"],

@@ -45,6 +45,7 @@ import { createCollectionValidationSchemas } from "#questpie/server/collection/b
 import { CRUDGenerator } from "#questpie/server/collection/crud/index.js";
 import type { CRUD } from "#questpie/server/collection/crud/types.js";
 import { DEFAULT_LOCALE } from "#questpie/shared/constants.js";
+import type { FieldSelect } from "#questpie/server/fields/field-types.js";
 import type { Prettify } from "#questpie/shared/type-utils.js";
 
 // Re-export for convenience
@@ -147,13 +148,16 @@ type ExtractInputObject<
 /**
  * Extract output types from field definitions.
  * Maps each field to its output type from $types.output.
+ * For object/array fields, dispatches through FieldSelect to resolve nested types.
  */
 type ExtractOutputTypes<
   TFieldDefs extends Record<string, FieldDefinition<FieldDefinitionState>>,
 > = {
   [K in keyof TFieldDefs]: TFieldDefs[K] extends FieldDefinition<infer TState>
     ? TState extends FieldDefinitionState
-      ? TState["output"]
+      ? TState["type"] extends "object" | "array" | "upload"
+        ? FieldSelect<TFieldDefs[K]>
+        : TState["output"]
       : never
     : never;
 };
@@ -240,20 +244,27 @@ type InferLegacyUpdate<
 /**
  * CollectionSelect - works with both field builder and raw Drizzle columns.
  */
+/** Extract output type extensions ($outputType / .upload() url) from state */
+type OutputExtensions<TState extends CollectionBuilderState> =
+  TState["output"] extends Record<string, any> ? TState["output"] : {};
+
 export type CollectionSelect<TState extends CollectionBuilderState> =
   TState["fieldDefinitions"] extends Record<
     string,
     FieldDefinition<FieldDefinitionState>
   >
-    ? InferCollectionSelect<
-        InferMainTableWithColumns<
-          TState["name"],
+    ? Prettify<
+        InferCollectionSelect<
+          InferMainTableWithColumns<
+            TState["name"],
+            TState["fieldDefinitions"],
+            TState["options"],
+            TState["upload"]
+          >,
           TState["fieldDefinitions"],
-          TState["options"],
-          TState["upload"]
-        >,
-        TState["fieldDefinitions"],
-        TState["title"]
+          TState["title"]
+        > &
+          OutputExtensions<TState>
       >
     : InferLegacySelect<
         InferTableWithColumns<

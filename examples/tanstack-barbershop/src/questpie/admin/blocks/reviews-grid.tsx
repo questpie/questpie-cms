@@ -8,7 +8,6 @@
 import { Quotes, Star } from "@phosphor-icons/react";
 import type { BlockRendererProps } from "@questpie/admin/client";
 import { cn } from "../../../lib/utils";
-import { builder } from "../builder";
 
 type Review = {
   id: string;
@@ -26,17 +25,15 @@ type ReviewsGridValues = {
   columns: "2" | "3" | "4";
 };
 
-function ReviewsGridRenderer({
+export function ReviewsGridRenderer({
   values,
-  data,
-}: BlockRendererProps<ReviewsGridValues>) {
+  data }: BlockRendererProps<ReviewsGridValues>) {
   const { reviews = [] } = (data as { reviews: Review[] }) || {};
 
   const columnsClass = {
     "2": "md:grid-cols-2",
     "3": "md:grid-cols-2 lg:grid-cols-3",
-    "4": "md:grid-cols-2 lg:grid-cols-4",
-  }[values.columns || "3"];
+    "4": "md:grid-cols-2 lg:grid-cols-4" }[values.columns || "3"];
 
   return (
     <section className="py-20 px-6">
@@ -102,53 +99,4 @@ function ReviewsGridRenderer({
   );
 }
 
-export const reviewsGridBlock = builder
-  .block("reviews-grid")
-  .label({ en: "Reviews Grid", sk: "Recenzie mriežka" })
-  .description({
-    en: "Customer reviews in grid layout",
-    sk: "Recenzie zákazníkov v mriežke",
-  })
-  .icon("ChatCircleDots")
-  .category("content")
-  .fields(({ r }) => ({
-    title: r.text({
-      label: { en: "Title", sk: "Nadpis" },
-      required: true,
-      localized: true,
-      defaultValue: { en: "What Our Clients Say", sk: "Čo hovoria klienti" },
-    }),
-    subtitle: r.text({
-      label: { en: "Subtitle", sk: "Podnadpis" },
-      localized: true,
-    }),
-    filter: r.select({
-      label: { en: "Show Reviews", sk: "Zobraziť recenzie" },
-      options: [
-        {
-          value: "featured",
-          label: { en: "Featured Only", sk: "Iba vybrané" },
-        },
-        { value: "recent", label: { en: "Most Recent", sk: "Najnovšie" } },
-        { value: "all", label: { en: "All Approved", sk: "Všetky schválené" } },
-      ],
-      defaultValue: "featured",
-    }),
-    limit: r.number({
-      label: { en: "Maximum Reviews", sk: "Maximum recenzií" },
-      min: 1,
-      max: 12,
-      defaultValue: 6,
-    }),
-    columns: r.select({
-      label: { en: "Columns", sk: "Stĺpce" },
-      options: [
-        { value: "2", label: { en: "2 columns", sk: "2 stĺpce" } },
-        { value: "3", label: { en: "3 columns", sk: "3 stĺpce" } },
-        { value: "4", label: { en: "4 columns", sk: "4 stĺpce" } },
-      ],
-      defaultValue: "3",
-    }),
-  }))
-  .renderer(ReviewsGridRenderer)
-  .build();
+

@@ -6,10 +6,7 @@
  */
 
 import { ArrowRight, Clock } from "@phosphor-icons/react";
-import type {
-  BlockDefinition,
-  BlockRendererProps,
-} from "@questpie/admin/client";
+import type { BlockRendererProps } from "@questpie/admin/client";
 import { cn } from "../../../lib/utils";
 
 type Service = {
@@ -30,23 +27,20 @@ type ServicesValues = {
   limit: number;
 };
 
-function ServicesRenderer({
+export function ServicesRenderer({
   values,
-  data,
-}: BlockRendererProps<ServicesValues>) {
+  data }: BlockRendererProps<ServicesValues>) {
   const { services = [] } = (data as { services: Service[] }) || {};
 
   const columnsClass = {
     "2": "md:grid-cols-2",
     "3": "md:grid-cols-2 lg:grid-cols-3",
-    "4": "md:grid-cols-2 lg:grid-cols-4",
-  }[values.columns || "3"];
+    "4": "md:grid-cols-2 lg:grid-cols-4" }[values.columns || "3"];
 
   const formatPrice = (cents: number) => {
     return new Intl.NumberFormat("en-US", {
       style: "currency",
-      currency: "USD",
-    }).format(cents / 100);
+      currency: "USD" }).format(cents / 100);
   };
 
   return (
@@ -136,7 +130,3 @@ function ServicesRenderer({
   );
 }
 
-export const servicesBlock = {
-  name: "services",
-  renderer: ServicesRenderer,
-} satisfies BlockDefinition;

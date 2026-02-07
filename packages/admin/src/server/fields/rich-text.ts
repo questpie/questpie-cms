@@ -29,11 +29,11 @@ import { z } from "zod";
  */
 export interface TipTapNode {
   type: string;
-  attrs?: Record<string, unknown>;
+  attrs?: Record<string, any>;
   content?: TipTapNode[];
   marks?: Array<{
     type: string;
-    attrs?: Record<string, unknown>;
+    attrs?: Record<string, any>;
   }>;
   text?: string;
 }
@@ -312,13 +312,13 @@ export const richTextField = defineField<RichTextFieldConfig, TipTapDocument>()(
       const nodeSchema: z.ZodType<TipTapNode> = z.lazy(() =>
         z.object({
           type: z.string(),
-          attrs: z.record(z.string(), z.unknown()).optional(),
+          attrs: z.record(z.string(), z.any()).optional(),
           content: z.array(nodeSchema).optional(),
           marks: z
             .array(
               z.object({
                 type: z.string(),
-                attrs: z.record(z.string(), z.unknown()).optional(),
+                attrs: z.record(z.string(), z.any()).optional(),
               }),
             )
             .optional(),

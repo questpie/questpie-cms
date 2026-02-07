@@ -358,7 +358,7 @@ type CollectionSelectFromFieldDefinitions<TCollection, TApp> =
                   ? FieldSelect<TAllFields[K], TApp>
                   : TState["type"] extends "blocks"
                     ? BlocksSelectFromApp<TApp>
-                    : TState["select"]
+                    : FieldSelect<TAllFields[K], TApp>
                 : never
               : never;
           } & CollectionOutputExtensions<TCollection>
@@ -1095,8 +1095,23 @@ export type RelationResult<TRelations, TQuery> = [TQuery] extends [never]
     : Record<never, never>;
 
 /**
+ * Extract keys loaded via `with` clause.
+ * Used to omit FK columns from base select when the relation is being loaded,
+ * so the resolved relation type replaces the FK type instead of intersecting.
+ */
+type WithKeys<TQuery> = TQuery extends { with?: infer W }
+  ? W extends Record<string, any>
+    ? keyof W & string
+    : never
+  : never;
+
+/**
  * Combined Result Type
  * Merges partial selection and included relations.
+ *
+ * When a relation is loaded via `with`, its FK column is omitted from the base
+ * select so the resolved relation type cleanly replaces it. For example,
+ * `avatar: string` (FK) is replaced by `avatar: { id, key, filename, ... }`.
  *
  * Accepts any query-like object with optional `columns` and `with` fields.
  * The `where` field is not used for result type inference.
@@ -1110,7 +1125,8 @@ export type ApplyQuery<
     ? TSelect
     : TQuery extends false
       ? never
-      : SelectResult<TSelect, TQuery> & RelationResult<TRelations, TQuery>
+      : Omit<SelectResult<TSelect, TQuery>, WithKeys<TQuery>> &
+          RelationResult<TRelations, TQuery>
 >;
 
 /**

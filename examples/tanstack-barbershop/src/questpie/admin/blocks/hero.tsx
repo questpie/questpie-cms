@@ -12,7 +12,6 @@ import { ArrowRight } from "@phosphor-icons/react";
 import type { BlockRendererProps } from "@questpie/admin/client";
 import { buttonVariants } from "../../../components/ui/button";
 import { cn } from "../../../lib/utils";
-import { builder } from "../builder";
 
 type HeroValues = {
   title: string;
@@ -25,11 +24,10 @@ type HeroValues = {
   height: "small" | "medium" | "large" | "full";
 };
 
-function HeroRenderer({
+export function HeroRenderer({
   values,
   data,
-  children,
-}: BlockRendererProps<HeroValues>) {
+  children }: BlockRendererProps<HeroValues>) {
   // backgroundImage is auto-expanded from ID to full asset record
   const bgAsset = (data as Record<string, any> | undefined)?.backgroundImage;
   const bgImageUrl = bgAsset?.url || values.backgroundImage;
@@ -38,14 +36,12 @@ function HeroRenderer({
     small: "min-h-[50vh]",
     medium: "min-h-[70vh]",
     large: "min-h-[85vh]",
-    full: "min-h-screen",
-  }[values.height || "medium"];
+    full: "min-h-screen" }[values.height || "medium"];
 
   const alignClass = {
     left: "text-left items-start",
     center: "text-center items-center",
-    right: "text-right items-end",
-  }[values.alignment || "center"];
+    right: "text-right items-end" }[values.alignment || "center"];
 
   return (
     <section
@@ -102,52 +98,4 @@ function HeroRenderer({
   );
 }
 
-export const heroBlock = builder
-  .block("hero")
-  .label({ en: "Hero Section", sk: "Hero sekcia" })
-  .icon("Image")
-  .category("sections")
-  .fields(({ r }) => ({
-    title: r.text({
-      label: { en: "Title", sk: "Nadpis" },
-      localized: true,
-      required: true,
-    }),
-    subtitle: r.textarea({
-      label: { en: "Subtitle", sk: "Podnadpis" },
-      localized: true,
-    }),
-    backgroundImage: r.upload({
-      label: { en: "Background Image", sk: "Obrázok pozadia" },
-    }),
-    overlayOpacity: r.number({
-      label: { en: "Overlay Opacity", sk: "Priehľadnosť" },
-      defaultValue: 60,
-    }),
-    alignment: r.select({
-      label: { en: "Alignment", sk: "Zarovnanie" },
-      options: [
-        { value: "left", label: { en: "Left", sk: "Vľavo" } },
-        { value: "center", label: { en: "Center", sk: "Stred" } },
-        { value: "right", label: { en: "Right", sk: "Vpravo" } },
-      ],
-      defaultValue: "center",
-    }),
-    ctaText: r.text({
-      label: { en: "CTA Text", sk: "Text tlačidla" },
-      localized: true,
-    }),
-    ctaLink: r.text({ label: { en: "CTA Link", sk: "Odkaz tlačidla" } }),
-    height: r.select({
-      label: { en: "Height", sk: "Výška" },
-      options: [
-        { value: "small", label: { en: "Small", sk: "Malá" } },
-        { value: "medium", label: { en: "Medium", sk: "Stredná" } },
-        { value: "large", label: { en: "Large", sk: "Veľká" } },
-        { value: "full", label: { en: "Full", sk: "Plná" } },
-      ],
-      defaultValue: "medium",
-    }),
-  }))
-  .renderer(HeroRenderer)
-  .build();
+

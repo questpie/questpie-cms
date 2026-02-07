@@ -12,10 +12,12 @@ import type {
   AnyCollectionOrBuilder,
   CollectionFunctions,
   CollectionInsert,
+  CollectionRelations,
   CollectionSelect,
   CollectionUpdate,
   GetCollection,
   GlobalFunctions,
+  GlobalRelations,
   GlobalSelect,
   GlobalUpdate,
   ResolveRelationsDeep,
@@ -262,7 +264,7 @@ type CollectionAPI<
   find: <
     TQuery extends FindManyOptions<
       CollectionSelect<TCollection>,
-      ResolveRelationsDeep<TCollection["state"]["relations"], TCollections>
+      ResolveRelationsDeep<CollectionRelations<TCollection>, TCollections>
     >,
   >(
     options?: TQuery,
@@ -270,7 +272,7 @@ type CollectionAPI<
     PaginatedResult<
       ApplyQuery<
         CollectionSelect<TCollection>,
-        ResolveRelationsDeep<TCollection["state"]["relations"], TCollections>,
+        ResolveRelationsDeep<CollectionRelations<TCollection>, TCollections>,
         TQuery
       >
     >
@@ -282,7 +284,7 @@ type CollectionAPI<
   count: (options?: {
     where?: FindManyOptions<
       CollectionSelect<TCollection>,
-      ResolveRelationsDeep<TCollection["state"]["relations"], TCollections>
+      ResolveRelationsDeep<CollectionRelations<TCollection>, TCollections>
     >["where"];
     includeDeleted?: boolean;
   }) => Promise<number>;
@@ -294,13 +296,13 @@ type CollectionAPI<
   findOne: <
     TQuery extends FindOneOptionsBase<
       CollectionSelect<TCollection>,
-      ResolveRelationsDeep<TCollection["state"]["relations"], TCollections>
+      ResolveRelationsDeep<CollectionRelations<TCollection>, TCollections>
     >,
   >(
     options?: TQuery,
   ) => Promise<ApplyQuery<
     CollectionSelect<TCollection>,
-    ResolveRelationsDeep<TCollection["state"]["relations"], TCollections>,
+    ResolveRelationsDeep<CollectionRelations<TCollection>, TCollections>,
     TQuery
   > | null>;
 
@@ -310,12 +312,12 @@ type CollectionAPI<
   create: <
     TInput extends CreateInputBase<
       CollectionInsert<TCollection>,
-      ResolveRelationsDeep<TCollection["state"]["relations"], TCollections>
+      ResolveRelationsDeep<CollectionRelations<TCollection>, TCollections>
     >,
   >(
     data: CreateInputWithRelations<
       CollectionInsert<TCollection>,
-      ResolveRelationsDeep<TCollection["state"]["relations"], TCollections>,
+      ResolveRelationsDeep<CollectionRelations<TCollection>, TCollections>,
       TInput
     >,
     options?: LocaleOptions,
@@ -328,7 +330,7 @@ type CollectionAPI<
       id: string;
       data: UpdateInput<
         CollectionUpdate<TCollection>,
-        ResolveRelationsDeep<TCollection["state"]["relations"], TCollections>
+        ResolveRelationsDeep<CollectionRelations<TCollection>, TCollections>
       >;
     },
     options?: LocaleOptions,
@@ -357,11 +359,11 @@ type CollectionAPI<
     params: {
       where: Where<
         CollectionSelect<TCollection>,
-        ResolveRelationsDeep<TCollection["state"]["relations"], TCollections>
+        ResolveRelationsDeep<CollectionRelations<TCollection>, TCollections>
       >;
       data: UpdateInput<
         CollectionUpdate<TCollection>,
-        ResolveRelationsDeep<TCollection["state"]["relations"], TCollections>
+        ResolveRelationsDeep<CollectionRelations<TCollection>, TCollections>
       >;
     },
     options?: LocaleOptions,
@@ -374,7 +376,7 @@ type CollectionAPI<
     params: {
       where: Where<
         CollectionSelect<TCollection>,
-        ResolveRelationsDeep<TCollection["state"]["relations"], TCollections>
+        ResolveRelationsDeep<CollectionRelations<TCollection>, TCollections>
       >;
     },
     options?: LocaleOptions,
@@ -429,7 +431,7 @@ type GlobalAPI<
   get: <
     TQuery extends {
       with?: With<
-        ResolveRelationsDeep<TGlobal["state"]["relations"], TCollections>
+        ResolveRelationsDeep<GlobalRelations<TGlobal>, TCollections>
       >;
       columns?: any;
       locale?: string;
@@ -440,7 +442,7 @@ type GlobalAPI<
   ) => Promise<
     ApplyQuery<
       GlobalSelect<TGlobal>,
-      ResolveRelationsDeep<TGlobal["state"]["relations"], TCollections>,
+      ResolveRelationsDeep<GlobalRelations<TGlobal>, TCollections>,
       TQuery
     >
   >;
@@ -452,7 +454,7 @@ type GlobalAPI<
   update: <
     TQuery extends {
       with?: With<
-        ResolveRelationsDeep<TGlobal["state"]["relations"], TCollections>
+        ResolveRelationsDeep<GlobalRelations<TGlobal>, TCollections>
       >;
       locale?: string;
       localeFallback?: boolean;
@@ -460,13 +462,13 @@ type GlobalAPI<
   >(
     data: GlobalUpdateInput<
       GlobalUpdate<TGlobal>,
-      ResolveRelationsDeep<TGlobal["state"]["relations"], TCollections>
+      ResolveRelationsDeep<GlobalRelations<TGlobal>, TCollections>
     >,
     options?: TQuery,
   ) => Promise<
     ApplyQuery<
       GlobalSelect<TGlobal>,
-      ResolveRelationsDeep<TGlobal["state"]["relations"], TCollections>,
+      ResolveRelationsDeep<GlobalRelations<TGlobal>, TCollections>,
       TQuery
     >
   >;

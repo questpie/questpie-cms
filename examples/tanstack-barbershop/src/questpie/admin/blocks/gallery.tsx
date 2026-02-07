@@ -7,7 +7,6 @@
 
 import type { BlockRendererProps } from "@questpie/admin/client";
 import { cn } from "../../../lib/utils";
-import { builder } from "../builder";
 
 type GalleryImage = {
   id: string;
@@ -25,21 +24,19 @@ type GalleryPrefetchedData = {
   imageUrls: Record<string, string>;
 };
 
-function GalleryRenderer({ values, data }: BlockRendererProps<GalleryValues>) {
+export function GalleryRenderer({ values, data }: BlockRendererProps<GalleryValues>) {
   const galleryData = (data as GalleryPrefetchedData) || {};
   const imageUrls = galleryData?.imageUrls || {};
 
   const columnsClass = {
     "2": "md:grid-cols-2",
     "3": "md:grid-cols-2 lg:grid-cols-3",
-    "4": "md:grid-cols-2 lg:grid-cols-4",
-  }[values.columns || "3"];
+    "4": "md:grid-cols-2 lg:grid-cols-4" }[values.columns || "3"];
 
   const gapClass = {
     small: "gap-2",
     medium: "gap-4",
-    large: "gap-8",
-  }[values.gap || "medium"];
+    large: "gap-8" }[values.gap || "medium"];
 
   return (
     <section className="py-20 px-6">
@@ -83,51 +80,4 @@ function GalleryRenderer({ values, data }: BlockRendererProps<GalleryValues>) {
   );
 }
 
-export const galleryBlock = builder
-  .block("gallery")
-  .label({ en: "Gallery", sk: "Galéria" })
-  .description({
-    en: "Image gallery grid",
-    sk: "Galéria obrázkov",
-  })
-  .icon("Images")
-  .category("content")
-  .fields(({ r }) => ({
-    title: r.text({
-      label: { en: "Title (optional)", sk: "Nadpis (voliteľný)" },
-      localized: true,
-    }),
-    images: r.array({
-      label: { en: "Images", sk: "Obrázky" },
-      item: ({ r }) => ({
-        id: r.upload({
-          label: { en: "Image", sk: "Obrázok" },
-          required: true,
-        }),
-        caption: r.text({
-          label: { en: "Caption (optional)", sk: "Popisok (voliteľný)" },
-          localized: true,
-        }),
-      }),
-    }),
-    columns: r.select({
-      label: { en: "Columns", sk: "Stĺpce" },
-      options: [
-        { value: "2", label: { en: "2 columns", sk: "2 stĺpce" } },
-        { value: "3", label: { en: "3 columns", sk: "3 stĺpce" } },
-        { value: "4", label: { en: "4 columns", sk: "4 stĺpce" } },
-      ],
-      defaultValue: "3",
-    }),
-    gap: r.select({
-      label: { en: "Gap Size", sk: "Veľkosť medzery" },
-      options: [
-        { value: "small", label: { en: "Small", sk: "Malá" } },
-        { value: "medium", label: { en: "Medium", sk: "Stredná" } },
-        { value: "large", label: { en: "Large", sk: "Veľká" } },
-      ],
-      defaultValue: "medium",
-    }),
-  }))
-  .renderer(GalleryRenderer)
-  .build();
+

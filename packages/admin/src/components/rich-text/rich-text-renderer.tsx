@@ -9,8 +9,8 @@ export type TipTapNode = {
   type: string;
   content?: TipTapNode[];
   text?: string;
-  marks?: Array<{ type: string; attrs?: Record<string, unknown> }>;
-  attrs?: Record<string, unknown>;
+  marks?: Array<{ type: string; attrs?: Record<string, any> }>;
+  attrs?: Record<string, any>;
 };
 
 export type TipTapDoc = {

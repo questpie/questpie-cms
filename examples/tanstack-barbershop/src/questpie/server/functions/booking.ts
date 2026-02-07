@@ -53,7 +53,8 @@ export const getAvailableTimeSlots = q.fn({
     ] as const;
     const dateObj = new Date(date);
     const dayKey = dayNames[dateObj.getDay()];
-    const daySchedule = barber.workingHours?.[dayKey];
+    const workingHours = barber.workingHours as Record<string, any> | null;
+    const daySchedule = workingHours?.[dayKey];
 
     if (!daySchedule?.isOpen) {
       return { slots: [] };
@@ -122,7 +123,7 @@ export const getAvailableTimeSlots = q.fn({
 
       const isOccupied = appointments.docs.some((apt) => {
         const aptStart = new Date(apt.scheduledAt);
-        const aptDuration = apt.service?.duration ?? service.duration;
+        const aptDuration = servicesMap.get(apt.service as string)?.duration ?? service.duration;
         const aptEnd = new Date(aptStart.getTime() + aptDuration * 60000);
 
         return slotTime < aptEnd && potentialEnd > aptStart;

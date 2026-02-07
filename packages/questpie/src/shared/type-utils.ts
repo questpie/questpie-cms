@@ -1,7 +1,14 @@
 // Centralized Type Utilities for QUESTPIE CMS
 // This file consolidates all type inference helpers used by both server and client
 
-import type { RelationConfig } from "#questpie/server/collection/builder/types.js";
+import type {
+  InferRelationConfigsFromFields,
+  RelationConfig,
+} from "#questpie/server/collection/builder/types.js";
+import type {
+  FieldDefinition,
+  FieldDefinitionState,
+} from "#questpie/server/fields/types.js";
 
 // ============================================================================
 // Opaque Types for Better Autocomplete
@@ -207,16 +214,59 @@ export type CollectionFunctions<T> =
     : Record<string, FunctionDefinition>;
 
 /**
- * Extract relations from a Collection or CollectionBuilder
+ * Check if a Record type has specific keys (not just an index signature or empty).
+ */
+type HasSpecificKeys<T extends Record<string, any>> = string extends keyof T
+  ? false
+  : keyof T extends never
+    ? false
+    : true;
+
+/**
+ * Infer relation configs from field definitions.
+ * Falls back to generic Record when fieldDefinitions doesn't have specific fields.
+ */
+type InferRelationsFromFieldDefs<TFieldDefs> =
+  TFieldDefs extends Record<string, FieldDefinition<FieldDefinitionState>>
+    ? InferRelationConfigsFromFields<TFieldDefs> extends infer TInferred
+      ? TInferred extends Record<string, RelationConfig>
+        ? keyof TInferred extends never
+          ? Record<string, RelationConfig>
+          : TInferred
+        : Record<string, RelationConfig>
+      : Record<string, RelationConfig>
+    : Record<string, RelationConfig>;
+
+/**
+ * Extract relations from a Collection or CollectionBuilder.
+ *
+ * Priority:
+ * 1. state.relations when it has specific keys (from legacy .relations() API)
+ * 2. Inferred from state.fieldDefinitions (from .fields() API with f.relation())
+ * 3. Fallback: generic Record<string, RelationConfig>
  */
 export type CollectionRelations<T> =
   CollectionState<T> extends {
     relations: infer Relations;
   }
     ? Relations extends Record<string, RelationConfig>
-      ? Relations
-      : Record<string, RelationConfig>
-    : Record<string, RelationConfig>;
+      ? HasSpecificKeys<Relations> extends true
+        ? Relations
+        : CollectionState<T> extends {
+              fieldDefinitions: infer TFieldDefs;
+            }
+          ? InferRelationsFromFieldDefs<TFieldDefs>
+          : Record<string, RelationConfig>
+      : CollectionState<T> extends {
+            fieldDefinitions: infer TFieldDefs;
+          }
+        ? InferRelationsFromFieldDefs<TFieldDefs>
+        : Record<string, RelationConfig>
+    : CollectionState<T> extends {
+          fieldDefinitions: infer TFieldDefs;
+        }
+      ? InferRelationsFromFieldDefs<TFieldDefs>
+      : Record<string, RelationConfig>;
 
 // ============================================================================
 // Global Type Inference (from $infer property)
@@ -288,16 +338,35 @@ export type GlobalFunctions<T> =
     : Record<string, FunctionDefinition>;
 
 /**
- * Extract relations from a Global or GlobalBuilder
+ * Extract relations from a Global or GlobalBuilder.
+ *
+ * Priority:
+ * 1. state.relations when it has specific keys (from legacy .relations() API)
+ * 2. Inferred from state.fieldDefinitions (from .fields() API with f.relation())
+ * 3. Fallback: generic Record<string, RelationConfig>
  */
 export type GlobalRelations<T> =
   GlobalState<T> extends {
     relations: infer Relations;
   }
     ? Relations extends Record<string, RelationConfig>
-      ? Relations
-      : Record<string, RelationConfig>
-    : Record<string, RelationConfig>;
+      ? HasSpecificKeys<Relations> extends true
+        ? Relations
+        : GlobalState<T> extends {
+              fieldDefinitions: infer TFieldDefs;
+            }
+          ? InferRelationsFromFieldDefs<TFieldDefs>
+          : Record<string, RelationConfig>
+      : GlobalState<T> extends {
+            fieldDefinitions: infer TFieldDefs;
+          }
+        ? InferRelationsFromFieldDefs<TFieldDefs>
+        : Record<string, RelationConfig>
+    : GlobalState<T> extends {
+          fieldDefinitions: infer TFieldDefs;
+        }
+      ? InferRelationsFromFieldDefs<TFieldDefs>
+      : Record<string, RelationConfig>;
 
 // ============================================================================
 // Collection Name Extraction & Lookup

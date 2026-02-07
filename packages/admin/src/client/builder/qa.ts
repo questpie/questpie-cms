@@ -5,10 +5,7 @@
  */
 
 import { AdminBuilder } from "./admin-builder";
-import { block } from "./block/block-builder";
-import { collection } from "./collection/collection";
 import { field } from "./field/field";
-import { global } from "./global/global";
 import { page } from "./page/page";
 import { editView, listView } from "./view/view";
 import { widget } from "./widget/widget";
@@ -27,22 +24,17 @@ import { widget } from "./widget/widget";
  * ```
  */
 function qaFactory<TApp = any>() {
-  return AdminBuilder.empty<TApp>();
+	return AdminBuilder.empty<TApp>();
 }
 
 /**
  * QA namespace with helpers
  */
 export const qa = Object.assign(qaFactory, {
-  // Primitive definition helpers (for advanced use)
-  field,
-  listView,
-  editView,
-  widget,
-  page,
-
-  // Standalone factories (for use outside builder context)
-  collection,
-  global,
-  block,
+	// Primitive definition helpers (for advanced use)
+	field,
+	listView,
+	editView,
+	widget,
+	page,
 });

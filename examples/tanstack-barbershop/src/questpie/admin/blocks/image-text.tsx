@@ -8,11 +8,9 @@
 import {
   type BlockRendererProps,
   RichTextRenderer,
-  type TipTapDoc,
-} from "@questpie/admin/client";
+  type TipTapDoc } from "@questpie/admin/client";
 import { buttonVariants } from "../../../components/ui/button";
 import { cn } from "../../../lib/utils";
-import { builder } from "../builder";
 
 type ImageTextValues = {
   image: string;
@@ -28,18 +26,16 @@ type ImageTextPrefetchedData = {
   imageUrl?: string;
 };
 
-function ImageTextRenderer({
+export function ImageTextRenderer({
   values,
-  data,
-}: BlockRendererProps<ImageTextValues>) {
+  data }: BlockRendererProps<ImageTextValues>) {
   const imageData = (data as ImageTextPrefetchedData) || {};
   const imageUrl = imageData?.imageUrl || values.image;
 
   const aspectClass = {
     square: "aspect-square",
     portrait: "aspect-[3/4]",
-    landscape: "aspect-[4/3]",
-  }[values.imageAspect || "square"];
+    landscape: "aspect-[4/3]" }[values.imageAspect || "square"];
 
   const isImageRight = values.imagePosition === "right";
   const richTextStyles = {
@@ -47,8 +43,7 @@ function ImageTextRenderer({
     paragraph: "text-muted-foreground leading-relaxed mb-4 last:mb-0",
     link: "text-highlight no-underline hover:underline",
     strong: "text-foreground font-semibold",
-    blockquote: "border-l-highlight text-muted-foreground",
-  };
+    blockquote: "border-l-highlight text-muted-foreground" };
 
   return (
     <section className="py-20 px-6">
@@ -110,60 +105,4 @@ function ImageTextRenderer({
   );
 }
 
-export const imageTextBlock = builder
-  .block("image-text")
-  .label({ en: "Image + Text", sk: "Obrázok + Text" })
-  .description({
-    en: "Image and text side by side",
-    sk: "Obrázok a text vedľa seba",
-  })
-  .icon("ImageSquare")
-  .category("content")
-  .fields(({ r }) => ({
-    image: r.upload({
-      label: { en: "Image", sk: "Obrázok" },
-      required: true,
-    }),
-    imagePosition: r.select({
-      label: { en: "Image Position", sk: "Pozícia obrázku" },
-      options: [
-        { value: "left", label: { en: "Left", sk: "Vľavo" } },
-        { value: "right", label: { en: "Right", sk: "Vpravo" } },
-      ],
-      defaultValue: "left",
-    }),
-    imageAspect: r.select({
-      label: { en: "Image Aspect Ratio", sk: "Pomer strán obrázku" },
-      options: [
-        { value: "square", label: { en: "Square (1:1)", sk: "Štvorec (1:1)" } },
-        {
-          value: "portrait",
-          label: { en: "Portrait (3:4)", sk: "Portrét (3:4)" },
-        },
-        {
-          value: "landscape",
-          label: { en: "Landscape (4:3)", sk: "Krajina (4:3)" },
-        },
-      ],
-      defaultValue: "square",
-    }),
-    title: r.text({
-      label: { en: "Title", sk: "Nadpis" },
-      required: true,
-      localized: true,
-    }),
-    content: r.richText({
-      label: { en: "Content", sk: "Obsah" },
-      required: true,
-      localized: true,
-    }),
-    ctaText: r.text({
-      label: { en: "Button Text (optional)", sk: "Text tlačidla (voliteľné)" },
-      localized: true,
-    }),
-    ctaLink: r.text({
-      label: { en: "Button Link (optional)", sk: "Link tlačidla (voliteľný)" },
-    }),
-  }))
-  .renderer(ImageTextRenderer)
-  .build();
+

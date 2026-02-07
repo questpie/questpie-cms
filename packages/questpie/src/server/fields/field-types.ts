@@ -24,8 +24,12 @@ import type {
 import { datetimeField } from "#questpie/server/fields/builtin/datetime.js";
 import { numberField } from "#questpie/server/fields/builtin/number.js";
 import { textField } from "#questpie/server/fields/builtin/text.js";
-import { createFieldDefinition } from "#questpie/server/fields/define-field.js";
+import {
+  createFieldDefinition,
+  type InferSelectType,
+} from "#questpie/server/fields/define-field.js";
 import type {
+  BaseFieldConfig,
   ContextualOperators,
   ExtractOperatorParamType,
   FieldDefinition,
@@ -101,12 +105,50 @@ export type InferRelationFKSelect<TConfig> =
 // FieldSelect — "what value does this field contribute to a row?"
 // ============================================================================
 
+/** Unwrap factory functions: () => T → T, or pass through T */
+type ResolveFieldConfig<T> = T extends (...args: any[]) => infer R ? R : T;
+
+/** Build typed object shape from an object field's config.fields */
+type ObjectFieldShape<TConfig, TApp> =
+  TConfig extends { fields: infer TFields }
+    ? {
+        [K in keyof ResolveFieldConfig<TFields>]: FieldSelect<
+          ResolveFieldConfig<TFields>[K],
+          TApp
+        >;
+      }
+    : Record<string, unknown>;
+
+/** Extract element type from an array field's config.of */
+type ArrayFieldElement<TConfig, TApp> =
+  TConfig extends { of: infer TOf }
+    ? FieldSelect<ResolveFieldConfig<TOf>, TApp>
+    : unknown;
+
+/**
+ * Upload FK select type narrowed from config.
+ * - Single upload (no through): string FK, nullability via InferSelectType
+ * - Many-to-many upload (with through): never (no FK column, loaded via `with`)
+ */
+type InferUploadFKSelect<TConfig> = TConfig extends { through: string }
+  ? never
+  : TConfig extends BaseFieldConfig
+    ? InferSelectType<TConfig, string>
+    : string | null;
+
 /**
  * Extract the select type for a single field.
  *
  * Dispatches on TState["type"]:
  *   "relation" → InferRelationFKSelect (narrowed per config)
+ *   "upload"   → InferUploadFKSelect (string FK or never for m2m)
+ *   "object"   → recursive ObjectFieldShape, nullability via InferSelectType
+ *   "array"    → recursive ArrayFieldElement[], nullability via InferSelectType
  *   *          → TState["select"] (text→string, number→number, etc.)
+ *
+ * For object/array, we compute the concrete inner value type from config, then
+ * delegate nullability to InferSelectType — the same path every other field uses.
+ * This avoids duplicating the output/required/nullable/access.read logic.
  *
  * Returns `never` for fields that don't produce a column (hasMany, manyToMany, morphMany).
  * The collection-level type filters these out.
@@ -120,7 +162,19 @@ export type FieldSelect<TFieldDef, _TApp = unknown> =
     ? TState extends FieldDefinitionState
       ? TState["type"] extends "relation"
         ? InferRelationFKSelect<TState["config"]>
-        : TState["select"]
+        : TState["type"] extends "upload"
+          ? InferUploadFKSelect<TState["config"]>
+          : TState["type"] extends "object"
+            ? InferSelectType<
+                TState["config"],
+                ObjectFieldShape<TState["config"], _TApp>
+              >
+            : TState["type"] extends "array"
+              ? InferSelectType<
+                  TState["config"],
+                  ArrayFieldElement<TState["config"], _TApp>[]
+                >
+              : TState["select"]
       : never
     : never;
 

@@ -9,7 +9,6 @@ import { Clock, CurrencyDollar } from "@phosphor-icons/react";
 import type { BlockRendererProps } from "@questpie/admin/client";
 import { buttonVariants } from "../../../components/ui/button";
 import { cn } from "../../../lib/utils";
-import { builder } from "../builder";
 
 type Service = {
   id: string;
@@ -27,23 +26,20 @@ type ServicesFeaturedValues = {
   columns: "2" | "3" | "4";
 };
 
-function ServicesFeaturedRenderer({
+export function ServicesFeaturedRenderer({
   values,
-  data,
-}: BlockRendererProps<ServicesFeaturedValues>) {
+  data }: BlockRendererProps<ServicesFeaturedValues>) {
   const { services = [] } = (data as { services: Service[] }) || {};
 
   const columnsClass = {
     "2": "md:grid-cols-2",
     "3": "md:grid-cols-2 lg:grid-cols-3",
-    "4": "md:grid-cols-2 lg:grid-cols-4",
-  }[values.columns || "3"];
+    "4": "md:grid-cols-2 lg:grid-cols-4" }[values.columns || "3"];
 
   const formatPrice = (cents: number) => {
     return new Intl.NumberFormat("sk-SK", {
       style: "currency",
-      currency: "EUR",
-    }).format(cents / 100);
+      currency: "EUR" }).format(cents / 100);
   };
 
   return (
@@ -125,42 +121,4 @@ function ServicesFeaturedRenderer({
   );
 }
 
-export const servicesFeaturedBlock = builder
-  .block("services-featured")
-  .label({ en: "Services (Featured)", sk: "Služby (vybrané)" })
-  .description({
-    en: "Manually selected services",
-    sk: "Ručne vybrané služby",
-  })
-  .icon("Scissors")
-  .category("content")
-  .fields(({ r }) => ({
-    title: r.text({
-      label: { en: "Title", sk: "Nadpis" },
-      required: true,
-      localized: true,
-      defaultValue: { en: "Our Services", sk: "Naše služby" },
-    }),
-    subtitle: r.text({
-      label: { en: "Subtitle", sk: "Podnadpis" },
-      localized: true,
-    }),
-    serviceIds: r.relation({
-      label: { en: "Select Services", sk: "Vybrať služby" },
-      targetCollection: "services",
-      required: true,
-      type: "multiple",
-      maxItems: 12,
-    }),
-    columns: r.select({
-      label: { en: "Columns", sk: "Stĺpce" },
-      options: [
-        { value: "2", label: { en: "2 columns", sk: "2 stĺpce" } },
-        { value: "3", label: { en: "3 columns", sk: "3 stĺpce" } },
-        { value: "4", label: { en: "4 columns", sk: "4 stĺpce" } },
-      ],
-      defaultValue: "3",
-    }),
-  }))
-  .renderer(ServicesFeaturedRenderer)
-  .build();
+

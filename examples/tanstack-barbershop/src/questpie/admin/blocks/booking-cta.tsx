@@ -5,10 +5,7 @@
  * Design: Prominent button with optional pre-selected service/barber.
  */
 
-import type {
-  BlockDefinition,
-  BlockRendererProps,
-} from "@questpie/admin/client";
+import type { BlockRendererProps } from "@questpie/admin/client";
 import { buttonVariants } from "../../../components/ui/button";
 import { cn } from "../../../lib/utils";
 
@@ -22,7 +19,7 @@ type BookingCtaValues = {
   size: "default" | "lg";
 };
 
-function BookingCtaRenderer({ values }: BlockRendererProps<BookingCtaValues>) {
+export function BookingCtaRenderer({ values }: BlockRendererProps<BookingCtaValues>) {
   // Build booking URL with query params
   const params = new URLSearchParams();
   if (values.serviceId) params.set("service", values.serviceId);
@@ -32,8 +29,7 @@ function BookingCtaRenderer({ values }: BlockRendererProps<BookingCtaValues>) {
   const buttonClass = cn(
     buttonVariants({
       size: values.size === "lg" ? "lg" : "default",
-      variant: values.variant === "outline" ? "outline" : "default",
-    }),
+      variant: values.variant === "outline" ? "outline" : "default" }),
     "text-base font-semibold",
     values.variant === "highlight" &&
       "bg-highlight text-white hover:bg-highlight/90",
@@ -64,7 +60,3 @@ function BookingCtaRenderer({ values }: BlockRendererProps<BookingCtaValues>) {
   );
 }
 
-export const bookingCtaBlock = {
-  name: "booking-cta",
-  renderer: BookingCtaRenderer,
-} satisfies BlockDefinition;

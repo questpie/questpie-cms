@@ -39,28 +39,24 @@ export const getRevenueStats = q.fn({
 
     // Build where conditions
     const conditions = [
-      gte(appointmentsTable.scheduledAt, new Date(startDate)),
-      lte(appointmentsTable.scheduledAt, new Date(endDate)),
+      gte(appointmentsTable.scheduledAt as any, new Date(startDate)),
+      lte(appointmentsTable.scheduledAt as any, new Date(endDate)),
     ];
 
     if (completedOnly) {
-      conditions.push(eq(appointmentsTable.status, "completed"));
+      conditions.push(eq(appointmentsTable.status as any, "completed"));
     }
 
     // Aggregate revenue by joining with services
     const result = await cms.db
       .select({
-        totalRevenue: sql<number>`COALESCE(SUM(${servicesTable.price}), 0)`.as(
-          "total_revenue",
-        ),
-        appointmentCount: sql<number>`COUNT(*)`.as("appointment_count"),
-        avgRevenue: sql<number>`COALESCE(AVG(${servicesTable.price}), 0)`.as(
-          "avg_revenue",
-        ),
-      })
+        totalRevenue: sql<number>`COALESCE(SUM(${servicesTable.price}), 0)`,
+        appointmentCount: sql<number>`COUNT(*)`,
+        avgRevenue: sql<number>`COALESCE(AVG(${servicesTable.price}), 0)`,
+      } as any)
       .from(appointmentsTable)
-      .innerJoin(servicesTable, eq(appointmentsTable.service, servicesTable.id))
-      .where(and(...conditions));
+      .innerJoin(servicesTable, eq(appointmentsTable.service as any, servicesTable.id) as any)
+      .where(and(...conditions) as any);
 
     return {
       totalRevenue: Number(result[0]?.totalRevenue ?? 0),

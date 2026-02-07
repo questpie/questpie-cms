@@ -46,10 +46,10 @@ function ServicesPage() {
               className="group p-8 border border-border bg-card hover:border-highlight/30 transition-all duration-300 animate-fade-in-up"
               style={{ animationDelay: `${i * 50}ms` }}
             >
-              {service.image?.url && (
+              {(service.image as any)?.url && (
                 <div className="mb-6 aspect-[4/3] overflow-hidden border border-border bg-muted">
                   <img
-                    src={service.image.url}
+                    src={(service.image as any).url}
                     alt={service.name}
                     className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
                   />

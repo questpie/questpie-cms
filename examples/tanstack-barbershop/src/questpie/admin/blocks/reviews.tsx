@@ -8,7 +8,6 @@
 import { Quotes, Star } from "@phosphor-icons/react";
 import type { BlockRendererProps } from "@questpie/admin/client";
 import { cn } from "../../../lib/utils";
-import { builder } from "../builder";
 
 type Review = {
   id: string;
@@ -24,7 +23,7 @@ type ReviewsValues = {
   limit: number;
 };
 
-function ReviewsRenderer({ values, data }: BlockRendererProps<ReviewsValues>) {
+export function ReviewsRenderer({ values, data }: BlockRendererProps<ReviewsValues>) {
   const { reviews = [] } = (data as { reviews: Review[] }) || {};
 
   return (
@@ -99,30 +98,4 @@ function ReviewsRenderer({ values, data }: BlockRendererProps<ReviewsValues>) {
   );
 }
 
-export const reviewsBlock = builder
-  .block("reviews")
-  .label({ en: "Reviews", sk: "Recenzie" })
-  .description({
-    en: "Display customer testimonials",
-    sk: "Zobrazenie recenzií zákazníkov",
-  })
-  .icon("Star")
-  .category("sections")
-  .fields(({ r }) => ({
-    title: r.text({
-      label: { en: "Title", sk: "Titulok" },
-      localized: true,
-    }),
-    subtitle: r.textarea({
-      label: { en: "Subtitle", sk: "Podtitulok" },
-      localized: true,
-    }),
-    limit: r.number({
-      label: { en: "Max Reviews", sk: "Max recenzií" },
-      defaultValue: 6,
-      min: 1,
-      max: 12,
-    }),
-  }))
-  .renderer(ReviewsRenderer)
-  .build();
+

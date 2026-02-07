@@ -8,10 +8,8 @@
 import {
   type BlockRendererProps,
   RichTextRenderer,
-  type TipTapDoc,
-} from "@questpie/admin/client";
+  type TipTapDoc } from "@questpie/admin/client";
 import { cn } from "../../../lib/utils";
-import { builder } from "../builder";
 
 type Barber = {
   id: string;
@@ -29,17 +27,15 @@ type BarbersFeaturedValues = {
   columns: "2" | "3" | "4";
 };
 
-function BarbersFeaturedRenderer({
+export function BarbersFeaturedRenderer({
   values,
-  data,
-}: BlockRendererProps<BarbersFeaturedValues>) {
+  data }: BlockRendererProps<BarbersFeaturedValues>) {
   const { barbers = [] } = (data as { barbers: Barber[] }) || {};
 
   const columnsClass = {
     "2": "md:grid-cols-2",
     "3": "md:grid-cols-2 lg:grid-cols-3",
-    "4": "md:grid-cols-2 lg:grid-cols-4",
-  }[values.columns || "3"];
+    "4": "md:grid-cols-2 lg:grid-cols-4" }[values.columns || "3"];
 
   return (
     <section className="py-20 px-6">
@@ -89,8 +85,7 @@ function BarbersFeaturedRenderer({
                       content={barber.bio}
                       styles={{
                         doc: "",
-                        paragraph: "text-muted-foreground",
-                      }}
+                        paragraph: "text-muted-foreground" }}
                     />
                   </div>
                 )}
@@ -125,42 +120,4 @@ function BarbersFeaturedRenderer({
   );
 }
 
-export const barbersFeaturedBlock = builder
-  .block("barbers-featured")
-  .label({ en: "Barbers (Featured)", sk: "Holiči (vybraní)" })
-  .description({
-    en: "Manually selected barbers",
-    sk: "Ručne vybratí holiči",
-  })
-  .icon("UsersThree")
-  .category("content")
-  .fields(({ r }) => ({
-    title: r.text({
-      label: { en: "Title", sk: "Nadpis" },
-      required: true,
-      localized: true,
-      defaultValue: { en: "Our Team", sk: "Náš tím" },
-    }),
-    subtitle: r.text({
-      label: { en: "Subtitle", sk: "Podnadpis" },
-      localized: true,
-    }),
-    barberIds: r.relation({
-      label: { en: "Select Barbers", sk: "Vybrať holičov" },
-      targetCollection: "barbers",
-      required: true,
-      type: "multiple",
-      maxItems: 10,
-    }),
-    columns: r.select({
-      label: { en: "Columns", sk: "Stĺpce" },
-      options: [
-        { value: "2", label: { en: "2 columns", sk: "2 stĺpce" } },
-        { value: "3", label: { en: "3 columns", sk: "3 stĺpce" } },
-        { value: "4", label: { en: "4 columns", sk: "4 stĺpce" } },
-      ],
-      defaultValue: "3",
-    }),
-  }))
-  .renderer(BarbersFeaturedRenderer)
-  .build();
+

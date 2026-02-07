@@ -5,10 +5,7 @@
  * Design: Simple, scannable layout with day/hours pairs.
  */
 
-import type {
-  BlockDefinition,
-  BlockRendererProps,
-} from "@questpie/admin/client";
+import type { BlockRendererProps } from "@questpie/admin/client";
 import { cn } from "../../../lib/utils";
 
 type HoursValues = {
@@ -28,7 +25,7 @@ type HoursPrefetchedData = {
   };
 };
 
-function HoursRenderer({ values, data }: BlockRendererProps<HoursValues>) {
+export function HoursRenderer({ values, data }: BlockRendererProps<HoursValues>) {
   const hoursData = (data as HoursPrefetchedData) || {};
   const businessHours = hoursData?.businessHours;
 
@@ -87,7 +84,3 @@ function HoursRenderer({ values, data }: BlockRendererProps<HoursValues>) {
   );
 }
 
-export const hoursBlock = {
-  name: "hours",
-  renderer: HoursRenderer,
-} satisfies BlockDefinition;

@@ -6,10 +6,7 @@
  */
 
 import { Envelope, MapPin, Phone } from "@phosphor-icons/react";
-import type {
-  BlockDefinition,
-  BlockRendererProps,
-} from "@questpie/admin/client";
+import type { BlockRendererProps } from "@questpie/admin/client";
 import { cn } from "../../../lib/utils";
 
 type ContactInfoValues = {
@@ -28,10 +25,9 @@ type ContactInfoPrefetchedData = {
   mapEmbedUrl?: string;
 };
 
-function ContactInfoRenderer({
+export function ContactInfoRenderer({
   values,
-  data,
-}: BlockRendererProps<ContactInfoValues>) {
+  data }: BlockRendererProps<ContactInfoValues>) {
   const contactData = (data as ContactInfoPrefetchedData) || {};
   const fullAddress = [
     contactData?.address,
@@ -132,7 +128,3 @@ function ContactInfoRenderer({
   );
 }
 
-export const contactInfoBlock = {
-  name: "contact-info",
-  renderer: ContactInfoRenderer,
-} satisfies BlockDefinition;

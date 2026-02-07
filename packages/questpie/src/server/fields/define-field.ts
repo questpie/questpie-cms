@@ -110,11 +110,14 @@ type InferOutputType<
 /**
  * Infer select type from config.
  * Defaults to output type unless overridden by field definitions.
+ *
+ * Exported so FieldSelect can reuse nullability logic for object/array fields
+ * instead of reimplementing it.
  */
-type InferSelectType<TConfig extends BaseFieldConfig, TValue> = InferOutputType<
-  TConfig,
-  TValue
->;
+export type InferSelectType<
+  TConfig extends BaseFieldConfig,
+  TValue,
+> = InferOutputType<TConfig, TValue>;
 
 /**
  * Infer column type from config.
