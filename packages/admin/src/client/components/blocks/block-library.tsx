@@ -7,9 +7,9 @@
 
 "use client";
 
-import { MagnifyingGlass, X } from "@phosphor-icons/react";
+import { Icon } from "@iconify/react";
 import * as React from "react";
-import type { BlockDefinition } from "../../builder/block/types.js";
+import type { BlockSchema } from "#questpie/admin/server";
 import { cn } from "../../lib/utils.js";
 import { Button } from "../ui/button.js";
 import { Input } from "../ui/input.js";
@@ -20,7 +20,7 @@ import { BlockIcon } from "./block-type-icon.js";
 // Types
 // ============================================================================
 
-type BlockWithName = BlockDefinition & { name: string };
+type BlockWithName = BlockSchema & { name: string };
 
 export type BlockLibraryContentProps = {
 	/** Callback when a block is selected */
@@ -91,7 +91,7 @@ export function BlockLibraryContent({
 							className="h-7 w-7"
 							onClick={onClose}
 						>
-							<X className="h-4 w-4" />
+							<Icon icon="ph:x" className="h-4 w-4" />
 						</Button>
 					)}
 				</div>
@@ -100,7 +100,10 @@ export function BlockLibraryContent({
 			{/* Search */}
 			<div className="p-3">
 				<div className="relative">
-					<MagnifyingGlass className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+					<Icon
+						icon="ph:magnifying-glass"
+						className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+					/>
 					<Input
 						ref={searchInputRef}
 						placeholder="Search blocks..."
@@ -138,7 +141,7 @@ export function BlockLibraryContent({
 												onClick={() => onSelect(block.name)}
 											>
 												<BlockIcon
-													icon={block.icon || "Cube"}
+													icon={block.icon}
 													size={16}
 													className="text-muted-foreground flex-shrink-0"
 												/>
@@ -186,7 +189,7 @@ export function BlockLibrary() {
 // Helpers
 // ============================================================================
 
-function getBlockDisplayLabel(block: BlockDefinition): string {
+function getBlockDisplayLabel(block: BlockSchema): string {
 	if (!block.label) {
 		return block.name;
 	}

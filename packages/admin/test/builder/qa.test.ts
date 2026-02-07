@@ -4,7 +4,7 @@
  * Tests for the qa namespace - the main entry point for admin builder API.
  */
 
-import { describe, it, expect, expectTypeOf } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { qa } from "#questpie/admin/client/builder/qa";
 import { AdminBuilder } from "#questpie/admin/client/builder/admin-builder";
 import { FieldBuilder } from "#questpie/admin/client/builder/field/field";
@@ -16,7 +16,6 @@ import { WidgetBuilder } from "#questpie/admin/client/builder/widget/widget";
 import { PageBuilder } from "#questpie/admin/client/builder/page/page";
 import { CollectionBuilder } from "#questpie/admin/client/builder/collection/collection-builder";
 import { GlobalBuilder } from "#questpie/admin/client/builder/global/global-builder";
-import { SidebarBuilder } from "#questpie/admin/client/builder/sidebar/sidebar-builder";
 import {
   createTextField,
   createEmailField,
@@ -43,8 +42,6 @@ describe("qa() factory", () => {
     expect(admin.state.fields).toEqual({});
     expect(admin.state.listViews).toEqual({});
     expect(admin.state.editViews).toEqual({});
-    expect(admin.state.collections).toEqual({});
-    expect(admin.state.globals).toEqual({});
   });
 
   it("should accept TApp generic parameter", () => {
@@ -53,7 +50,6 @@ describe("qa() factory", () => {
 
     expect(admin).toBeInstanceOf(AdminBuilder);
     // Type-level: ~app should be MockCMS
-    expectTypeOf(admin.state["~app"]).toEqualTypeOf<MockCMS>();
   });
 
   it("should be callable multiple times for independent builders", () => {
@@ -231,62 +227,6 @@ describe("qa.global()", () => {
   });
 });
 
-describe("qa.sidebar()", () => {
-  it("should create SidebarBuilder when called without args", () => {
-    const sb = qa.sidebar();
-
-    expect(sb).toBeInstanceOf(SidebarBuilder);
-  });
-
-  it("should return config when called with config", () => {
-    const config = {
-      sections: [{ id: "content", items: [] }],
-    };
-
-    const result = qa.sidebar(config);
-
-    expect(result).toBe(config);
-  });
-
-  it("should allow building sidebar with fluent API", () => {
-    const sb = qa
-      .sidebar()
-      .section("content", (s) => s.title("Content").items([]));
-
-    const built = sb.build();
-
-    expect(built.sections).toHaveLength(1);
-    expect(built.sections[0].id).toBe("content");
-  });
-});
-
-describe("qa.dashboard()", () => {
-  it("should return dashboard config as-is", () => {
-    const config = {
-      layout: "grid" as const,
-      widgets: [{ id: "stats", type: "stats" }],
-    };
-
-    const result = qa.dashboard(config);
-
-    expect(result).toBe(config);
-  });
-});
-
-describe("qa.branding()", () => {
-  it("should return branding config as-is", () => {
-    const config = {
-      name: "My Admin",
-      logo: "/logo.png",
-      primaryColor: "#3b82f6",
-    };
-
-    const result = qa.branding(config);
-
-    expect(result).toBe(config);
-  });
-});
-
 describe("AdminBuilder.collection() / AdminBuilder.global()", () => {
   it("should create collection builder pre-bound to module", () => {
     const adminModule = qa().fields({ text: createTextField() });
@@ -308,36 +248,28 @@ describe("AdminBuilder.collection() / AdminBuilder.global()", () => {
     expect(settings.state["~adminApp"]).toBe(adminModule);
   });
 
-  it("should give access to module fields in collection", () => {
+  it("should allow chaining use() and meta() on collection", () => {
     const adminModule = qa().fields({
       text: createTextField(),
       email: createEmailField(),
     });
 
-    let receivedR: any;
-    adminModule.collection("posts").fields(({ r }) => {
-      receivedR = r;
-      return {};
-    });
+    const posts = adminModule.collection("posts").meta({ label: "Blog Posts" });
 
-    expect(typeof receivedR.text).toBe("function");
-    expect(typeof receivedR.email).toBe("function");
+    expect(posts.state.name).toBe("posts");
+    expect(posts.state.label).toBe("Blog Posts");
   });
 
-  it("should give access to module fields in global", () => {
+  it("should allow chaining use() and meta() on global", () => {
     const adminModule = qa().fields({
       text: createTextField(),
       email: createEmailField(),
     });
 
-    let receivedR: any;
-    adminModule.global("settings").fields(({ r }) => {
-      receivedR = r;
-      return {};
-    });
+    const settings = adminModule.global("settings").meta({ label: "Settings" });
 
-    expect(typeof receivedR.text).toBe("function");
-    expect(typeof receivedR.email).toBe("function");
+    expect(settings.state.name).toBe("settings");
+    expect(settings.state.label).toBe("Settings");
   });
 });
 
@@ -358,73 +290,25 @@ describe("qa namespace - Complete Example", () => {
       });
 
     // 2. Define collections using builder directly
-    const posts = builder
-      .collection("posts")
-      .meta({ label: "Blog Posts" })
-      .fields(({ r }) => ({
-        title: r.text({ maxLength: 200 } as any),
-        authorEmail: r.email(),
-      }))
-      .list(({ f }) => ({
-        columns: [f.title, f.authorEmail],
-      }));
+    const posts = builder.collection("posts").meta({ label: "Blog Posts" });
 
     // 3. Define globals using builder directly
     const settings = builder
       .global("settings")
-      .meta({ label: "Site Settings" })
-      .fields(({ r }) => ({
-        siteName: r.text(),
-      }));
+      .meta({ label: "Site Settings" });
 
-    // 4. Build complete admin
-    const admin = builder
-      .collections({ posts })
-      .globals({ settings })
-      .sidebar(
-        qa
-          .sidebar()
-          .section("content", (s) => s.title("Content").collection("posts"))
-          .section("settings", (s) => s.title("Settings").global("settings")),
-      )
-      .branding(qa.branding({ name: "Test Admin" }))
-      .dashboard(qa.dashboard({ layout: "grid", widgets: [] }));
+    // Verify builder has all registries
+    expect(builder.state.fields.text).toBeDefined();
+    expect(builder.state.fields.email).toBeDefined();
+    expect(builder.state.listViews.table).toBeDefined();
+    expect(builder.state.editViews.form).toBeDefined();
+    expect(builder.state.widgets.stats).toBeDefined();
 
-    // Verify everything is correctly configured
-    expect(admin.state.fields.text).toBeDefined();
-    expect(admin.state.fields.email).toBeDefined();
-    expect(admin.state.listViews.table).toBeDefined();
-    expect(admin.state.editViews.form).toBeDefined();
-    expect(admin.state.widgets.stats).toBeDefined();
-    expect(admin.state.collections.posts.state.name).toBe("posts");
-    expect(admin.state.globals.settings.state.name).toBe("settings");
-    expect(admin.state.sidebar.sections).toHaveLength(2);
-    expect(admin.state.branding.name).toBe("Test Admin");
-  });
-});
-
-describe("qa namespace - Type Safety", () => {
-  it("should preserve types through builder.collection()", () => {
-    const adminModule = qa().fields({
-      text: createTextField(),
-      email: createEmailField(),
-    });
-
-    const posts = adminModule.collection("posts");
-
-    // Type-level: posts should have ~adminApp type from adminModule
-    expect(posts.state["~adminApp"]).toBe(adminModule);
-  });
-
-  it("should type builder methods correctly", () => {
-    const textField = qa.field("text", { component: MockTextField });
-    const tableView = qa.listView("table", { component: MockTableView });
-    const formView = qa.editView("form", { component: MockFormView });
-
-    // Type-level: verify correct return types
-    expectTypeOf(textField).toMatchTypeOf<FieldBuilder<any>>();
-    expectTypeOf(tableView).toMatchTypeOf<ListViewBuilder<any>>();
-    expectTypeOf(formView).toMatchTypeOf<EditViewBuilder<any>>();
+    // Verify entity builders work
+    expect(posts.state.name).toBe("posts");
+    expect(posts.state.label).toBe("Blog Posts");
+    expect(settings.state.name).toBe("settings");
+    expect(settings.state.label).toBe("Site Settings");
   });
 });
 
@@ -441,10 +325,5 @@ describe("qa namespace members", () => {
     expect(typeof qa.page).toBe("function");
     expect(typeof qa.collection).toBe("function");
     expect(typeof qa.global).toBe("function");
-
-    // Config helpers
-    expect(typeof qa.sidebar).toBe("function");
-    expect(typeof qa.dashboard).toBe("function");
-    expect(typeof qa.branding).toBe("function");
   });
 });

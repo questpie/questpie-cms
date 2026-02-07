@@ -45,6 +45,7 @@ export interface DefaultViewsConfig {
     showSearch?: boolean;
     showFilters?: boolean;
     showToolbar?: boolean;
+    realtime?: boolean;
     emptyState?: React.ComponentType;
   };
 

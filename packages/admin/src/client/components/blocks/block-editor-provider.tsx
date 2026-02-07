@@ -7,8 +7,8 @@
 "use client";
 
 import * as React from "react";
+import type { BlockSchema } from "#questpie/admin/server";
 import type { BlockContent, BlockNode } from "../../blocks/types.js";
-import type { BlockDefinition } from "../../builder/block/types.js";
 import {
 	type BlockEditorActions,
 	BlockEditorContextProvider,
@@ -34,8 +34,8 @@ export type BlockEditorProviderProps = {
 	value: BlockContent;
 	/** Change handler */
 	onChange: (content: BlockContent) => void;
-	/** Registered blocks */
-	blocks: Record<string, BlockDefinition>;
+	/** Registered blocks (from server introspection) */
+	blocks: Record<string, BlockSchema>;
 	/** Allowed block types (optional filter) */
 	allowedBlocks?: string[];
 	/** Current locale */
@@ -121,7 +121,12 @@ export function BlockEditorProvider({
 					children: [],
 				};
 
-				const newValues = getDefaultValues(blockDef.fields);
+				const newValues = getDefaultValues(
+					blockDef.fields as Record<
+						string,
+						{ "~options"?: { defaultValue?: unknown } }
+					>,
+				);
 
 				onChange({
 					_tree: insertBlockInTree(value._tree, newBlock, position),

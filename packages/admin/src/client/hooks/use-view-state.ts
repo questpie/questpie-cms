@@ -13,6 +13,7 @@ const EMPTY_CONFIG: ViewConfiguration = {
   filters: [],
   sortConfig: null,
   visibleColumns: [],
+  realtime: undefined,
 };
 
 /**
@@ -103,6 +104,7 @@ export function useViewState(
       visibleColumns: initialConfig?.visibleColumns?.length
         ? initialConfig.visibleColumns
         : defaultColumns,
+      realtime: initialConfig?.realtime,
     };
   });
 
@@ -122,6 +124,10 @@ export function useViewState(
           storedConfig.visibleColumns,
           defaultColumns,
         ),
+        realtime:
+          storedConfig.realtime !== undefined
+            ? storedConfig.realtime
+            : initialConfig?.realtime,
       });
     } else if (!isLoadingPreference && !storedConfig && !hasInitialized) {
       // No stored config - use defaults
@@ -133,6 +139,7 @@ export function useViewState(
     preferenceKey,
     hasInitialized,
     defaultColumns,
+    initialConfig?.realtime,
   ]);
 
   // Debounced save to DB
@@ -299,10 +306,11 @@ export function useViewState(
     return (
       config.filters.length > 0 ||
       config.sortConfig !== null ||
+      config.realtime !== initialConfig?.realtime ||
       JSON.stringify([...config.visibleColumns].sort()) !==
         JSON.stringify([...defaultColumns].sort())
     );
-  }, [config, defaultColumns]);
+  }, [config, defaultColumns, initialConfig?.realtime]);
 
   return {
     config,

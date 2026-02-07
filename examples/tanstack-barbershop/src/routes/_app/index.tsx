@@ -12,7 +12,7 @@ import {
 } from "@questpie/admin/client";
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { getPage } from "@/lib/getPages.function";
-import blocks from "@/questpie/admin/blocks";
+import renderers from "@/questpie/admin/blocks";
 
 export const Route = createFileRoute("/_app/")({
 	loader: async () => {
@@ -24,7 +24,7 @@ export const Route = createFileRoute("/_app/")({
 
 function HomepageComponent() {
 	type HomeLoaderData = Awaited<ReturnType<typeof getPage>>;
-	const { page, blockData } = Route.useLoaderData() as HomeLoaderData;
+	const { page } = Route.useLoaderData() as HomeLoaderData;
 	const router = useRouter();
 
 	const {
@@ -52,8 +52,8 @@ function HomepageComponent() {
 				{data.content && (
 					<BlockRenderer
 						content={data.content as BlockContent}
-						blocks={blocks}
-						data={blockData}
+						renderers={renderers}
+						data={data.content._data}
 						selectedBlockId={selectedBlockId}
 						onBlockClick={isPreviewMode ? handleBlockClick : undefined}
 					/>

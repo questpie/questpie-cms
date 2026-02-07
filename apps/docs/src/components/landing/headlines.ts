@@ -1,15 +1,15 @@
 export type Headline = {
-	top: string;
-	highlight: string;
+  top: string;
+  highlight: string;
 };
 
 export const headlines: Headline[] = [
-	{
-		top: "The CMS You'd Build",
-		highlight: "If You Had Time",
-	},
+  {
+    top: "Stop Building Admin Panels.",
+    highlight: "Start Shipping Products.",
+  },
 ];
 
 export function getRandomHeadlineIndex(): number {
-	return 0;
+  return 0;
 }

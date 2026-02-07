@@ -1,8 +1,8 @@
-import { collection, job, questpie } from "../../src/server/index.js";
-import { isNullish } from "../../src/shared/utils/index.js";
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
-import { text, varchar } from "drizzle-orm/pg-core";
 import { z } from "zod";
+import { defaultFields } from "../../src/server/fields/builtin/defaults.js";
+import { job, questpie } from "../../src/server/index.js";
+import { isNullish } from "../../src/shared/utils/index.js";
 import { buildMockApp } from "../utils/mocks/mock-app-builder";
 import { createTestContext } from "../utils/test-context";
 import { runTestDbMigrations } from "../utils/test-db";
@@ -33,16 +33,19 @@ const articleEnrichedJob = job({
   handler: async () => {},
 });
 
+const q = questpie({ name: "test-module" }).fields(defaultFields);
+
 // Module definitions at top level for stable types
 const createBeforeAfterModule = (hookCallOrder: string[]) =>
-  questpie({ name: "test-module" })
+  q
     .collections({
-      articles: collection("articles")
-        .fields({
-          title: text("title").notNull(),
-          slug: varchar("slug", { length: 255 }),
-          status: varchar("status", { length: 50 }),
-        })
+      articles: q
+        .collection("articles")
+        .fields((f) => ({
+          title: f.textarea({ required: true }),
+          slug: f.text({ maxLength: 255 }),
+          status: f.text({ maxLength: 50 }),
+        }))
         .hooks({
           beforeChange: async ({ data, operation }) => {
             hookCallOrder.push(`before-${operation}`);
@@ -70,13 +73,14 @@ const createBeforeAfterModule = (hookCallOrder: string[]) =>
 
 const testModuleBeforeAfter = createBeforeAfterModule([]);
 
-const testModuleUpdate = questpie({ name: "test-module" }).collections({
-  articles: collection("articles")
-    .fields({
-      title: text("title").notNull(),
-      status: varchar("status", { length: 50 }),
-      viewCount: varchar("view_count"),
-    })
+const testModuleUpdate = q.collections({
+  articles: q
+    .collection("articles")
+    .fields((f) => ({
+      title: f.textarea({ required: true }),
+      status: f.text({ maxLength: 50 }),
+      viewCount: f.text(),
+    }))
     .hooks({
       beforeChange: async ({ data, operation, app }) => {
         // Use app from context
@@ -105,12 +109,13 @@ const testModuleUpdate = questpie({ name: "test-module" }).collections({
     .build(),
 });
 
-const testModuleDelete = questpie({ name: "test-module" })
+const testModuleDelete = q
   .collections({
-    articles: collection("articles")
-      .fields({
-        title: text("title").notNull(),
-      })
+    articles: q
+      .collection("articles")
+      .fields((f) => ({
+        title: f.textarea({ required: true }),
+      }))
       .hooks({
         beforeDelete: async ({ data, app }) => {
           // Use app from context
@@ -131,12 +136,13 @@ const testModuleDelete = questpie({ name: "test-module" })
     articleCleanup: articleCleanupJob,
   });
 
-const testModuleError = questpie({ name: "test-module" }).collections({
-  articles: collection("articles")
-    .fields({
-      title: text("title").notNull(),
-      status: varchar("status", { length: 50 }),
-    })
+const testModuleError = q.collections({
+  articles: q
+    .collection("articles")
+    .fields((f) => ({
+      title: f.textarea({ required: true }),
+      status: f.text({ maxLength: 50 }),
+    }))
     .hooks({
       beforeChange: async ({ data }) => {
         if (data.title === "forbidden") {
@@ -148,12 +154,13 @@ const testModuleError = questpie({ name: "test-module" }).collections({
 });
 
 const createEnrichmentModule = (enrichmentData: Map<string, any>) =>
-  questpie({ name: "test-module" })
+  q
     .collections({
-      articles: collection("articles")
-        .fields({
-          title: text("title").notNull(),
-        })
+      articles: q
+        .collection("articles")
+        .fields((f) => ({
+          title: f.textarea({ required: true }),
+        }))
         .hooks({
           beforeChange: async ({ data }) => {
             if (isNullish(data.id)) return;

@@ -4,7 +4,6 @@
  * These provide autocomplete and type safety in builder callbacks.
  */
 
-import type { BlockDefinition } from "./block/types";
 import type { FieldDefinition } from "./field/field";
 import type { EditViewDefinition, ListViewDefinition } from "./view/view";
 
@@ -25,29 +24,26 @@ export type FieldProxy<TFields extends Record<string, any>> = {
  * Creates a field proxy at runtime
  */
 export function createFieldProxy<TFields extends Record<string, any>>(
-	fields: TFields,
+	fields?: TFields,
 ): FieldProxy<TFields> {
+	if (!fields || Object.keys(fields).length === 0) {
+		return new Proxy(
+			{},
+			{
+				get: (_target, prop) => {
+					if (typeof prop !== "string") return undefined;
+					return prop;
+				},
+			},
+		) as FieldProxy<TFields>;
+	}
+
 	const proxy = {} as any;
 	for (const key in fields) {
 		proxy[key] = key;
 	}
 	return proxy;
 }
-
-/**
- * Helper type to inject block names into BlocksFieldConfig.
- *
- * When a field config has `allowedBlocks`, this replaces string[] with
- * the actual block names from the registry for type-safe autocomplete.
- */
-type InjectBlocksConfig<
-	TConfig,
-	TBlocks extends Record<string, BlockDefinition>,
-> = TConfig extends { allowedBlocks?: string[] }
-	? Omit<TConfig, "allowedBlocks"> & {
-			allowedBlocks?: (keyof TBlocks & string)[];
-		}
-	: TConfig;
 
 /**
  * Helper type to inject field registry into nested callbacks.
@@ -59,34 +55,21 @@ type InjectBlocksConfig<
 type InjectFieldRegistry<
 	TConfig,
 	TFields extends Record<string, FieldDefinition<any, any>>,
-	TBlocks extends Record<string, BlockDefinition> = Record<
-		string,
-		BlockDefinition
-	>,
 > = TConfig extends {
 	fields?: (ctx: { r: any }) => any;
 }
 	? Omit<TConfig, "fields"> & {
 			fields?: (ctx: {
-				r: FieldRegistryProxy<TFields, TBlocks>;
+				r: FieldRegistryProxy<TFields>;
 			}) => ReturnType<NonNullable<TConfig["fields"]>>;
 		}
 	: TConfig extends { item?: (ctx: { r: any }) => any }
 		? Omit<TConfig, "item"> & {
 				item?: (ctx: {
-					r: FieldRegistryProxy<TFields, TBlocks>;
+					r: FieldRegistryProxy<TFields>;
 				}) => ReturnType<NonNullable<TConfig["item"]>>;
 			}
 		: TConfig;
-
-/**
- * Apply all config injections (blocks, nested fields)
- */
-type InjectAllConfig<
-	TConfig,
-	TFields extends Record<string, FieldDefinition<any, any>>,
-	TBlocks extends Record<string, BlockDefinition>,
-> = InjectBlocksConfig<InjectFieldRegistry<TConfig, TFields, TBlocks>, TBlocks>;
 
 /**
  * Field Registry Proxy - Type-safe field builder methods
@@ -96,29 +79,21 @@ type InjectAllConfig<
  * For fields with nested callbacks (object, array), the registry type
  * is automatically injected so nested `r` has full autocomplete.
  *
- * For blocks fields, the `allowedBlocks` option is typed to only accept
- * block names from the registered blocks.
+ * Note: Blocks are now server-only, so `allowedBlocks` is just string[]
+ * without client-side type checking. Server validates block names.
  *
  * @typeParam TFields - Field definitions from admin registry
- * @typeParam TBlocks - Block definitions from admin registry
  */
 export type FieldRegistryProxy<
 	TFields extends Record<string, FieldDefinition<any, any>>,
-	TBlocks extends Record<string, BlockDefinition> = Record<
-		string,
-		BlockDefinition
-	>,
 > = {
 	[K in keyof TFields]: TFields[K] extends FieldDefinition<
 		infer TName,
 		infer TFieldOptions
 	>
 		? (
-				options?: InjectAllConfig<TFieldOptions, TFields, TBlocks>,
-			) => FieldDefinition<
-				TName,
-				InjectAllConfig<TFieldOptions, TFields, TBlocks>
-			>
+				options?: InjectFieldRegistry<TFieldOptions, TFields>,
+			) => FieldDefinition<TName, InjectFieldRegistry<TFieldOptions, TFields>>
 		: never;
 };
 

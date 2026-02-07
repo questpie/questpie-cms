@@ -1,11 +1,13 @@
-import { beforeEach, afterEach, describe, expect, it } from "bun:test";
-import { text } from "drizzle-orm/pg-core";
+import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { z } from "zod";
-import { collection, fn, global, questpie } from "../../src/server/index.js";
-import { buildMockApp } from "../utils/mocks/mock-app-builder";
 import { createFetchHandler } from "../../src/server/adapters/http.js";
+import { defaultFields } from "../../src/server/fields/builtin/defaults.js";
+import { fn, questpie, rpc } from "../../src/server/index.js";
+import { buildMockApp } from "../utils/mocks/mock-app-builder";
 
 const createModule = () => {
+  const q = questpie({ name: "rpc-test" }).fields(defaultFields);
+
   const ping = fn({
     schema: z.object({ message: z.string() }),
     outputSchema: z.object({
@@ -29,10 +31,11 @@ const createModule = () => {
     },
   });
 
-  const posts = collection("posts")
-    .fields({
-      title: text("title").notNull(),
-    })
+  const posts = q
+    .collection("posts")
+    .fields((f) => ({
+      title: f.textarea({ required: true }),
+    }))
     .functions({
       publish: fn({
         schema: z.object({ id: z.string() }),
@@ -40,10 +43,11 @@ const createModule = () => {
       }),
     });
 
-  const settings = global("settings")
-    .fields({
-      title: text("title").notNull(),
-    })
+  const settings = q
+    .global("settings")
+    .fields((f) => ({
+      title: f.textarea({ required: true }),
+    }))
     .functions({
       refresh: fn({
         schema: z.object({ ok: z.boolean() }),
@@ -51,37 +55,30 @@ const createModule = () => {
       }),
     });
 
-  return questpie({ name: "rpc-test" })
-    .functions({ ping, webhook })
-    .collections({ posts })
-    .globals({ settings });
+  const builder = q.collections({ posts }).globals({ settings });
+  const appRpc = rpc().router({ ping, webhook });
+
+  return { builder, appRpc };
 };
 
 describe("rpc functions", () => {
   let setup: Awaited<
-    ReturnType<typeof buildMockApp<ReturnType<typeof createModule>>>
+    ReturnType<typeof buildMockApp<ReturnType<typeof createModule>["builder"]>>
   >;
+  let appRpc: ReturnType<typeof createModule>["appRpc"];
 
   beforeEach(async () => {
     const module = createModule();
-    setup = await buildMockApp(module);
+    appRpc = module.appRpc;
+    setup = await buildMockApp(module.builder);
   });
 
   afterEach(async () => {
     await setup.cleanup();
   });
 
-  it("executes root functions via cms.api with context", async () => {
-    const ctx = await setup.cms.createContext({
-      accessMode: "system",
-    });
-
-    const result = await setup.cms.api.ping({ message: "hi" }, ctx);
-    expect(result).toEqual({ message: "hi", hasSession: false });
-  });
-
-  it("executes collection/global functions via adapter routes", async () => {
-    const handler = createFetchHandler(setup.cms, {});
+  it("executes root, collection, and global RPC via adapter routes", async () => {
+    const handler = createFetchHandler(setup.cms, { rpc: appRpc });
 
     const rootResponse = await handler(
       new Request("http://localhost/cms/rpc/ping", {
@@ -110,7 +107,7 @@ describe("rpc functions", () => {
   });
 
   it("handles raw functions without JSON parsing", async () => {
-    const handler = createFetchHandler(setup.cms);
+    const handler = createFetchHandler(setup.cms, { rpc: appRpc });
     const response = await handler(
       new Request("http://localhost/cms/rpc/webhook", {
         method: "POST",
@@ -122,7 +119,7 @@ describe("rpc functions", () => {
   });
 
   it("returns 400 on invalid JSON input", async () => {
-    const handler = createFetchHandler(setup.cms);
+    const handler = createFetchHandler(setup.cms, { rpc: appRpc });
     const response = await handler(
       new Request("http://localhost/cms/rpc/ping", {
         method: "POST",

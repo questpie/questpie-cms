@@ -27,8 +27,13 @@ export function dedupeBy<T, K>(array: T[], getKey: (item: T) => K): T[] {
 /**
  * Check if a value is a plain object (not an array, Date, RegExp, etc.)
  */
-function isPlainObject(value: unknown): value is Record<string, unknown> {
+export function isPlainObject(
+  value: unknown,
+): value is Record<string, unknown> {
   if (typeof value !== "object" || value === null) {
+    return false;
+  }
+  if (Array.isArray(value)) {
     return false;
   }
 

@@ -6,11 +6,11 @@
  */
 
 import type { RelationConfig } from "#questpie/server/collection/builder/types.js";
+import type { resolveFieldKey as ResolveFieldKeyFn } from "#questpie/server/collection/crud/shared/field-resolver.js";
 import type {
   CRUD,
   CRUDContext,
 } from "#questpie/server/collection/crud/types.js";
-import type { resolveFieldKey as ResolveFieldKeyFn } from "#questpie/server/collection/crud/shared/field-resolver.js";
 import type { Questpie } from "#questpie/server/config/cms.js";
 
 /**
@@ -42,8 +42,26 @@ export async function handleCascadeDelete(
 ): Promise<void> {
   const { record, relations, cms, context, resolveFieldKey } = options;
 
+  // Phase 1: Check for RESTRICT violations before any mutations
+  for (const [relationName, relation] of Object.entries(relations)) {
+    if (relation.onDelete === "restrict") {
+      // Check if related records exist for hasMany relations
+      if (relation.type === "many" && !relation.fields) {
+        await checkRestrictViolation(
+          record,
+          relation,
+          relationName,
+          cms,
+          context,
+          resolveFieldKey,
+        );
+      }
+    }
+  }
+
+  // Phase 2: Handle cascade/set null operations
   for (const [_relationName, relation] of Object.entries(relations)) {
-    // Skip if no action
+    // Skip if no action or restrict (already checked above)
     if (
       !relation.onDelete ||
       relation.onDelete === "no action" ||
@@ -70,6 +88,51 @@ export async function handleCascadeDelete(
     ) {
       await cascadeDeleteManyToMany(record, relation, cms, context);
     }
+  }
+}
+
+/**
+ * Check for RESTRICT violation - throws error if related records exist
+ */
+async function checkRestrictViolation(
+  record: Record<string, any>,
+  relation: RelationConfig,
+  relationName: string,
+  cms: Questpie<any>,
+  context: CRUDContext,
+  resolveFieldKey: typeof ResolveFieldKeyFn,
+): Promise<void> {
+  const reverseRelationName = relation.relationName;
+  if (!reverseRelationName) return;
+
+  const relatedCrud = cms.api.collections[relation.collection];
+  if (!relatedCrud) return;
+
+  const reverseRelation =
+    relatedCrud["~internalState"].relations?.[reverseRelationName];
+  if (!reverseRelation?.fields || reverseRelation.fields.length === 0) return;
+
+  const foreignKeyField =
+    resolveFieldKey(
+      relatedCrud["~internalState"],
+      reverseRelation.fields[0],
+      relatedCrud["~internalRelatedTable"],
+    ) ?? reverseRelation.fields[0].name;
+  const primaryKeyField = reverseRelation.references?.[0] || "id";
+
+  // Check if any related records exist
+  const { totalDocs } = await relatedCrud.find(
+    {
+      where: { [foreignKeyField]: { eq: record[primaryKeyField] } },
+      limit: 1,
+    },
+    context,
+  );
+
+  if (totalDocs > 0) {
+    throw new Error(
+      `Cannot delete: related records exist in "${relation.collection}" (relation: ${relationName}, onDelete: restrict)`,
+    );
   }
 }
 

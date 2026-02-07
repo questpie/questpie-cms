@@ -2,7 +2,7 @@
  * Chips Display - compact badge/tag style
  */
 
-import { Pencil, X } from "@phosphor-icons/react";
+import { Icon } from "@iconify/react";
 import * as React from "react";
 import { CollectionEditLink } from "../../../admin-link";
 import { Badge } from "../../../ui/badge";
@@ -42,7 +42,7 @@ export function ChipsDisplay({
                   onClick={() => actions.onEdit?.(item)}
                   aria-label="Edit item"
                 >
-                  <Pencil className="size-3" />
+                  <Icon icon="ph:pencil" className="size-3" />
                 </Button>
               )}
               {actions?.onRemove && (
@@ -54,7 +54,7 @@ export function ChipsDisplay({
                   onClick={() => actions.onRemove?.(item)}
                   aria-label="Remove item"
                 >
-                  <X className="size-3" />
+                  <Icon icon="ph:x" className="size-3" />
                 </Button>
               )}
             </div>
@@ -78,7 +78,7 @@ export function ChipsDisplay({
                   <CollectionIcon className="size-3 text-muted-foreground" />
                 )}
                 {displayText}
-                <Pencil className="size-3" />
+                <Icon icon="ph:pencil" className="size-3" />
               </Badge>
             </button>
           );

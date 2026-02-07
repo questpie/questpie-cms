@@ -1,26 +1,23 @@
-import { questpie, collection } from "../../src/exports/index.js";
-import { describe, beforeEach, afterEach, it, expect } from "bun:test";
+import { afterEach, beforeEach, describe, expect, it } from "bun:test";
+import { questpie } from "../../src/exports/index.js";
+import { defaultFields } from "../../src/server/fields/builtin/defaults.js";
 import { buildMockApp } from "../utils/mocks/mock-app-builder";
 import { createTestContext } from "../utils/test-context";
 import { runTestDbMigrations } from "../utils/test-db";
-import {
-  boolean,
-  integer,
-  text,
-  timestamp,
-  varchar,
-} from "drizzle-orm/pg-core";
 
-const testModule = questpie({ name: "test-module" }).collections({
-  posts: collection("posts")
-    .fields({
-      title: text("title").notNull(),
-      slug: varchar("slug", { length: 255 }).notNull(),
-      status: varchar("status", { length: 50 }),
-      viewCount: integer("view_count"),
-      isFeatured: boolean("is_featured"),
-      publishedAt: timestamp("published_at"),
-    })
+const q = questpie({ name: "test-module" }).fields(defaultFields);
+
+const testModule = q.collections({
+  posts: q
+    .collection("posts")
+    .fields((f) => ({
+      title: f.textarea({ required: true }),
+      slug: f.text({ required: true, maxLength: 255 }),
+      status: f.text({ maxLength: 50 }),
+      viewCount: f.number(),
+      isFeatured: f.boolean(),
+      publishedAt: f.datetime(),
+    }))
     .options({
       timestamps: true,
       softDelete: true,
@@ -192,7 +189,7 @@ describe("collection query operations", () => {
       const ctx = createTestContext();
 
       const result = await setup.cms.api.collections.posts.find(
-        { where: { publishedAt: null } },
+        { where: { publishedAt: { isNull: true } } },
         ctx,
       );
       expect(result.docs.length).toBe(1);

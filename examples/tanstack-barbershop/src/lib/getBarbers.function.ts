@@ -22,16 +22,15 @@ export const getBarber = createServerFn({ method: "GET" })
 			locale,
 			with: {
 				avatar: true,
-				services: true,
+				services: {
+					where: { isActive: true },
+				},
 			},
 		});
 
 		if (!barber) {
 			throw notFound();
 		}
-
-		const services = Array.isArray(barber.services) ? barber.services : [];
-		const activeServices = services.filter((service) => service.isActive);
 
 		return {
 			barber: {
@@ -40,16 +39,10 @@ export const getBarber = createServerFn({ method: "GET" })
 				email: barber.email,
 				phone: barber.phone,
 				bio: barber.bio,
-				avatar: (barber.avatar as any)?.url || null,
+				avatar: barber.avatar?.url ?? null,
 				isActive: barber.isActive,
 				specialties: barber.specialties,
-				services: activeServices.map((s) => ({
-					id: s.id,
-					name: s.name,
-					description: s.description,
-					price: s.price,
-					duration: s.duration,
-				})),
+				services: barber.services,
 				socialLinks: barber.socialLinks,
 				workingHours: barber.workingHours,
 			},
@@ -65,7 +58,9 @@ export const getAllBarbers = createServerFn({ method: "GET" })
 		const result = await client.collections.barbers.find({
 			where: { isActive: true },
 			locale,
-			with: { avatar: true },
+			with: {
+				avatar: true,
+			},
 		});
 
 		return {
@@ -74,7 +69,7 @@ export const getAllBarbers = createServerFn({ method: "GET" })
 				name: b.name,
 				slug: b.slug,
 				bio: b.bio,
-				avatar: (b.avatar as any)?.url || null,
+				avatar: b.avatar?.url ?? null,
 				specialties: b.specialties,
 			})),
 		};

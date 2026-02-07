@@ -6,7 +6,7 @@
 
 "use client";
 
-import { X } from "@phosphor-icons/react";
+import { Icon } from "@iconify/react";
 import * as React from "react";
 import type { BlockNode } from "../../blocks/types.js";
 import type { FieldDefinition } from "../../builder/field/field.js";
@@ -59,7 +59,7 @@ export function BlockForm() {
 					onClick={handleClose}
 					title="Close"
 				>
-					<X className="h-4 w-4" />
+					<Icon icon="ph:x" className="h-4 w-4" />
 				</Button>
 			</div>
 
@@ -78,7 +78,7 @@ export function BlockForm() {
 					// which would cause values to leak between blocks with same field names
 					<BlockFormFields
 						key={state.selectedBlockId}
-						fields={blockDef.fields}
+						fields={blockDef.fields as Record<string, FieldDefinition>}
 						blockId={state.selectedBlockId!}
 					/>
 				) : (
@@ -218,7 +218,7 @@ function stripUiOptions(options: Record<string, any>) {
 // Helpers
 // ============================================================================
 
-import type { BlockDefinition } from "../../builder/block/types.js";
+import type { BlockSchema } from "#questpie/admin/server";
 import type { I18nText } from "../../i18n/types.js";
 
 function getDescriptionText(description: I18nText | undefined): string {
@@ -240,10 +240,7 @@ function getDescriptionText(description: I18nText | undefined): string {
 	return localeMap.en || Object.values(localeMap)[0] || "";
 }
 
-function getBlockDisplayLabel(
-	blockDef: BlockDefinition,
-	block: BlockNode,
-): string {
+function getBlockDisplayLabel(blockDef: BlockSchema, block: BlockNode): string {
 	if (!blockDef.label) {
 		return block.type.charAt(0).toUpperCase() + block.type.slice(1);
 	}

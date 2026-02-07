@@ -1,7 +1,7 @@
 "use client";
 
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
-import { XIcon } from "@phosphor-icons/react";
+import { Icon } from "@iconify/react";
 import type * as React from "react";
 import { cn } from "../../lib/utils";
 import { Button } from "./button";
@@ -69,7 +69,7 @@ function DialogContent({
               />
             }
           >
-            <XIcon />
+            <Icon icon="ph:x" />
             <span className="sr-only">Close</span>
           </DialogPrimitive.Close>
         )}

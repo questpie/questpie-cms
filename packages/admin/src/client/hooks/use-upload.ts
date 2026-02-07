@@ -18,8 +18,8 @@
  * ```
  */
 
-import { useCallback, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { useCallback, useState } from "react";
 import { selectClient, useAdminStore } from "../runtime";
 
 /**
@@ -67,7 +67,7 @@ export interface UploadOptions {
    * Target collection for upload (must have .upload() enabled)
    * @default "assets"
    */
-  collection?: string;
+  to?: string;
 
   /**
    * Progress callback (0-100)
@@ -149,7 +149,7 @@ export function useUpload(): UseUploadReturn {
    */
   const upload = useCallback(
     async (file: File, options: UploadOptions = {}): Promise<Asset> => {
-      const { collection = "assets", onProgress, signal } = options;
+      const { to = "assets", onProgress, signal } = options;
 
       setIsUploading(true);
       setProgress(0);
@@ -157,11 +157,11 @@ export function useUpload(): UseUploadReturn {
 
       try {
         // Get the collection API from client
-        const collectionApi = (client.collections as any)[collection];
+        const collectionApi = (client.collections as any)[to];
 
         if (!collectionApi?.upload) {
           throw new Error(
-            `Collection "${collection}" does not support uploads. Make sure .upload() is enabled on the collection.`,
+            `Collection "${to}" does not support uploads. Make sure .upload() is enabled on the collection.`,
           );
         }
 
@@ -175,7 +175,7 @@ export function useUpload(): UseUploadReturn {
 
         // Invalidate collection queries to refresh lists
         queryClient.invalidateQueries({
-          queryKey: ["questpie", "collections", collection],
+          queryKey: ["questpie", "collections", to],
         });
 
         return result as Asset;
@@ -199,7 +199,7 @@ export function useUpload(): UseUploadReturn {
       files: File[],
       options: UploadManyOptions = {},
     ): Promise<Asset[]> => {
-      const { collection = "assets", onProgress, signal } = options;
+      const { to = "assets", onProgress, signal } = options;
 
       if (files.length === 0) {
         return [];
@@ -211,11 +211,11 @@ export function useUpload(): UseUploadReturn {
 
       try {
         // Get the collection API from client
-        const collectionApi = (client.collections as any)[collection];
+        const collectionApi = (client.collections as any)[to];
 
         if (!collectionApi?.uploadMany) {
           throw new Error(
-            `Collection "${collection}" does not support uploads. Make sure .upload() is enabled on the collection.`,
+            `Collection "${to}" does not support uploads. Make sure .upload() is enabled on the collection.`,
           );
         }
 
@@ -229,7 +229,7 @@ export function useUpload(): UseUploadReturn {
 
         // Invalidate collection queries
         queryClient.invalidateQueries({
-          queryKey: ["questpie", "collections", collection],
+          queryKey: ["questpie", "collections", to],
         });
 
         setProgress(100);

@@ -1,10 +1,11 @@
+import { z } from "zod";
 import { assetsCollection } from "#questpie/server/collection/defaults/assets.js";
 import {
-	accountsCollection,
-	apiKeysCollection,
-	sessionsCollection,
-	usersCollection,
-	verificationsCollection,
+  accountsCollection,
+  apiKeysCollection,
+  sessionsCollection,
+  usersCollection,
+  verificationsCollection,
 } from "#questpie/server/collection/defaults/auth.js";
 import { QuestpieBuilder } from "#questpie/server/config/builder.js";
 import { coreAuthOptions } from "#questpie/server/integrated/auth/index.js";
@@ -16,6 +17,7 @@ import { coreBackendMessages } from "./messages.js";
  * Includes:
  * - Auth collections (users, sessions, accounts, verifications, apikeys)
  * - Assets collection with file upload support (.upload() enabled)
+ * - Scheduled realtime outbox cleanup job (when queue worker is running)
  * - Core auth options (Better Auth configuration)
  * - Core backend messages (error messages, validation messages, etc.)
  *
@@ -67,16 +69,32 @@ import { coreBackendMessages } from "./messages.js";
  *   .build({ ... });
  * ```
  */
-export const starterModule = QuestpieBuilder.empty("questpie-starter")
-	.collections({
-		assets: assetsCollection,
-		user: usersCollection,
-		session: sessionsCollection,
-	})
-	.collections({
-		account: accountsCollection,
-		verification: verificationsCollection,
-		apikey: apiKeysCollection,
-	})
-	.auth(coreAuthOptions)
-	.messages(coreBackendMessages);
+const starterBase = QuestpieBuilder.empty("questpie-starter");
+
+const realtimeCleanupJob = starterBase.job({
+  name: "questpie.realtime.cleanup",
+  schema: z.object({}),
+  options: {
+    cron: "0 * * * *",
+  },
+  handler: async ({ app }) => {
+    await app.realtime.cleanupOutbox(true);
+  },
+});
+
+export const starterModule = starterBase
+  .collections({
+    assets: assetsCollection,
+    user: usersCollection,
+    session: sessionsCollection,
+  })
+  .collections({
+    account: accountsCollection,
+    verification: verificationsCollection,
+    apikey: apiKeysCollection,
+  })
+  .jobs({
+    realtimeCleanup: realtimeCleanupJob,
+  })
+  .auth(coreAuthOptions)
+  .messages(coreBackendMessages);

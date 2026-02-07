@@ -10,30 +10,30 @@ import { ApiError } from "../errors/index.js";
 
 // Re-export types
 export type {
+  AdapterBaseContext,
   AdapterConfig,
   AdapterContext,
-  AdapterBaseContext,
-  UploadFile,
   AdapterRoutes,
   FetchHandler,
+  UploadFile,
 } from "./types.js";
 
 // Re-export utilities for backwards compatibility
 export { createAdapterContext } from "./utils/context.js";
 export { handleError } from "./utils/response.js";
 
-// Import types and utilities
-import type { AdapterConfig, AdapterRoutes, AdapterContext } from "./types.js";
-import { handleError, normalizeBasePath } from "./utils/index.js";
 import {
   createAuthRoute,
-  createRpcRoutes,
   createCollectionRoutes,
   createGlobalRoutes,
-  createStorageRoutes,
   createRealtimeRoutes,
+  createRpcRoutes,
   createSearchRoutes,
+  createStorageRoutes,
 } from "./routes/index.js";
+// Import types and utilities
+import type { AdapterConfig, AdapterContext, AdapterRoutes } from "./types.js";
+import { handleError, normalizeBasePath } from "./utils/index.js";
 
 /**
  * Create all adapter routes
@@ -122,7 +122,11 @@ export const createFetchHandler = (
       if (request.method === "POST") {
         // Reindex route: POST /search/reindex/:collection
         if (segments[1] === "reindex" && segments[2]) {
-          return routes.search.reindex(request, { collection: segments[2] }, context);
+          return routes.search.reindex(
+            request,
+            { collection: segments[2] },
+            context,
+          );
         }
         // Main search route: POST /search
         return routes.search.search(request, {}, context);
@@ -132,15 +136,15 @@ export const createFetchHandler = (
 
     // Root RPC routes
     if (segments[0] === "rpc") {
-      const functionName = segments[1];
-      if (!functionName) {
+      const rpcPath = segments.slice(1);
+      if (rpcPath.length === 0) {
         return errorResponse(
-          ApiError.badRequest("Function not specified"),
+          ApiError.badRequest("RPC path not specified"),
           request,
         );
       }
 
-      return routes.rpc.root(request, { name: functionName }, context);
+      return routes.rpc.root(request, { path: rpcPath }, context);
     }
 
     // Collection RPC routes
@@ -257,9 +261,24 @@ export const createFetchHandler = (
     // Global routes
     if (segments[0] === "globals") {
       const globalName = segments[1];
+      const globalAction = segments[2];
       if (!globalName) {
         return errorResponse(
           ApiError.badRequest("Global not specified"),
+          request,
+        );
+      }
+
+      if (globalAction === "schema") {
+        if (request.method === "GET") {
+          return routes.globals.schema(
+            request,
+            { global: globalName },
+            context,
+          );
+        }
+        return errorResponse(
+          ApiError.badRequest("Method not allowed"),
           request,
         );
       }
@@ -306,6 +325,14 @@ export const createFetchHandler = (
       return errorResponse(ApiError.badRequest("Method not allowed"), request);
     }
 
+    // Collection schema: GET /:collection/schema (introspected schema for admin UI)
+    if (id === "schema") {
+      if (request.method === "GET") {
+        return routes.collections.schema(request, { collection }, context);
+      }
+      return errorResponse(ApiError.badRequest("Method not allowed"), request);
+    }
+
     // Collection count: GET /:collection/count
     if (id === "count") {
       if (request.method === "GET") {
@@ -314,7 +341,15 @@ export const createFetchHandler = (
       return errorResponse(ApiError.badRequest("Method not allowed"), request);
     }
 
-    // Collection list and create
+    // Batch delete: POST /:collection/delete-many
+    if (id === "delete-many") {
+      if (request.method === "POST") {
+        return routes.collections.deleteMany(request, { collection }, context);
+      }
+      return errorResponse(ApiError.badRequest("Method not allowed"), request);
+    }
+
+    // Collection list, create, and batch update
     if (!id) {
       if (request.method === "GET") {
         return routes.collections.find(request, { collection }, context);
@@ -322,6 +357,10 @@ export const createFetchHandler = (
 
       if (request.method === "POST") {
         return routes.collections.create(request, { collection }, context);
+      }
+
+      if (request.method === "PATCH") {
+        return routes.collections.updateMany(request, { collection }, context);
       }
 
       return errorResponse(ApiError.badRequest("Method not allowed"), request);

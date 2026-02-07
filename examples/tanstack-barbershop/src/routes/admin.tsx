@@ -4,7 +4,7 @@
  * Uses AdminLayoutProvider for clean setup.
  * Child routes are rendered via <Outlet />.
  */
-import { Admin, AdminLayoutProvider } from "@questpie/admin/client";
+import { AdminLayoutProvider } from "@questpie/admin/client";
 import { TanStackDevtools } from "@tanstack/react-devtools";
 import {
   createFileRoute,
@@ -59,13 +59,16 @@ function AdminLayout() {
       </head>
       <body>
         <AdminLayoutProvider
-          admin={Admin.from(admin)}
+          admin={admin}
           client={client}
           queryClient={queryClient}
           authClient={authClient}
           LinkComponent={AdminLink}
           activeRoute={location.pathname}
           basePath="/admin"
+          // Enable server-side translations
+          // Translations are configured on server via .adminLocale() and .messages()
+          useServerTranslations
           // theme="dark"
         >
           <Outlet />

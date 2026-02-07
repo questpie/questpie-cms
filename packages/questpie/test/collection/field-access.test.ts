@@ -1,19 +1,21 @@
-import { collection, questpie } from "../../src/server/index.js";
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
-import { sql } from "drizzle-orm";
-import { text, varchar } from "drizzle-orm/pg-core";
+import { defaultFields } from "../../src/server/fields/builtin/defaults.js";
+import { questpie } from "../../src/server/index.js";
 import { buildMockApp } from "../utils/mocks/mock-app-builder";
 import { createTestContext } from "../utils/test-context";
 import { runTestDbMigrations } from "../utils/test-db";
 
-const users = collection("users")
-  .fields({
-    email: varchar("email", { length: 255 }).notNull(),
-    name: text("name").notNull(),
-    ssn: varchar("ssn", { length: 20 }), // Restricted field - string role
-    salary: text("salary"), // Restricted field - function
-    bio: text("bio"), // Unrestricted field
-  })
+const q = questpie({ name: "test-module" }).fields(defaultFields);
+
+const users = q
+  .collection("users")
+  .fields((f) => ({
+    email: f.text({ required: true, maxLength: 255 }),
+    name: f.textarea({ required: true }),
+    ssn: f.text({ maxLength: 20 }), // Restricted field - string role
+    salary: f.textarea(), // Restricted field - function
+    bio: f.textarea(), // Unrestricted field
+  }))
   .title(({ f }) => f.name)
   .access({
     fields: {
@@ -31,18 +33,19 @@ const users = collection("users")
     timestamps: true,
   });
 
-const publicPosts = collection("public_posts")
-  .fields({
-    title: text("title").notNull(),
-    content: text("content").notNull(),
-    draft: text("draft"), // No access rules
-  })
+const publicPosts = q
+  .collection("public_posts")
+  .fields((f) => ({
+    title: f.textarea({ required: true }),
+    content: f.textarea({ required: true }),
+    draft: f.textarea(), // No access rules
+  }))
   .title(({ f }) => f.title)
   .options({
     timestamps: true,
   });
 
-const testModule = questpie({ name: "test-module" }).collections({
+const testModule = q.collections({
   users,
   public_posts: publicPosts,
 });

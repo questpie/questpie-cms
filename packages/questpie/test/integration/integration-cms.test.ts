@@ -1,11 +1,10 @@
-import { describe, it, beforeEach, afterEach, expect } from "bun:test";
-import { text, varchar, jsonb, integer, timestamp } from "drizzle-orm/pg-core";
-import { sql } from "drizzle-orm";
-import { runTestDbMigrations } from "../utils/test-db";
+import { afterEach, beforeEach, describe, expect, it } from "bun:test";
+import { z } from "zod";
+import { defaultFields } from "../../src/server/fields/builtin/defaults.js";
+import { job, questpie } from "../../src/server/index.js";
 import { buildMockApp } from "../utils/mocks/mock-app-builder";
 import { createTestContext } from "../utils/test-context";
-import { z } from "zod";
-import { collection, job, questpie } from "../../src/server/index.js";
+import { runTestDbMigrations } from "../utils/test-db";
 
 const articlePublishedJob = job({
   name: "article:published",
@@ -26,12 +25,15 @@ const articleDeletedJob = job({
 });
 
 const createTestModule = () => {
-  const authors = collection("authors")
-    .fields({
-      name: text("name").notNull(),
-      email: varchar("email", { length: 255 }).notNull(),
-      bio: text("bio"),
-    })
+  const q = questpie({ name: "integration-test" }).fields(defaultFields);
+
+  const authors = q
+    .collection("authors")
+    .fields((f) => ({
+      name: f.textarea({ required: true }),
+      email: f.text({ required: true, maxLength: 255 }),
+      bio: f.textarea(),
+    }))
     .title(({ f }) => f.name)
     .hooks({
       afterChange: async ({ data, operation, app }) => {
@@ -48,37 +50,30 @@ const createTestModule = () => {
     .build();
 
   // Define articles collection with relations
-  const articles = collection("articles")
-    .fields({
-      authorId: text("author_id")
-        .notNull()
-        .references(() => authors.table.id),
-      title: text("title").notNull(),
-      slug: varchar("slug", { length: 255 }).notNull(),
-      content: jsonb("content"),
-      featuredImage: jsonb("featured_image").$type<{
-        key: string;
-        url: string;
-        alt?: string;
-        width?: number;
-        height?: number;
-      }>(),
-      status: varchar("status", { length: 50 }),
-      viewCount: integer("view_count"),
-      publishedAt: timestamp("published_at", { mode: "date" }),
-    })
-    .title(({ f }) => f.title)
-    .relations(({ one, manyToMany }) => ({
-      author: one("authors", {
-        fields: ["authorId"] as any,
-        references: ["id"] as any,
+  const articles = q
+    .collection("articles")
+    .fields((f) => ({
+      author: f.relation({
+        to: "authors",
+        required: true,
+        relationName: "author",
       }),
-      tags: manyToMany("tags", {
+      title: f.textarea({ required: true }),
+      slug: f.text({ required: true, maxLength: 255 }),
+      content: f.json(),
+      featuredImage: f.json(),
+      status: f.text({ maxLength: 50 }),
+      viewCount: f.number(),
+      publishedAt: f.datetime(),
+      tags: f.relation({
+        to: "tags",
+        hasMany: true,
         through: "article_tags",
-        sourceField: "articleId",
-        targetField: "tagId",
+        sourceField: "article", // FK column key is field name with unified API
+        targetField: "tag",
       }),
     }))
+    .title(({ f }) => f.title)
     .options({
       timestamps: true,
       softDelete: true,
@@ -89,7 +84,7 @@ const createTestModule = () => {
         if (operation !== "create") return;
         // Auto-generate slug if not provided
         if (!data.slug && data.title) {
-          data.slug = data.title
+          data.slug = (data.title as string)
             .toLowerCase()
             .replace(/\s+/g, "-")
             .replace(/[^a-z0-9-]/g, "");
@@ -108,7 +103,7 @@ const createTestModule = () => {
             await cms.queue.articlePublished.publish({
               articleId: data.id,
               title: data.title,
-              authorId: data.authorId,
+              authorId: (data as any).author, // FK column key is field name with unified API
             });
 
             await cms.logger?.info("Article published", {
@@ -126,33 +121,39 @@ const createTestModule = () => {
     .build();
 
   // Define tags collection
-  const tags = collection("tags")
-    .fields({
-      name: text("name").notNull(),
-    })
-    .title(({ f }) => f.name)
-    .relations(({ manyToMany }) => ({
-      articles: manyToMany("articles", {
+  const tags = q
+    .collection("tags")
+    .fields((f) => ({
+      name: f.textarea({ required: true }),
+      articles: f.relation({
+        to: "articles",
+        hasMany: true,
         through: "article_tags",
-        sourceField: "tagId",
-        targetField: "articleId",
+        sourceField: "tag", // FK column key is field name with unified API
+        targetField: "article",
+      }),
+    }))
+    .title(({ f }) => f.name)
+    .build();
+
+  // Define junction table
+  const articleTags = q
+    .collection("article_tags")
+    .fields((f) => ({
+      article: f.relation({
+        to: "articles",
+        required: true,
+        onDelete: "cascade",
+      }),
+      tag: f.relation({
+        to: "tags",
+        required: true,
+        onDelete: "cascade",
       }),
     }))
     .build();
 
-  // Define junction table
-  const articleTags = collection("article_tags")
-    .fields({
-      articleId: text("article_id")
-        .notNull()
-        .references(() => articles.table.id),
-      tagId: text("tag_id")
-        .notNull()
-        .references(() => tags.table.id),
-    })
-    .build();
-
-  return questpie({ name: "integration-test" })
+  return q
     .collections({
       authors,
       articles,
@@ -208,7 +209,7 @@ describe("integration: full CMS workflow", () => {
     const article = await articlesCrud.create(
       {
         id: crypto.randomUUID(),
-        authorId: author.id,
+        author: author.id, // Use field name, not FK column - types and runtime both accept this
         title: "Getting Started with TypeScript",
         slug: `getting-started-with-typescript`,
         content: {
@@ -288,8 +289,8 @@ describe("integration: full CMS workflow", () => {
     );
 
     expect(publishedArticle?.status).toBe("published");
-    expect(publishedArticle?.author?.name).toBe("Jane Doe");
-    expect(publishedArticle?.featuredImage?.url).toBe(
+    expect((publishedArticle?.author as any)?.name).toBe("Jane Doe");
+    expect((publishedArticle?.featuredImage as any)?.url).toBe(
       "https://cdn.example.com/images/typescript-hero.jpg",
     );
 
@@ -332,7 +333,7 @@ describe("integration: full CMS workflow", () => {
     const article = await setup.cms.api.collections.articles.create(
       {
         id: crypto.randomUUID(),
-        authorId: author.id,
+        author: author.id,
         title: "Advanced Patterns",
         slug: "advanced-patterns",
       },
@@ -355,16 +356,16 @@ describe("integration: full CMS workflow", () => {
     await articleTagsCrud.create(
       {
         id: crypto.randomUUID(),
-        articleId: article.id,
-        tagId: tag1.id,
+        article: article.id,
+        tag: tag1.id,
       },
       ctx,
     );
     await articleTagsCrud.create(
       {
         id: crypto.randomUUID(),
-        articleId: article.id,
-        tagId: tag2.id,
+        article: article.id,
+        tag: tag2.id,
       },
       ctx,
     );
@@ -392,7 +393,7 @@ describe("integration: full CMS workflow", () => {
     );
 
     expect(fetchedTag?.articles).toHaveLength(1);
-    expect(fetchedTag?.articles?.[0].title).toBe("Advanced Patterns");
+    expect((fetchedTag?.articles as any)?.[0].title).toBe("Advanced Patterns");
   });
 
   it("supports nested writes for relations", async () => {
@@ -414,7 +415,7 @@ describe("integration: full CMS workflow", () => {
     const article = await articlesCrud.create(
       {
         id: crypto.randomUUID(),
-        authorId: author.id,
+        author: author.id,
         title: "Advanced React Patterns",
         slug: "advanced-react-patterns",
         status: "published",
@@ -425,7 +426,7 @@ describe("integration: full CMS workflow", () => {
             { name: "Frontend" },
           ],
         },
-      },
+      } as any, // as any for nested mutation - type support coming later
       ctx,
     );
 
@@ -455,14 +456,14 @@ describe("integration: full CMS workflow", () => {
     const article2 = await articlesCrud.create(
       {
         id: crypto.randomUUID(),
-        authorId: author.id,
+        author: author.id,
         title: "React Hooks Deep Dive",
         slug: "react-hooks-deep-dive",
         tags: {
           connect: [{ id: reactTag.id }],
           create: [{ name: "Hooks" }],
         },
-      },
+      } as any, // as any for nested mutation - type support coming later
       ctx,
     );
 
@@ -507,7 +508,7 @@ describe("integration: full CMS workflow", () => {
     await articlesCrud.create(
       {
         id: crypto.randomUUID(),
-        authorId: author1.id,
+        author: author1.id,
         title: "Alice Post 1",
         slug: "alice-post-1",
         status: "published",
@@ -518,7 +519,7 @@ describe("integration: full CMS workflow", () => {
     await articlesCrud.create(
       {
         id: crypto.randomUUID(),
-        authorId: author1.id,
+        author: author1.id,
         title: "Alice Post 2",
         slug: "alice-post-2",
         status: "published",
@@ -529,7 +530,7 @@ describe("integration: full CMS workflow", () => {
     await articlesCrud.create(
       {
         id: crypto.randomUUID(),
-        authorId: author2.id,
+        author: author2.id,
         title: "Bob Post 1",
         slug: "bob-post-1",
         status: "published",
@@ -542,7 +543,7 @@ describe("integration: full CMS workflow", () => {
     const aliceArticles = await articlesCrud.find(
       {
         where: {
-          authorId: author1.id,
+          author: author1.id, // FK column key is field name with unified API
           status: "published",
         },
         orderBy: { viewCount: "desc" },
@@ -609,7 +610,7 @@ describe("integration: full CMS workflow", () => {
     const article = await articlesCrud.create(
       {
         id: crypto.randomUUID(),
-        authorId: author.id,
+        author: author.id,
         title: "Version 1",
         slug: "version-1",
         status: "draft",

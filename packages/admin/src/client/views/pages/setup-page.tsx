@@ -87,7 +87,7 @@ export function SetupPage({
     setError(null);
 
     try {
-      const result = await (client as any).functions.createFirstAdmin({
+      const result = await (client as any).rpc.createFirstAdmin({
         email: values.email,
         password: values.password,
         name: values.name,

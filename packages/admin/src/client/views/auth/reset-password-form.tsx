@@ -2,12 +2,7 @@
  * Reset Password Form - set new password with token
  */
 
-import {
-  CheckCircle,
-  Lock,
-  SpinnerGap,
-  WarningCircle,
-} from "@phosphor-icons/react";
+import { Icon } from "@iconify/react";
 import * as React from "react";
 import { useForm } from "react-hook-form";
 import { Alert, AlertDescription } from "../../components/ui/alert";
@@ -21,6 +16,7 @@ import {
   FieldLabel,
 } from "../../components/ui/field";
 import { Input } from "../../components/ui/input";
+import { useTranslation } from "../../i18n/hooks";
 import { cn } from "../../lib/utils";
 
 export type ResetPasswordFormValues = {
@@ -82,6 +78,7 @@ export function ResetPasswordForm({
   className,
   error,
 }: ResetPasswordFormProps) {
+  const { t } = useTranslation();
   const [isSuccess, setIsSuccess] = React.useState(false);
 
   const {
@@ -99,9 +96,11 @@ export function ResetPasswordForm({
   const password = watch("password");
 
   const handleFormSubmit = handleSubmit(async (values) => {
-    await onSubmit({ ...values, token });
-    if (!error) {
+    try {
+      await onSubmit({ ...values, token });
       setIsSuccess(true);
+    } catch {
+      // Error will be shown via the error prop from parent
     }
   });
 
@@ -110,7 +109,10 @@ export function ResetPasswordForm({
     return (
       <div className={cn("space-y-4 text-center", className)}>
         <div className="bg-primary/10 mx-auto flex size-12 items-center justify-center">
-          <CheckCircle className="text-primary size-6" weight="duotone" />
+          <Icon
+            icon="ph:check-circle-duotone"
+            className="text-primary size-6"
+          />
         </div>
         <div className="space-y-2">
           <h3 className="text-sm font-medium">Password reset successful</h3>
@@ -140,31 +142,33 @@ export function ResetPasswordForm({
       <FieldGroup>
         {/* Password Field */}
         <Field data-invalid={!!errors.password}>
-          <FieldLabel htmlFor="password">New password</FieldLabel>
+          <FieldLabel htmlFor="password">{t("auth.newPassword")}</FieldLabel>
           <FieldContent>
             <div className="relative">
-              <Lock
+              <Icon
+                icon="ph:lock-duotone"
                 className="text-muted-foreground absolute left-2 top-1/2 size-4 -translate-y-1/2"
-                weight="duotone"
               />
               <Input
                 id="password"
                 type="password"
-                placeholder="Enter new password"
+                placeholder={t("auth.newPasswordPlaceholder")}
                 className="pl-8"
                 autoComplete="new-password"
                 aria-invalid={!!errors.password}
                 {...register("password", {
-                  required: "Password is required",
+                  required: t("auth.passwordRequired"),
                   minLength: {
                     value: minPasswordLength,
-                    message: `Password must be at least ${minPasswordLength} characters`,
+                    message: t("auth.passwordMinLength", {
+                      min: minPasswordLength,
+                    }),
                   },
                 })}
               />
             </div>
             <FieldDescription>
-              Must be at least {minPasswordLength} characters
+              {t("auth.passwordMinLength", { min: minPasswordLength })}
             </FieldDescription>
             <FieldError>{errors.password?.message}</FieldError>
           </FieldContent>
@@ -172,24 +176,26 @@ export function ResetPasswordForm({
 
         {/* Confirm Password Field */}
         <Field data-invalid={!!errors.confirmPassword}>
-          <FieldLabel htmlFor="confirmPassword">Confirm password</FieldLabel>
+          <FieldLabel htmlFor="confirmPassword">
+            {t("auth.confirmPassword")}
+          </FieldLabel>
           <FieldContent>
             <div className="relative">
-              <Lock
+              <Icon
+                icon="ph:lock-duotone"
                 className="text-muted-foreground absolute left-2 top-1/2 size-4 -translate-y-1/2"
-                weight="duotone"
               />
               <Input
                 id="confirmPassword"
                 type="password"
-                placeholder="Confirm new password"
+                placeholder={t("auth.confirmPasswordPlaceholder")}
                 className="pl-8"
                 autoComplete="new-password"
                 aria-invalid={!!errors.confirmPassword}
                 {...register("confirmPassword", {
-                  required: "Please confirm your password",
+                  required: t("auth.passwordRequired"),
                   validate: (value) =>
-                    value === password || "Passwords do not match",
+                    value === password || t("auth.passwordMismatch"),
                 })}
               />
             </div>
@@ -201,7 +207,7 @@ export function ResetPasswordForm({
       {/* Error Message */}
       {error && (
         <Alert variant="destructive">
-          <WarningCircle />
+          <Icon icon="ph:warning-circle" />
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       )}
@@ -215,17 +221,17 @@ export function ResetPasswordForm({
       >
         {isSubmitting ? (
           <>
-            <SpinnerGap className="animate-spin" weight="bold" />
-            Resetting...
+            <Icon icon="ph:spinner-gap-bold" className="animate-spin" />
+            {t("auth.resettingPassword")}
           </>
         ) : (
-          "Reset password"
+          t("auth.resetPassword")
         )}
       </Button>
 
       {/* Back to Login Link */}
       <p className="text-muted-foreground text-center text-xs">
-        Remember your password?{" "}
+        {t("auth.alreadyHaveAccount")}{" "}
         <Button
           type="button"
           variant="link"
@@ -233,7 +239,7 @@ export function ResetPasswordForm({
           onClick={onBackToLoginClick}
           className="h-auto p-0 text-xs"
         >
-          Back to login
+          {t("auth.signIn")}
         </Button>
       </p>
     </form>

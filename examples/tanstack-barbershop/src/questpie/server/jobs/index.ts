@@ -31,7 +31,12 @@ export const sendAppointmentConfirmation = q.job({
 
     const userTable = cms.config.collections.user.table;
 
-    const customer = await cms.db.select({ email: userTable.email, name: userTable.name }).from(userTable).where(eq(userTable.id, payload.customerId)).limit(1).then(res => res[0]);
+    const customer = await cms.db
+      .select({ email: userTable.email, name: userTable.name })
+      .from(userTable)
+      .where(eq(userTable.id as any, payload.customerId) as any)
+      .limit(1)
+      .then((res) => res[0]);
 
     // const customerEmail = await cms.api.collections.user.findOne({
     //   where: { id: payload.customerId },
@@ -43,10 +48,10 @@ export const sendAppointmentConfirmation = q.job({
 
     // Use cms.email to send emails
     await cms.email.send({
-      to: customer?.email || "",
+      to: (customer?.email || "") as string,
       subject: "Appointment Confirmation",
       text: `Dear ${customer?.name || "Customer"},\n\nYour appointment (ID: ${payload.appointmentId}) has been confirmed.\n\nThank you!`,
-    })
+    });
   },
 });
 

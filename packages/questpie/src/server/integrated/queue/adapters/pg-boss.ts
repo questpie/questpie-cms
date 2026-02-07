@@ -1,10 +1,24 @@
-import { PgBoss, type ConstructorOptions } from "pg-boss";
-import type { QueueAdapter } from "../adapter.js";
+import { type ConstructorOptions, PgBoss } from "pg-boss";
+import type {
+  QueueAdapter,
+  QueueHandlerMap,
+  QueueListenOptions,
+  QueueRunOnceOptions,
+  QueueRunOnceResult,
+} from "../adapter.js";
 import type { PublishOptions } from "../types.js";
 
 export type PgBossAdapterOptions = ConstructorOptions;
 
 export class PgBossAdapter implements QueueAdapter {
+  public readonly capabilities = {
+    longRunningConsumer: true,
+    runOnceConsumer: true,
+    pushConsumer: false,
+    scheduling: true,
+    singleton: true,
+  } as const;
+
   private boss: PgBoss;
   private started = false;
   private createdQueues = new Set<string>();
@@ -62,16 +76,70 @@ export class PgBossAdapter implements QueueAdapter {
     await this.boss.unschedule(jobName);
   }
 
-  async work(
-    jobName: string,
-    handler: (job: { id: string; data: any }) => Promise<void>,
-    options?: { teamSize?: number; batchSize?: number },
+  async listen(
+    handlers: QueueHandlerMap,
+    options?: QueueListenOptions,
   ): Promise<void> {
     await this.start();
-    await this.ensureQueue(jobName);
-    await this.boss.work(jobName, options as any, async (job: any) => {
-      await handler({ id: job.id, data: job.data });
-    });
+
+    for (const jobName of Object.keys(handlers)) {
+      await this.ensureQueue(jobName);
+      const handler = handlers[jobName];
+      if (!handler) continue;
+
+      await this.boss.work(jobName, options as any, async (job: any) => {
+        await handler({ id: job.id, data: job.data });
+      });
+    }
+  }
+
+  async runOnce(
+    handlers: QueueHandlerMap,
+    options?: QueueRunOnceOptions,
+  ): Promise<QueueRunOnceResult> {
+    await this.start();
+
+    const selectedJobNames =
+      options?.jobs && options.jobs.length > 0
+        ? options.jobs
+        : Object.keys(handlers);
+
+    if (selectedJobNames.length === 0) {
+      return { processed: 0 };
+    }
+
+    const batchSize = Math.max(1, options?.batchSize ?? 10);
+    let processed = 0;
+
+    for (const jobName of selectedJobNames) {
+      const handler = handlers[jobName];
+      if (!handler) continue;
+
+      await this.ensureQueue(jobName);
+
+      const fetchFn = (this.boss as any).fetch as
+        | ((name: string, options?: Record<string, unknown>) => Promise<any>)
+        | undefined;
+
+      if (!fetchFn) {
+        throw new Error(
+          "PgBossAdapter.runOnce requires pg-boss fetch() support.",
+        );
+      }
+
+      const fetched = await fetchFn.call(this.boss, jobName, {
+        batchSize,
+      });
+
+      const jobs = Array.isArray(fetched) ? fetched : fetched ? [fetched] : [];
+
+      for (const job of jobs) {
+        await handler({ id: String(job.id), data: job.data });
+        processed += 1;
+      }
+    }
+
+    return { processed };
   }
 
   on(event: "error", handler: (error: Error) => void): void {
