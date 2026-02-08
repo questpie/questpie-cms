@@ -15,6 +15,13 @@ import type {
 	CollectionBuilderState,
 } from "#questpie/server/collection/builder/types.js";
 import type { CRUDContext } from "#questpie/server/collection/crud/types.js";
+import {
+	extractDependencies,
+	getDebounce,
+	isReactiveConfig,
+	type SerializedOptionsConfig,
+	type SerializedReactiveConfig,
+} from "#questpie/server/fields/reactive.js";
 import type {
 	FieldDefinition,
 	FieldDefinitionState,
@@ -241,6 +248,27 @@ export interface AdminActionDefinitionSchema {
 }
 
 /**
+ * Reactive field configuration schema.
+ * Sent to client so it knows which fields to watch.
+ */
+export interface FieldReactiveSchema {
+	/** Hidden reactive config */
+	hidden?: SerializedReactiveConfig;
+
+	/** ReadOnly reactive config */
+	readOnly?: SerializedReactiveConfig;
+
+	/** Disabled reactive config */
+	disabled?: SerializedReactiveConfig;
+
+	/** Compute reactive config */
+	compute?: SerializedReactiveConfig;
+
+	/** Dynamic options config (for select/relation fields) */
+	options?: SerializedOptionsConfig;
+}
+
+/**
  * Introspected field schema.
  */
 export interface FieldSchema {
@@ -261,6 +289,13 @@ export interface FieldSchema {
 	 * Useful for inline/per-field validation.
 	 */
 	validation?: unknown;
+
+	/**
+	 * Reactive field configuration.
+	 * Contains serialized reactive configs for client-side watching.
+	 * Only present if field has reactive behaviors defined.
+	 */
+	reactive?: FieldReactiveSchema;
 }
 
 /**
@@ -348,12 +383,16 @@ export async function introspectCollection(
 			// Field doesn't support JSON Schema generation
 		}
 
+		// Extract reactive configuration from field metadata
+		const reactive = extractFieldReactiveConfig(fieldDef);
+
 		fields[name] = {
 			name,
 			metadata,
 			location: fieldDef.state.location,
 			access: fieldAccess,
 			validation,
+			...(reactive && { reactive }),
 		};
 	}
 
@@ -765,4 +804,108 @@ export async function introspectCollections(
 	}
 
 	return schemas;
+}
+
+// ============================================================================
+// Reactive Field Configuration Extraction
+// ============================================================================
+
+/**
+ * Admin meta properties that can be reactive.
+ */
+type ReactiveAdminMetaKey = "hidden" | "readOnly" | "disabled" | "compute";
+
+/**
+ * Extract reactive configuration from a field definition.
+ * Checks meta.admin for reactive properties and serializes them.
+ *
+ * @param fieldDef - Field definition to extract reactive config from
+ * @returns Serialized reactive config or undefined if no reactive behavior
+ */
+function extractFieldReactiveConfig(
+	fieldDef: FieldDefinition<FieldDefinitionState>,
+): FieldReactiveSchema | undefined {
+	const config = fieldDef.state.config as Record<string, unknown> | undefined;
+	const meta = config?.meta as Record<string, unknown> | undefined;
+	const admin = meta?.admin as Record<string, unknown> | undefined;
+
+	if (!admin) {
+		return undefined;
+	}
+
+	const reactiveKeys: ReactiveAdminMetaKey[] = [
+		"hidden",
+		"readOnly",
+		"disabled",
+		"compute",
+	];
+
+	const result: FieldReactiveSchema = {};
+	let hasReactive = false;
+
+	for (const key of reactiveKeys) {
+		const value = admin[key];
+
+		// Skip static boolean values (true/false) - only process reactive configs
+		if (typeof value === "boolean") {
+			continue;
+		}
+
+		// Check if it's a reactive config (function or object with handler)
+		if (isReactiveConfig(value)) {
+			hasReactive = true;
+
+			const serialized: SerializedReactiveConfig = {
+				watch: extractDependencies(value),
+				debounce: getDebounce(value),
+			};
+
+			result[key] = serialized;
+		}
+	}
+
+	// Also check for dynamic options on select/relation fields
+	const options = config?.options;
+	if (options && typeof options === "object" && "handler" in options) {
+		hasReactive = true;
+		// Options is an OptionsConfig - extract deps
+		const optionsConfig = options as { handler: unknown; deps?: unknown };
+
+		let watch: string[] = [];
+		if (Array.isArray(optionsConfig.deps)) {
+			watch = optionsConfig.deps as string[];
+		} else if (typeof optionsConfig.deps === "function") {
+			// Track deps from function
+			const deps = new Set<string>();
+			const createProxy = (prefix: string): any =>
+				new Proxy({} as any, {
+					get(_, prop: string | symbol) {
+						if (typeof prop === "symbol" || prop === "then") {
+							return undefined;
+						}
+						const path = prefix ? `${prefix}.${prop}` : prop;
+						deps.add(path);
+						return createProxy(path);
+					},
+				});
+
+			try {
+				(optionsConfig.deps as (ctx: any) => any[])({
+					data: createProxy(""),
+					sibling: createProxy("$sibling"),
+				});
+			} catch {
+				// Ignore
+			}
+			watch = [...deps];
+		}
+
+		result.options = {
+			watch,
+			searchable: true,
+			paginated: true,
+		};
+	}
+
+	return hasReactive ? result : undefined;
 }
