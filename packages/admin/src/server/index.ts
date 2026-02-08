@@ -142,6 +142,8 @@ export {
 	actionFunctions,
 	adminModule,
 	adminRpc,
+	// Reactive field functions
+	batchReactive,
 	createFirstAdmin,
 	// Preview helpers (server-only, crypto-based)
 	// For browser-safe preview utilities, use @questpie/admin/shared
@@ -154,10 +156,12 @@ export {
 	type FilterOperator,
 	type FilterRule,
 	fetchWidgetData,
+	fieldOptions,
 	getActionsConfig,
 	getActionsConfigFn,
 	isSetupRequired,
 	type PreviewTokenPayload,
+	reactiveFunctions,
 	type SortConfig,
 	// Saved views
 	savedViewsCollection,
