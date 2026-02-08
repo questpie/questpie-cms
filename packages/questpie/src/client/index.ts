@@ -1188,6 +1188,7 @@ export type {
 	CollectionAccessInfo,
 	CollectionSchema,
 	FieldAccessInfo,
+	FieldReactiveSchema,
 	FieldSchema,
 	RelationSchema,
 } from "#questpie/server/collection/introspection.js";

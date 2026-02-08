@@ -238,6 +238,13 @@ export {
 } from "#questpie/admin/client/hooks/use-collection.js";
 // User hooks
 export { useCurrentUser } from "#questpie/admin/client/hooks/use-current-user.js";
+// Field options hook
+export {
+	type OptionItem,
+	type UseFieldOptionsOptions,
+	type UseFieldOptionsResult,
+	useFieldOptions,
+} from "#questpie/admin/client/hooks/use-field-options.js";
 // Global hooks
 export {
 	useGlobal,
@@ -249,6 +256,14 @@ export {
 	useIsMobile,
 	useMediaQuery,
 } from "#questpie/admin/client/hooks/use-media-query.js";
+// Reactive fields hooks
+export {
+	type ReactiveFieldResult,
+	type ReactiveFieldState,
+	type UseReactiveFieldsOptions,
+	type UseReactiveFieldsResult,
+	useReactiveFields,
+} from "#questpie/admin/client/hooks/use-reactive-fields.js";
 // Server widget data hook
 export { useServerWidgetData } from "#questpie/admin/client/hooks/use-server-widget-data.js";
 // Setup hooks
