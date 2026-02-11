@@ -329,13 +329,18 @@ export class BlockBuilder<
 	 *   })
 	 * ```
 	 */
-	prefetch<TValues = Record<string, unknown>>(
-		fn: BlockPrefetchFn<TValues>,
-	): BlockBuilder<TState & { prefetch: BlockPrefetchFn<TValues> }, TFieldMap> {
+	prefetch(
+		fn: BlockPrefetchFn<InferBlockValues<TState>>,
+	): BlockBuilder<
+		TState & { prefetch: BlockPrefetchFn<InferBlockValues<TState>> },
+		TFieldMap
+	> {
 		return new BlockBuilder({
 			...this._state,
 			prefetch: fn,
-		} as TState & { prefetch: BlockPrefetchFn<TValues> });
+		} as TState & {
+			prefetch: BlockPrefetchFn<InferBlockValues<TState>>;
+		});
 	}
 
 	/**
