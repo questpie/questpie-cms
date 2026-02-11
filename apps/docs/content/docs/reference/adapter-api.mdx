@@ -1,0 +1,213 @@
+---
+title: Adapter API
+description: Fetch handler, HTTP routes, adapter context, and framework integration contracts
+---
+
+# Adapter API
+
+Adapters connect QUESTPIE to HTTP frameworks. The core provides a framework-agnostic `createFetchHandler` that returns a standard `Request → Response` function. Framework packages (`@questpie/hono`, `@questpie/elysia`, `@questpie/next`) wrap this handler for their specific runtime.
+
+## Core API
+
+### `createFetchHandler(cms, config?)`
+
+Create the main HTTP handler for all CMS routes.
+
+```ts
+import { createFetchHandler } from "@questpie/questpie";
+
+const handler = createFetchHandler(cms, {
+  basePath: "/api/cms",
+  rpc: appRpc,
+});
+
+// handler: (request: Request, context?: AdapterContext) => Promise<Response | null>
+```
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `cms` | `Questpie` | Yes | Built CMS instance |
+| `config.basePath` | `string` | No | URL prefix (default: `"/cms"`) |
+| `config.rpc` | `RpcRouter` | No | RPC router tree |
+
+**Returns:** `(request: Request, context?: AdapterContext) => Promise<Response | null>`
+
+Returns `null` if the URL doesn't match any CMS route, allowing fallthrough to other handlers.
+
+### `createAdapterRoutes(cms, config?)`
+
+Lower-level API — creates individual route handlers instead of a single fetch handler. Useful for custom adapters that need per-route control.
+
+```ts
+const routes = createAdapterRoutes(cms, { basePath: "/api/cms" });
+// routes.auth, routes.collections, routes.globals, routes.storage, etc.
+```
+
+## HTTP Routes
+
+All routes are relative to the configured `basePath`.
+
+### Authentication
+
+| Method | Path | Description |
+|---|---|---|
+| `*` | `/auth/*` | Better Auth routes (login, register, callback, session) |
+
+### Collections
+
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/collections/:name` | Find records |
+| `GET` | `/collections/:name/:id` | Find one record |
+| `GET` | `/collections/:name/count` | Count records |
+| `POST` | `/collections/:name` | Create record |
+| `PATCH` | `/collections/:name/:id` | Update record |
+| `DELETE` | `/collections/:name/:id` | Delete record |
+| `POST` | `/collections/:name/bulk-delete` | Delete multiple records |
+| `GET` | `/collections/:name/:id/versions` | Get version history |
+| `POST` | `/collections/:name/:id/versions/:versionId/revert` | Revert to version |
+| `POST` | `/collections/:name/functions/:fnName` | Call collection function |
+
+### Globals
+
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/globals/:name` | Get global value |
+| `PATCH` | `/globals/:name` | Update global value |
+| `GET` | `/globals/:name/versions` | Get version history |
+| `POST` | `/globals/:name/versions/:versionId/revert` | Revert to version |
+| `POST` | `/globals/:name/functions/:fnName` | Call global function |
+
+### RPC
+
+| Method | Path | Description |
+|---|---|---|
+| `POST` | `/rpc/:path+` | Call RPC function |
+
+### Storage
+
+| Method | Path | Description |
+|---|---|---|
+| `POST` | `/storage/upload` | Upload file |
+| `GET` | `/storage/files/:key+` | Serve/download file |
+| `DELETE` | `/storage/files/:key+` | Delete file |
+
+### Realtime
+
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/realtime/collections/:name` | SSE stream for collection changes |
+| `GET` | `/realtime/collections/:name/:id` | SSE stream for single record changes |
+| `GET` | `/realtime/globals/:name` | SSE stream for global changes |
+
+### Search
+
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/search` | Full-text search across collections |
+| `POST` | `/search/reindex/:collection` | Trigger reindex |
+
+### Admin
+
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/admin/config` | Admin introspection config |
+| `GET` | `/admin/translations` | Admin UI translations |
+
+## Adapter Context
+
+```ts
+interface AdapterContext {
+  request: Request;
+  url: URL;
+  params: Record<string, string>;
+}
+```
+
+Framework adapters construct this context from their native request objects.
+
+## Framework Adapters
+
+### Hono
+
+```ts
+import { questpieHono } from "@questpie/hono";
+
+const app = new Hono();
+app.route("/api/cms", questpieHono(cms, { rpc: appRpc }));
+```
+
+### Elysia
+
+```ts
+import { questpieElysia } from "@questpie/elysia";
+
+const app = new Elysia()
+  .use(questpieElysia(cms, { rpc: appRpc, basePath: "/api/cms" }));
+```
+
+### Next.js
+
+```ts
+import { questpieNextRouteHandlers } from "@questpie/next";
+
+const { GET, POST, PATCH, DELETE } = questpieNextRouteHandlers(cms, {
+  basePath: "/api/cms",
+  rpc: appRpc,
+});
+
+export { GET, POST, PATCH, DELETE };
+```
+
+## Writing a Custom Adapter
+
+For frameworks not covered by existing packages:
+
+```ts
+import { createFetchHandler } from "@questpie/questpie";
+
+const handler = createFetchHandler(cms, {
+  basePath: "/api/cms",
+  rpc: appRpc,
+});
+
+// In your framework's request handler:
+async function handleRequest(frameworkRequest) {
+  // 1. Convert framework request to standard Request
+  const request = toStandardRequest(frameworkRequest);
+
+  // 2. Call the handler
+  const response = await handler(request);
+
+  // 3. If null, the URL didn't match — pass to next handler
+  if (!response) return next();
+
+  // 4. Convert standard Response back to framework response
+  return toFrameworkResponse(response);
+}
+```
+
+Key requirements:
+- Forward all headers, method, body, and URL correctly
+- Preserve streaming support for SSE (realtime) and large file uploads
+- Preserve status codes and response headers
+- Mount under a consistent base path
+
+## SuperJSON Support
+
+Responses support SuperJSON serialization for rich types (Date, Map, Set, BigInt). The client signals support via:
+
+- Header: `X-SuperJSON: 1`
+- Or content type negotiation
+
+When enabled, dates and other non-JSON types are automatically serialized/deserialized.
+
+## Related Pages
+
+- [Adapters Overview](/docs/client/adapters-overview) — Conceptual guide
+- [Hono Adapter](/docs/client/hono-adapter) — Hono integration
+- [Elysia Adapter](/docs/client/elysia-adapter) — Elysia integration
+- [Next.js Adapter](/docs/client/nextjs-adapter) — Next.js integration
+- [Custom Adapter](/docs/guides/custom-adapter) — Building your own

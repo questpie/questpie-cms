@@ -1,0 +1,10 @@
+{
+	"title": "Migration",
+	"defaultOpen": true,
+	"pages": [
+		"index",
+		"old-admin-config-to-server-config",
+		"old-rpc-to-new-rpc",
+		"old-form-config-to-reactive-system"
+	]
+}

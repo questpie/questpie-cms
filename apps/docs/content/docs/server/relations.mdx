@@ -1,0 +1,250 @@
+---
+title: Relations
+description: Model references between collections — belongsTo, hasMany, and manyToMany
+---
+
+# Relations
+
+Relations connect collections together. QUESTPIE's `f.relation()` field handles all relationship types through a unified API — from simple foreign keys to many-to-many links through junction tables.
+
+## Why Relations Matter
+
+Relations are defined as semantic fields, not raw foreign key columns. This means the API understands how to eager-load related records, the admin panel knows how to render relation pickers, and TypeScript infers the correct types.
+
+## Mental Model
+
+```text
+f.relation({ to: "users" })
+  → belongsTo: FK column in current table
+
+f.relation({ to: "services", hasMany: true, through: "barberServices", ... })
+  → manyToMany: no column in current table, reads through junction
+```
+
+## BelongsTo (Simple Relation)
+
+The most common relation — a foreign key to another collection:
+
+```ts
+// appointments collection
+.fields((f) => ({
+  customer: f.relation({
+    to: "user",
+    required: true,
+    label: { en: "Customer" },
+    onDelete: "cascade",
+  }),
+  barber: f.relation({
+    to: "barbers",
+    required: true,
+    label: { en: "Barber" },
+  }),
+  service: f.relation({
+    to: "services",
+    required: true,
+    label: { en: "Service" },
+  }),
+}))
+```
+
+This creates foreign key columns (`customerId`, `barberId`, `serviceId`) in the appointments table.
+
+### Configuration
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `to` | `string` | — | Target collection name |
+| `required` | `boolean` | `false` | NOT NULL foreign key |
+| `onDelete` | `"cascade" \| "set null" \| "restrict"` | `"restrict"` | Referential action |
+| `label` | `I18nText` | — | Display label in admin |
+
+### Querying
+
+```ts
+// Eager-load related records
+const appointments = await app.api.collections.appointments.find({
+  with: { barber: true, service: true, customer: true },
+});
+// Each appointment has: { barber: { id, name, ... }, service: { ... }, ... }
+
+// Filter by relation
+const myAppointments = await app.api.collections.appointments.find({
+  where: { customer: { eq: userId } },
+});
+```
+
+## HasMany (Reverse Relation)
+
+A virtual field that reads records from another collection that reference this one:
+
+```ts
+// In barbers collection — show all appointments for this barber
+appointments: f.relation({
+  to: "appointments",
+  hasMany: true,
+  foreignKey: "barber",    // field in appointments that points to barbers
+  label: { en: "Appointments" },
+})
+```
+
+This creates no column — it's a virtual relation that queries the `appointments` table filtered by `barberId`.
+
+## ManyToMany (Through Junction)
+
+For many-to-many relationships, you need a junction collection and `through` references:
+
+### Step 1: Junction Collection
+
+```ts
+// barber-services.ts — the junction
+export const barberServices = qb
+  .collection("barberServices")
+  .fields((f) => ({
+    barber: f.relation({
+      to: "barbers",
+      required: true,
+      label: { en: "Barber" },
+      onDelete: "cascade",
+    }),
+    service: f.relation({
+      to: "services",
+      required: true,
+      label: { en: "Service" },
+      onDelete: "cascade",
+    }),
+  }));
+```
+
+### Step 2: Through Relations
+
+```ts
+// In barbers collection
+services: f.relation({
+  to: "services",
+  hasMany: true,
+  through: "barberServices",
+  sourceField: "barber",     // junction field pointing to this collection
+  targetField: "service",    // junction field pointing to target collection
+  label: { en: "Services Offered" },
+  meta: { admin: { displayAs: "table" } },
+})
+
+// In services collection (reverse direction)
+barbers: f.relation({
+  to: "barbers",
+  hasMany: true,
+  through: "barberServices",
+  sourceField: "service",    // junction field pointing to services
+  targetField: "barber",     // junction field pointing to barbers
+  label: { en: "Barbers Offering" },
+})
+```
+
+### Configuration
+
+| Option | Type | Description |
+|---|---|---|
+| `to` | `string` | Target collection name |
+| `hasMany` | `true` | Required for hasMany/manyToMany |
+| `through` | `string` | Junction collection name |
+| `sourceField` | `string` | Junction field pointing to current collection |
+| `targetField` | `string` | Junction field pointing to target collection |
+| `foreignKey` | `string` | For simple hasMany: field in target collection |
+
+### Querying ManyToMany
+
+```ts
+// Load barber with their services
+const barber = await app.api.collections.barbers.findOne(id, {
+  with: { services: true },
+});
+// barber.services = [{ id, name, price, ... }, ...]
+```
+
+## Admin Display Options
+
+Relations have admin-specific display modes:
+
+```ts
+services: f.relation({
+  to: "services",
+  hasMany: true,
+  through: "barberServices",
+  sourceField: "barber",
+  targetField: "service",
+  label: { en: "Services" },
+  meta: {
+    admin: {
+      displayAs: "table",    // "chips" | "table" | "grid" | "list"
+    },
+  },
+})
+```
+
+| Display Mode | Description |
+|---|---|
+| `"chips"` | Compact tag-like display (default for many relations) |
+| `"table"` | Full table with columns from related collection |
+| `"grid"` | Card grid layout |
+| `"list"` | Simple list with title display |
+
+## Real Example: Barbershop Relations
+
+The Barbershop example demonstrates a complete relationship model:
+
+```text
+barbers ←→ services       (many-to-many via barberServices)
+appointments → barber      (belongsTo)
+appointments → service     (belongsTo)
+appointments → customer    (belongsTo user)
+reviews → barber           (belongsTo)
+reviews → appointment      (belongsTo)
+reviews → customer         (belongsTo user)
+```
+
+Key excerpts:
+
+```ts
+// Junction (barber-services.ts)
+export const barberServices = qb
+  .collection("barberServices")
+  .fields((f) => ({
+    barber: f.relation({ to: "barbers", required: true, onDelete: "cascade" }),
+    service: f.relation({ to: "services", required: true, onDelete: "cascade" }),
+  }));
+
+// Appointments with multiple belongsTo
+export const appointments = qb
+  .collection("appointments")
+  .fields((f) => ({
+    customer: f.relation({ to: "user", required: true }),
+    barber: f.relation({ to: "barbers", required: true }),
+    service: f.relation({ to: "services", required: true }),
+    scheduledAt: f.datetime({ required: true }),
+    status: f.select({
+      options: [
+        { value: "pending", label: { en: "Pending" } },
+        { value: "confirmed", label: { en: "Confirmed" } },
+        { value: "completed", label: { en: "Completed" } },
+        { value: "cancelled", label: { en: "Cancelled" } },
+      ],
+      default: "pending",
+      required: true,
+    }),
+  }));
+```
+
+## Common Mistakes
+
+- **Forgetting `onDelete` on junction relations** — Without `onDelete: "cascade"` on both sides of the junction, deleting a barber or service leaves orphaned rows. Always cascade junction deletions.
+- **Confusing `sourceField` and `targetField`** — `sourceField` is the junction field that points to the current collection. `targetField` points to the target. Think from the junction's perspective.
+- **Creating relation columns manually** — Don't use `f.text()` for foreign keys. Use `f.relation()` so the system knows it's a relation (for eager loading, admin pickers, etc.).
+- **Missing the junction collection** — Many-to-many requires a real junction collection registered via `.collections()`. It's not auto-created.
+
+## Related Pages
+
+- [Collections](/docs/server/collections) — Collection builder API
+- [Field Types](/docs/server/field-types) — All field types including relation
+- [Field Builder](/docs/server/field-builder) — How `.fields()` works
+- [CRUD API Reference](/docs/reference/crud-api) — Query options including `with`
+- [Query Operators](/docs/reference/query-operators) — WHERE clause operators

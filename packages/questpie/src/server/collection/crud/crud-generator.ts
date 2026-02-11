@@ -1088,9 +1088,12 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 								tx,
 							);
 
-							// Queue search indexing to run after transaction commits
-							onAfterCommit(async () => {
-								await this.indexToSearch(createdRecord, context);
+							// Queue search indexing to run after transaction commits (fire-and-forget)
+							onAfterCommit(() => {
+								this.indexToSearch(createdRecord, context).catch((err) => {
+									console.error("[Search] Index failed:", err);
+								});
+								return Promise.resolve();
 							});
 
 							return createdRecord;
@@ -1375,10 +1378,13 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 					tx,
 				);
 
-				// Queue search indexing to run after transaction commits
+				// Queue search indexing to run after transaction commits (fire-and-forget)
 				for (const updated of refetchedRecords) {
-					onAfterCommit(async () => {
-						await this.indexToSearch(updated, normalized);
+					onAfterCommit(() => {
+						this.indexToSearch(updated, normalized).catch((err) => {
+							console.error("[Search] Index failed:", err);
+						});
+						return Promise.resolve();
 					});
 				}
 
@@ -2085,10 +2091,13 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 					}),
 				);
 
-				// Queue search indexing to run after transaction commits
+				// Queue search indexing to run after transaction commits (fire-and-forget)
 				if (result) {
-					onAfterCommit(async () => {
-						await this.indexToSearch(result, normalized);
+					onAfterCommit(() => {
+						this.indexToSearch(result, normalized).catch((err) => {
+							console.error("[Search] Index failed:", err);
+						});
+						return Promise.resolve();
 					});
 				}
 

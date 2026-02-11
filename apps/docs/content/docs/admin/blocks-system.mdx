@@ -1,0 +1,85 @@
+---
+title: Blocks System
+description: Block builder, page builder, and rich content composition
+---
+
+# Blocks System
+
+Blocks are the building units for page builders and rich content areas. Each block type defines its own schema, admin config, and rendering — all following the same server-first pattern.
+
+## Defining Blocks
+
+Blocks are defined using the block builder on the server:
+
+```typescript
+import { adminModule } from "@questpie/admin/server";
+
+const heroBlock = adminModule.block("hero")
+  .fields((f) => ({
+    heading: f.text({ required: true }),
+    subheading: f.text(),
+    image: f.upload("media"),
+    cta: f.object({
+      fields: (f) => ({
+        label: f.text({ required: true }),
+        url: f.url({ required: true }),
+      }),
+    }),
+  }))
+  .admin({
+    label: "Hero Section",
+    icon: "ph:layout",
+    description: "Full-width hero with heading, image, and CTA",
+  });
+```
+
+## Using Blocks in Collections
+
+Add blocks to a collection field using `richText` or a dedicated blocks field:
+
+```typescript
+const pages = qb.collection("pages")
+  .fields((f) => ({
+    title: f.text({ required: true }),
+    content: f.richText({
+      blocks: [heroBlock, paragraphBlock, imageBlock, ctaBlock],
+    }),
+  }));
+```
+
+## Client-Side Block Rendering
+
+Register block renderers in your client admin builder:
+
+```typescript
+// admin/blocks/hero.tsx
+export function HeroBlockRenderer({ data }) {
+  return (
+    <div className="hero">
+      <h1>{data.heading}</h1>
+      {data.subheading && <p>{data.subheading}</p>}
+      {data.image && <img src={data.image.url} alt="" />}
+      {data.cta && (
+        <a href={data.cta.url}>{data.cta.label}</a>
+      )}
+    </div>
+  );
+}
+```
+
+## Block Categories
+
+Organize blocks into categories for the block picker:
+
+- **Layout**: Hero, columns, spacer, divider
+- **Content**: Paragraph, heading, image, video
+- **Interactive**: Accordion, tabs, testimonial, CTA
+- **Media**: Gallery, embed, file download
+
+## Preview Integration
+
+Blocks work with the preview system. When editing blocks in the admin panel, the preview panel shows a live-rendered version using your front-end components.
+
+## Barbershop Example
+
+The TanStack Barbershop example includes 22 block types demonstrating the full blocks system. See `examples/tanstack-barbershop/src/questpie/admin/blocks/` for real implementations.

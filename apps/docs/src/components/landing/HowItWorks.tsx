@@ -1,113 +1,111 @@
 import { CodeWindow } from "./CodeWindow";
 
 const steps = [
-  {
-    number: "01",
-    title: "Define Your Schema",
-    description:
-      "Use the field factory to define your data model. Text, rich text, uploads, relations, arrays, objects — 22+ types with built-in validation.",
-    code: `const posts = qb.collection('posts')
+	{
+		number: "01",
+		title: "Reactive fields with computed values",
+		description:
+			"Fields can compute values from other fields, hide conditionally, and query the database — all server-side.",
+		file: "server/collections/appointments.ts",
+		code: `const appointments = qb.collection("appointments")
   .fields((f) => ({
-    title: f.text({ required: true }),
-    content: f.richText(),
-    cover: f.upload({ to: 'assets' }),
-    author: f.relation({ to: 'users' }),
-    published: f.boolean({ default: false }),
+    customer: f.text({ required: true }),
+    barber: f.relation("barbers"),
+    service: f.relation("services"),
+    date: f.date({ required: true }),
+    status: f.select({
+      options: ["pending", "confirmed", "completed"],
+      default: "pending",
+    }),
+    // Auto-computed from the selected service
+    price: f.number({
+      compute: async ({ values, ctx }) => {
+        const svc = await ctx.db.services.findById(values.service);
+        return svc?.price ?? 0;
+      },
+    }),
   }))`,
-    file: "server/collections/posts.ts",
+	},
+	{
+		number: "02",
+		title: "Custom RPC with end-to-end types",
+		description:
+			"Define typed procedures for business logic. Input validation, database access, and return types — all inferred.",
+		file: "server/rpc/scheduling.ts",
+		code: `const getAvailableSlots = rpc.fn({
+  input: z.object({
+    barberId: z.string(),
+    date: z.string(),
+  }),
+  handler: async ({ input, app }) => {
+    const booked = await app.api.collections.appointments.find({
+      where: {
+        barber: input.barberId,
+        date: input.date,
+        status: { in: ["pending", "confirmed"] },
+      },
+    });
+    return calculateFreeSlots(input.date, booked.docs);
   },
-  {
-    number: "02",
-    title: "Chain Admin Config",
-    description:
-      "On the same collection, chain .admin(), .list(), .form() to configure how it appears in the admin panel. Everything stays in one file.",
-    code: `  .admin(({ c }) => ({
-    label: 'Posts',
-    icon: c.icon('ph:article'),
-  }))
-  .list(({ v, f }) => v.table({
-    columns: [f.title, f.published],
-    searchable: ['title'],
-  }))
-  .form(({ v, f }) => v.form({
-    fields: [f.title, f.content, f.cover, f.published],
-  }))`,
-    file: "server/collections/posts.ts",
+});`,
+	},
+	{
+		number: "03",
+		title: "Typed client SDK — full autocomplete",
+		description:
+			"Query collections and call RPC procedures with complete type safety. No codegen step required.",
+		file: "app/dashboard.tsx",
+		code: `// Collections — fully typed filters, sort, populate
+const { docs: upcoming } = await client.collections.appointments.find({
+  where: {
+    date: { gte: new Date() },
+    status: { in: ["pending", "confirmed"] },
   },
-  {
-    number: "03",
-    title: "Build & Ship",
-    description:
-      "Wire collections into the CMS builder with auth, jobs, and storage. You get a REST API, type-safe client SDK, and a complete admin panel.",
-    code: `const cms = q({ name: 'my-cms' })
-  .use(adminModule)
-  .collections({ posts, pages, authors })
-  .auth({ emailAndPassword: { enabled: true } })
-  .build({
-    db: { url: process.env.DATABASE_URL },
-    storage: { basePath: '/api/cms' },
-  })
+  populate: { barber: true, service: true },
+  sort: { date: "asc" },
+  limit: 10,
+});
 
-export type AppCMS = typeof cms`,
-    file: "server/cms.ts",
-  },
+// RPC — fully typed input and output
+const slots = await client.rpc.getAvailableSlots({
+  barberId: selectedBarber.id,
+  date: "2025-03-15",
+});`,
+	},
 ];
 
 export function HowItWorks() {
-  return (
-    <section className="py-24 border-t border-border/30 relative overflow-hidden">
-      <div className="absolute top-1/2 right-1/4 w-[400px] h-[400px] bg-primary/3 rounded-full blur-[150px] -translate-y-1/2" />
+	return (
+		<section id="workflow" className="border-t border-border/40 py-20">
+			<div className="mx-auto w-full max-w-7xl px-4">
+				<div className="mx-auto mb-14 max-w-2xl space-y-3 text-center">
+					<h2 className="font-mono text-sm uppercase tracking-[0.2em] text-primary">
+						Real-world patterns
+					</h2>
+					<h3 className="text-3xl font-bold tracking-tight md:text-4xl">
+						See it in action.
+					</h3>
+				</div>
 
-      <div className="w-full max-w-7xl mx-auto px-4 relative z-10">
-        <div className="text-center max-w-2xl mx-auto space-y-4 mb-20">
-          <h2 className="font-mono text-sm tracking-[0.2em] uppercase text-primary">
-            How It Works
-          </h2>
-          <h3 className="text-3xl md:text-4xl font-bold">
-            Three Steps. Complete CMS.
-          </h3>
-          <p className="text-muted-foreground">
-            Define your data, configure the admin, build. No boilerplate, no
-            separate frontend codebase, no code generation.
-          </p>
-        </div>
-
-        <div className="space-y-16">
-          {steps.map((step, i) => (
-            <div
-              key={step.number}
-              className="grid lg:grid-cols-2 gap-8 items-start"
-            >
-              {/* Description */}
-              <div className={`space-y-4 ${i % 2 === 1 ? "lg:order-2" : ""}`}>
-                <div className="flex items-center gap-4">
-                  <span className="text-5xl font-bold text-primary/20 leading-none font-mono">
-                    {step.number}
-                  </span>
-                  <div>
-                    <h4 className="text-xl font-bold">{step.title}</h4>
-                  </div>
-                </div>
-                <p className="text-muted-foreground leading-relaxed pl-[76px]">
-                  {step.description}
-                </p>
-
-                {/* Connector line to next step */}
-                {i < steps.length - 1 && (
-                  <div className="hidden lg:block pl-[38px] pt-4">
-                    <div className="w-px h-8 bg-gradient-to-b from-primary/30 to-transparent" />
-                  </div>
-                )}
-              </div>
-
-              {/* Code */}
-              <div className={i % 2 === 1 ? "lg:order-1" : ""}>
-                <CodeWindow title={step.file}>{step.code}</CodeWindow>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
+				<div className="mx-auto max-w-4xl space-y-12">
+					{steps.map((step) => (
+						<div key={step.number} className="space-y-4">
+							<div className="flex items-center gap-4">
+								<span className="font-mono text-4xl leading-none text-primary/25">
+									{step.number}
+								</span>
+								<div>
+									<h4 className="text-xl font-semibold">{step.title}</h4>
+									<p className="text-sm text-muted-foreground">
+										{step.description}
+									</p>
+								</div>
+							</div>
+							<CodeWindow title={step.file}>{step.code}</CodeWindow>
+						</div>
+					))}
+				</div>
+			</div>
+		</section>
+	);
 }

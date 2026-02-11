@@ -1,0 +1,320 @@
+---
+title: Hooks & Lifecycle
+description: Intercept create, update, delete, and read operations with typed hooks
+---
+
+# Hooks & Lifecycle
+
+Hooks let you inject business logic at specific points in a record's lifecycle — transforming input before validation, computing derived fields, sending notifications after changes, or preventing deletions. Every hook receives a typed context with the record data, the CMS instance, and the current database connection.
+
+## Why This Exists
+
+Collections define the shape of your data; hooks define what happens around CRUD operations. Instead of scattering logic across controllers or middleware, hooks keep behavior colocated with the collection that owns it. A single `.hooks({})` call on a collection registers all lifecycle handlers.
+
+## Hook Execution Order
+
+Each CRUD operation executes hooks in a specific sequence:
+
+### Create
+
+```text
+beforeOperation → beforeValidate → [Zod validation] → beforeChange → [DB INSERT] → afterChange → afterRead
+```
+
+### Update
+
+```text
+beforeOperation → [load existing] → beforeValidate → [Zod validation] → beforeChange → [DB UPDATE] → afterChange → afterRead
+```
+
+### Delete
+
+```text
+beforeOperation → [load existing] → beforeDelete → [DB DELETE] → afterDelete → afterRead
+```
+
+### Read
+
+```text
+beforeOperation → beforeRead → [DB SELECT] → [resolve relations] → afterRead
+```
+
+## Registering Hooks
+
+Use `.hooks()` on a collection builder:
+
+```ts
+export const barbers = qb
+  .collection("barbers")
+  .fields((f) => ({
+    name: f.text({ required: true }),
+    slug: f.text({}),
+    bio: f.richText({}),
+  }))
+  .hooks({
+    beforeValidate: async ({ data, operation }) => {
+      const d = data as { name?: string; slug?: string };
+      if (d.name && !d.slug) {
+        d.slug = d.name.toLowerCase().replace(/\s+/g, "-");
+      }
+    },
+
+    afterRead: ({ data }) => {
+      const d = data as any;
+      d.displayName = d.name ?? "Unknown Barber";
+    },
+
+    afterChange: async ({ data, operation, app }) => {
+      if (operation === "create") {
+        const cms = getApp(app);
+        cms.logger.info("New barber created", { id: data.id });
+      }
+    },
+  });
+```
+
+Each hook property accepts a single function or an array of functions:
+
+```ts
+.hooks({
+  afterChange: [
+    logChange,
+    notifyWebhook,
+    updateSearchIndex,
+  ],
+})
+```
+
+## Hook Types
+
+### beforeOperation
+
+Runs before any operation. Use for logging, rate limiting, or early rejection.
+
+```ts
+beforeOperation: async ({ operation, app }) => {
+  const cms = getApp(app);
+  cms.logger.info("Operation starting", { operation });
+}
+```
+
+### beforeValidate
+
+Runs before Zod validation on create and update. Mutate `data` to transform input — set defaults, normalize values, generate slugs.
+
+```ts
+beforeValidate: async ({ data, operation }) => {
+  const d = data as { name?: string; slug?: string };
+  if (d.name && !d.slug) {
+    d.slug = d.name.toLowerCase().replace(/\s+/g, "-");
+  }
+}
+```
+
+### beforeChange
+
+Runs after validation but before the database write. Use for business logic, complex cross-field validation, or computed values that depend on validated input.
+
+```ts
+beforeChange: async ({ data, operation, db }) => {
+  if (operation === "create") {
+    const d = data as any;
+    d.orderNumber = await generateNextOrderNumber(db);
+  }
+}
+```
+
+### afterChange
+
+Runs after create or update, inside the transaction. Use for notifications, queue jobs, and side effects.
+
+```ts
+afterChange: async ({ data, operation, original, app }) => {
+  const cms = getApp(app);
+
+  if (operation === "create") {
+    await cms.queue.sendConfirmation.publish({
+      appointmentId: data.id,
+    });
+  }
+
+  if (operation === "update" && original) {
+    const prev = original as any;
+    const curr = data as any;
+    if (prev.status !== curr.status && curr.status === "cancelled") {
+      await cms.queue.sendCancellation.publish({
+        appointmentId: data.id,
+      });
+    }
+  }
+}
+```
+
+### beforeRead
+
+Runs before read operations. Modify query options or add filters.
+
+```ts
+beforeRead: async ({ data, session }) => {
+  // data contains query options for read operations
+}
+```
+
+### afterRead
+
+Runs after any operation that returns data (create, read, update, delete). Use for computed fields, formatting, or response enrichment.
+
+```ts
+afterRead: ({ data }) => {
+  const d = data as any;
+  if (d.scheduledAt) {
+    d.displayTitle = `${d.customer} — ${new Date(d.scheduledAt).toLocaleDateString()}`;
+  }
+}
+```
+
+### beforeDelete
+
+Runs before deletion. Throw an error to prevent the delete.
+
+```ts
+beforeDelete: async ({ data, db }) => {
+  const typedDb = getDb(db);
+  const activeOrders = await typedDb
+    .select()
+    .from(orders)
+    .where(eq(orders.customerId, data.id));
+
+  if (activeOrders.length > 0) {
+    throw new ApiError("Cannot delete customer with active orders", 400);
+  }
+}
+```
+
+### afterDelete
+
+Runs after deletion. Use for cleanup, logging, or cascade operations.
+
+```ts
+afterDelete: async ({ data, app }) => {
+  const cms = getApp(app);
+  cms.logger.info("Record deleted", { id: data.id });
+
+  // Clean up related files
+  if (data.avatarUrl) {
+    await cms.storage.disk().delete(data.avatarUrl);
+  }
+}
+```
+
+## Hook Context
+
+Every hook receives a context object with these properties:
+
+| Property | Type | Available In | Description |
+|---|---|---|---|
+| `data` | `TData` | All hooks | Current record or input data |
+| `original` | `TData \| undefined` | afterChange (update) | Previous record state before update |
+| `operation` | `"create" \| "update" \| "delete" \| "read"` | All hooks | Current operation type |
+| `app` | `TApp` | All hooks | CMS instance (use `getApp(app)` for typing) |
+| `session` | `Session \| null` | All hooks | Authenticated user session |
+| `locale` | `string` | All hooks | Current locale |
+| `accessMode` | `"system" \| "user"` | All hooks | Whether this is a system or user-initiated operation |
+| `db` | `Database` | All hooks | Database client (may be a transaction) |
+
+### Accessing Typed Services
+
+```ts
+import { getApp, getDb } from "questpie";
+
+afterChange: async ({ app, db, data }) => {
+  const cms = getApp(app);    // Typed CMS instance
+  const typedDb = getDb(db);  // Typed Drizzle client
+
+  await cms.kv.set(`cache:${data.id}`, data, 300);
+  await typedDb.execute(sql`UPDATE counters SET value = value + 1`);
+}
+```
+
+## Transaction Behavior
+
+- **beforeChange**, **afterChange**, **beforeDelete** run inside the database transaction
+- **afterRead** runs outside the transaction
+- The `db` in hook context may be a transaction — nested CRUD calls reuse it automatically
+
+For side effects that should only execute after the transaction commits (sending emails, publishing to external APIs), use `onAfterCommit`:
+
+```ts
+import { onAfterCommit } from "questpie";
+
+afterChange: async ({ data, app }) => {
+  onAfterCommit(async () => {
+    // This runs only after the transaction commits
+    await fetch("https://webhook.site/...", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  });
+}
+```
+
+## Real-World Example: Barbershop Appointments
+
+```ts
+export const appointments = qb
+  .collection("appointments")
+  .fields((f) => ({
+    customer: f.text({ required: true }),
+    scheduledAt: f.datetime({ required: true }),
+    status: f.select({
+      options: ["pending", "confirmed", "completed", "cancelled"],
+      defaultValue: "pending",
+    }),
+  }))
+  .hooks({
+    // Compute display title for admin list view
+    afterRead: ({ data }) => {
+      const d = data as any;
+      const date = d.scheduledAt
+        ? new Date(d.scheduledAt).toLocaleDateString()
+        : "";
+      d.displayTitle = `${d.customer} — ${date}`.trim();
+    },
+
+    // Send notifications on create/status change
+    afterChange: async ({ data, operation, original, app }) => {
+      const cms = getApp(app);
+
+      if (operation === "create") {
+        await cms.queue.sendAppointmentConfirmation.publish({
+          appointmentId: data.id,
+          customerId: data.customer,
+        });
+      }
+
+      if (operation === "update" && original) {
+        const prev = original as any;
+        const curr = data as any;
+        if (prev.status !== curr.status && curr.status === "cancelled") {
+          await cms.queue.sendAppointmentCancellation.publish({
+            appointmentId: data.id,
+          });
+        }
+      }
+    },
+  });
+```
+
+## Common Mistakes
+
+- **Expensive queries in `afterRead`** — This hook runs for every record in list queries. Keep it lightweight (string formatting, simple computation). Move heavy work to background jobs.
+- **Side effects in `afterChange` without `onAfterCommit`** — If the transaction rolls back, the side effect has already fired. Use `onAfterCommit` for external API calls, emails, and webhooks.
+- **Mutating `data` in `afterRead`** — This is intentional. `afterRead` is the standard place to add computed fields. Just be aware the mutations affect the returned record.
+- **Forgetting `getApp()` cast** — The `app` parameter is untyped by default. Always use `getApp(app)` to get the typed CMS instance with access to `.queue`, `.kv`, `.email`, etc.
+
+## Related Pages
+
+- [Collections](/docs/server/collections) — Where hooks are registered
+- [Context & Transactions](/docs/server/context-and-transactions) — Transaction behavior and `onAfterCommit`
+- [Access Control](/docs/server/access-control) — Permission checks before hooks run
+- [Queue & Jobs](/docs/infrastructure/queue-and-jobs) — Publishing jobs from hooks

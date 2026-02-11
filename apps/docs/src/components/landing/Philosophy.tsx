@@ -28,7 +28,7 @@ import type { AppCMS } from '../server/cms'
 export const admin = qa<AppCMS>()
   .use(adminModule)
   .branding({
-    name: 'My CMS',
+    name: 'My App',
     logo: '/logo.svg',
   })
   .locale({

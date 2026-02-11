@@ -1,0 +1,79 @@
+---
+title: Reactive Fields
+description: Server-side form behavior with hidden/readOnly/disabled/compute/options
+---
+
+# Reactive Fields
+
+Reactive handlers run on the server and receive runtime context.
+
+Available handlers in `meta.admin`:
+
+- `hidden`
+- `readOnly`
+- `disabled`
+- `compute`
+- `options` (for dynamic select/relation options)
+
+## Compute example (auto slug)
+
+```ts
+slug: f.text({
+  required: true,
+  input: "optional",
+  meta: {
+    admin: {
+      compute: {
+        handler: ({ data }) => {
+          const title = data.title;
+          if (!title || typeof title !== "string") return undefined;
+          return title
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, "-")
+            .replace(/(^-|-$)/g, "");
+        },
+        deps: ({ data }) => [data.title],
+        debounce: 300,
+      },
+    },
+  },
+});
+```
+
+## Visibility example (conditional field)
+
+```ts
+cancellationReason: f.textarea({
+  meta: {
+    admin: {
+      hidden: ({ data }) => data.status !== "cancelled",
+    },
+  },
+});
+```
+
+## Dynamic options example
+
+```ts
+barber: f.relation({
+  to: "barbers",
+  options: {
+    handler: async ({ search, ctx }) => {
+      // TODO: query with ctx.db and return filtered options
+      return { options: [] };
+    },
+    deps: ({ data }) => [data.service],
+  },
+});
+```
+
+## Context available to handlers
+
+- `data`: current form data
+- `prev`: previous data (where relevant)
+- `ctx.db`: database access
+- `ctx.user`: current authenticated user
+
+## Practical rule
+
+Keep business-critical reactive logic on the server. Client-side behavior should be presentation-only.

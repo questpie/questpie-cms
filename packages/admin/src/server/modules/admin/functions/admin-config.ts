@@ -19,7 +19,7 @@ import { z } from "zod";
 import type {
 	AdminCollectionConfig,
 	AdminGlobalConfig,
-	IconReference,
+	ComponentReference,
 	ServerDashboardConfig,
 	ServerDashboardItem,
 	ServerSidebarConfig,
@@ -34,7 +34,7 @@ import { introspectBlocks } from "../../../block/introspection.js";
 type AdminConfigItemMeta = {
 	label?: unknown;
 	description?: unknown;
-	icon?: IconReference;
+	icon?: ComponentReference;
 	hidden?: boolean;
 	group?: string;
 	order?: number;
@@ -247,7 +247,7 @@ function filterSidebarConfig(
 		sections: config.sections
 			.map((s) => ({
 				...s,
-				items: s.items.filter((item) => {
+				items: (s.items ?? []).filter((item) => {
 					if (item.type === "collection")
 						return accessibleCollections.has((item as any).collection);
 					if (item.type === "global")
@@ -255,7 +255,9 @@ function filterSidebarConfig(
 					return true; // pages, links, dividers always pass
 				}),
 			}))
-			.filter((s) => s.items.length > 0),
+			.filter(
+				(s) => (s.items?.length ?? 0) > 0 || (s.sections?.length ?? 0) > 0,
+			),
 	};
 }
 
@@ -268,11 +270,19 @@ function collectSidebarReferences(config: ServerSidebarConfig): {
 } {
 	const collections = new Set<string>();
 	const globals = new Set<string>();
-	for (const section of config.sections) {
-		for (const item of section.items) {
+
+	function collectFromSection(section: ServerSidebarSection): void {
+		for (const item of section.items ?? []) {
 			if (item.type === "collection") collections.add((item as any).collection);
 			else if (item.type === "global") globals.add((item as any).global);
 		}
+		for (const subSection of section.sections ?? []) {
+			collectFromSection(subSection);
+		}
+	}
+
+	for (const section of config.sections) {
+		collectFromSection(section);
 	}
 	return { collections, globals };
 }
@@ -406,6 +416,12 @@ const getAdminConfigOutputSchema = z.object({
 	blocks: z.record(z.string(), z.unknown()).optional(),
 	collections: z.record(z.string(), z.unknown()).optional(),
 	globals: z.record(z.string(), z.unknown()).optional(),
+	uploads: z
+		.object({
+			collections: z.array(z.string()),
+			defaultCollection: z.string().optional(),
+		})
+		.optional(),
 });
 
 // ============================================================================
@@ -488,7 +504,22 @@ export const getAdminConfig = fn({
 			blocks?: Record<string, unknown>;
 			collections?: Record<string, unknown>;
 			globals?: Record<string, unknown>;
+			uploads?: { collections: string[]; defaultCollection?: string };
 		} = {};
+
+		const uploadCollections = Object.entries(collections)
+			.filter(
+				([name, collection]) =>
+					accessibleCollections.has(name) &&
+					Boolean((collection as any)?.state?.upload),
+			)
+			.map(([name]) => name);
+
+		response.uploads = {
+			collections: uploadCollections,
+			defaultCollection:
+				uploadCollections.length === 1 ? uploadCollections[0] : undefined,
+		};
 
 		// Branding config
 		if (state.branding) {

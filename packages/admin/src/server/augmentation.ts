@@ -138,6 +138,32 @@ export interface ComponentDefinition<TName extends string = string> {
 	name: TName;
 }
 
+type ComponentFactoryInput<TName extends string> = TName extends "icon"
+	? string | { name: string }
+	: TName extends "badge"
+		? { text: string; color?: string }
+		: Record<string, unknown> | string;
+
+type ComponentFactoryOutput<TName extends string> = TName extends "icon"
+	? IconReference
+	: TName extends "badge"
+		? BadgeReference
+		: ComponentReference<TName, Record<string, unknown>>;
+
+/**
+ * Component factory API generated from registered components.
+ *
+ * Each key returns a serializable component reference.
+ *
+ * Note: `icon` keeps backward-compatible string shorthand:
+ * `c.icon("ph:users")` => `{ type: "icon", props: { name: "ph:users" } }`
+ */
+export type ComponentFactory<TComponentNames extends string = string> = {
+	[K in TComponentNames]: (
+		props: ComponentFactoryInput<K>,
+	) => ComponentFactoryOutput<K>;
+};
+
 // ============================================================================
 // Collection Admin Configuration
 // ============================================================================
@@ -152,7 +178,7 @@ export interface AdminCollectionConfig {
 	/** Description shown in tooltips/help text */
 	description?: I18nText;
 	/** Icon reference (resolved by client's icon component) */
-	icon?: IconReference;
+	icon?: ComponentReference;
 	/** Hide from admin sidebar */
 	hidden?: boolean;
 	/** Group in sidebar */
@@ -169,7 +195,7 @@ export interface BlockCategoryConfig {
 	/** Display label for the category */
 	label: I18nText;
 	/** Icon for the category */
-	icon?: IconReference;
+	icon?: ComponentReference;
 	/** Order in block picker (lower = first) */
 	order?: number;
 }
@@ -197,7 +223,7 @@ export interface AdminBlockConfig {
 	/** Description shown in tooltips/help text */
 	description?: I18nText;
 	/** Icon reference (resolved by client's icon component) */
-	icon?: IconReference;
+	icon?: ComponentReference;
 	/** Category for grouping in block picker */
 	category?: BlockCategoryConfig;
 	/** Order within category in block picker (lower = first) */
@@ -214,7 +240,7 @@ export interface ListViewConfig {
 	/** View type to use (e.g., "table", "cards") */
 	view?: string;
 	/** Columns to display */
-	columns?: FieldReference[];
+	columns?: string[];
 	/** Default sort configuration */
 	defaultSort?: { field: string; direction: "asc" | "desc" };
 	/** Searchable fields */
@@ -229,47 +255,140 @@ export interface ListViewConfig {
 	};
 }
 
-/**
- * Form view configuration for a collection.
- * Defines field layout, sections, and tabs.
- */
-export interface FormViewConfig {
-	/** View type to use (e.g., "form", "wizard") */
-	view?: string;
-	/** Fields to include */
-	fields?: FieldReference[];
-	/** Form sections */
-	sections?: FormSection[];
-	/** Form tabs */
-	tabs?: FormTab[];
-}
+// ============================================================================
+// Form View Layout Types
+// ============================================================================
 
 /**
- * Form section configuration
+ * Section layout for form views.
+ * Groups fields with optional visual wrapper and layout mode.
+ *
+ * @example
+ * ```ts
+ * {
+ *   type: "section",
+ *   label: { en: "Contact Information" },
+ *   layout: "grid",
+ *   columns: 2,
+ *   fields: [f.name, f.email, f.phone],
+ * }
+ * ```
  */
-export interface FormSection {
+export interface FormSectionLayout {
+	type: "section";
 	/** Section label */
 	label?: I18nText;
 	/** Section description */
 	description?: I18nText;
-	/** Fields in this section */
-	fields: FieldReference[];
-	/** Collapsible section */
-	collapsible?: boolean;
-	/** Default collapsed state */
+	/** Visual wrapper mode */
+	wrapper?: "flat" | "collapsible";
+	/** Default collapsed state (for collapsible wrapper) */
 	defaultCollapsed?: boolean;
+	/** Field arrangement mode */
+	layout?: "stack" | "inline" | "grid";
+	/** Number of columns (for grid layout) */
+	columns?: number;
+	/** Custom gap (in quarter rems) */
+	gap?: number;
+	/** Fields in this section */
+	fields: FieldLayoutItem[];
+	/** Conditional visibility */
+	hidden?: boolean;
+	/** Custom CSS class */
+	className?: string;
 }
 
 /**
- * Form tab configuration
+ * Tab configuration for tabbed form views.
  */
-export interface FormTab {
+export interface FormTabConfig {
+	/** Unique tab identifier */
+	id: string;
 	/** Tab label */
 	label: I18nText;
 	/** Tab icon */
-	icon?: IconReference;
-	/** Sections in this tab */
-	sections: FormSection[];
+	icon?: ComponentReference;
+	/** Fields in this tab */
+	fields: FieldLayoutItem[];
+	/** Conditional visibility */
+	hidden?: boolean;
+}
+
+/**
+ * Tabs layout for form views.
+ *
+ * @example
+ * ```ts
+ * {
+ *   type: "tabs",
+ *   tabs: [
+ *     { id: "basic", label: { en: "Basic" }, fields: [f.name, f.email] },
+ *     { id: "advanced", label: { en: "Advanced" }, fields: [f.settings] },
+ *   ],
+ * }
+ * ```
+ */
+export interface FormTabsLayout {
+	type: "tabs";
+	tabs: FormTabConfig[];
+}
+
+/**
+ * Field layout item - union of field reference or layout container.
+ *
+ * Can be:
+ * - Field name string: `f.name`
+ * - Field with className: `{ field: "name", className: "col-span-2" }`
+ * - Section layout: `{ type: "section", ... }`
+ * - Tabs layout: `{ type: "tabs", ... }`
+ */
+export type FieldLayoutItem =
+	| string
+	| { field: string; className?: string }
+	| FormSectionLayout
+	| FormTabsLayout;
+
+/**
+ * Form sidebar configuration.
+ * Places fields in a fixed sidebar alongside the main content.
+ *
+ * @example
+ * ```ts
+ * sidebar: {
+ *   position: "right",
+ *   fields: [f.isActive, f.avatar],
+ * }
+ * ```
+ */
+export interface FormSidebarConfig {
+	/** Sidebar position (default: "right") */
+	position?: "left" | "right";
+	/** Fields in the sidebar */
+	fields: FieldLayoutItem[];
+}
+
+/**
+ * Form view configuration for a collection.
+ * Defines field layout with sections, tabs, and optional sidebar.
+ *
+ * @example
+ * ```ts
+ * v.form({
+ *   sidebar: { position: "right", fields: [f.status] },
+ *   fields: [
+ *     { type: "section", label: { en: "Details" }, layout: "grid", columns: 2, fields: [f.name, f.email] },
+ *     { type: "section", label: { en: "Content" }, fields: [f.body] },
+ *   ],
+ * })
+ * ```
+ */
+export interface FormViewConfig {
+	/** View type to use (e.g., "form", "wizard") */
+	view?: string;
+	/** Main content fields */
+	fields: FieldLayoutItem[];
+	/** Sidebar configuration */
+	sidebar?: FormSidebarConfig;
 }
 
 /**
@@ -286,11 +405,6 @@ export interface PreviewConfig {
 	/** Default panel width (percentage) */
 	defaultWidth?: number;
 }
-
-/**
- * Reference to a field in the collection
- */
-export type FieldReference = string;
 
 /**
  * Reference to an action
@@ -310,7 +424,7 @@ export interface AdminGlobalConfig {
 	/** Description */
 	description?: I18nText;
 	/** Icon reference */
-	icon?: IconReference;
+	icon?: ComponentReference;
 	/** Hide from admin */
 	hidden?: boolean;
 	/** Group in sidebar */
@@ -368,7 +482,7 @@ export interface ServerStatsWidget {
 	/** Widget label */
 	label?: I18nText;
 	/** Icon reference */
-	icon?: IconReference;
+	icon?: ComponentReference;
 	/** Collection to count */
 	collection: string;
 	/** Filter to apply */
@@ -459,7 +573,7 @@ export interface ServerQuickAction {
 	/** Action label */
 	label: I18nText;
 	/** Action icon */
-	icon?: IconReference;
+	icon?: ComponentReference;
 	/** Action to perform */
 	action:
 		| { type: "create"; collection: string }
@@ -498,7 +612,7 @@ export interface ServerValueWidget {
 	/** Widget label */
 	label?: I18nText;
 	/** Icon reference */
-	icon?: IconReference;
+	icon?: ComponentReference;
 	/** Grid span (1-4) */
 	span?: number;
 	/** Server-side data fetcher (required) */
@@ -616,7 +730,7 @@ export interface ServerDashboardSection {
 	/** Section description */
 	description?: I18nText;
 	/** Section icon */
-	icon?: IconReference;
+	icon?: ComponentReference;
 	/** Layout mode */
 	layout?: "grid" | "stack";
 	/** Grid columns */
@@ -649,7 +763,7 @@ export interface ServerDashboardTab {
 	/** Tab label */
 	label: I18nText;
 	/** Tab icon */
-	icon?: IconReference;
+	icon?: ComponentReference;
 	/** Tab items */
 	items: ServerDashboardItem[];
 }
@@ -718,7 +832,7 @@ export interface ServerSidebarCollectionItem {
 	/** Override display label */
 	label?: I18nText;
 	/** Override icon */
-	icon?: IconReference;
+	icon?: ComponentReference;
 }
 
 /**
@@ -731,7 +845,7 @@ export interface ServerSidebarGlobalItem {
 	/** Override display label */
 	label?: I18nText;
 	/** Override icon */
-	icon?: IconReference;
+	icon?: ComponentReference;
 }
 
 /**
@@ -744,7 +858,7 @@ export interface ServerSidebarPageItem {
 	/** Display label */
 	label?: I18nText;
 	/** Icon */
-	icon?: IconReference;
+	icon?: ComponentReference;
 }
 
 /**
@@ -757,7 +871,7 @@ export interface ServerSidebarLinkItem {
 	/** Link URL */
 	href: string;
 	/** Icon */
-	icon?: IconReference;
+	icon?: ComponentReference;
 	/** Open in new tab */
 	external?: boolean;
 }
@@ -778,11 +892,13 @@ export interface ServerSidebarSection {
 	/** Section title */
 	title?: I18nText;
 	/** Section icon */
-	icon?: IconReference;
+	icon?: ComponentReference;
 	/** Whether collapsed by default */
 	collapsed?: boolean;
 	/** Section items */
-	items: ServerSidebarItem[];
+	items?: ServerSidebarItem[];
+	/** Nested subsections */
+	sections?: ServerSidebarSection[];
 }
 
 /**
@@ -964,7 +1080,7 @@ export interface ServerActionDefinition<TData = Record<string, unknown>> {
 	/** Action description */
 	description?: I18nText;
 	/** Icon reference */
-	icon?: IconReference;
+	icon?: ComponentReference;
 	/** Button variant */
 	variant?: "default" | "destructive" | "outline" | "secondary" | "ghost";
 	/** Where the action appears */
@@ -1041,6 +1157,7 @@ export interface ServerActionsConfig {
  */
 export interface ActionsConfigContext<
 	TFields extends Record<string, unknown> = Record<string, unknown>,
+	TComponentNames extends string = string,
 > {
 	/** Action builders */
 	a: {
@@ -1069,10 +1186,8 @@ export interface ActionsConfigContext<
 			def: Omit<ServerActionDefinition<TData>, "scope">,
 		) => ServerActionDefinition<TData>;
 	};
-	/** Component helpers */
-	c: {
-		icon: (name: string) => IconReference;
-	};
+	/** Component helpers (from registered component registry) */
+	c: ComponentFactory<TComponentNames>;
 	/**
 	 * Field proxy from field registry.
 	 * Use the same field types as in collections: f.text(), f.select(), etc.
@@ -1090,7 +1205,9 @@ export interface ActionsConfigContext<
 /**
  * Context for dashboard config function
  */
-export interface DashboardConfigContext {
+export interface DashboardConfigContext<
+	TComponentNames extends string = string,
+> {
 	/** Dashboard builder helpers */
 	d: {
 		/** Create dashboard config */
@@ -1128,16 +1245,14 @@ export interface DashboardConfigContext {
 			config: Omit<ServerProgressWidget, "type">,
 		) => ServerProgressWidget;
 	};
-	/** Component helpers */
-	c: {
-		icon: (name: string) => IconReference;
-	};
+	/** Component helpers (from registered component registry) */
+	c: ComponentFactory<TComponentNames>;
 }
 
 /**
  * Context for sidebar config function
  */
-export interface SidebarConfigContext {
+export interface SidebarConfigContext<TComponentNames extends string = string> {
 	/** Sidebar builder helpers */
 	s: {
 		/** Create sidebar config */
@@ -1149,10 +1264,8 @@ export interface SidebarConfigContext {
 			},
 		) => ServerSidebarSection;
 	};
-	/** Component helpers */
-	c: {
-		icon: (name: string) => IconReference;
-	};
+	/** Component helpers (from registered component registry) */
+	c: ComponentFactory<TComponentNames>;
 }
 
 // ============================================================================
@@ -1162,26 +1275,100 @@ export interface SidebarConfigContext {
 /**
  * Context for admin config functions with component proxy
  */
-export interface AdminConfigContext {
-	c: {
-		/** Create an icon reference */
-		icon: (name: string) => IconReference;
-		/** Create a badge reference */
-		badge: (props: { text: string; color?: string }) => BadgeReference;
-	};
+export interface AdminConfigContext<TComponentNames extends string = string> {
+	c: ComponentFactory<TComponentNames>;
 }
+
+/**
+ * Extract state from a builder-like object.
+ */
+type BuilderStateOf<TBuilder> = TBuilder extends { state: infer TState }
+	? TState
+	: never;
+
+/**
+ * Resolve source state for registry lookups.
+ *
+ * - Collection/Global builders: use `state["~questpieApp"].state`
+ * - QuestpieBuilder: use `state`
+ */
+type RegistrySourceStateOf<TBuilder> = QuestpieStateOf<
+	BuilderStateOf<TBuilder> extends { "~questpieApp"?: infer TQuestpieApp }
+		? NonNullable<TQuestpieApp>
+		: never
+> extends never
+	? BuilderStateOf<TBuilder>
+	: QuestpieStateOf<
+			BuilderStateOf<TBuilder> extends {
+				"~questpieApp"?: infer TQuestpieApp;
+			}
+				? NonNullable<TQuestpieApp>
+				: never
+		>;
+
+/**
+ * Extract registered list view names from a builder.
+ */
+type RegisteredListViewNamesOfBuilder<TBuilder> =
+	RegistrySourceStateOf<TBuilder> extends {
+		listViews?: infer TViews;
+	}
+		? TViews extends Record<string, ListViewDefinition>
+			? keyof TViews & string
+			: string
+		: string;
+
+/**
+ * Extract registered edit view names from a builder.
+ */
+type RegisteredEditViewNamesOfBuilder<TBuilder> =
+	RegistrySourceStateOf<TBuilder> extends {
+		editViews?: infer TViews;
+	}
+		? TViews extends Record<string, EditViewDefinition>
+			? keyof TViews & string
+			: string
+		: string;
+
+/**
+ * Extract registered component names from a builder.
+ */
+type RegisteredComponentNamesOfBuilder<TBuilder> =
+	RegistrySourceStateOf<TBuilder> extends {
+		components?: infer TComponents;
+	}
+		? TComponents extends Record<string, ComponentDefinition>
+			? keyof TComponents & string
+			: string
+		: string;
+
+/**
+ * View factory API generated from registered list views.
+ */
+export type ListViewFactory<TListViewNames extends string = string> = {
+	[K in TListViewNames]: (
+		config: Omit<ListViewConfig, "view">,
+	) => ListViewConfig & { view: K };
+};
+
+/**
+ * View factory API generated from registered edit views.
+ */
+export type EditViewFactory<TEditViewNames extends string = string> = {
+	[K in TEditViewNames]: (
+		config: Omit<FormViewConfig, "view">,
+	) => FormViewConfig & { view: K };
+};
 
 /**
  * Context for list view config functions
  */
 export interface ListViewConfigContext<
 	TFields extends Record<string, any> = Record<string, any>,
+	TListViewNames extends string = string,
 > {
 	/** View factory */
-	v: {
-		table: (config: Omit<ListViewConfig, "view">) => ListViewConfig;
-		cards: (config: Omit<ListViewConfig, "view">) => ListViewConfig;
-	};
+	v: ListViewFactory<TListViewNames>;
 	/** Field reference proxy - returns field names as strings */
 	f: { [K in keyof TFields]: K };
 	/** Action reference proxy */
@@ -1204,12 +1391,10 @@ export interface ListViewConfigContext<
  */
 export interface FormViewConfigContext<
 	TFields extends Record<string, any> = Record<string, any>,
+	TEditViewNames extends string = string,
 > {
 	/** View factory */
-	v: {
-		form: (config: Omit<FormViewConfig, "view">) => FormViewConfig;
-		wizard: (config: Omit<FormViewConfig, "view">) => FormViewConfig;
-	};
+	v: EditViewFactory<TEditViewNames>;
 	/** Field reference proxy - returns field names as strings */
 	f: { [K in keyof TFields]: K };
 }
@@ -1230,7 +1415,9 @@ export interface FormViewConfigContext<
  * builder.listView("table"); // now has type support
  * ```
  */
-export interface QuestpieBuilderAdminMethods {
+export interface QuestpieBuilderAdminMethods<
+	TComponentNames extends string = string,
+> {
 	/** Create a list view definition */
 	listView<TName extends string>(
 		name: TName,
@@ -1289,7 +1476,9 @@ export interface QuestpieBuilderAdminMethods {
 	 * ```
 	 */
 	dashboard(
-		configFn: (ctx: DashboardConfigContext) => ServerDashboardConfig,
+		configFn: (
+			ctx: DashboardConfigContext<TComponentNames>,
+		) => ServerDashboardConfig,
 	): this;
 
 	/**
@@ -1312,7 +1501,11 @@ export interface QuestpieBuilderAdminMethods {
 	 * }))
 	 * ```
 	 */
-	sidebar(configFn: (ctx: SidebarConfigContext) => ServerSidebarConfig): this;
+	sidebar(
+		configFn: (
+			ctx: SidebarConfigContext<TComponentNames>,
+		) => ServerSidebarConfig,
+	): this;
 
 	/**
 	 * Configure admin branding (name, logo).
@@ -1332,6 +1525,9 @@ export interface QuestpieBuilderAdminMethods {
  */
 export interface CollectionBuilderAdminMethods<
 	TFields extends Record<string, any> = Record<string, any>,
+	TListViewNames extends string = string,
+	TEditViewNames extends string = string,
+	TComponentNames extends string = string,
 > {
 	/**
 	 * Set admin metadata for the collection.
@@ -1339,18 +1535,26 @@ export interface CollectionBuilderAdminMethods<
 	admin(
 		configOrFn:
 			| AdminCollectionConfig
-			| ((ctx: AdminConfigContext) => AdminCollectionConfig),
+			| ((ctx: AdminConfigContext<TComponentNames>) => AdminCollectionConfig),
 	): this;
 
 	/**
 	 * Configure list view for the collection.
 	 */
-	list(configFn: (ctx: ListViewConfigContext<TFields>) => ListViewConfig): this;
+	list(
+		configFn: (
+			ctx: ListViewConfigContext<TFields, TListViewNames>,
+		) => ListViewConfig,
+	): this;
 
 	/**
 	 * Configure form view for the collection.
 	 */
-	form(configFn: (ctx: FormViewConfigContext<TFields>) => FormViewConfig): this;
+	form(
+		configFn: (
+			ctx: FormViewConfigContext<TFields, TEditViewNames>,
+		) => FormViewConfig,
+	): this;
 
 	/**
 	 * Configure preview for the collection.
@@ -1379,7 +1583,9 @@ export interface CollectionBuilderAdminMethods<
 	 * ```
 	 */
 	actions(
-		configFn: (ctx: ActionsConfigContext<TFields>) => ServerActionsConfig,
+		configFn: (
+			ctx: ActionsConfigContext<TFields, TComponentNames>,
+		) => ServerActionsConfig,
 	): this;
 }
 
@@ -1388,6 +1594,8 @@ export interface CollectionBuilderAdminMethods<
  */
 export interface GlobalBuilderAdminMethods<
 	TFields extends Record<string, any> = Record<string, any>,
+	TEditViewNames extends string = string,
+	TComponentNames extends string = string,
 > {
 	/**
 	 * Set admin metadata for the global.
@@ -1395,13 +1603,17 @@ export interface GlobalBuilderAdminMethods<
 	admin(
 		configOrFn:
 			| AdminGlobalConfig
-			| ((ctx: AdminConfigContext) => AdminGlobalConfig),
+			| ((ctx: AdminConfigContext<TComponentNames>) => AdminGlobalConfig),
 	): this;
 
 	/**
 	 * Configure form view for the global.
 	 */
-	form(configFn: (ctx: FormViewConfigContext<TFields>) => FormViewConfig): this;
+	form(
+		configFn: (
+			ctx: FormViewConfigContext<TFields, TEditViewNames>,
+		) => FormViewConfig,
+	): this;
 }
 
 /**
@@ -1420,7 +1632,16 @@ export type WithAdminMethods<T> = T & QuestpieBuilderAdminMethods;
 export type WithCollectionAdminMethods<
 	T,
 	TFields extends Record<string, any> = Record<string, any>,
-> = T & CollectionBuilderAdminMethods<TFields>;
+	TListViewNames extends string = string,
+	TEditViewNames extends string = string,
+	TComponentNames extends string = string,
+> = T &
+	CollectionBuilderAdminMethods<
+		TFields,
+		TListViewNames,
+		TEditViewNames,
+		TComponentNames
+	>;
 
 /**
  * Type helper to add admin methods to a GlobalBuilder type.
@@ -1428,7 +1649,9 @@ export type WithCollectionAdminMethods<
 export type WithGlobalAdminMethods<
 	T,
 	TFields extends Record<string, any> = Record<string, any>,
-> = T & GlobalBuilderAdminMethods<TFields>;
+	TEditViewNames extends string = string,
+	TComponentNames extends string = string,
+> = T & GlobalBuilderAdminMethods<TFields, TEditViewNames, TComponentNames>;
 
 declare module "questpie" {
 	// ==========================================================================
@@ -1442,6 +1665,18 @@ declare module "questpie" {
 	 * Added via runtime monkey patching in ./patch.ts.
 	 */
 	interface QuestpieBuilderExtensions extends QuestpieBuilderAdminMethods {
+		dashboard(
+			configFn: (
+				ctx: DashboardConfigContext<RegisteredComponentNamesOfBuilder<this>>,
+			) => ServerDashboardConfig,
+		): this;
+
+		sidebar(
+			configFn: (
+				ctx: SidebarConfigContext<RegisteredComponentNamesOfBuilder<this>>,
+			) => ServerSidebarConfig,
+		): this;
+
 		/**
 		 * Configure admin UI locales (separate from content locales).
 		 *
@@ -1513,7 +1748,9 @@ declare module "questpie" {
 		admin(
 			configOrFn:
 				| AdminCollectionConfig
-				| ((ctx: AdminConfigContext) => AdminCollectionConfig),
+				| ((
+						ctx: AdminConfigContext<RegisteredComponentNamesOfBuilder<this>>,
+				  ) => AdminCollectionConfig),
 		): this;
 
 		/**
@@ -1521,14 +1758,24 @@ declare module "questpie" {
 		 * Field proxy `f` provides autocomplete for field names.
 		 */
 		list(
-			configFn: (ctx: ListViewConfigContext<FieldsOf<this>>) => ListViewConfig,
+			configFn: (
+				ctx: ListViewConfigContext<
+					FieldsOf<this>,
+					RegisteredListViewNamesOfBuilder<this>
+				>,
+			) => ListViewConfig,
 		): this;
 
 		/**
 		 * Configure form view for the collection.
 		 */
 		form(
-			configFn: (ctx: FormViewConfigContext<FieldsOf<this>>) => FormViewConfig,
+			configFn: (
+				ctx: FormViewConfigContext<
+					FieldsOf<this>,
+					RegisteredEditViewNamesOfBuilder<this>
+				>,
+			) => FormViewConfig,
 		): this;
 
 		/**
@@ -1541,7 +1788,10 @@ declare module "questpie" {
 		 */
 		actions(
 			configFn: (
-				ctx: ActionsConfigContext<FieldsOf<this>>,
+				ctx: ActionsConfigContext<
+					FieldsOf<this>,
+					RegisteredComponentNamesOfBuilder<this>
+				>,
 			) => ServerActionsConfig,
 		): this;
 	}
@@ -1557,7 +1807,9 @@ declare module "questpie" {
 		admin(
 			configOrFn:
 				| AdminGlobalConfig
-				| ((ctx: AdminConfigContext) => AdminGlobalConfig),
+				| ((
+						ctx: AdminConfigContext<RegisteredComponentNamesOfBuilder<this>>,
+				  ) => AdminGlobalConfig),
 		): this;
 
 		/**
@@ -1565,7 +1817,10 @@ declare module "questpie" {
 		 */
 		form(
 			configFn: (
-				ctx: FormViewConfigContext<GlobalFieldsOf<this>>,
+				ctx: FormViewConfigContext<
+					GlobalFieldsOf<this>,
+					RegisteredEditViewNamesOfBuilder<this>
+				>,
 			) => FormViewConfig,
 		): this;
 	}

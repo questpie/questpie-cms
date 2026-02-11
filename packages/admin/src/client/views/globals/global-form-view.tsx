@@ -10,20 +10,18 @@ import { QuestpieClientError } from "questpie/client";
 import * as React from "react";
 import { FormProvider, useForm } from "react-hook-form";
 import { toast } from "sonner";
-import type { ComponentRegistry } from "../../builder/types/field-types";
+import type {
+	ComponentRegistry,
+	FormViewConfig,
+} from "../../builder/types/field-types";
 import type { GlobalBuilderState } from "../../builder/types/global-types";
 import { LocaleSwitcher } from "../../components/locale-switcher";
 import { Button } from "../../components/ui/button";
-import { useAdminConfig, useGlobal, useGlobalUpdate } from "../../hooks";
+import { useGlobal, useGlobalUpdate } from "../../hooks";
 import { useGlobalFields } from "../../hooks/use-global-fields";
 import { useGlobalServerValidation } from "../../hooks/use-server-validation";
 import { useResolveText, useTranslation } from "../../i18n/hooks";
-import {
-	selectAdmin,
-	useAdminStore,
-	useSafeContentLocales,
-	useScopedLocale,
-} from "../../runtime";
+import { useSafeContentLocales, useScopedLocale } from "../../runtime";
 import { AutoFormFields } from "../collection/auto-form-fields";
 
 // ============================================================================
@@ -44,6 +42,11 @@ export interface GlobalFormViewProps {
 	 * Accepts GlobalBuilderState or any compatible config object
 	 */
 	config?: Partial<GlobalBuilderState> | Record<string, any>;
+
+	/**
+	 * View-specific configuration from registry/schema
+	 */
+	viewConfig?: FormViewConfig;
 
 	/**
 	 * Navigate function for routing
@@ -100,6 +103,7 @@ export interface GlobalFormViewProps {
 export default function GlobalFormView({
 	global: globalName,
 	config,
+	viewConfig,
 	registry,
 	showMeta = true,
 	headerActions,
@@ -108,8 +112,6 @@ export default function GlobalFormView({
 }: GlobalFormViewProps) {
 	const { t } = useTranslation();
 	const resolveText = useResolveText();
-	const admin = useAdminStore(selectAdmin);
-	const { data: adminConfig } = useAdminConfig();
 
 	const { data: globalData, isLoading: dataLoading } = useGlobal(globalName);
 	const { fields: schemaFields } = useGlobalFields(globalName);
@@ -144,11 +146,14 @@ export default function GlobalFormView({
 		}
 	}, [form, globalData]);
 
-	// Merge schema-driven fields with local config fields (local overrides win)
-	const mergedFields = React.useMemo(
-		() => ({ ...schemaFields, ...config?.fields }),
-		[schemaFields, config?.fields],
-	);
+	const resolvedConfig = React.useMemo(() => {
+		if (!viewConfig) return config;
+
+		return {
+			...(config ?? {}),
+			form: viewConfig,
+		};
+	}, [config, viewConfig]);
 
 	const onSubmit = React.useCallback(
 		async (data: any) => {
@@ -189,15 +194,7 @@ export default function GlobalFormView({
 				);
 			}
 		},
-		[
-			updateMutation,
-			form,
-			t,
-			config?.fields,
-			adminConfig?.blocks,
-			mergedFields,
-			admin,
-		],
+		[updateMutation, form, t],
 	);
 
 	// Keyboard shortcut: Cmd+S to save
@@ -234,7 +231,7 @@ export default function GlobalFormView({
 	}
 
 	const globalLabel = resolveText(
-		(config as any)?.label ?? schemaFields?._globalLabel,
+		(resolvedConfig as any)?.label ?? schemaFields?._globalLabel,
 		globalName,
 	);
 
@@ -285,7 +282,7 @@ export default function GlobalFormView({
 				<AutoFormFields
 					collection={globalName}
 					mode="global"
-					config={config}
+					config={resolvedConfig}
 					registry={registry}
 				/>
 			</form>

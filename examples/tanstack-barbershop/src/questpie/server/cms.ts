@@ -103,66 +103,31 @@ const baseInstance = q({ name: "base" })
 							href: "/admin",
 							icon: c.icon("ph:house"),
 						},
-						{
-							type: "global",
-							global: "siteSettings",
-							label: { en: "Site Settings", sk: "Nastavenia webu" },
-							icon: c.icon("ph:gear"),
-						},
+						{ type: "global", global: "siteSettings" },
 					],
 				}),
 				s.section({
 					id: "operations",
 					title: { en: "Operations", sk: "Prevádzka" },
 					items: [
-						{
-							type: "collection",
-							collection: "appointments",
-							label: { en: "Appointments", sk: "Rezervácie" },
-							icon: c.icon("ph:calendar"),
-						},
-						{
-							type: "collection",
-							collection: "reviews",
-							label: { en: "Reviews", sk: "Recenzie" },
-							icon: c.icon("ph:star"),
-						},
+						{ type: "collection", collection: "appointments" },
+						{ type: "collection", collection: "reviews" },
 					],
 				}),
 				s.section({
 					id: "content",
 					title: { en: "Content", sk: "Obsah" },
 					items: [
-						{
-							type: "collection",
-							collection: "pages",
-							label: { en: "Pages", sk: "Stránky" },
-							icon: c.icon("ph:article"),
-						},
-						{
-							type: "collection",
-							collection: "services",
-							label: { en: "Services", sk: "Služby" },
-							icon: c.icon("ph:scissors"),
-						},
+						{ type: "collection", collection: "pages" },
+						{ type: "collection", collection: "services" },
 					],
 				}),
 				s.section({
 					id: "team",
 					title: { en: "Team", sk: "Tím" },
 					items: [
-						{
-							type: "collection",
-							collection: "barbers",
-							label: { en: "Barbers", sk: "Holiči" },
-							icon: c.icon("ph:users"),
-						},
-						{
-							type: "collection",
-							collection: "barberServices",
-							label: { en: "Barber Services", sk: "Služby holičov" },
-							icon: c.icon("ph:link"),
-						},
+						{ type: "collection", collection: "barbers" },
+						{ type: "collection", collection: "barberServices" },
 					],
 				}),
 				s.section({
@@ -184,7 +149,7 @@ const baseInstance = q({ name: "base" })
 	.branding({
 		name: { en: "Barbershop Control", sk: "Riadenie barbershopu" },
 	})
-	.dashboard(({ d }: any) =>
+	.dashboard(({ d }) =>
 		d.dashboard({
 			title: { en: "Barbershop Control", sk: "Riadenie barbershopu" },
 			description: {
@@ -205,7 +170,12 @@ const baseInstance = q({ name: "base" })
 							type: "stats",
 							collection: "appointments",
 							label: { en: "Today's Appointments", sk: "Dnešné rezervácie" },
-							dateFilter: { field: "scheduledAt", range: "today" },
+							filter: {
+								scheduledAt: {
+									gte: new Date(new Date().setHours(0, 0, 0, 0)).toISOString(),
+									lt: new Date(new Date().setHours(23, 59, 59, 999)).toISOString(),
+								},
+							},
 							variant: "primary",
 							span: 1,
 						},
@@ -215,7 +185,6 @@ const baseInstance = q({ name: "base" })
 							collection: "appointments",
 							label: { en: "Pending", sk: "Čakajúce" },
 							filter: { status: "pending" },
-							variant: "warning",
 							span: 1,
 						},
 						{
@@ -224,7 +193,6 @@ const baseInstance = q({ name: "base" })
 							collection: "barbers",
 							label: { en: "Active Barbers", sk: "Aktívni holiči" },
 							filter: { isActive: true },
-							variant: "success",
 							span: 1,
 						},
 						{
@@ -233,7 +201,6 @@ const baseInstance = q({ name: "base" })
 							collection: "pages",
 							label: { en: "Published Pages", sk: "Publikované stránky" },
 							filter: { isPublished: true },
-							variant: "default",
 							span: 1,
 						},
 					],
@@ -328,7 +295,7 @@ const baseInstance = q({ name: "base" })
 							type: "progress",
 							span: 1,
 							showPercentage: true,
-							title: { en: "Monthly Goal", sk: "Mesačný cieľ" },
+							label: { en: "Monthly Goal", sk: "Mesačný cieľ" },
 							fetchFn: async ({ app }: any) => {
 								const now = new Date();
 								const currentStart = new Date(
@@ -390,7 +357,7 @@ const baseInstance = q({ name: "base" })
 						{
 							id: "activity-stream",
 							type: "timeline",
-							title: { en: "Activity", sk: "Aktivita" },
+							label: { en: "Activity", sk: "Aktivita" },
 							maxItems: 8,
 							showTimestamps: true,
 							timestampFormat: "relative",
@@ -421,28 +388,34 @@ const baseInstance = q({ name: "base" })
 						{
 							id: "quick-actions",
 							type: "quickActions",
-							title: { en: "Quick Actions", sk: "Rýchle akcie" },
-							layout: "list",
-							quickActions: [
+							label: { en: "Quick Actions", sk: "Rýchle akcie" },
+							actions: [
 								{
 									label: {
 										en: "New Appointment",
 										sk: "Nová rezervácia",
 									},
-									href: "/admin/collections/appointments/create",
-									variant: "primary",
+									action: {
+										type: "create",
+										collection: "appointments",
+									},
 								},
 								{
 									label: { en: "Add Barber", sk: "Pridať holiča" },
-									href: "/admin/collections/barbers/create",
+									action: {
+										type: "create",
+										collection: "barbers",
+									},
 								},
 								{
 									label: {
 										en: "Edit Site Settings",
 										sk: "Upraviť nastavenia webu",
 									},
-									href: "/admin/globals/siteSettings",
-									variant: "outline",
+									action: {
+										type: "link",
+										href: "/admin/globals/siteSettings",
+									},
 								},
 							],
 							span: 1,

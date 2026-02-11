@@ -16,10 +16,10 @@
 
 import {
 	CollectionBuilder,
-	GlobalBuilder,
-	QuestpieBuilder,
 	createFieldBuilder,
 	createFieldDefinition,
+	GlobalBuilder,
+	QuestpieBuilder,
 } from "questpie";
 import type {
 	ActionsConfigContext,
@@ -41,9 +41,9 @@ import type {
 	SidebarConfigContext,
 } from "./augmentation.js";
 import {
-	BlockBuilder,
 	type AnyBlockBuilder,
 	type AnyBlockDefinition,
+	BlockBuilder,
 	type BlockPrefetchContext,
 	type BlockPrefetchFn,
 } from "./block/block-builder.js";
@@ -66,8 +66,69 @@ let patchesApplied = false;
 // ============================================================================
 
 /**
- * Create a component proxy for type-safe icon and UI element references.
- * Used in .admin() config functions.
+ * Resolve registry source state.
+ *
+ * - Collection/Global builders: registry lives on `state["~questpieApp"].state`
+ * - QuestpieBuilder: registry lives on `state`
+ */
+function getRegistrySourceState(
+	builderState: Record<string, unknown>,
+): Record<string, unknown> {
+	const questpieApp = builderState["~questpieApp"] as
+		| { state?: Record<string, unknown> }
+		| undefined;
+
+	if (questpieApp?.state && typeof questpieApp.state === "object") {
+		return questpieApp.state;
+	}
+
+	return builderState;
+}
+
+/**
+ * Resolve registered component names from builder state.
+ */
+function getRegisteredComponentNames(
+	builderState: Record<string, unknown>,
+): string[] {
+	const sourceState = getRegistrySourceState(builderState);
+	const components = sourceState.components;
+
+	if (!components || typeof components !== "object") {
+		return [];
+	}
+
+	return Object.keys(components as Record<string, unknown>);
+}
+
+/**
+ * Normalize component props into a serializable object.
+ *
+ * Backward compatibility:
+ * - `c.icon("ph:users")` => `{ name: "ph:users" }`
+ */
+function normalizeComponentProps(
+	componentType: string,
+	props: unknown,
+): Record<string, unknown> {
+	if (componentType === "icon" && typeof props === "string") {
+		return { name: props };
+	}
+
+	if (props === null || props === undefined) {
+		return {};
+	}
+
+	if (typeof props === "object") {
+		return props as Record<string, unknown>;
+	}
+
+	return { value: props };
+}
+
+/**
+ * Create a component proxy for registered component references.
+ * Used in admin config functions (`.admin()`, `.actions()`, `.dashboard()`, `.sidebar()`).
  *
  * @example
  * ```ts
@@ -77,20 +138,66 @@ let patchesApplied = false;
  * }))
  * ```
  */
-function createComponentProxy() {
-	return {
-		/**
-		 * Create an icon reference
-		 * @param name Iconify icon name (e.g., "ph:users", "mdi:home")
-		 */
-		icon: (name: string) => ({ type: "icon", props: { name } }) as const,
+function createComponentProxy(builderState: Record<string, unknown>) {
+	const componentNames = getRegisteredComponentNames(builderState);
+	const registeredComponentSet = new Set(componentNames);
 
-		/**
-		 * Create a badge reference
-		 */
-		badge: (props: { text: string; color?: string }) =>
-			({ type: "badge", props }) as const,
-	};
+	return new Proxy({} as Record<string, (props?: unknown) => unknown>, {
+		get: (_target, prop: string | symbol) => {
+			if (typeof prop !== "string") {
+				return undefined;
+			}
+
+			if (prop === "then") {
+				return undefined;
+			}
+
+			if (registeredComponentSet.size === 0) {
+				throw new Error(
+					`No components registered. Register components via .components() ` +
+						`or use q.use(adminModule) defaults.`,
+				);
+			}
+
+			if (!registeredComponentSet.has(prop)) {
+				throw new Error(
+					`Unknown component "${prop}". Register it via .components(). ` +
+						`Available components: ${[...registeredComponentSet].sort().join(", ")}`,
+				);
+			}
+
+			return (props?: unknown) => ({
+				type: prop,
+				props: normalizeComponentProps(prop, props),
+			});
+		},
+		has: (_target, prop: string | symbol) => {
+			if (typeof prop !== "string") {
+				return false;
+			}
+			return registeredComponentSet.has(prop);
+		},
+		ownKeys: () => [...registeredComponentSet],
+		getOwnPropertyDescriptor: (_target, prop: string | symbol) => {
+			if (typeof prop !== "string") {
+				return undefined;
+			}
+
+			if (!registeredComponentSet.has(prop)) {
+				return undefined;
+			}
+
+			return {
+				configurable: true,
+				enumerable: true,
+				writable: false,
+				value: (props?: unknown) => ({
+					type: prop,
+					props: normalizeComponentProps(prop, props),
+				}),
+			};
+		},
+	});
 }
 
 /**
@@ -123,6 +230,10 @@ function createFieldProxy<TFields extends Record<string, any>>(
 /**
  * Create a view proxy for defining view configurations.
  *
+ * If the builder is bound to a Questpie app with registered views
+ * (`.listViews()` / `.editViews()`), the proxy only allows those names.
+ * If no registry is available (standalone builders), any view name is allowed.
+ *
  * @example
  * ```ts
  * .list(({ v }) => v.table({
@@ -131,32 +242,116 @@ function createFieldProxy<TFields extends Record<string, any>>(
  * }))
  * ```
  */
-function createViewProxy() {
-	return {
-		/**
-		 * Table view for list
-		 */
-		table: (config: Omit<ListViewConfig, "view">) =>
-			({ view: "table", ...config }) as ListViewConfig,
+function createViewProxy(
+	kind: "list" | "edit",
+	registeredViews: string[] = [],
+) {
+	const registeredViewSet = new Set(registeredViews);
+	const hasRegistry = registeredViewSet.size > 0;
 
-		/**
-		 * Cards view for list
-		 */
-		cards: (config: Omit<ListViewConfig, "view">) =>
-			({ view: "cards", ...config }) as ListViewConfig,
+	return new Proxy(
+		{} as Record<string, (config: Record<string, unknown>) => unknown>,
+		{
+			get: (_target, prop: string | symbol) => {
+				if (typeof prop !== "string") {
+					return undefined;
+				}
 
-		/**
-		 * Form view for edit
-		 */
-		form: (config: Omit<FormViewConfig, "view">) =>
-			({ view: "form", ...config }) as FormViewConfig,
+				if (prop === "then") {
+					return undefined;
+				}
 
-		/**
-		 * Wizard view for edit (multi-step form)
-		 */
-		wizard: (config: Omit<FormViewConfig, "view">) =>
-			({ view: "wizard", ...config }) as FormViewConfig,
-	};
+				const registerMethod = kind === "list" ? "listViews" : "editViews";
+
+				if (!hasRegistry) {
+					throw new Error(
+						`No ${kind} views registered. Register them via .${registerMethod}() ` +
+							`or use q.use(adminModule) defaults.`,
+					);
+				}
+
+				if (!registeredViewSet.has(prop)) {
+					const available = [...registeredViewSet].sort().join(", ");
+					throw new Error(
+						`Unknown ${kind} view "${prop}". Register it via .${registerMethod}(). ` +
+							`Available ${kind} views: ${available || "(none)"}`,
+					);
+				}
+
+				return (config: Record<string, unknown> = {}) => ({
+					view: prop,
+					...config,
+				});
+			},
+			has: (_target, prop: string | symbol) => {
+				if (typeof prop !== "string") {
+					return false;
+				}
+				return hasRegistry && registeredViewSet.has(prop);
+			},
+			ownKeys: () => (hasRegistry ? [...registeredViewSet] : []),
+			getOwnPropertyDescriptor: (_target, prop: string | symbol) => {
+				if (typeof prop !== "string") {
+					return undefined;
+				}
+
+				if (hasRegistry && !registeredViewSet.has(prop)) {
+					return undefined;
+				}
+
+				return {
+					configurable: true,
+					enumerable: hasRegistry,
+					writable: false,
+					value: (config: Record<string, unknown> = {}) => ({
+						view: prop,
+						...config,
+					}),
+				};
+			},
+		},
+	);
+}
+
+/**
+ * Resolve registered view names from a builder's parent Questpie app state.
+ */
+function getRegisteredViewNames(
+	builderState: Record<string, unknown>,
+	kind: "list" | "edit",
+): string[] {
+	const sourceState = getRegistrySourceState(builderState);
+	const key = kind === "list" ? "listViews" : "editViews";
+	const views = sourceState[key];
+
+	if (!views || typeof views !== "object") {
+		return [];
+	}
+
+	return Object.keys(views as Record<string, unknown>);
+}
+
+/**
+ * Validate a selected view name against registered view names.
+ */
+function ensureRegisteredView(
+	kind: "list" | "edit",
+	viewName: unknown,
+	registeredViews: string[],
+): void {
+	if (registeredViews.length === 0 || typeof viewName !== "string") {
+		return;
+	}
+
+	if (registeredViews.includes(viewName)) {
+		return;
+	}
+
+	const registerMethod = kind === "list" ? "listViews" : "editViews";
+	throw new Error(
+		`Unknown ${kind} view "${viewName}". Register it via .${registerMethod}(). ` +
+			`Available ${kind} views: ${registeredViews.sort().join(", ")}`,
+	);
 }
 
 /**
@@ -190,44 +385,6 @@ function createActionProxy() {
 }
 
 /**
- * Create a simple field definition for action forms.
- * This is a lightweight version that only stores the config
- * for later extraction during introspection.
- */
-function createSimpleFieldDef(type: string, config?: Record<string, unknown>) {
-	return {
-		_isActionField: true,
-		type,
-		...config,
-		// For compatibility with field definition interface
-		getMetadata() {
-			return { type, ...config };
-		},
-	};
-}
-
-/**
- * Default field factories for action forms.
- * These create simple field configs that will be serialized for the client.
- */
-const defaultActionFieldRegistry: Record<
-	string,
-	(config?: Record<string, unknown>) => any
-> = {
-	text: (config) => createSimpleFieldDef("text", config),
-	email: (config) => createSimpleFieldDef("email", config),
-	textarea: (config) => createSimpleFieldDef("textarea", config),
-	number: (config) => createSimpleFieldDef("number", config),
-	boolean: (config) => createSimpleFieldDef("boolean", config),
-	date: (config) => createSimpleFieldDef("date", config),
-	datetime: (config) => createSimpleFieldDef("datetime", config),
-	time: (config) => createSimpleFieldDef("time", config),
-	select: (config) => createSimpleFieldDef("select", config),
-	json: (config) => createSimpleFieldDef("json", config),
-	url: (config) => createSimpleFieldDef("url", config),
-};
-
-/**
  * Create an actions config context for the .actions() method.
  * Provides builders for both built-in and custom actions.
  *
@@ -258,22 +415,27 @@ const defaultActionFieldRegistry: Record<
 function createActionsConfigContext<
 	TFields extends Record<string, unknown> = Record<string, unknown>,
 >(
-	fieldRegistry?: Record<string, (config?: any) => any>,
+	builderState: Record<string, unknown>,
+	fieldRegistry: Record<string, (config?: any) => any>,
 ): ActionsConfigContext<TFields> {
-	// Use provided registry or fall back to default action field registry
-	const registry = fieldRegistry || defaultActionFieldRegistry;
-
 	// Create field proxy that uses the field registry
 	const fieldProxy = new Proxy(
 		{} as Record<string, (config?: Record<string, unknown>) => any>,
 		{
 			get: (_target, prop: string) => {
-				// First check custom registry, then fallback to default
-				const factory = registry[prop] || defaultActionFieldRegistry[prop];
+				const factory = fieldRegistry[prop];
 				if (!factory) {
+					const available = Object.keys(fieldRegistry).sort();
+					if (available.length === 0) {
+						throw new Error(
+							`No field types registered for action form fields. ` +
+								`Register fields on the Questpie builder before using .actions().`,
+						);
+					}
+
 					throw new Error(
 						`Unknown field type: "${prop}". ` +
-							`Available types: ${Object.keys({ ...defaultActionFieldRegistry, ...registry }).join(", ")}`,
+							`Available types: ${available.join(", ")}`,
 					);
 				}
 				return (config?: Record<string, unknown>) => factory(config);
@@ -312,9 +474,7 @@ function createActionsConfigContext<
 					scope: "header",
 				}) as ServerActionDefinition<TData>,
 		},
-		c: {
-			icon: (name: string) => ({ type: "icon" as const, props: { name } }),
-		},
+		c: createComponentProxy(builderState) as any,
 		f: fieldProxy,
 	};
 }
@@ -529,7 +689,14 @@ function patchQuestpieBuilder() {
 	 * ```
 	 */
 	proto.block = function (name: string) {
-		return new BlockBuilder({ name });
+		const registeredComponents = getRegisteredComponentNames(
+			this.state as Record<string, unknown>,
+		);
+
+		return new BlockBuilder({
+			name,
+			"~components": registeredComponents,
+		} as any);
 	};
 
 	/**
@@ -572,9 +739,7 @@ function patchQuestpieBuilder() {
 				timeline: (config) => ({ type: "timeline" as const, ...config }),
 				progress: (config) => ({ type: "progress" as const, ...config }),
 			},
-			c: {
-				icon: (name: string) => ({ type: "icon" as const, props: { name } }),
-			},
+			c: createComponentProxy(this.state as Record<string, unknown>) as any,
 		};
 
 		const dashboard = configFn(ctx);
@@ -614,9 +779,7 @@ function patchQuestpieBuilder() {
 				sidebar: (config) => config,
 				section: (config) => ({ items: [], ...config }),
 			},
-			c: {
-				icon: (name: string) => ({ type: "icon" as const, props: { name } }),
-			},
+			c: createComponentProxy(this.state as Record<string, unknown>) as any,
 		};
 
 		const sidebar = configFn(ctx);
@@ -879,7 +1042,7 @@ function patchCollectionBuilder() {
 	): CollectionBuilder<any> {
 		const config =
 			typeof configOrFn === "function"
-				? configOrFn({ c: createComponentProxy() })
+				? configOrFn({ c: createComponentProxy(this.state as any) })
 				: configOrFn;
 
 		const newState = {
@@ -923,12 +1086,17 @@ function patchCollectionBuilder() {
 	): CollectionBuilder<any> {
 		// Get field names from state
 		const fieldNames = Object.keys(this.state.fields || {});
+		const registeredListViews = getRegisteredViewNames(
+			this.state as any,
+			"list",
+		);
 
 		const config = configFn({
-			v: createViewProxy(),
+			v: createViewProxy("list", registeredListViews),
 			f: createFieldProxy(fieldNames),
 			a: createActionProxy(),
 		});
+		ensureRegisteredView("list", config.view, registeredListViews);
 
 		const newState = {
 			...this.state,
@@ -970,11 +1138,16 @@ function patchCollectionBuilder() {
 		}) => FormViewConfig,
 	): CollectionBuilder<any> {
 		const fieldNames = Object.keys(this.state.fields || {});
+		const registeredEditViews = getRegisteredViewNames(
+			this.state as any,
+			"edit",
+		);
 
 		const config = configFn({
-			v: createViewProxy(),
+			v: createViewProxy("edit", registeredEditViews),
 			f: createFieldProxy(fieldNames),
 		});
+		ensureRegisteredView("edit", config.view, registeredEditViews);
 
 		const newState = {
 			...this.state,
@@ -1076,18 +1249,17 @@ function patchCollectionBuilder() {
 		// Use the builder's registered field types for action form fields if available
 		const questpieApp = (this.state as any)["~questpieApp"];
 		const builderFields = questpieApp?.state?.fields;
-		let fieldRegistry: Record<string, (config?: any) => any> | undefined;
+		const fieldRegistry: Record<string, (config?: any) => any> = {};
 
 		if (builderFields && Object.keys(builderFields).length > 0) {
 			// Convert raw field defs into factory functions for the actions context
-			fieldRegistry = {};
 			for (const [name, fieldDef] of Object.entries(builderFields)) {
 				fieldRegistry[name] = (config?: any) =>
 					createFieldDefinition(fieldDef as any, config);
 			}
 		}
 
-		const ctx = createActionsConfigContext(fieldRegistry);
+		const ctx = createActionsConfigContext(this.state as any, fieldRegistry);
 		const config = configFn(ctx);
 
 		const newState = {
@@ -1170,7 +1342,7 @@ function patchGlobalBuilder() {
 	): GlobalBuilder<any> {
 		const config =
 			typeof configOrFn === "function"
-				? configOrFn({ c: createComponentProxy() })
+				? configOrFn({ c: createComponentProxy(this.state as any) })
 				: configOrFn;
 
 		const newState = {
@@ -1214,11 +1386,16 @@ function patchGlobalBuilder() {
 		}) => FormViewConfig,
 	): GlobalBuilder<any> {
 		const fieldNames = Object.keys(this.state.fields || {});
+		const registeredEditViews = getRegisteredViewNames(
+			this.state as any,
+			"edit",
+		);
 
 		const config = configFn({
-			v: createViewProxy(),
+			v: createViewProxy("edit", registeredEditViews),
 			f: createFieldProxy(fieldNames),
 		});
+		ensureRegisteredView("edit", config.view, registeredEditViews);
 
 		const newState = {
 			...this.state,

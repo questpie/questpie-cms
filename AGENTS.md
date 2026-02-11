@@ -34,6 +34,33 @@ This is the source-of-truth guidance for AI agents working in this repo. It supe
   - `createCMSFetchHandler`
     in `packages/questpie/src/server/adapters/http.ts`.
 
+## Registry-First Philosophy (Critical)
+
+- Never hardcode admin/view/component/type names in server runtime logic when a registry exists.
+- Always derive behavior from builder state (`state`) and registered maps.
+
+**Required patterns:**
+
+- **Fields**: resolve field factories from `QuestpieBuilder.state.fields` (via `~questpieApp`) in collection/global/block contexts.
+- **Views**: resolve list/edit view APIs from `QuestpieBuilder.state.listViews` / `QuestpieBuilder.state.editViews`.
+- **Components**: resolve `c.*` helpers from `QuestpieBuilder.state.components`.
+- **Entities**: collections/globals/jobs/queues must flow from builder state (`state.collections`, `state.globals`, `state.jobs`) rather than literal names.
+
+**Defaults must still be registered (not hardcoded):**
+
+- `q.use(adminModule)` should provide default server registries (e.g. `table` list view, `form` edit view, `icon`/`badge` components) by registration.
+- `qa.use(adminModule)` should provide matching client registries for rendering those registered types.
+
+**Introspection contract:**
+
+- Server emits serializable references (`{ type, props }`, `view` ids, field metadata) based on registry-backed config.
+- Client resolves those references using its own registry; client should not assume hardcoded server-only types.
+
+**When extending builders:**
+
+- Prefer lazy type extraction (`FieldsOf<this>`, `GlobalFieldsOf<this>`, `QuestpieStateOf<this>`) over eagerly-expanded giant mapped types.
+- Keep module augmentation aligned with runtime patch behavior.
+
 ## Admin UI (Decoupled)
 
 - Admin UI config is UI-only; do not add UI-specific fields to the schema.
@@ -112,7 +139,7 @@ See `specifications/form-reactive-system.md` for full specification.
 ## Conventions
 
 - Formatting/linting: Biome (`biome.json`) uses tabs + double quotes.
-- Root `format` script uses Prettier for `**/*.{ts,tsx,md}`.
+- Use Biome for checks/fixes (`bunx @biomejs/biome check .` / `bunx @biomejs/biome check --write .`).
 - Internal package deps must use `workspace:*`.
 - Before adding deps, check `DEPENDENCIES.md` for pinned versions (zod v4, drizzle beta, etc).
 
@@ -152,8 +179,10 @@ See `specifications/form-reactive-system.md` for full specification.
 - `bun install`
 - `bun run dev` (turbo dev)
 - `bun run build`
-- `bun run lint` (Biome)
-- `bun run format` (Prettier)
+- `bun run lint` (Biome check)
+- `bun run lint:fix` (Biome check with fixes)
+- `bun run format` (Biome format with writes)
+- `bun run format:check` (Biome format check)
 - `bun run check-types`
 - `bun test` (runs `bun test` with migrations silenced)
 

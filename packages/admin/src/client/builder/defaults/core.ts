@@ -5,6 +5,9 @@
  * Uses the same extensibility API as custom modules - nothing is baked in.
  */
 
+import FormView from "../../views/collection/form-view";
+import TableView from "../../views/collection/table-view";
+import GlobalFormView from "../../views/globals/global-form-view";
 import { AdminBuilder } from "../admin-builder";
 import { builtInComponents } from "./components";
 import { builtInFields } from "./fields";
@@ -36,11 +39,16 @@ import { builtInWidgets } from "./widgets";
  * ```
  */
 export const coreAdminModule = AdminBuilder.empty()
-  .fields(builtInFields)
-  .components(builtInComponents)
-  .views(builtInViews)
-  .pages(builtInPages)
-  .widgets(builtInWidgets);
+	.fields(builtInFields)
+	.components(builtInComponents)
+	.views(builtInViews)
+	.defaultViews({
+		collectionList: { component: TableView },
+		collectionForm: { component: FormView },
+		globalForm: { component: GlobalFormView },
+	})
+	.pages(builtInPages)
+	.widgets(builtInWidgets);
 
 /**
  * Type of core admin module state

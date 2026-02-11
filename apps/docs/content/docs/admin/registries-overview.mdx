@@ -1,0 +1,119 @@
+---
+title: Registries Overview
+description: How client registries resolve server introspection references
+---
+
+# Registries Overview
+
+The admin panel uses four registries to map server-defined type IDs to client-side React components. When the server says a field is type `"relation"`, the field registry provides the component to render it. This indirection keeps the server and client decoupled.
+
+## Why Registries
+
+Without registries, rendering a field would require a giant switch statement mapping every type to a component. Registries replace that with a lookup table that's extensible — you can add custom field types without modifying any existing code.
+
+## The Four Registries
+
+| Registry | Maps | Example |
+|---|---|---|
+| **Field** | Field type ID → Form component + cell renderer | `"text"` → `TextField` + `TextCell` |
+| **View** | View ID → List or form view component | `"table"` → `TableView` |
+| **Component** | Component ref → React component | `{ type: "icon" }` → `IconifyIcon` |
+| **Widget** | Widget type → Dashboard widget component | `"stats"` → `StatsWidget` |
+
+## Resolution Flow
+
+```text
+Server introspection payload (JSON):
+  {
+    fields: [
+      { name: "title", type: "text", config: { required: true } },
+      { name: "author", type: "relation", config: { targetCollection: "users" } },
+      { name: "status", type: "select", config: { options: [...] } },
+    ],
+    listView: { type: "table", columns: [...] },
+    formView: { type: "form", layout: "sidebar" },
+  }
+
+Client registries resolve:
+  "text"     → TextField component (with config as props)
+  "relation" → RelationField component
+  "select"   → SelectField component
+  "table"    → TableView component
+  "form"     → FormView component
+```
+
+## Field Registry
+
+The field registry is the most commonly extended. Each entry provides:
+
+```ts
+{
+  name: "text",                           // Type ID (matches server field type)
+  kind: "field",
+  createField: (config) => TextField,     // Form component factory
+  createCell: (config) => TextCell,       // Table cell component factory
+}
+```
+
+Built-in fields include: text, textarea, email, url, number, boolean, select, date, datetime, time, json, richText, upload, relation, array, object, blocks, and more.
+
+See [Field Renderer Registry](/docs/admin/field-renderer-registry) for details.
+
+## View Registry
+
+Views define how collections are displayed:
+
+- **List views** — How the collection index page renders (default: `table`)
+- **Form views** — How the create/edit page renders (default: `form`)
+
+The server specifies which view type to use via `.list()` and `.form()` on the collection builder. The client resolves the view ID from the registry.
+
+See [View Registry](/docs/admin/view-registry-list-and-form) for details.
+
+## Component Registry
+
+The server emits serializable component references like:
+
+```ts
+{ type: "icon", props: { name: "ph:users" } }
+```
+
+The component registry maps `"icon"` to the `IconifyIcon` React component. This avoids sending React components over the wire — only serializable JSON crosses the server/client boundary.
+
+See [Component Registry](/docs/admin/component-registry) for details.
+
+## Widget Registry
+
+Dashboard widgets are resolved by type:
+
+```ts
+{ type: "stats", config: { collection: "posts", label: "Total Posts" } }
+```
+
+Built-in widget types: stats, chart, recentItems, quickActions, value, table, timeline, progress.
+
+## Extending Registries
+
+All registries are extended through the `qa()` builder:
+
+```ts
+const admin = qa<AppCMS>()
+  .use(coreAdminModule)      // Built-in registrations
+  .fields({ point: ... })    // Add custom field
+  .views({ kanban: ... })    // Add custom view
+  .components({ map: ... })  // Add custom component
+  .widgets({ heatmap: ... }) // Add custom widget
+```
+
+## Common Mistakes
+
+- **Unregistered type ID** — If the server references a field type that isn't in the registry, the admin renders nothing for that field. Always register custom types before using them.
+- **Hardcoding type checks** — Don't check `if (field.type === "text")` in view code. Let the registry handle resolution.
+- **Non-serializable server config** — Component refs, field configs, and view configs must be JSON-serializable. Don't put functions or React elements in server-side config.
+
+## Related Pages
+
+- [Client Builder (qa)](/docs/admin/client-builder-qa) — Where registries are configured
+- [Field Renderer Registry](/docs/admin/field-renderer-registry) — Field type details
+- [View Registry](/docs/admin/view-registry-list-and-form) — View type details
+- [Component Registry](/docs/admin/component-registry) — Component ref details

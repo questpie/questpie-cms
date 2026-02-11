@@ -1,0 +1,344 @@
+---
+title: Field API
+description: Field builder proxy, built-in types, modifiers, and custom field definitions
+---
+
+# Field API
+
+Fields are defined inside `.fields((f) => ...)` using the `f` proxy. Each method on `f` returns a chainable `FieldBuilder` that configures the field's database column, validation, operators, and metadata.
+
+## Field Builder Proxy
+
+```ts
+.fields((f) => ({
+  title: f.text().notNull(),
+  body: f.richText().localized(),
+  price: f.number({ min: 0 }).notNull().default(0),
+}))
+```
+
+## Built-in Field Types
+
+### Text Fields
+
+#### `f.text(config?)`
+
+Short text. Maps to `varchar` or `text` in PostgreSQL.
+
+```ts
+f.text()                                    // optional varchar
+f.text({ maxLength: 100 }).notNull()        // required, max 100 chars
+f.text({ mode: "text" })                    // PostgreSQL text (no length limit)
+```
+
+Config: `{ maxLength?, minLength?, pattern?, trim?, lowercase?, uppercase?, mode?: "varchar" | "text" }`
+
+#### `f.textarea(config?)`
+
+Long text. Maps to `text` in PostgreSQL.
+
+```ts
+f.textarea()
+f.textarea({ maxLength: 5000 })
+```
+
+Config: `{ maxLength?, minLength? }`
+
+#### `f.email(config?)`
+
+Email with built-in validation.
+
+```ts
+f.email().notNull()
+```
+
+Config: inherits text config.
+
+#### `f.url(config?)`
+
+URL with built-in validation.
+
+```ts
+f.url()
+```
+
+Config: inherits text config.
+
+### Numeric Fields
+
+#### `f.number(config?)`
+
+Number field. Maps to `numeric` or `integer` in PostgreSQL.
+
+```ts
+f.number()                          // optional numeric
+f.number({ min: 0, max: 100 })     // constrained
+f.number({ integer: true })        // integer mode
+f.number({ precision: 10, scale: 2 })  // decimal
+```
+
+Config: `{ min?, max?, integer?, precision?, scale? }`
+
+### Boolean
+
+#### `f.boolean(config?)`
+
+Boolean field. Maps to `boolean` in PostgreSQL.
+
+```ts
+f.boolean().notNull().default(false)
+```
+
+### Date/Time Fields
+
+#### `f.date(config?)`
+
+Date without time. Maps to `date`.
+
+```ts
+f.date()
+```
+
+#### `f.datetime(config?)`
+
+Date with time. Maps to `timestamp`.
+
+```ts
+f.datetime().notNull().default(() => new Date())
+```
+
+Config: `{ withTimezone?: boolean }`
+
+#### `f.time(config?)`
+
+Time only. Maps to `time`.
+
+```ts
+f.time()
+```
+
+### Selection
+
+#### `f.select(options, config?)`
+
+Enum field with fixed options.
+
+```ts
+f.select(["draft", "published", "archived"]).notNull().default("draft")
+f.select(["sm", "md", "lg", "xl"])
+```
+
+First parameter is the options array (readonly tuple for type inference). Maps to PostgreSQL enum.
+
+Config: `{ multiple?: boolean }`
+
+### Complex Types
+
+#### `f.json<T>(config?)`
+
+Arbitrary JSON. Maps to `jsonb`. Type parameter controls the TypeScript type.
+
+```ts
+f.json<{ street: string; city: string }>()
+f.json<string[]>()
+```
+
+Config: `{ schema?: ZodType }` — optional Zod schema for validation.
+
+#### `f.object(config?)`
+
+Structured object. Maps to `jsonb` with nested field definitions.
+
+```ts
+f.object({
+  fields: (f) => ({
+    street: f.text().notNull(),
+    city: f.text().notNull(),
+    zip: f.text(),
+  }),
+})
+```
+
+Config: `{ fields: (f) => Record<string, FieldBuilder> }`
+
+#### `f.array(config?)`
+
+Array stored as `jsonb`.
+
+```ts
+f.array({ items: z.string() })
+```
+
+Config: `{ items?: ZodType; minItems?, maxItems? }`
+
+### Rich Content
+
+#### `f.richText(config?)`
+
+Rich text editor content. Maps to `jsonb` (ProseMirror/Tiptap document format).
+
+```ts
+f.richText()
+f.richText({ blocks: [heroBlock, ctaBlock] })
+```
+
+Config: `{ blocks?: BlockDefinition[] }`
+
+#### `f.blocks(config?)`
+
+Block-based content. Maps to `jsonb` array of block objects.
+
+```ts
+f.blocks({ types: [heroBlock, imageBlock, textBlock] })
+```
+
+### Relations
+
+#### `f.relation(target, config?)`
+
+Relation to another collection. Supports multiple cardinality types.
+
+```ts
+// Belongs-to (adds FK column)
+f.relation("users")
+
+// Has-many (no column — reverse lookup)
+f.relation("comments", { type: "hasMany" })
+
+// Many-to-many (through table)
+f.relation("tags", { type: "manyToMany", through: "postTags" })
+
+// Multiple (JSONB array of IDs)
+f.relation("categories", { type: "multiple" })
+```
+
+Config:
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `type` | `"belongsTo" \| "hasMany" \| "manyToMany" \| "multiple"` | `"belongsTo"` | Relation cardinality |
+| `through` | `string` | — | Junction table for manyToMany |
+| `onDelete` | `"cascade" \| "set null" \| "restrict" \| "no action"` | `"set null"` | FK delete behavior |
+| `onUpdate` | same | `"cascade"` | FK update behavior |
+| `relationName` | `string` | — | Named relation (for multiple relations to same collection) |
+
+### Upload
+
+#### `f.upload(config?)`
+
+File upload field. Stores file reference.
+
+```ts
+f.upload()
+f.upload({ collection: "media" })  // reference specific upload collection
+```
+
+## Field Modifiers
+
+Modifiers are chainable methods available on every field builder.
+
+### `.notNull()`
+
+Mark the field as required. Adds `NOT NULL` to the database column and `required` to the Zod schema.
+
+```ts
+f.text().notNull()
+```
+
+### `.default(value)`
+
+Set a default value. Accepts a static value or a factory function.
+
+```ts
+f.boolean().notNull().default(false)
+f.datetime().default(() => new Date())
+f.text().default("untitled")
+```
+
+### `.localized()`
+
+Store this field per-locale in the i18n table instead of the main table.
+
+```ts
+f.text().notNull().localized()
+f.richText().localized()
+```
+
+### `.virtual()`
+
+No database column — field exists only in TypeScript types and hook processing.
+
+```ts
+f.text().virtual()
+```
+
+### `.label(text)`
+
+Set a display label (supports i18n).
+
+```ts
+f.text().label("Full Name")
+f.text().label({ en: "Full Name", de: "Vollständiger Name" })
+```
+
+### `.description(text)`
+
+Set a description shown below the field (supports i18n).
+
+```ts
+f.email().description("Used for notifications")
+```
+
+### `.hidden()`
+
+Hide from output (write-only). The field is stored but not returned in read operations.
+
+```ts
+f.text().hidden()  // e.g. internal tracking field
+```
+
+## Custom Field Definitions
+
+Create new field types using `defineField`:
+
+```ts
+import { defineField } from "@questpie/questpie/server/fields";
+
+const colorField = defineField<ColorFieldConfig, string>()({
+  type: "color",
+  _value: undefined as unknown as string,
+  toColumn: (name, config) => {
+    return varchar(name, { length: 7 });  // #RRGGBB
+  },
+  toZodSchema: (config) => {
+    return z.string().regex(/^#[0-9a-fA-F]{6}$/);
+  },
+  getOperators: () => ({
+    column: commonStringOperators,
+    jsonb: commonStringOperators,
+  }),
+  getMetadata: (config) => ({
+    type: "color",
+    config,
+  }),
+});
+```
+
+Register via `q.fields({ color: colorField })`, then use as `f.color()`.
+
+### Definition Interface
+
+| Method | Purpose |
+|---|---|
+| `toColumn(name, config)` | Return Drizzle column definition |
+| `toZodSchema(config)` | Return Zod schema for validation |
+| `getOperators()` | Return supported where clause operators |
+| `getMetadata(config)` | Return introspection metadata for admin |
+
+## Related Pages
+
+- [Field Types](/docs/server/field-types) — Complete catalog with examples
+- [Field Builder](/docs/server/field-builder) — Lifecycle and composition
+- [Relations](/docs/server/relations) — Relation field details
+- [Custom Field Type](/docs/guides/custom-field-type) — Step-by-step guide
+- [Field Renderer Registry](/docs/admin/field-renderer-registry) — Admin rendering

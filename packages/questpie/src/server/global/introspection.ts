@@ -41,8 +41,8 @@ export interface GlobalSchema {
 	/** Description */
 	description?: I18nText;
 
-	/** Icon identifier */
-	icon?: string;
+	/** Icon component reference */
+	icon?: { type: string; props: Record<string, unknown> };
 
 	/** Field schemas */
 	fields: Record<string, GlobalFieldSchema>;
@@ -230,7 +230,7 @@ export async function introspectGlobal(
 		// Use admin config label/description/icon if available
 		label: adminConfig?.config?.label,
 		description: adminConfig?.config?.description,
-		icon: adminConfig?.config?.icon?.props?.name as string | undefined,
+		icon: adminConfig?.config?.icon,
 		fields,
 		access,
 		options: {

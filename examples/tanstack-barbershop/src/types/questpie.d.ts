@@ -1,6 +1,7 @@
 import type {
 	ArrayFieldAdminMeta,
 	BaseAdminMeta,
+	BlocksFieldAdminMeta,
 	BooleanFieldAdminMeta,
 	DateFieldAdminMeta,
 	EmailFieldAdminMeta,
@@ -8,11 +9,13 @@ import type {
 	NumberFieldAdminMeta,
 	ObjectFieldAdminMeta,
 	RelationFieldAdminMeta,
+	RichTextFieldAdminMeta,
 	SelectFieldAdminMeta,
 	TextareaFieldAdminMeta,
 	TextFieldAdminMeta,
 	TimeFieldAdminMeta,
 	UploadFieldAdminMeta,
+	UrlFieldAdminMeta,
 } from "@questpie/admin";
 
 type ExtendedArrayAdminMeta = ArrayFieldAdminMeta & {
@@ -90,5 +93,17 @@ declare module "questpie" {
 
 	interface EmailFieldMeta {
 		admin?: EmailFieldAdminMeta;
+	}
+
+	interface UrlFieldMeta {
+		admin?: UrlFieldAdminMeta;
+	}
+
+	interface RichTextFieldMeta {
+		admin?: RichTextFieldAdminMeta;
+	}
+
+	interface BlocksFieldMeta {
+		admin?: BlocksFieldAdminMeta;
 	}
 }

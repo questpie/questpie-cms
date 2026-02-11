@@ -55,6 +55,8 @@ import {
 } from "../../hooks/use-collection";
 import { useCollectionFields } from "../../hooks/use-collection-fields";
 import { useCollectionMeta } from "../../hooks/use-collection-meta";
+import { getLockUser, useLocks } from "../../hooks/use-locks";
+import { useRealtimeHighlight } from "../../hooks/use-realtime-highlight";
 import {
 	useDeleteSavedView,
 	useSavedViews,
@@ -63,6 +65,7 @@ import {
 import { useDebouncedValue, useSearch } from "../../hooks/use-search";
 import { useViewState } from "../../hooks/use-view-state";
 import { useResolveText, useTranslation } from "../../i18n/hooks";
+import { cn } from "../../lib/utils";
 import {
 	selectRealtime,
 	useAdminStore,
@@ -231,7 +234,10 @@ export default function TableView({
 	});
 	const schemaListConfig = mapListSchemaToConfig(schema?.admin?.list as any);
 	const resolvedListConfig =
-		(config?.list as any)?.["~config"] ?? config?.list ?? schemaListConfig;
+		viewConfig ??
+		(config?.list as any)?.["~config"] ??
+		config?.list ??
+		schemaListConfig;
 	// Default to global realtime.enabled if not explicitly set
 	const resolvedRealtime =
 		realtime ??
@@ -704,6 +710,18 @@ export default function TableView({
 		return listData?.docs ?? [];
 	}, [isSearching, searchData?.docs, listData?.docs]);
 
+	// Track realtime changes and highlight affected rows
+	const { isHighlighted } = useRealtimeHighlight(items, {
+		enabled: effectiveRealtime && !isSearching,
+	});
+
+	// Track who is editing which documents
+	const { getLock, isLocked: isDocLocked } = useLocks({
+		resourceType: "collection",
+		resource: collection,
+		realtime: effectiveRealtime,
+	});
+
 	// Search results are already sorted by score, list results are server-sorted
 	const filteredItems = items;
 
@@ -947,7 +965,10 @@ export default function TableView({
 									<TableRow
 										key={row.id}
 										data-state={row.getIsSelected() && "selected"}
-										className="group"
+										className={cn(
+											"group",
+											isHighlighted(row.id) && "animate-realtime-pulse",
+										)}
 									>
 										{row.getVisibleCells().map((cell, cellIndex) => {
 											// First column (checkbox) is sticky at left=0, width ~36px
@@ -972,16 +993,49 @@ export default function TableView({
 													}
 												>
 													{isTitleCol ? (
-														<button
-															type="button"
-															onClick={() => handleRowClick(row.original)}
-															className="text-left underline underline-offset-2 decoration-muted-foreground/50 hover:decoration-foreground transition-colors cursor-pointer"
-														>
-															{flexRender(
-																cell.column.columnDef.cell,
-																cell.getContext(),
-															)}
-														</button>
+														<div className="flex items-center gap-2">
+															<button
+																type="button"
+																onClick={() => handleRowClick(row.original)}
+																className="text-left underline underline-offset-2 decoration-muted-foreground/50 hover:decoration-foreground transition-colors cursor-pointer"
+															>
+																{flexRender(
+																	cell.column.columnDef.cell,
+																	cell.getContext(),
+																)}
+															</button>
+															{isDocLocked(row.id) &&
+																(() => {
+																	const lock = getLock(row.id);
+																	const user = lock ? getLockUser(lock) : null;
+																	return (
+																		<span
+																			className="inline-flex items-center gap-1 text-xs text-muted-foreground bg-muted/50 px-1.5 py-0.5 rounded-full"
+																			title={
+																				user?.name ??
+																				user?.email ??
+																				"Someone is editing"
+																			}
+																		>
+																			{user?.image ? (
+																				<img
+																					src={user.image}
+																					alt=""
+																					className="size-4 rounded-full"
+																				/>
+																			) : (
+																				<Icon
+																					icon="ph:pencil-simple"
+																					className="size-3"
+																				/>
+																			)}
+																			<span className="max-w-20 truncate">
+																				{user?.name?.split(" ")[0] ?? "Editing"}
+																			</span>
+																		</span>
+																	);
+																})()}
+														</div>
 													) : (
 														flexRender(
 															cell.column.columnDef.cell,
@@ -1032,6 +1086,7 @@ export default function TableView({
 				<FilterBuilderSheet
 					collection={collection}
 					availableFields={availableFields}
+					defaultColumns={defaultColumns}
 					currentConfig={viewState.config}
 					onConfigChange={viewState.setConfig}
 					isOpen={isSheetOpen}

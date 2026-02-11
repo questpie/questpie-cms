@@ -1,0 +1,60 @@
+---
+title: RPC
+description: Typed rpc contracts for custom application workflows
+---
+
+# RPC
+
+RPC is used for custom operations that do not fit plain CRUD.
+
+## Pattern
+
+1. create root `const r = rpc()`
+2. define procedures with `r.fn({ schema, handler })`
+3. compose with `r.router({...})`
+4. mount via `createFetchHandler(..., { rpc: appRpc })`
+
+## Example
+
+```ts
+import { rpc } from "questpie";
+import z from "zod";
+
+export const r = rpc();
+
+export const getRevenueStats = r.fn({
+  schema: z.object({
+    startDate: z.string().datetime(),
+    endDate: z.string().datetime(),
+  }),
+  handler: async ({ input, app }) => {
+    const appointments = await app.api.collections.appointments.find({
+      where: {
+        scheduledAt: {
+          gte: new Date(input.startDate),
+          lte: new Date(input.endDate),
+        },
+      },
+    });
+    return { appointmentCount: appointments.docs.length };
+  },
+});
+
+export const appRpc = r.router({ getRevenueStats });
+```
+
+## Client usage
+
+```ts
+const stats = await client.rpc.getRevenueStats({
+  startDate: "2026-01-01T00:00:00.000Z",
+  endDate: "2026-01-31T23:59:59.999Z",
+});
+```
+
+## When to use RPC
+
+- booking orchestration
+- analytics aggregation
+- external API workflows
+- multi-step domain logic

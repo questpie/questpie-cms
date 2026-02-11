@@ -29,12 +29,13 @@
  * ```
  */
 
-import { q, rpc, starterModule } from "questpie";
+import { CollectionBuilder, q, rpc, starterModule } from "questpie";
 // Side-effect imports: apply runtime patches and type augmentation
 import "../../augmentation.js";
 import "../../patch.js";
 import { adminFields } from "../../fields/index.js";
 import { adminPreferencesCollection } from "../admin-preferences/collections/admin-preferences.collection.js";
+import { locksCollection } from "../admin-preferences/collections/locks.collection.js";
 import { savedViewsCollection } from "../admin-preferences/collections/saved-views.collection.js";
 import { adminConfigFunctions } from "./functions/admin-config.js";
 import { actionFunctions } from "./functions/execute-action.js";
@@ -47,6 +48,8 @@ import { widgetDataFunctions } from "./functions/widget-data.js";
 
 // Re-export admin preferences collection
 export { adminPreferencesCollection } from "../admin-preferences/collections/admin-preferences.collection.js";
+// Re-export locks collection
+export { locksCollection } from "../admin-preferences/collections/locks.collection.js";
 // Re-export saved views types
 export {
 	type FilterOperator,
@@ -118,6 +121,38 @@ export const adminRpc = r.router({
 	...reactiveFunctions,
 });
 
+function bindCollectionToBuilder<TCollection extends CollectionBuilder<any>>(
+	collection: TCollection,
+	builder: unknown,
+): TCollection {
+	const rebound = new CollectionBuilder({
+		...(collection.state as any),
+		"~questpieApp": builder,
+	} as any);
+
+	if ((collection as any)._indexesFn) {
+		(rebound as any)._indexesFn = (collection as any)._indexesFn;
+	}
+
+	return rebound as TCollection;
+}
+
+const adminBaseBuilder = q({ name: "questpie-admin" })
+	// Include all starterModule functionality (auth, assets)
+	.use(starterModule)
+	// Register default server-side view/component registries.
+	// These must exist so server config builders (`c.*`, `v.*`) resolve from registry.
+	.listViews({
+		table: q.listView("table"),
+	})
+	.editViews({
+		form: q.editView("form"),
+	})
+	.components({
+		icon: q.component("icon"),
+		badge: q.component("badge"),
+	});
+
 /**
  * Admin Module - the complete backend for QuestPie admin panel.
  *
@@ -163,15 +198,16 @@ export const adminRpc = r.router({
  *   .build({ ... });
  * ```
  */
-export const adminModule = q({ name: "questpie-admin" })
-	// Include all starterModule functionality (auth, assets)
-	.use(starterModule)
+export const adminModule = adminBaseBuilder
 	// Register admin-specific field types (richText, blocks)
 	.fields(adminFields)
 	// Add admin-specific collections with admin UI config
 	.collections({
 		// Override auth collections with admin UI config
-		user: starterModule.state.collections.user
+		user: bindCollectionToBuilder(
+			starterModule.state.collections.user,
+			adminBaseBuilder,
+		)
 			.admin(({ c }) => ({
 				label: { key: "defaults.users.label" },
 				icon: c.icon("ph:users"),
@@ -191,16 +227,19 @@ export const adminModule = q({ name: "questpie-admin" })
 			)
 			.form(({ v, f }) =>
 				v.form({
-					sections: [
+					fields: [
 						{
+							type: "section",
 							label: { key: "defaults.users.sections.basicInfo" },
 							fields: [f.name, f.email],
 						},
 						{
+							type: "section",
 							label: { key: "defaults.users.sections.permissions" },
 							fields: [f.role, f.emailVerified],
 						},
 						{
+							type: "section",
 							label: { key: "defaults.users.sections.accessControl" },
 							fields: [f.banned, f.banReason],
 						},
@@ -208,7 +247,10 @@ export const adminModule = q({ name: "questpie-admin" })
 				}),
 			),
 
-		assets: starterModule.state.collections.assets.admin(({ c }) => ({
+		assets: bindCollectionToBuilder(
+			starterModule.state.collections.assets,
+			adminBaseBuilder,
+		).admin(({ c }) => ({
 			label: { key: "defaults.assets.label" },
 			icon: c.icon("ph:image"),
 			description: { key: "defaults.assets.description" },
@@ -226,6 +268,7 @@ export const adminModule = q({ name: "questpie-admin" })
 		// Admin-specific collections (hidden from sidebar)
 		adminSavedViews: savedViewsCollection.admin({ hidden: true }),
 		adminPreferences: adminPreferencesCollection.admin({ hidden: true }),
+		adminLocks: locksCollection.admin({ hidden: true }),
 	})
 	// Default sidebar
 	.sidebar(({ s, c }) =>

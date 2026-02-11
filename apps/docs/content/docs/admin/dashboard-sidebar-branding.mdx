@@ -1,0 +1,226 @@
+---
+title: Dashboard, Sidebar & Branding
+description: Configure navigation, dashboard widgets, and admin branding
+---
+
+# Dashboard, Sidebar & Branding
+
+The dashboard, sidebar, and branding are configured across the server and client layers. The server defines structure (what widgets to show, what sidebar items to display); the client defines presentation (brand name, colors, rendering).
+
+## Sidebar
+
+The sidebar is defined on the server with `.sidebar()`:
+
+```ts
+const cms = q({ name: "barbershop" })
+  .use(adminModule)
+  .collections({ barbers, services, appointments, reviews, pages })
+  .globals({ siteSettings })
+  .sidebar(({ s }) =>
+    s.sidebar({
+      sections: [
+        {
+          label: "Content",
+          items: [
+            s.collection("barbers"),
+            s.collection("services"),
+            s.collection("pages"),
+          ],
+        },
+        {
+          label: "Business",
+          items: [
+            s.collection("appointments"),
+            s.collection("reviews"),
+          ],
+        },
+        {
+          label: "Settings",
+          items: [
+            s.global("siteSettings"),
+          ],
+        },
+      ],
+    }),
+  );
+```
+
+### Sidebar Item Types
+
+| Type | Factory | Description |
+|---|---|---|
+| Collection | `s.collection("name")` | Links to collection list view |
+| Global | `s.global("name")` | Links to global form view |
+| Page | `s.page("name")` | Links to a custom admin page |
+| Link | `s.link({ url, label })` | External or internal link |
+| Divider | `s.divider()` | Visual separator |
+
+### Sidebar Section Config
+
+```ts
+{
+  label: string;                   // Section heading
+  icon?: ComponentReference;       // Section icon
+  items: SidebarItem[];           // Items in this section
+  collapsed?: boolean;            // Start collapsed
+}
+```
+
+## Dashboard
+
+The dashboard is defined on the server with `.dashboard()`:
+
+```ts
+.dashboard(({ d }) =>
+  d.dashboard({
+    columns: 4,
+    items: [
+      d.stats({
+        collection: "appointments",
+        label: "Today's Appointments",
+        datePreset: "today",
+        span: 1,
+      }),
+      d.stats({
+        collection: "barbers",
+        label: "Active Barbers",
+        span: 1,
+      }),
+      d.recentItems({
+        collection: "reviews",
+        label: "Latest Reviews",
+        limit: 5,
+        span: 2,
+      }),
+      d.section({
+        label: "Activity",
+        wrapper: "card",
+        items: [
+          d.timeline({
+            collection: "appointments",
+            label: "Recent Activity",
+          }),
+        ],
+      }),
+    ],
+  }),
+)
+```
+
+### Dashboard Configuration
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `layout` | `"grid" \| "list"` | `"grid"` | Layout mode |
+| `columns` | `number` | `4` | Grid columns |
+| `gap` | `number` | — | Gap between widgets |
+| `showRefresh` | `boolean` | — | Show refresh button |
+| `refreshInterval` | `number` | — | Auto-refresh (ms) |
+| `realtime` | `boolean` | — | Enable realtime updates |
+| `actions` | `DashboardAction[]` | — | Header action buttons |
+
+### Widget Types
+
+| Widget | Factory | Description |
+|---|---|---|
+| Stats | `d.stats({})` | Count with change percentage |
+| Chart | `d.chart({})` | Chart visualization |
+| Recent Items | `d.recentItems({})` | List of latest records |
+| Quick Actions | `d.quickActions({})` | Action buttons |
+| Value | `d.value({})` | Single value with trend |
+| Table | `d.table({})` | Mini table |
+| Timeline | `d.timeline({})` | Activity timeline |
+| Progress | `d.progress({})` | Progress bar toward goal |
+
+### Widget Common Config
+
+Every widget accepts:
+
+```ts
+{
+  label?: string;                  // Widget title
+  description?: string;            // Widget subtitle
+  icon?: ComponentReference;       // Widget icon
+  span?: number;                   // Column span (1-12)
+  size?: "small" | "medium" | "large" | "full";
+  cardVariant?: "default" | "compact" | "featured";
+  refreshInterval?: number;        // Widget-specific refresh (ms)
+  realtime?: boolean;              // Enable realtime invalidation
+}
+```
+
+### Dashboard Sections and Tabs
+
+Group widgets into sections or tabs:
+
+```ts
+// Section
+d.section({
+  label: "Analytics",
+  wrapper: "card",          // "flat" | "card" | "collapsible"
+  layout: "grid",
+  columns: 2,
+  items: [d.stats({...}), d.chart({...})],
+})
+
+// Tabs
+d.tabs({
+  defaultTab: "overview",
+  variant: "line",          // "default" | "line" | "pills"
+  tabs: [
+    { id: "overview", label: "Overview", items: [...] },
+    { id: "activity", label: "Activity", items: [...] },
+  ],
+})
+```
+
+## Branding
+
+Branding is configured on the client via `qa().config()`:
+
+```ts
+const admin = qa<AppCMS>()
+  .use(coreAdminModule)
+  .config({
+    branding: {
+      name: "Barbershop Admin",
+      logo: { type: "icon", props: { name: "ph:scissors" } },
+      favicon: "/favicon.ico",
+      primaryColor: "#7c3aed",
+    },
+  });
+```
+
+### Branding Options
+
+| Option | Type | Description |
+|---|---|---|
+| `name` | `string` | Brand name shown in sidebar header |
+| `logo` | `ComponentReference` | Logo component reference |
+| `favicon` | `string` | Favicon URL |
+| `primaryColor` | `string` | Primary accent color |
+
+## Locale Configuration
+
+```ts
+.config({
+  locale: {
+    default: "en",
+    supported: ["en", "de", "sk"],
+  },
+})
+```
+
+The admin renders a locale switcher when `supported` contains more than one locale.
+
+## Common Mistakes
+
+- **Sidebar without `.sidebar()`** — Without explicit sidebar config, the admin auto-generates sidebar items from collections and globals. This works but gives you no control over grouping or ordering.
+- **Widget `span` exceeding columns** — If `span: 3` but `columns: 2`, the widget overflows. Keep `span` at most equal to `columns`.
+- **Missing collection in sidebar** — If a collection exists but isn't in the sidebar, it's still accessible via URL but not discoverable. Always include active collections in the sidebar.
+
+## Related Pages
+
+- [Admin Overview](/docs/admin) — Architecture overview
+- [Client Builder (qa)](/docs/admin/client-builder-qa) — Where branding is configured
+- [Component Registry](/docs/admin/component-registry) — How icon references work

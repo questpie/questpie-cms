@@ -1,0 +1,122 @@
+---
+title: Realtime
+description: Live updates via PostgreSQL NOTIFY, Redis Streams, and SSE
+---
+
+# Realtime
+
+QUESTPIE includes a realtime system that pushes collection and global changes to connected clients via Server-Sent Events (SSE). Changes are tracked in an outbox table and delivered through a pluggable adapter.
+
+## Why This Exists
+
+Admin panels and frontends benefit from live data. When one user updates a record, other users see the change immediately. QUESTPIE's realtime system handles change tracking, event delivery, and client-side streaming without manual WebSocket setup.
+
+## How It Works
+
+```text
+CRUD operation → outbox table (seq number) → adapter notifies → SSE endpoint → client
+```
+
+1. Every create/update/delete writes a change event to the outbox table
+2. The adapter (pg_notify or Redis) notifies listening processes
+3. The SSE endpoint streams snapshots to connected clients
+4. TanStack Query's `streamedQuery` updates the UI automatically
+
+## Setup
+
+### PostgreSQL NOTIFY (Default)
+
+Works with your existing database — no extra infrastructure:
+
+```ts
+import { pgNotifyAdapter } from "questpie";
+
+.build({
+  // ...
+  realtime: {
+    adapter: pgNotifyAdapter({
+      connectionString: process.env.DATABASE_URL,
+    }),
+  },
+})
+```
+
+### Redis Streams
+
+For high-throughput production environments:
+
+```ts
+import { redisStreamsAdapter } from "questpie";
+import Redis from "ioredis";
+
+.build({
+  // ...
+  realtime: {
+    adapter: redisStreamsAdapter({
+      client: new Redis(process.env.REDIS_URL),
+    }),
+  },
+})
+```
+
+## Client Usage
+
+### With TanStack Query
+
+```ts
+const { data } = useQuery(
+  cms.collections.posts.find(
+    { where: { status: "published" } },
+    { realtime: true },
+  ),
+);
+// data updates automatically when posts change
+```
+
+### SSE Endpoint
+
+The CMS exposes SSE endpoints for each collection and global:
+
+```
+GET /api/cms/realtime/collections/{name}?seq={lastSeq}
+GET /api/cms/realtime/globals/{name}?seq={lastSeq}
+```
+
+The client sends the last sequence number and receives snapshot events when data changes.
+
+## Change Events
+
+Each change event includes:
+
+```ts
+interface RealtimeChangeEvent {
+  seq: number;                    // monotonic sequence number
+  resourceType: "collection" | "global";
+  resource: string;               // collection/global name
+  operation: "create" | "update" | "delete" | "bulk_update" | "bulk_delete";
+  recordId?: string;
+  locale?: string;
+  payload?: Record<string, unknown>;
+  createdAt: Date;
+}
+```
+
+## Configuration
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `adapter` | `RealtimeAdapter` | — | pg_notify or Redis Streams |
+| `pollIntervalMs` | `number` | `2000` | Polling interval if no adapter |
+| `batchSize` | `number` | `500` | Max events per drain cycle |
+| `retentionDays` | `number` | — | Cleanup old events after N days |
+
+## Common Mistakes
+
+- **No adapter in production** — Without an adapter, realtime falls back to polling. Use `pgNotifyAdapter` for low traffic or `redisStreamsAdapter` for scale.
+- **Missing `realtime: true` on queries** — TanStack Query won't stream unless you opt in per query.
+
+## Related Pages
+
+- [Realtime Streaming](/docs/client/realtime-streaming) — Client-side SSE consumption
+- [TanStack Query](/docs/client/tanstack-query) — Using realtime with queries
+- [Admin Realtime Features](/docs/admin/realtime-features) — Collaborative editing

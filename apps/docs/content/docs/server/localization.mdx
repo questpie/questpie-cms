@@ -1,0 +1,49 @@
+---
+title: Localization
+description: Content locale and admin locale in the server-first architecture
+---
+
+# Localization
+
+QUESTPIE supports both content localization and admin locale configuration.
+
+## Content locales
+
+```ts
+.locale({
+  locales: [
+    { code: "en", label: "English", fallback: true },
+    { code: "sk", label: "Slovenčina" },
+  ],
+  defaultLocale: "en",
+})
+```
+
+Use `localized: true` on fields that should be translated:
+
+```ts
+title: f.text({ label: { en: "Title" }, localized: true });
+```
+
+## Admin locales
+
+```ts
+.adminLocale({
+  locales: ["en", "sk"],
+  defaultLocale: "en",
+})
+```
+
+## Messages
+
+```ts
+.messages({
+  en: { "booking.created": "Booking created" },
+  sk: { "booking.created": "Rezervácia vytvorená" },
+})
+```
+
+## Practical split
+
+- content locale config belongs to server app model
+- admin locale UI selection belongs to client rendering config

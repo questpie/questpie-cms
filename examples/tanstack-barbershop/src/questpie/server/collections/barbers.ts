@@ -1,6 +1,6 @@
-import type { FormViewConfig } from "@questpie/admin/server";
 import { uniqueIndex } from "drizzle-orm/pg-core";
 import { qb } from "@/questpie/server/builder";
+import { slugify } from "@/questpie/server/utils";
 
 export type DaySchedule = {
 	isOpen: boolean;
@@ -22,15 +22,6 @@ export type SocialLink = {
 	platform: "instagram" | "facebook" | "twitter" | "linkedin" | "tiktok";
 	url: string;
 };
-
-function slugify(text: string): string {
-	return text
-		.toLowerCase()
-		.trim()
-		.replace(/[^\w\s-]/g, "")
-		.replace(/[\s_-]+/g, "-")
-		.replace(/^-+|-+$/g, "");
-}
 
 export const barbers = qb
 	.collection("barbers")
@@ -75,13 +66,13 @@ export const barbers = qb
 								prev,
 							}: {
 								data: Record<string, unknown>;
-								prev?: Record<string, unknown>;
+								prev: { data: Record<string, unknown> };
 							}) => {
 								// Only auto-generate if name changed and slug wasn't manually edited
 								if (
 									data.name &&
 									(!data.slug ||
-										data.slug === slugify(String(prev?.name ?? "")))
+										data.slug === slugify(String(prev.data.name ?? "")))
 								) {
 									return slugify(String(data.name));
 								}
@@ -98,7 +89,7 @@ export const barbers = qb
 			}),
 			email: f.email({
 				label: { en: "Email Address", sk: "Emailová adresa" },
-				meta: { admin: { placeholder: "barber@example.com" } } as any,
+				meta: { admin: { placeholder: "barber@example.com" } },
 				required: true,
 				maxLength: 255,
 			}),
@@ -207,7 +198,7 @@ export const barbers = qb
 						}),
 						url: f.url({
 							label: { en: "URL", sk: "URL" },
-							meta: { admin: { placeholder: "https://..." } } as any,
+							meta: { admin: { placeholder: "https://..." } },
 						}),
 					}),
 				}),
@@ -290,7 +281,7 @@ export const barbers = qb
 					fields: [f.workingHours],
 				},
 			],
-		} as unknown as FormViewConfig),
+		}),
 	)
 	.hooks({
 		beforeValidate: async ({ data, operation }) => {

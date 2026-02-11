@@ -1,0 +1,215 @@
+---
+title: RPC API
+description: Typed RPC procedures — fn(), router(), handler context, and client invocation
+---
+
+# RPC API
+
+RPC (Remote Procedure Call) provides type-safe server functions callable from the client SDK. Functions are defined with Zod schemas for input validation and support both JSON and raw HTTP modes.
+
+## Creating an RPC Builder
+
+```ts
+import { rpc } from "@questpie/questpie";
+
+const r = rpc<typeof cms>();
+```
+
+The type parameter connects the RPC builder to your CMS instance for typed `app` access in handlers.
+
+## Defining Functions
+
+### `r.fn(definition)` — JSON Function
+
+Validated input/output with automatic Zod schema enforcement.
+
+```ts
+const getAvailableSlots = r.fn({
+  schema: z.object({
+    barberId: z.string(),
+    date: z.string(),
+    serviceId: z.string().optional(),
+  }),
+  handler: async ({ input, app, session }) => {
+    const barber = await app.api.collections.barbers.findOne({
+      where: { id: input.barberId },
+    });
+    // ... compute available slots
+    return { slots: availableSlots };
+  },
+});
+```
+
+**Definition fields:**
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `schema` | `ZodType` | Yes | Zod schema for input validation |
+| `handler` | `(ctx) => Promise<TOutput>` | Yes | Function implementation |
+| `access` | `(ctx) => boolean \| Promise<boolean>` | No | Access control |
+| `outputSchema` | `ZodType` | No | Zod schema for output validation |
+
+### `r.fn(definition)` — Raw Function
+
+Direct access to `Request` and `Response` for streaming, file downloads, or custom protocols.
+
+```ts
+const exportCsv = r.fn({
+  raw: true,
+  handler: async ({ request, app }) => {
+    const csv = await generateCsv(app);
+    return new Response(csv, {
+      headers: { "Content-Type": "text/csv" },
+    });
+  },
+});
+```
+
+### Handler Context
+
+Both function types receive a context object:
+
+```ts
+{
+  input: TInput;           // Validated input (JSON functions)
+  request: Request;        // Raw HTTP request (raw functions)
+  app: Questpie;           // CMS instance
+  session: Session | null; // Authenticated user
+  locale: string;          // Current locale
+}
+```
+
+## Defining Routers
+
+### `r.router(tree)`
+
+Group functions into a tree structure. Routers can nest indefinitely.
+
+```ts
+const appRpc = r.router({
+  booking: r.router({
+    getAvailableSlots,
+    createBooking,
+    cancelBooking,
+  }),
+  reports: r.router({
+    generateMonthly: generateMonthlyReport,
+    exportCsv,
+  }),
+});
+```
+
+This creates the following RPC paths:
+- `booking/getAvailableSlots`
+- `booking/createBooking`
+- `booking/cancelBooking`
+- `reports/generateMonthly`
+- `reports/exportCsv`
+
+## Collection-Scoped Functions
+
+Functions can also be defined directly on collections:
+
+```ts
+const posts = q.collection("posts")
+  .functions({
+    publish: r.fn({
+      schema: z.object({ id: z.string() }),
+      handler: async ({ input, app }) => {
+        return app.api.collections.posts.update({
+          where: { id: input.id },
+          data: { status: "published" },
+        });
+      },
+    }),
+  });
+```
+
+Collection functions are accessible at `collections/{name}/functions/{fnName}`.
+
+## Mounting RPC
+
+Pass the router to the fetch handler:
+
+```ts
+import { createFetchHandler } from "@questpie/questpie";
+
+const handler = createFetchHandler(cms, {
+  basePath: "/api/cms",
+  rpc: appRpc,
+});
+```
+
+## Access Control
+
+Functions support an `access` callback:
+
+```ts
+r.fn({
+  schema: z.object({ id: z.string() }),
+  access: ({ session }) => {
+    if (!session) return false;
+    return session.user.role === "admin";
+  },
+  handler: async ({ input, app }) => {
+    // Only admins reach here
+  },
+})
+```
+
+If `access` returns `false`, the function responds with `403 FORBIDDEN`.
+
+## Client Invocation
+
+### Via Client SDK
+
+```ts
+import { createClient } from "@questpie/tanstack-query";
+
+const client = createClient<typeof cms>({ baseUrl: "/api/cms" });
+
+// Type-safe call
+const slots = await client.rpc.booking.getAvailableSlots({
+  barberId: "b1",
+  date: "2024-03-15",
+});
+```
+
+### Via HTTP
+
+```
+POST /api/cms/rpc/booking/getAvailableSlots
+Content-Type: application/json
+
+{ "barberId": "b1", "date": "2024-03-15" }
+```
+
+Response:
+
+```json
+{ "slots": [...] }
+```
+
+### Collection Functions via HTTP
+
+```
+POST /api/cms/collections/posts/functions/publish
+Content-Type: application/json
+
+{ "id": "post-123" }
+```
+
+## Error Handling
+
+- Invalid input → `400 BAD_REQUEST` with Zod field errors
+- Access denied → `403 FORBIDDEN`
+- Handler throws → `500 INTERNAL_SERVER_ERROR` (original error in dev mode)
+- Function not found → `404 NOT_FOUND`
+
+## Related Pages
+
+- [RPC](/docs/server/rpc) — Conceptual guide with patterns
+- [q Builder API](/docs/reference/q-builder-api) — `q.fn()` factory
+- [Collection Builder API](/docs/reference/collection-builder-api) — `.functions()` method
+- [Adapter API](/docs/reference/adapter-api) — Mounting the handler
+- [Error Codes](/docs/reference/error-codes) — Error responses

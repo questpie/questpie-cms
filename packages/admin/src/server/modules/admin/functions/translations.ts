@@ -117,11 +117,23 @@ export const getAdminTranslations = fn({
     // Get built-in admin messages for this locale
     const builtInMessages = getAdminMessagesForLocale(locale);
 
+    // Get fallback messages (English by default) so missing keys still resolve
+    const fallbackMessages =
+      locale !== defaultLocale
+        ? getAdminMessagesForLocale(defaultLocale)
+        : {};
+
     // Get custom messages from .messages() on QuestpieBuilder
+    const customFallbackMessages =
+      locale !== defaultLocale
+        ? (cms.config.translations?.messages?.[defaultLocale] ?? {})
+        : {};
     const customMessages = cms.config.translations?.messages?.[locale] ?? {};
 
-    // Merge: custom messages override built-in
+    // Merge: fallback → built-in → custom (later overrides earlier)
     const messages: AdminMessages = {
+      ...fallbackMessages,
+      ...customFallbackMessages,
       ...builtInMessages,
       ...customMessages,
     };

@@ -1,214 +1,121 @@
 ---
 title: Installation
-description: Install QUESTPIE CMS packages and dependencies
+description: Prerequisites, packages, and environment setup for QUESTPIE
 ---
 
 # Installation
 
-This guide covers installing QUESTPIE CMS and its dependencies.
+QUESTPIE requires a Node.js-compatible runtime, TypeScript, and PostgreSQL. This page covers everything you need to install before building your first CMS.
 
 ## Prerequisites
 
-- **Node.js** 18+ or **Bun** 1.0+
-- **PostgreSQL** database (recommended) or SQLite
-- **TypeScript** 5.0+
+| Requirement | Version | Notes |
+|---|---|---|
+| **Bun** | 1.3+ | Primary runtime and package manager |
+| **Node.js** | 20+ | Alternative to Bun (npm/pnpm also work) |
+| **TypeScript** | 5.0+ | Required for type inference |
+| **PostgreSQL** | 14+ | Primary database (PGlite supported for development) |
 
-## Package Installation
+## Core Packages
 
-### Core Packages
+Every QUESTPIE project needs these:
 
 ```bash
-# Backend CMS
-bun add questpie
+bun add questpie @questpie/admin zod drizzle-orm
+```
 
-# Admin UI
-bun add @questpie/admin
+| Package | Purpose |
+|---|---|
+| `questpie` | Core framework: builders, fields, CRUD, hooks, access, RPC |
+| `@questpie/admin` | Admin module: server augmentation + client UI |
+| `zod` | Validation schemas for RPC inputs and field validation |
+| `drizzle-orm` | ORM used internally (you need it for custom indexes and queries) |
 
-# Query helpers
+## Framework Adapter
+
+Choose the adapter that matches your web framework:
+
+```bash
+# Hono (recommended for new projects)
+bun add @questpie/hono hono
+
+# Elysia
+bun add @questpie/elysia elysia
+
+# Next.js
+bun add @questpie/next next
+```
+
+You only need **one** adapter. It creates the fetch handler that turns your CMS into HTTP endpoints.
+
+## Client SDK (Optional)
+
+For frontend data fetching with type safety:
+
+```bash
 bun add @questpie/tanstack-query @tanstack/react-query
 ```
 
-### Framework Adapter
+## OpenAPI (Optional)
 
-Choose your framework:
+For auto-generated API documentation:
 
 ```bash
-# Hono
-bun add @questpie/hono
-
-# Elysia
-bun add @questpie/elysia
-
-# Next.js
-bun add @questpie/next
+bun add @questpie/openapi
 ```
 
-### Database Dependencies
+## Database Driver
 
 ```bash
-# PostgreSQL (recommended)
 bun add drizzle-orm postgres
-bun add -D drizzle-kit
-
-# SQLite (alternative)
-bun add drizzle-orm better-sqlite3
-bun add -D drizzle-kit @types/better-sqlite3
 ```
 
-### UI Dependencies
+For local development without a PostgreSQL server:
 
 ```bash
-# Icons (used by admin UI)
-bun add @iconify/react
-
-# Date utilities
-bun add date-fns
+bun add @electric-sql/pglite
 ```
 
-## Environment Setup
+## Environment Variables
 
-Create a `.env` file:
+Create a `.env` file in your project root:
 
 ```bash
-# Database
-DATABASE_URL=postgres://user:password@localhost:5432/mydb
-
-# Auth
-AUTH_SECRET=your-secret-key-min-32-chars
-
-# App
+# Required
+DATABASE_URL=postgres://postgres:postgres@localhost:5432/mydb
 APP_URL=http://localhost:3000
 
-# Optional: Email
-SMTP_HOST=localhost
-SMTP_PORT=1025
+# Auth (required for admin login)
+BETTER_AUTH_SECRET=replace-me-in-production
 
-# Optional: Storage
-STORAGE_DRIVER=local
-STORAGE_PATH=./uploads
+# Optional: storage, email, etc.
+# SMTP_HOST=localhost
+# SMTP_PORT=1025
 ```
 
-## TypeScript Configuration
+## Verify Installation
 
-Ensure your `tsconfig.json` includes:
+Create a simple test file to confirm everything resolves:
 
-```json
-{
-  "compilerOptions": {
-    "target": "ES2022",
-    "module": "ESNext",
-    "moduleResolution": "bundler",
-    "strict": true,
-    "esModuleInterop": true,
-    "skipLibCheck": true,
-    "paths": {
-      "@/*": ["./src/*"]
-    }
-  }
-}
-```
-
-## Drizzle Configuration
-
-Create `drizzle.config.ts`:
-
-```typescript
-import { defineConfig } from "drizzle-kit";
-
-export default defineConfig({
-  schema: "./src/questpie/server/schema.ts",
-  out: "./drizzle",
-  dialect: "postgresql",
-  dbCredentials: {
-    url: process.env.DATABASE_URL!,
-  },
-});
-```
-
-## Tailwind CSS Setup
-
-QUESTPIE Admin uses Tailwind CSS v4. Configure your CSS:
-
-```css
-/* src/styles.css */
-@import "tailwindcss";
-@import "tw-animate-css";
-@import "shadcn/tailwind.css";
-@import "@questpie/admin/styles/index.css";
-
-/* Scan admin package for classes */
-@source "../node_modules/@questpie/admin/dist";
-
-/* Your theme variables */
-:root {
-  --background: 0 0% 100%;
-  --foreground: 222.2 84% 4.9%;
-  /* ... other theme vars */
-}
-```
-
-## Verification
-
-Create a simple test to verify installation:
-
-```typescript
-// test-install.ts
-import { q } from "questpie";
+```ts
+import { q, rpc, createFetchHandler } from "questpie";
+import { adminModule } from "@questpie/admin/server";
 import { qa } from "@questpie/admin/client";
 
-console.log("questpie version:", q.version);
-console.log("admin version:", qa.version);
-console.log("Installation successful!");
+// If this compiles, you're ready
+const builder = q({ name: "test" }).use(adminModule);
 ```
 
-Run it:
+Run with `bun run --bun your-file.ts` or `npx tsx your-file.ts` to verify.
 
-```bash
-bun run test-install.ts
-```
+## Common Mistakes
 
-## Common Issues
+- **Missing `drizzle-orm`** — QUESTPIE uses Drizzle internally for schema generation. You need it installed even if you don't write Drizzle code directly.
+- **Forgetting the server module** — `@questpie/admin` exports from two subpaths: `@questpie/admin/server` (for the builder) and `@questpie/admin/client` (for the UI). You need both.
+- **Wrong PostgreSQL version** — QUESTPIE uses features like `jsonb`, full-text search, and `pg_trgm` that require PostgreSQL 14+.
 
-### Module Resolution Errors
+## Related Pages
 
-Ensure `moduleResolution` is set to `"bundler"` or `"node16"` in tsconfig.
-
-### Missing Peer Dependencies
-
-Install any missing peer dependencies:
-
-```bash
-bun add react react-dom zod
-```
-
-### Database Connection
-
-Test your database connection:
-
-```bash
-# PostgreSQL
-psql $DATABASE_URL -c "SELECT 1"
-```
-
-### TypeScript Path Aliases
-
-If using `@/*` paths, ensure your bundler resolves them:
-
-```typescript
-// vite.config.ts
-import { defineConfig } from "vite";
-import path from "path";
-
-export default defineConfig({
-  resolve: {
-    alias: {
-      "@": path.resolve(__dirname, "./src"),
-    },
-  },
-});
-```
-
-## Related
-
-- [Your First CMS](/docs/getting-started/your-first-cms) - Create your first collection
-- [Project Structure](/docs/getting-started/project-structure) - Organize your QUESTPIE project
+- [Quickstart](/docs/getting-started/quickstart) — Build a working CMS in 5 minutes
+- [Project Structure](/docs/getting-started/project-structure) — Recommended file layout
+- [Database & Migrations](/docs/infrastructure/database-and-migrations) — Database setup in depth

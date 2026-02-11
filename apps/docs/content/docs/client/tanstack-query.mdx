@@ -1,0 +1,295 @@
+---
+title: TanStack Query
+description: Type-safe query options, mutations, and RPC calls for React
+---
+
+# TanStack Query
+
+`@questpie/tanstack-query` provides a typed proxy that creates TanStack Query options from your CMS schema. Collections, globals, and RPC functions all get type-safe `useQuery` and `useMutation` wrappers — no manual type definitions needed.
+
+## Why This Exists
+
+TanStack Query is the standard for data fetching in React. Instead of manually creating query keys, fetch functions, and types for every endpoint, QUESTPIE generates them from your server schema. The result is a proxy object where every method returns properly typed query/mutation options.
+
+## Installation
+
+```bash
+bun add @questpie/tanstack-query @tanstack/react-query
+```
+
+## Setup
+
+```ts
+import { createQuestpieQueryOptions } from "@questpie/tanstack-query";
+
+// Create typed query options from your CMS client
+const cms = createQuestpieQueryOptions(client, {
+  keyPrefix: "cms",           // prefix for all query keys
+  locale: "en",               // default locale
+  realtime: {                 // optional: SSE streaming
+    enabled: true,
+    baseUrl: "/api/cms",
+    credentials: "include",
+  },
+});
+```
+
+## Collection Queries
+
+### `find` — List Records
+
+```ts
+import { useQuery } from "@tanstack/react-query";
+
+// List all posts
+const { data } = useQuery(
+  cms.collections.posts.find(),
+);
+
+// With filtering, sorting, pagination
+const { data } = useQuery(
+  cms.collections.posts.find({
+    where: { status: "published" },
+    orderBy: { createdAt: "desc" },
+    limit: 10,
+    skip: 0,
+    with: { author: true },
+  }),
+);
+
+// data type: { docs: Post[], totalDocs: number, page: number, ... }
+```
+
+### `findOne` — Get Single Record
+
+```ts
+const { data } = useQuery(
+  cms.collections.posts.findOne(postId),
+);
+// data type: Post
+```
+
+### `count` — Count Records
+
+```ts
+const { data } = useQuery(
+  cms.collections.posts.count({
+    where: { status: "published" },
+  }),
+);
+// data type: number
+```
+
+### Realtime Queries
+
+Enable SSE streaming for live updates:
+
+```ts
+const { data } = useQuery(
+  cms.collections.posts.find(
+    { where: { status: "published" } },
+    { realtime: true },  // enable SSE
+  ),
+);
+// data updates in real-time when records change
+```
+
+See [Realtime Streaming](/docs/client/realtime-streaming) for details.
+
+## Collection Mutations
+
+### `create` — Create Record
+
+```ts
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+
+const queryClient = useQueryClient();
+
+const createPost = useMutation({
+  ...cms.collections.posts.create(),
+  onSuccess: () => {
+    queryClient.invalidateQueries({ queryKey: cms.collections.posts.find().queryKey });
+  },
+});
+
+// Usage
+createPost.mutate({
+  title: "Hello World",
+  slug: "hello-world",
+  published: true,
+});
+```
+
+### `update` — Update Record
+
+```ts
+const updatePost = useMutation({
+  ...cms.collections.posts.update(postId),
+});
+
+updatePost.mutate({
+  title: "Updated Title",
+});
+```
+
+### `delete` — Delete Record
+
+```ts
+const deletePost = useMutation({
+  ...cms.collections.posts.delete(postId),
+});
+
+deletePost.mutate();
+```
+
+### `restore` — Restore Soft-Deleted Record
+
+```ts
+const restorePost = useMutation({
+  ...cms.collections.posts.restore(postId),
+});
+```
+
+### Batch Operations
+
+```ts
+// Update multiple records
+const updateMany = useMutation({
+  ...cms.collections.posts.updateMany(),
+});
+
+updateMany.mutate({
+  "post-1": { status: "published" },
+  "post-2": { status: "published" },
+});
+
+// Delete multiple records
+const deleteMany = useMutation({
+  ...cms.collections.posts.deleteMany(),
+});
+
+deleteMany.mutate({
+  where: { status: "draft" },
+});
+```
+
+## Global Queries
+
+```ts
+// Read global
+const { data: settings } = useQuery(
+  cms.globals.siteSettings.get(),
+);
+
+// Update global
+const updateSettings = useMutation({
+  ...cms.globals.siteSettings.update(),
+});
+
+updateSettings.mutate({
+  shopName: "New Name",
+});
+```
+
+## RPC Calls
+
+RPC functions are available through the `rpc` proxy. Depending on whether they read or write data:
+
+```ts
+// RPC as query (read operation)
+const { data } = useQuery(
+  cms.rpc.getActiveBarbers.query({}),
+);
+
+// RPC as mutation (write operation)
+const createBooking = useMutation(
+  cms.rpc.createBooking.mutation(),
+);
+
+createBooking.mutate({
+  barberId: "...",
+  serviceId: "...",
+  date: "2025-03-15",
+  time: "10:00",
+});
+```
+
+## Query Keys
+
+Every proxy method generates typed query keys for cache management:
+
+```ts
+// Get the query key without executing
+const key = cms.collections.posts.find().queryKey;
+// ["cms", "collections", "posts", "find", { ... }]
+
+// Invalidate all post queries
+queryClient.invalidateQueries({
+  queryKey: ["cms", "collections", "posts"],
+});
+
+// Invalidate specific RPC
+queryClient.invalidateQueries({
+  queryKey: cms.rpc.getActiveBarbers.key(),
+});
+```
+
+## Custom Queries
+
+For endpoints not covered by the proxy:
+
+```ts
+// Custom query
+const { data } = useQuery(
+  cms.custom.query({
+    queryKey: ["custom", "stats"],
+    queryFn: async () => {
+      const res = await fetch("/api/custom/stats");
+      return res.json();
+    },
+  }),
+);
+
+// Custom mutation
+const customAction = useMutation(
+  cms.custom.mutation({
+    mutationFn: async (input) => {
+      const res = await fetch("/api/custom/action", {
+        method: "POST",
+        body: JSON.stringify(input),
+      });
+      return res.json();
+    },
+  }),
+);
+```
+
+## Error Handling
+
+Configure error transformation:
+
+```ts
+const cms = createQuestpieQueryOptions(client, {
+  keyPrefix: "cms",
+  errorMap: (error) => {
+    // Transform API errors for your app
+    if (error.code === "UNAUTHORIZED") {
+      router.navigate("/login");
+    }
+    return error;
+  },
+});
+```
+
+## Common Mistakes
+
+- **Forgetting to invalidate queries after mutations** — TanStack Query caches aggressively. After a create/update/delete, invalidate related queries.
+- **Not setting `keyPrefix`** — Without a prefix, query keys might conflict with other queries in your app.
+- **Using `query` for write operations** — RPC functions that modify data should use `.mutation()`, not `.query()`. Queries are cached and may be called multiple times.
+
+## Related Pages
+
+- [Realtime Streaming](/docs/client/realtime-streaming) — SSE streaming with TanStack Query
+- [Type Inference](/docs/client/type-inference) — How server types flow to the client
+- [Adapters Overview](/docs/client/adapters-overview) — Setting up the HTTP client
+- [CRUD API Reference](/docs/reference/crud-api) — Query parameters and response shapes

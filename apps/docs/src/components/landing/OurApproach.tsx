@@ -42,7 +42,7 @@ export function OurApproach() {
             Backend + Admin, Zero Lock-in
           </h3>
           <p className="text-muted-foreground">
-            A complete CMS framework built on libraries you already know. Own
+            A complete backend framework built on libraries you already know. Own
             every line of code.
           </p>
         </div>

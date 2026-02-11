@@ -1,0 +1,16 @@
+{
+	"title": "Infrastructure",
+	"defaultOpen": true,
+	"pages": [
+		"index",
+		"authentication",
+		"database-and-migrations",
+		"storage",
+		"email",
+		"queue-and-jobs",
+		"realtime",
+		"search",
+		"kv-store",
+		"logger"
+	]
+}

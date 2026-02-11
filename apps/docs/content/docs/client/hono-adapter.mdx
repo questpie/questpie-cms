@@ -1,0 +1,97 @@
+---
+title: Hono Adapter
+description: Integrate QUESTPIE with Hono for server and type-safe client
+---
+
+# Hono Adapter
+
+The Hono adapter mounts QUESTPIE as Hono middleware, giving you CMS routes alongside your custom Hono routes. The client factory creates a merged client with both CMS CRUD and Hono RPC type safety.
+
+## Server Setup
+
+```ts
+import { Hono } from "hono";
+import { questpieHono } from "@questpie/hono";
+import { cms, appRpc } from "./cms";
+
+const app = new Hono();
+
+// Mount CMS routes at /api/cms
+const cmsApp = questpieHono(cms, {
+  basePath: "/api/cms",
+  rpc: appRpc,
+});
+
+app.route("/api/cms", cmsApp);
+
+// Your custom routes alongside CMS
+app.get("/api/health", (c) => c.json({ ok: true }));
+
+export default app;
+```
+
+### `questpieHono(cms, config)`
+
+Returns a Hono app with all CMS routes mounted. Configuration is the same as `createFetchHandler` — see [Adapters Overview](/docs/client/adapters-overview).
+
+### Middleware
+
+Use `questpieMiddleware` to add CMS context to all routes without mounting the full CMS router:
+
+```ts
+import { questpieMiddleware } from "@questpie/hono";
+
+app.use("/api/*", questpieMiddleware(cms));
+
+// Access CMS in any route handler
+app.get("/api/custom", (c) => {
+  const { cms, cmsContext, user } = c.var;
+  // ...
+});
+```
+
+## Client Setup
+
+```ts
+import { createClientFromHono } from "@questpie/hono";
+import type { AppType } from "../server/app";
+import type { AppCMS } from "../server/cms";
+
+const client = createClientFromHono<AppType, AppCMS>({
+  baseURL: "http://localhost:3000",
+  basePath: "/api/cms",
+});
+
+// CMS collections
+const posts = await client.collections.posts.find({ limit: 10 });
+
+// CMS globals
+const settings = await client.globals.siteSettings.get();
+
+// Custom Hono routes (fully typed via hc)
+const health = await client.api.health.$get();
+```
+
+### `createClientFromHono<TApp, TCMS>(config)`
+
+Returns a merged client that combines:
+- **CMS client** — `client.collections.*`, `client.globals.*`, `client.rpc.*`
+- **Hono RPC client** — Full type-safe access to custom Hono routes via `hc`
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `baseURL` | `string` | — | Server URL |
+| `basePath` | `string` | `"/cms"` | CMS route prefix |
+| `fetch` | `typeof fetch` | — | Custom fetch implementation |
+| `headers` | `Record<string, string>` | — | Default headers |
+
+## Common Mistakes
+
+- **Mismatched `basePath`** — Server and client must use the same base path.
+- **Missing type parameters** — Pass both `AppType` (Hono app type) and `AppCMS` (CMS type) for full type safety.
+
+## Related Pages
+
+- [Adapters Overview](/docs/client/adapters-overview) — How adapters work
+- [TanStack Query](/docs/client/tanstack-query) — Using the client with TanStack Query
+- [Client Overview](/docs/client) — Client SDK overview

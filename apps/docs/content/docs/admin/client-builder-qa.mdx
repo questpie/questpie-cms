@@ -1,0 +1,179 @@
+---
+title: Client Builder (qa)
+description: Configure the admin client with registries, branding, and modules
+---
+
+# Client Builder (`qa`)
+
+The `qa()` function creates an `AdminBuilder` that configures the client-side admin panel. It manages registries (fields, views, components, widgets), branding, locale settings, and client-side extensions.
+
+## Why This Exists
+
+The server defines what the admin should show. The client builder defines how to render it. `qa()` is the composition root for all client-side admin configuration — field renderers, custom views, branding, and theme settings.
+
+## What `qa` Owns
+
+- **Field registry** — Maps field type IDs to React form components and cell renderers
+- **View registry** — Maps view IDs to list and form view components
+- **Component registry** — Maps component refs to React components (icons, badges, etc.)
+- **Widget registry** — Maps widget types to dashboard widget components
+- **Branding** — Name, logo, favicon, primary color
+- **Locale** — Default and supported locales for the admin UI
+- **Pages** — Custom admin pages beyond collections and globals
+
+## What `qa` Does Not Own
+
+- Collection/global schemas (server-defined)
+- Admin contracts — sidebar, dashboard, list/form config (server-defined)
+- Access control rules (server-enforced)
+- Introspection payloads (server-generated)
+
+## Setup
+
+```ts
+import { qa, coreAdminModule } from "@questpie/admin/client";
+import type { AppCMS } from "../server/cms";
+
+export const admin = qa<AppCMS>()
+  .use(coreAdminModule)  // Registers all built-in fields, views, widgets
+  .config({
+    branding: {
+      name: "Barbershop Admin",
+      logo: { type: "icon", props: { name: "ph:scissors" } },
+      primaryColor: "#7c3aed",
+    },
+    locale: {
+      default: "en",
+      supported: ["en", "de", "sk"],
+    },
+  });
+```
+
+## Builder Methods
+
+### `.use(module)`
+
+Merge another `AdminBuilder` (module). This is how `coreAdminModule` registers all built-in renderers:
+
+```ts
+qa<AppCMS>()
+  .use(coreAdminModule)           // Built-in fields, views, widgets
+  .use(myCustomFieldsModule)      // Your custom field renderers
+```
+
+### `.fields(fieldDefs)`
+
+Register field renderers:
+
+```ts
+.fields({
+  point: {
+    name: "point",
+    kind: "field",
+    createField: (config) => PointFieldComponent,
+    createCell: (config) => PointCellComponent,
+  },
+})
+```
+
+### `.views(viewDefs)`
+
+Register list and form view types:
+
+```ts
+.views({
+  kanban: {
+    name: "kanban",
+    kind: "listView",
+    component: KanbanView,
+  },
+})
+```
+
+### `.widgets(widgetDefs)`
+
+Register dashboard widget types:
+
+```ts
+.widgets({
+  customChart: {
+    name: "customChart",
+    kind: "widget",
+    component: CustomChartWidget,
+  },
+})
+```
+
+### `.components(components)`
+
+Register components for server-driven rendering:
+
+```ts
+.components({
+  myCustomIcon: MyCustomIconComponent,
+})
+```
+
+### `.config(config)`
+
+Set admin-wide configuration:
+
+```ts
+.config({
+  branding: { name: "My App", primaryColor: "#3b82f6" },
+  locale: { default: "en", supported: ["en", "fr"] },
+})
+```
+
+### `.pages(pageDefs)`
+
+Register custom admin pages:
+
+```ts
+.pages({
+  analytics: {
+    name: "analytics",
+    path: "/analytics",
+    component: AnalyticsPage,
+  },
+})
+```
+
+## Core Admin Module
+
+`coreAdminModule` is the built-in module that registers all default renderers. It includes:
+
+**Fields:** text, email, password, url, tel, textarea, number, checkbox, switch, select, date, datetime, time, json, richText, upload, uploadMany, relation, reverseRelation, array, object, blocks, embedded, assetPreview
+
+**Views:** table (list), form (edit)
+
+**Widgets:** stats, chart, recentItems, quickActions, value, table, timeline, progress
+
+**Components:** icon, badge
+
+Always `.use(coreAdminModule)` as your base, then layer custom registrations on top.
+
+## Type Safety
+
+Pass your server CMS type as a generic parameter to get autocomplete for collection names, field types, and RPC handlers:
+
+```ts
+import type { AppCMS } from "../server/cms";
+
+const admin = qa<AppCMS>()
+//               ^^^^^^^
+//               Enables autocomplete for collections, globals, fields
+```
+
+## Common Mistakes
+
+- **Forgetting `.use(coreAdminModule)`** — Without it, no built-in field renderers are registered and the admin panel renders nothing.
+- **Registering fields after `.config()`** — Order matters. Register fields and views before setting config.
+- **Not passing the server type** — Without `qa<AppCMS>()`, you lose autocomplete for server-defined collections and fields.
+
+## Related Pages
+
+- [Registries Overview](/docs/admin/registries-overview) — How registries work
+- [Field Renderer Registry](/docs/admin/field-renderer-registry) — Custom field renderers
+- [View Registry](/docs/admin/view-registry-list-and-form) — Custom list and form views
+- [Component Registry](/docs/admin/component-registry) — Custom component refs

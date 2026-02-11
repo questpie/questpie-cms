@@ -1,381 +1,396 @@
 ---
 title: Your First CMS
-description: Build a complete CMS from scratch
+description: Build a complete CMS with multiple collections, relations, sidebar, and dashboard
 ---
 
 # Your First CMS
 
-This tutorial walks you through building a complete blog CMS with posts, authors, and categories.
+This walkthrough goes beyond the quickstart. You'll build a mini content management system with multiple collections, relations between them, a custom sidebar, reactive fields, and a typed RPC function — the same patterns used in the Barbershop reference project.
 
-## What We'll Build
+## What You'll Build
 
-- Posts collection with rich text content
-- Authors collection
-- Categories collection
-- Relations between collections
-- Admin interface with sidebar navigation
-- API endpoints for frontend consumption
+- A `services` collection with name, price, and duration
+- A `barbers` collection with profile info and a many-to-many relation to services
+- A `barberServices` junction collection for the many-to-many link
+- Server-defined sidebar, admin config, and form layouts
+- A typed RPC function
+- Client admin configuration
 
-## Step 1: Create the Backend
+## Step 1: Server Builder
 
-### Define Collections
-
-```typescript
-// src/questpie/server/collections/posts.ts
-import { q, text, boolean, datetime, integer } from "questpie";
-
-export const posts = q.collection("posts")
-  .fields({
-    title: text("title").notNull(),
-    slug: text("slug").notNull().unique(),
-    excerpt: text("excerpt"),
-    content: text("content"),
-    published: boolean("published").default(false),
-    publishedAt: datetime("publishedAt"),
-    authorId: text("authorId"),
-    categoryId: text("categoryId"),
-    viewCount: integer("viewCount").default(0),
-  })
-  .relations(({ one }) => ({
-    author: one("authors", {
-      fields: ["authorId"],
-      references: ["id"],
-    }),
-    category: one("categories", {
-      fields: ["categoryId"],
-      references: ["id"],
-    }),
-  }))
-  .validation(({ z }) => ({
-    title: z.string().min(1).max(200),
-    slug: z.string().regex(/^[a-z0-9-]+$/),
-    excerpt: z.string().max(500).optional(),
-    content: z.string().optional(),
-  }))
-  .hooks({
-    beforeCreate: async ({ data, ctx }) => {
-      // Auto-generate slug from title
-      if (!data.slug && data.title) {
-        data.slug = data.title
-          .toLowerCase()
-          .replace(/[^a-z0-9]+/g, "-")
-          .replace(/(^-|-$)/g, "");
-      }
-      return data;
-    },
-  });
-```
-
-```typescript
-// src/questpie/server/collections/authors.ts
-import { q, text, boolean } from "questpie";
-
-export const authors = q.collection("authors")
-  .fields({
-    name: text("name").notNull(),
-    email: text("email").notNull().unique(),
-    bio: text("bio"),
-    avatarUrl: text("avatarUrl"),
-    isActive: boolean("isActive").default(true),
-  })
-  .validation(({ z }) => ({
-    name: z.string().min(1).max(100),
-    email: z.string().email(),
-    bio: z.string().max(1000).optional(),
-  }));
-```
-
-```typescript
-// src/questpie/server/collections/categories.ts
-import { q, text, integer } from "questpie";
-
-export const categories = q.collection("categories")
-  .fields({
-    name: text("name").notNull(),
-    slug: text("slug").notNull().unique(),
-    description: text("description"),
-    order: integer("order").default(0),
-  })
-  .validation(({ z }) => ({
-    name: z.string().min(1).max(50),
-    slug: z.string().regex(/^[a-z0-9-]+$/),
-  }));
-```
-
-### Build the CMS
-
-```typescript
-// src/questpie/server/cms.ts
-import { q } from "questpie";
+```ts
+// src/questpie/server/builder.ts
 import { adminModule } from "@questpie/admin/server";
-import { posts } from "./collections/posts";
-import { authors } from "./collections/authors";
-import { categories } from "./collections/categories";
+import { q } from "questpie";
 
-export const cms = q({ name: "blog-cms" })
-  .use(adminModule)  // Adds users, assets, auth
-  .collections({
-    posts,
-    authors,
-    categories,
-  })
-  .auth({
-    emailAndPassword: { enabled: true },
-    secret: process.env.AUTH_SECRET!,
-    baseURL: process.env.APP_URL,
-    basePath: "/api/cms/auth",
-  })
-  .build({
-    db: {
-      url: process.env.DATABASE_URL!,
-    },
-  });
-
-export type AppCMS = typeof cms;
+export const qb = q.use(adminModule);
 ```
 
-## Step 2: Add Admin Configuration (Server-Side)
+## Step 2: Services Collection
 
-Admin UI configuration lives on the **server** alongside your collection definitions. Add `.admin()`, `.list()`, and `.form()` to each collection:
+Start with a simple collection for the services your business offers:
 
-```typescript
-// src/questpie/server/collections/posts.ts (updated)
-import { q, text, boolean, datetime, integer } from "questpie";
+```ts
+// src/questpie/server/collections/services.ts
+import { qb } from "../builder";
 
-export const posts = q.collection("posts")
-  .fields({
-    title: text("title").notNull(),
-    slug: text("slug").notNull().unique(),
-    excerpt: text("excerpt"),
-    content: text("content"),
-    published: boolean("published").default(false),
-    publishedAt: datetime("publishedAt"),
-    authorId: text("authorId"),
-    categoryId: text("categoryId"),
-    viewCount: integer("viewCount").default(0),
-  })
-  .relations(({ one }) => ({
-    author: one("authors", { fields: ["authorId"], references: ["id"] }),
-    category: one("categories", { fields: ["categoryId"], references: ["id"] }),
+export const services = qb
+  .collection("services")
+  .fields((f) => ({
+    name: f.text({
+      label: { en: "Name" },
+      required: true,
+      maxLength: 255,
+      localized: true,
+    }),
+    description: f.textarea({
+      label: { en: "Description" },
+      localized: true,
+    }),
+    image: f.upload({
+      to: "assets",
+      label: { en: "Image" },
+    }),
+    duration: f.number({
+      required: true,
+      label: { en: "Duration (minutes)" },
+    }),
+    price: f.number({
+      required: true,
+      label: { en: "Price (cents)" },
+    }),
+    isActive: f.boolean({
+      label: { en: "Active" },
+      default: true,
+      required: true,
+    }),
   }))
-  .validation(({ z }) => ({
-    title: z.string().min(1).max(200),
-    slug: z.string().regex(/^[a-z0-9-]+$/),
-  }))
-  // Admin UI configuration
+  .title(({ f }) => f.name)
   .admin(({ c }) => ({
-    label: "Posts",
-    icon: c.icon("ph:article"),
-    description: "Blog posts and articles",
+    label: { en: "Services" },
+    icon: c.icon("ph:scissors"),
   }))
-  .list(({ v, f }) => v.table({
-    columns: [f.title, f.author, f.category, f.published, f.publishedAt],
-    defaultSort: { field: "publishedAt", direction: "desc" },
-    filterable: [f.published, f.category, f.author],
-    searchable: ["title"],
-  }))
-  .form(({ v, f }) => v.form({
-    sidebar: {
-      position: "right",
-      fields: [f.published, f.publishedAt, f.author, f.category],
-    },
-    sections: [
-      {
-        label: "Content",
-        fields: [f.title, f.slug, f.excerpt, f.content],
+  .list(({ v }) => v.table({}))
+  .form(({ v, f }) =>
+    v.form({
+      sidebar: {
+        position: "right",
+        fields: [f.isActive, f.image],
       },
-    ],
-  }));
+      fields: [
+        {
+          type: "section",
+          label: { en: "Service Info" },
+          layout: "grid",
+          columns: 2,
+          fields: [f.name, f.duration, f.price],
+        },
+        {
+          type: "section",
+          label: { en: "Description" },
+          fields: [f.description],
+        },
+      ],
+    }),
+  );
 ```
 
-```typescript
-// src/questpie/server/collections/authors.ts (updated)
-import { q, text, boolean } from "questpie";
+Notice the form layout — fields are organized into sections with grid layouts. The sidebar holds quick-access fields like status toggles and image uploads.
 
-export const authors = q.collection("authors")
-  .fields({
-    name: text("name").notNull(),
-    email: text("email").notNull().unique(),
-    bio: text("bio"),
-    avatarUrl: text("avatarUrl"),
-    isActive: boolean("isActive").default(true),
-  })
+## Step 3: Junction Collection
+
+For many-to-many relations, you need a junction collection:
+
+```ts
+// src/questpie/server/collections/barber-services.ts
+import { qb } from "../builder";
+
+export const barberServices = qb
+  .collection("barberServices")
+  .fields((f) => ({
+    barber: f.relation({
+      to: "barbers",
+      required: true,
+      label: { en: "Barber" },
+      onDelete: "cascade",
+    }),
+    service: f.relation({
+      to: "services",
+      required: true,
+      label: { en: "Service" },
+      onDelete: "cascade",
+    }),
+  }))
   .admin(({ c }) => ({
-    label: "Authors",
+    label: { en: "Barber Services" },
+    icon: c.icon("ph:link"),
+  }))
+  .list(({ v }) => v.table({}))
+  .form(({ v, f }) =>
+    v.form({
+      fields: [f.barber, f.service],
+    }),
+  );
+```
+
+## Step 4: Barbers Collection with Relations
+
+Now the barbers collection, which uses a many-to-many relation through the junction table:
+
+```ts
+// src/questpie/server/collections/barbers.ts
+import { uniqueIndex } from "drizzle-orm/pg-core";
+import { qb } from "../builder";
+
+export const barbers = qb
+  .collection("barbers")
+  .fields((f) => ({
+    name: f.text({
+      label: { en: "Full Name" },
+      required: true,
+      maxLength: 255,
+    }),
+    slug: f.text({
+      label: { en: "Slug" },
+      description: { en: "URL-friendly identifier (auto-generated from name)" },
+      required: true,
+      maxLength: 255,
+      input: "optional",
+      meta: {
+        admin: {
+          compute: {
+            handler: ({ data, prev }) => {
+              if (
+                data.name &&
+                (!data.slug || data.slug === slugify(String(prev.data.name ?? "")))
+              ) {
+                return slugify(String(data.name));
+              }
+              return data.slug;
+            },
+            deps: ({ data }) => [data.name, data.slug],
+            debounce: 300,
+          },
+        },
+      },
+    }),
+    email: f.email({
+      label: { en: "Email" },
+      required: true,
+      maxLength: 255,
+    }),
+    phone: f.text({
+      label: { en: "Phone" },
+      maxLength: 50,
+    }),
+    bio: f.richText({
+      label: { en: "Biography" },
+      localized: true,
+    }),
+    avatar: f.upload({
+      label: { en: "Profile Photo" },
+      to: "assets",
+      mimeTypes: ["image/*"],
+      maxSize: 5_000_000,
+    }),
+    isActive: f.boolean({
+      label: { en: "Active" },
+      default: true,
+      required: true,
+    }),
+    // Many-to-many relation through junction table
+    services: f.relation({
+      to: "services",
+      hasMany: true,
+      through: "barberServices",
+      sourceField: "barber",
+      targetField: "service",
+      label: { en: "Services Offered" },
+    }),
+  }))
+  .indexes(({ table }) => [
+    uniqueIndex("barbers_slug_unique").on(table.slug),
+    uniqueIndex("barbers_email_unique").on(table.email),
+  ])
+  .title(({ f }) => f.name)
+  .admin(({ c }) => ({
+    label: { en: "Barbers" },
     icon: c.icon("ph:users"),
   }))
-  .list(({ v, f }) => v.table({
-    columns: [f.name, f.email, f.isActive],
-  }))
-  .form(({ v, f }) => v.form({
-    sidebar: { position: "right", fields: [f.isActive, f.avatarUrl] },
-    fields: [f.name, f.email, f.bio],
-  }));
+  .list(({ v }) => v.table({}))
+  .form(({ v, f }) =>
+    v.form({
+      sidebar: {
+        position: "right",
+        fields: [f.isActive, f.avatar],
+      },
+      fields: [
+        {
+          type: "section",
+          label: { en: "Contact Information" },
+          layout: "grid",
+          columns: 2,
+          fields: [f.name, f.slug, f.email, f.phone],
+        },
+        {
+          type: "section",
+          label: { en: "Profile" },
+          fields: [f.bio],
+        },
+        {
+          type: "section",
+          label: { en: "Services" },
+          fields: [f.services],
+        },
+      ],
+    }),
+  )
+  .hooks({
+    beforeValidate: async ({ data }) => {
+      const d = data as { name?: string; slug?: string };
+      if (d.name && !d.slug) {
+        d.slug = slugify(d.name);
+      }
+    },
+  });
+
+function slugify(str: string): string {
+  return str
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)/g, "")
+    .slice(0, 255);
+}
 ```
 
-```typescript
-// src/questpie/server/collections/categories.ts (updated)
-import { q, text, integer } from "questpie";
+Key patterns here:
+- **Reactive `compute`** auto-generates the slug from the name in the admin form
+- **`input: "optional"`** means the API accepts slug but doesn't require it
+- **`beforeValidate` hook** generates the slug on the server as a fallback
+- **`indexes`** enforces unique slugs and emails at the database level
+- **Many-to-many relation** uses `through`, `sourceField`, and `targetField`
 
-export const categories = q.collection("categories")
-  .fields({
-    name: text("name").notNull(),
-    slug: text("slug").notNull().unique(),
-    description: text("description"),
-    order: integer("order").default(0),
-  })
-  .admin(({ c }) => ({
-    label: "Categories",
-    icon: c.icon("ph:folder"),
-  }))
-  .list(({ v, f }) => v.table({
-    columns: [f.name, f.slug, f.order],
-    defaultSort: { field: "order", direction: "asc" },
-  }))
-  .form(({ v, f }) => v.form({
-    fields: [f.name, f.slug, f.description, f.order],
-  }));
-```
+## Step 5: Compose Everything
 
-### Configure Sidebar and Dashboard (Server-Side)
-
-```typescript
-// src/questpie/server/cms.ts (updated)
-import { q } from "questpie";
+```ts
+// src/questpie/server/cms.ts
+import { q, rpc } from "questpie";
 import { adminModule } from "@questpie/admin/server";
-import { posts } from "./collections/posts";
-import { authors } from "./collections/authors";
-import { categories } from "./collections/categories";
+import z from "zod";
+import { barbers } from "./collections/barbers";
+import { barberServices } from "./collections/barber-services";
+import { services } from "./collections/services";
 
-export const cms = q({ name: "blog-cms" })
+const r = rpc();
+
+export const getActiveBarbers = r.fn({
+  schema: z.object({}),
+  handler: async ({ app }) => {
+    const result = await app.api.collections.barbers.find({
+      where: { isActive: true },
+    });
+    return {
+      barbers: result.docs,
+      total: result.totalDocs,
+    };
+  },
+});
+
+export const appRpc = r.router({ getActiveBarbers });
+
+export const cms = q({ name: "my-first-cms" })
   .use(adminModule)
-  .collections({ posts, authors, categories })
+  .collections({ barbers, services, barberServices })
+  .sidebar(({ s, c }) =>
+    s.sidebar({
+      sections: [
+        s.section({
+          id: "overview",
+          title: { en: "Overview" },
+          items: [
+            {
+              type: "link",
+              label: { en: "Dashboard" },
+              href: "/admin",
+              icon: c.icon("ph:house"),
+            },
+          ],
+        }),
+        s.section({
+          id: "content",
+          title: { en: "Content" },
+          items: [
+            { type: "collection", collection: "services" },
+            { type: "collection", collection: "barbers" },
+          ],
+        }),
+      ],
+    }),
+  )
+  .branding({ name: { en: "My First CMS" } })
   .auth({
     emailAndPassword: { enabled: true },
-    secret: process.env.AUTH_SECRET!,
-    baseURL: process.env.APP_URL,
+    baseURL: process.env.APP_URL || "http://localhost:3000",
     basePath: "/api/cms/auth",
+    secret: process.env.BETTER_AUTH_SECRET || "dev-secret",
   })
-  .sidebar(({ s, c }) => s.sidebar({
-    sections: [
-      s.section({
-        id: "content",
-        title: "Content",
-        icon: c.icon("ph:files"),
-        items: [
-          { type: "collection", collection: "posts", icon: c.icon("ph:article") },
-          { type: "collection", collection: "categories", icon: c.icon("ph:folder") },
-        ],
-      }),
-      s.section({
-        id: "people",
-        title: "People",
-        icon: c.icon("ph:users"),
-        items: [
-          { type: "collection", collection: "authors", icon: c.icon("ph:users") },
-        ],
-      }),
-    ],
-  }))
-  .dashboard(({ d, c }) => d.dashboard({
-    items: [
-      d.stats({ collection: "posts", label: "Total Posts", icon: c.icon("ph:article") }),
-      d.stats({ collection: "authors", label: "Authors", icon: c.icon("ph:users") }),
-      d.recentItems({ collection: "posts", label: "Recent Posts", limit: 5 }),
-    ],
-  }))
   .build({
     db: { url: process.env.DATABASE_URL! },
+    app: { url: process.env.APP_URL || "http://localhost:3000" },
   });
 
 export type AppCMS = typeof cms;
+export type AppRpc = typeof appRpc;
 ```
 
-### Create Client Admin Config
+## Step 6: Admin Client
 
-The client-side `qa()` builder only handles rendering and branding:
-
-```typescript
+```ts
 // src/questpie/admin/admin.ts
-import { qa, adminModule } from "@questpie/admin/client";
+import { adminModule, qa } from "@questpie/admin/client";
 import type { AppCMS } from "../server/cms";
 
 export const admin = qa<AppCMS>()
   .use(adminModule)
-  .branding({ name: "My Blog CMS" });
+  .branding({ name: "My First CMS" });
 ```
 
-## Step 3: Mount the API and Admin
+## Step 7: Mount API
 
-### API Route
+```ts
+// src/routes/api/cms.ts
+import { createFetchHandler } from "questpie";
+import { cms, appRpc } from "@/questpie/server/cms";
 
-```typescript
-// src/server.ts (Hono example)
-import { Hono } from "hono";
-import { createHonoAdapter } from "@questpie/hono";
-import { cms } from "./questpie/server/cms";
-
-const app = new Hono();
-app.route("/api/cms", createHonoAdapter(cms));
-
-export default app;
+export const handler = createFetchHandler(cms, {
+  basePath: "/api/cms",
+  rpc: appRpc,
+});
 ```
 
-### Admin Route
+## What You Now Have
 
-```tsx
-// src/routes/admin.tsx
-import { Admin, AdminLayoutProvider } from "@questpie/admin/client";
-import { Link, Outlet, useLocation } from "@tanstack/react-router";
-import { admin } from "@/questpie/admin/admin";
-import { createClient } from "questpie/client";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import type { AppCMS } from "@/questpie/server/cms";
+- **3 collections** with typed CRUD APIs
+- **Many-to-many relation** between barbers and services
+- **Reactive slug field** that auto-generates from the name
+- **Custom sidebar** with organized sections
+- **Server-side hooks** for data processing
+- **Database indexes** for unique constraints
+- **Typed RPC** for custom business logic
+- **Admin panel** that renders everything automatically from the server blueprint
 
-const cmsClient = createClient<AppCMS>({ baseUrl: "/api/cms" });
-const queryClient = new QueryClient();
-const adminInstance = Admin.from(admin);
+## Common Mistakes
 
-export default function AdminLayout() {
-  const location = useLocation();
+- **Circular relation references** — Define the junction collection (`barberServices`) before the collections that reference it, or use string references in `through`.
+- **Forgetting `onDelete` on junction relations** — Without `onDelete: "cascade"`, deleting a barber leaves orphaned junction rows.
+- **Duplicating sidebar items** — Collections not listed in the sidebar are auto-added. If you list them explicitly, remove them from the auto section or they'll appear twice.
 
-  return (
-    <QueryClientProvider client={queryClient}>
-      <AdminLayoutProvider
-        admin={adminInstance}
-        client={cmsClient}
-        queryClient={queryClient}
-        LinkComponent={Link}
-        activeRoute={location.pathname}
-        basePath="/admin"
-      >
-        <Outlet />
-      </AdminLayoutProvider>
-    </QueryClientProvider>
-  );
-}
-```
+## Next Steps
 
-## Step 4: Run and Test
-
-```bash
-# Generate and run migrations
-bun run drizzle-kit generate
-bun run drizzle-kit migrate
-
-# Start dev server
-bun run dev
-```
-
-Visit `http://localhost:3000/admin`:
-
-1. Create a user account
-2. Add some categories
-3. Add some authors
-4. Create your first post
-
-## Related
-
-- [Backend Deep Dive](/docs/backend) - Learn all q() builder features
-- [Admin UI Deep Dive](/docs/admin) - Advanced admin configuration
-- [Full Example](/docs/examples/barbershop) - See a production-ready implementation
+- [Collections](/docs/server/collections) — Full builder API with all options
+- [Relations](/docs/server/relations) — All relation types: belongsTo, hasMany, manyToMany
+- [Reactive Fields](/docs/server/reactive-fields) — compute, hidden, readOnly, disabled
+- [Dashboard & Sidebar](/docs/admin/dashboard-sidebar-branding) — Widgets and navigation
+- [Infrastructure](/docs/infrastructure) — Add auth, storage, email, and more

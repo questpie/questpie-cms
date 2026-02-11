@@ -1,110 +1,100 @@
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { CodeWindow } from "./CodeWindow";
+import { Link } from "@tanstack/react-router";
+import { motion } from "motion/react";
 
-const frameworks = {
-  hono: {
-    title: "Hono",
-    code: `import { Hono } from "hono"
-import { questpieHono } from "@questpie/hono"
-import { app } from "./app"
-
-const server = new Hono()
-  .route("/api", questpieHono(app))
-
-export default {
-  port: 3000,
-  fetch: server.fetch,
-}`,
-  },
-  elysia: {
-    title: "Elysia",
-    code: `import { Elysia } from "elysia"
-import { questpieElysia } from "@questpie/elysia"
-import { app } from "./app"
-
-const server = new Elysia()
-  .use(questpieElysia(app, { basePath: "/api" }))
-  .listen(3000)
-
-console.log("Server running on http://localhost:3000")`,
-  },
-  next: {
-    title: "Next.js",
-    code: `// app/api/[...questpie]/route.ts
-import { app } from "@/lib/app"
-import { questpieNextRouteHandlers } from "@questpie/next"
-
-export const { GET, POST, PATCH, DELETE } = questpieNextRouteHandlers(app)`,
-  },
-};
+const frameworks = [
+	{
+		name: "TanStack Start",
+		tagline: "Full-stack, type-safe",
+		description:
+			"Full-stack React framework with type-safe routing and server functions.",
+		logo: <img src="/logos/tanstack.png" alt="TanStack" className="h-8 w-auto" />,
+		highlighted: true,
+	},
+	{
+		name: "Hono",
+		tagline: "Bun-native, edge-ready",
+		description:
+			"Ultra-fast, runs on Bun, Deno, Cloudflare Workers, and Node.js.",
+		logo: <img src="/logos/hono.png" alt="Hono" className="h-8 w-8" />,
+	},
+	{
+		name: "Elysia",
+		tagline: "Bun-native, type-safe",
+		description:
+			"End-to-end type safety with excellent Bun performance.",
+		logo: <img src="/logos/elysia.svg" alt="Elysia" className="h-8 w-8" />,
+	},
+	{
+		name: "Next.js",
+		tagline: "App Router & Pages Router",
+		description:
+			"Works with both App Router and Pages Router via catch-all routes.",
+		logo: <img src="/logos/nextjs.png" alt="Next.js" className="h-8 w-8" />,
+	},
+];
 
 export function Frameworks() {
-  return (
-    <section className="py-24 border-t border-border/30">
-      <div className="w-full max-w-7xl mx-auto px-4 text-center">
-        <h2 className="font-mono text-sm tracking-[0.2em] uppercase text-primary mb-4">
-          Adapters
-        </h2>
-        <h3 className="text-3xl font-bold mb-6">Deploy Anywhere</h3>
-        <p className="text-muted-foreground max-w-2xl mx-auto mb-12">
-          Write your CMS once. Mount it on any HTTP framework with a one-line
-          adapter. Hono, Elysia, Next.js — pick your runtime, keep your code.
-        </p>
+	return (
+		<section id="adapters" className="border-t border-border/40 py-20">
+			<div className="mx-auto w-full max-w-7xl px-4">
+				<motion.div
+					className="mx-auto mb-10 max-w-2xl space-y-3 text-center"
+					initial={{ opacity: 0, y: 20 }}
+					whileInView={{ opacity: 1, y: 0 }}
+					viewport={{ once: true, margin: "-80px" }}
+					transition={{ duration: 0.6 }}
+				>
+					<h2 className="font-mono text-sm uppercase tracking-[0.2em] text-primary">
+						Adapters
+					</h2>
+					<h3 className="text-3xl font-bold tracking-[-0.02em] text-balance md:text-4xl">
+						Bring your own framework
+					</h3>
+				</motion.div>
 
-        <div className="max-w-3xl mx-auto">
-          <Tabs defaultValue="hono">
-            <div className="flex justify-center mb-8">
-              <TabsList>
-                <TabsTrigger value="hono">Hono</TabsTrigger>
-                <TabsTrigger value="elysia">Elysia</TabsTrigger>
-                <TabsTrigger value="next">Next.js</TabsTrigger>
-              </TabsList>
-            </div>
+				<div className="mx-auto max-w-6xl grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+					{frameworks.map((fw, i) => (
+						<motion.div
+							key={fw.name}
+							className="group border border-border bg-card/20 backdrop-blur-sm p-6 text-center transition-colors hover:border-primary/30"
+							initial={{ opacity: 0, y: 20 }}
+							whileInView={{ opacity: 1, y: 0 }}
+							viewport={{ once: true }}
+							transition={{
+								duration: 0.5,
+								delay: i * 0.1,
+							}}
+						>
+	<div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center">
+								{fw.logo}
+							</div>
+							<h4 className="text-lg font-semibold">
+								{fw.name}
+							</h4>
+							<p className="mt-1 font-mono text-[10px] uppercase tracking-[0.18em] text-primary">
+								{fw.tagline}
+							</p>
+							<p className="mt-2 text-xs text-muted-foreground">
+								{fw.description}
+							</p>
+						</motion.div>
+					))}
+				</div>
 
-            {Object.entries(frameworks).map(([key, data]) => (
-              <TabsContent key={key} value={key} className="mt-0">
-                <CodeWindow
-                  title={`${key}-server.ts`}
-                  className="shadow-2xl shadow-primary/10"
-                >
-                  {data.code}
-                </CodeWindow>
-              </TabsContent>
-            ))}
-          </Tabs>
+				<p className="mt-8 text-center text-sm text-muted-foreground text-balance">
+					If it handles HTTP, it runs QUESTPIE. Write your own adapter in under 50 lines.
+				</p>
 
-          <p className="text-sm text-muted-foreground mt-8">
-            Learn more:{" "}
-            <a
-              href="https://orm.drizzle.team/"
-              className="text-primary hover:underline"
-            >
-              Drizzle ORM
-            </a>
-            {" | "}
-            <a
-              href="https://www.better-auth.com/"
-              className="text-primary hover:underline"
-            >
-              Better Auth
-            </a>
-            {" | "}
-            <a
-              href="https://github.com/timgit/pg-boss"
-              className="text-primary hover:underline"
-            >
-              pg-boss
-            </a>
-            {" | "}
-            <a
-              href="https://flydrive.dev/"
-              className="text-primary hover:underline"
-            >
-              Flydrive
-            </a>
-          </p>
-        </div>
-      </div>
-    </section>
-  );
+				<div className="mt-4 text-center">
+					<Link
+						to="/docs/$"
+						params={{ _splat: "server/adapter-standard" }}
+						className="inline-flex items-center gap-2 font-mono text-xs text-primary transition-colors hover:text-primary/80"
+					>
+						Read the adapter docs →
+					</Link>
+				</div>
+			</div>
+		</section>
+	);
 }

@@ -1,0 +1,185 @@
+---
+title: Queue & Jobs
+description: Background jobs, scheduled tasks, and workflows with pg-boss
+---
+
+# Queue & Jobs
+
+QUESTPIE includes a job queue for running background tasks — email notifications, data processing, scheduled reports, and multi-step workflows. The default adapter uses [pg-boss](https://github.com/timgit/pg-boss), which runs on your existing PostgreSQL database.
+
+## Why This Exists
+
+Some operations are too slow or unreliable for synchronous API responses: sending emails, processing uploads, generating reports, or calling external APIs. Jobs let you push work to a background queue and process it asynchronously.
+
+## Setup
+
+```ts
+import { pgBossAdapter } from "questpie";
+
+.build({
+  // ...
+  queue: {
+    adapter: pgBossAdapter({
+      connectionString: process.env.DATABASE_URL,
+    }),
+  },
+})
+```
+
+## Defining Jobs
+
+Jobs are defined with `job()` and registered in the builder:
+
+```ts
+import { job } from "questpie";
+import { z } from "zod";
+
+export const sendAppointmentConfirmation = job({
+  name: "sendAppointmentConfirmation",
+  schema: z.object({
+    appointmentId: z.string(),
+    customerEmail: z.string(),
+  }),
+  handler: async ({ payload, app }) => {
+    const appointment = await app.api.collections.appointments.findOne(
+      payload.appointmentId,
+      { with: { barber: true, service: true } },
+    );
+
+    await app.email.sendTemplate({
+      template: "appointmentConfirmation",
+      to: payload.customerEmail,
+      context: {
+        customerName: appointment.customer?.name ?? "Customer",
+        date: appointment.scheduledAt,
+        barberName: appointment.barber?.name,
+        serviceName: appointment.service?.name,
+      },
+    });
+  },
+  options: {
+    retryLimit: 3,
+    retryDelay: 5000,
+    retryBackoff: true,
+  },
+});
+```
+
+Register jobs in the builder:
+
+```ts
+.jobs({
+  sendAppointmentConfirmation,
+  sendAppointmentCancellation,
+  sendAppointmentReminder,
+})
+```
+
+## Publishing Jobs
+
+Publish jobs from hooks, RPC handlers, or anywhere you have access to `app`:
+
+```ts
+// In a hook
+.hooks({
+  afterChange: async ({ data, operation, app }) => {
+    if (operation === "create") {
+      await app.queue.publish("sendAppointmentConfirmation", {
+        appointmentId: data.id,
+        customerEmail: data.customerEmail,
+      });
+    }
+  },
+})
+
+// In an RPC handler
+handler: async ({ input, app }) => {
+  await app.queue.publish("sendAppointmentReminder", {
+    appointmentId: input.id,
+  });
+}
+```
+
+## Job Options
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `retryLimit` | `number` | `0` | Max retry attempts |
+| `retryDelay` | `number` | `0` | Delay between retries (ms) |
+| `retryBackoff` | `boolean` | `false` | Exponential backoff |
+| `expireInSeconds` | `number` | — | Job TTL |
+| `priority` | `number` | `0` | Higher = processed first |
+| `startAfter` | `number \| Date` | — | Delay before first execution |
+| `cron` | `string` | — | Cron schedule for recurring jobs |
+
+## Scheduled Jobs
+
+For recurring tasks, use cron scheduling:
+
+```ts
+// Register a cron schedule
+await app.queue.schedule("sendDailyReport", {}, "0 9 * * *");
+// Runs at 9 AM every day
+
+// Unschedule
+await app.queue.unschedule("sendDailyReport");
+```
+
+## Workflows
+
+Chain multiple jobs together with the workflow builder:
+
+```ts
+import { workflow } from "questpie";
+
+const bookingWorkflow = workflow("processBooking")
+  .step(validateBooking)
+  .step(createAppointment)
+  .step(sendConfirmation)
+  .build(z.object({ barberId: z.string(), serviceId: z.string(), date: z.string() }));
+```
+
+Each step receives the output of the previous step as input.
+
+## Running the Worker
+
+Jobs need a worker process to consume them:
+
+```ts
+// worker.ts
+import { cms } from "./cms";
+
+// Long-running worker (recommended for servers)
+await cms.queue.listen();
+
+// Single-tick mode (for serverless)
+await cms.queue.runOnce();
+```
+
+## Adapters
+
+### pg-boss (Default)
+
+Runs on PostgreSQL — no additional infrastructure needed:
+
+```ts
+pgBossAdapter({ connectionString: process.env.DATABASE_URL })
+```
+
+Supports: long-running workers, cron scheduling, singleton jobs, retries.
+
+### Cloudflare Queues
+
+For Cloudflare Workers deployments (push-based consumer model).
+
+## Common Mistakes
+
+- **Not running a worker** — Jobs are published to the queue but won't run without a worker process. Start one with `cms.queue.listen()`.
+- **Synchronous email in hooks** — Move email sending to jobs so API responses stay fast.
+- **No retry configuration** — External service calls (email, APIs) should have `retryLimit` and `retryBackoff` for resilience.
+
+## Related Pages
+
+- [Email](/docs/infrastructure/email) — Send emails from jobs
+- [Hooks & Lifecycle](/docs/server/hooks-and-lifecycle) — Publish jobs from hooks
+- [Infrastructure API Reference](/docs/reference/infrastructure-api) — Queue method signatures

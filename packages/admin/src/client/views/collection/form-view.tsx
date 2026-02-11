@@ -8,6 +8,7 @@
 import { Icon } from "@iconify/react";
 import { createQuestpieQueryOptions } from "@questpie/tanstack-query";
 import { useQueryClient } from "@tanstack/react-query";
+import type { CollectionSchema, FieldReactiveSchema } from "questpie/client";
 import { QuestpieClientError } from "questpie/client";
 import * as React from "react";
 import { FormProvider, useForm, useWatch } from "react-hook-form";
@@ -66,6 +67,8 @@ import {
 	useCollectionUpdate,
 } from "../../hooks/use-collection";
 import { useCollectionFields } from "../../hooks/use-collection-fields";
+import { getLockUser, LOCK_DURATION_MS, useLock } from "../../hooks/use-locks";
+import { useReactiveFields } from "../../hooks/use-reactive-fields";
 import { useResolveText, useTranslation } from "../../i18n/hooks";
 import {
 	selectAdmin,
@@ -89,6 +92,57 @@ import { AutoFormFields } from "./auto-form-fields";
 
 /** Query key prefix for CMS queries (used for cache invalidation) */
 const QUERY_KEY_PREFIX = ["questpie", "collections"] as const;
+
+// ============================================================================
+// Helpers
+// ============================================================================
+
+/**
+ * Extract reactive configs from collection schema fields.
+ * Used to determine which fields have server-side reactive behaviors.
+ */
+function extractReactiveConfigs(
+	schema: CollectionSchema | undefined,
+): Record<string, FieldReactiveSchema> {
+	if (!schema?.fields) return {};
+
+	const configs: Record<string, FieldReactiveSchema> = {};
+
+	for (const [fieldName, fieldDef] of Object.entries(schema.fields)) {
+		if (fieldDef.reactive) {
+			configs[fieldName] = fieldDef.reactive;
+		}
+	}
+
+	return configs;
+}
+
+/**
+ * Component that manages reactive field states.
+ * Must be rendered inside FormProvider to access form context.
+ */
+function ReactiveFieldsManager({
+	collection,
+	reactiveConfigs,
+	enabled,
+}: {
+	collection: string;
+	reactiveConfigs: Record<string, FieldReactiveSchema>;
+	enabled: boolean;
+}) {
+	// This hook handles:
+	// 1. Watching form values for changes to reactive dependencies
+	// 2. Calling server /reactive endpoint to execute handlers
+	// 3. Setting computed values via form.setValue
+	useReactiveFields({
+		collection,
+		reactiveConfigs,
+		enabled: enabled && Object.keys(reactiveConfigs).length > 0,
+		debounce: 300,
+	});
+
+	return null;
+}
 
 // ============================================================================
 // Types
@@ -226,6 +280,28 @@ export default function FormView({
 	const { fields: resolvedFields, schema } = useCollectionFields(collection, {
 		fallbackFields: (config as any)?.fields,
 	});
+	const resolvedFormConfig = React.useMemo(
+		() =>
+			viewConfig ??
+			(config?.form as any)?.["~config"] ??
+			(config?.form as any) ??
+			(schema?.admin?.form as any),
+		[viewConfig, config?.form, schema?.admin?.form],
+	);
+	const formConfigBridge = React.useMemo(() => {
+		if (!resolvedFormConfig) return config;
+
+		return {
+			...(config ?? {}),
+			form: resolvedFormConfig,
+		};
+	}, [config, resolvedFormConfig]);
+
+	// Extract reactive configs from schema for server-side reactive handlers
+	const reactiveConfigs = React.useMemo(
+		() => extractReactiveConfigs(schema),
+		[schema],
+	);
 
 	// Try to get preview context (will be null if not in LivePreviewMode)
 	const previewContext = useLivePreviewContext();
@@ -258,8 +334,8 @@ export default function FormView({
 
 	// Auto-detect M:N relations that need to be included when fetching
 	const withRelations = React.useMemo(
-		() => detectManyToManyRelations({ fields: resolvedFields }),
-		[resolvedFields],
+		() => detectManyToManyRelations({ fields: resolvedFields, schema }),
+		[resolvedFields, schema],
 	);
 
 	// Fetch item if in edit mode (include relations if specified)
@@ -271,6 +347,20 @@ export default function FormView({
 			: { localeFallback: false },
 		{ enabled: isEditMode },
 	);
+
+	// Document locking - acquire lock when editing, show blocked state if someone else is editing
+	const {
+		isBlocked,
+		blockedBy,
+		isOpenElsewhere,
+		refresh: refreshLock,
+	} = useLock({
+		resourceType: "collection",
+		resource: collection,
+		resourceId: id ?? "",
+		autoAcquire: isEditMode,
+	});
+	const blockedByUser = blockedBy ? getLockUser(blockedBy) : null;
 
 	// Transform loaded item - convert relation arrays of objects to arrays of IDs
 	// Backend returns: { services: [{ id: "...", name: "..." }] }
@@ -587,10 +677,9 @@ export default function FormView({
 	// ========================================================================
 
 	// Get form actions from config or use defaults (only for edit mode)
-	// Form config is stored under "~config" by the view registry proxy
-	const configFormActions: FormViewActionsConfig | undefined =
-		(config?.form as any)?.["~config"]?.actions ||
-		(config?.form as any)?.actions;
+	const configFormActions: FormViewActionsConfig | undefined = (
+		resolvedFormConfig as any
+	)?.actions;
 
 	// Use defaults if no actions defined and in edit mode
 	// In create mode, we don't show duplicate/delete actions
@@ -929,6 +1018,26 @@ export default function FormView({
 	// This is more performant as it's a proper React subscription
 	const watchedValues = useWatch({ control: form.control });
 
+	// Refresh lock on form activity (debounced) - keeps lock alive while user is editing
+	const lockRefreshTimerRef = React.useRef<NodeJS.Timeout | null>(null);
+	React.useEffect(() => {
+		if (!isEditMode || isBlocked) return;
+
+		// Debounce lock refresh - only refresh after user stops typing for 1s
+		if (lockRefreshTimerRef.current) {
+			clearTimeout(lockRefreshTimerRef.current);
+		}
+		lockRefreshTimerRef.current = setTimeout(() => {
+			refreshLock();
+		}, 1000);
+
+		return () => {
+			if (lockRefreshTimerRef.current) {
+				clearTimeout(lockRefreshTimerRef.current);
+			}
+		};
+	}, [watchedValues, isEditMode, isBlocked, refreshLock]);
+
 	// Generate preview URL (must be after useWatch for reactive updates)
 	// Compute preview URL for LivePreviewMode
 	const previewUrl = React.useMemo(() => {
@@ -966,10 +1075,57 @@ export default function FormView({
 	// Form content - extracted for reuse in both layouts
 	const formContent = (
 		<>
+			{/* Lock banner - show when someone else is editing */}
+			{isBlocked && blockedByUser && (
+				<div className="flex items-center gap-3 p-3 mb-4 rounded-lg bg-warning/10 border border-warning/30">
+					{blockedByUser.image ? (
+						<img
+							src={blockedByUser.image}
+							alt=""
+							className="size-8 rounded-full"
+						/>
+					) : (
+						<div className="size-8 rounded-full bg-warning/20 flex items-center justify-center">
+							<Icon icon="ph:user" className="size-4 text-warning" />
+						</div>
+					)}
+					<div className="flex-1 min-w-0">
+						<p className="text-sm font-medium text-warning">
+							{t("lock.blockedTitle", {
+								name: blockedByUser.name ?? blockedByUser.email,
+							})}
+						</p>
+						<p className="text-xs text-warning/80">
+							{t("lock.blockedDescription")}
+						</p>
+					</div>
+					<Icon icon="ph:lock-simple" className="size-5 text-warning" />
+				</div>
+			)}
+
+			{/* Warning banner - show when same user has document open elsewhere */}
+			{isOpenElsewhere && (
+				<div className="flex items-center gap-3 p-3 mb-4 rounded-lg bg-info/10 border border-info/30">
+					<Icon icon="ph:browser" className="size-5 text-info" />
+					<p className="text-sm text-info">{t("lock.openElsewhere")}</p>
+				</div>
+			)}
+
 			<FormProvider {...form}>
+				{/* Manage server-side reactive field behaviors (compute, hidden, etc.) */}
+				<ReactiveFieldsManager
+					collection={collection}
+					reactiveConfigs={reactiveConfigs}
+					enabled={!isBlocked && !isSubmitting}
+				/>
 				<form
 					onSubmit={(e) => {
 						e.stopPropagation();
+						if (isBlocked) {
+							e.preventDefault();
+							toast.error(t("lock.cannotSave"));
+							return;
+						}
 						form.handleSubmit(onSubmit, (errors) => {
 							console.warn("[FormView] Validation errors:", errors);
 							toast.error(t("toast.validationFailed"), {
@@ -1187,7 +1343,7 @@ export default function FormView({
 					{/* Main Content - Form Fields */}
 					<AutoFormFields
 						collection={collection as any}
-						config={config}
+						config={formConfigBridge}
 						registry={registry}
 						allCollectionsConfig={allCollectionsConfig}
 					/>
@@ -1204,7 +1360,7 @@ export default function FormView({
 				<DialogContent showCloseButton={false}>
 					<DialogHeader>
 						<DialogTitle className="flex items-center gap-2">
-							<Icon icon="ph:warning-fill" className="size-5 text-amber-500" />
+							<Icon icon="ph:warning-fill" className="size-5 text-warning" />
 							{t("confirm.localeChange")}
 						</DialogTitle>
 						<DialogDescription>

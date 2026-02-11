@@ -1,0 +1,49 @@
+---
+title: Server-First WHAT vs HOW
+description: The core split that drives the QUESTPIE architecture
+---
+
+# Server-First WHAT vs HOW
+
+In QUESTPIE, the server owns contracts and behavior. The client owns rendering.
+
+## Responsibility split
+
+| Layer                               | Owns     | Examples                                                                                        |
+| ----------------------------------- | -------- | ----------------------------------------------------------------------------------------------- |
+| Server (`q`, `adminModule` server)  | **WHAT** | fields, validation, access, `.admin()`, `.list()`, `.form()`, `.dashboard()`, `.sidebar()`, rpc |
+| Client (`qa`, `adminModule` client) | **HOW**  | field renderers, view renderers, component rendering, branding, locale                          |
+
+## Why this is better than dual config
+
+- one source of truth for field metadata
+- less drift between API and admin behavior
+- easier onboarding for teams and contributors
+
+## Example
+
+```ts
+// Server decides WHAT the admin should render
+export const pages = qb
+  .collection("pages")
+  .fields((f) => ({
+    title: f.text({ label: { en: "Title" }, required: true }),
+    content: f.blocks({ label: { en: "Content" } }),
+  }))
+  .admin(({ c }) => ({ label: { en: "Pages" }, icon: c.icon("ph:article") }))
+  .list(({ v }) => v.table({}))
+  .form(({ v, f }) => v.form({ fields: [f.title, f.content] }));
+```
+
+```ts
+// Client decides HOW those references are rendered
+export const admin = qa<AppCMS>()
+  .use(adminModule)
+  .branding({ name: "Product Control" });
+```
+
+## Common mistake
+
+Trying to model form behavior in both server and client as two independent systems.
+
+Use the server contract first. Override rendering only when needed.

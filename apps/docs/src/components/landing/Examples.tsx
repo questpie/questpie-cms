@@ -1,121 +1,118 @@
 import { Link } from "@tanstack/react-router";
-import { ArrowRight, FolderOpen, Github } from "lucide-react";
+import { ArrowUpRight, Code, LayoutDashboard, Workflow } from "lucide-react";
 
-const example = {
-  title: "Fullstack Barbershop",
-  stack: "TanStack Start",
-  description:
-    "A complete booking system — appointments, services, barbers, customer management. Server-rendered with TanStack Query and a type-safe client SDK.",
-  features: [
-    "6 collections with relations",
-    "18 page builder blocks",
-    "Dashboard with real analytics",
-    "i18n (EN/SK)",
-  ],
-  githubLink:
-    "https://github.com/questpie/questpie-cms/tree/main/examples/tanstack-barbershop",
-};
+const highlights = [
+	{
+		icon: LayoutDashboard,
+		title: "Server-defined dashboard + sidebar",
+	},
+	{
+		icon: Workflow,
+		title: "Reactive forms and typed RPC workflows",
+	},
+	{
+		icon: Code,
+		title: "Custom blocks and registry-based rendering",
+	},
+];
 
 export function Examples() {
-  return (
-    <section
-      id="examples"
-      className="py-24 border-t border-border/30 relative overflow-hidden"
-    >
-      {/* Subtle background glow */}
-      <div className="absolute top-0 right-1/4 w-[400px] h-[400px] bg-primary/3 rounded-full blur-[150px]" />
+	return (
+		<section
+			id="examples"
+			className="relative overflow-hidden border-t border-border/40 py-24"
+		>
+			<div className="mx-auto w-full max-w-7xl px-4">
+				<div className="grid gap-8 lg:grid-cols-[1fr_1.2fr] lg:items-start">
+					<div className="space-y-4">
+						<h2 className="font-mono text-sm uppercase tracking-[0.2em] text-primary">
+							Example spotlight
+						</h2>
+						<h3 className="text-3xl font-bold tracking-tight md:text-4xl">
+							See the architecture in a real app.
+						</h3>
+						<p className="text-muted-foreground">
+							TanStack Barbershop shows server-defined collections, globals,
+							dashboard/sidebar, reactive fields, typed RPC, and custom block
+							rendering in one coherent project.
+						</p>
 
-      <div className="w-full max-w-7xl mx-auto px-4 relative z-10">
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-12 gap-6">
-          <div className="space-y-4">
-            <h2 className="font-mono text-sm tracking-[0.2em] uppercase text-primary">
-              Templates
-            </h2>
-            <h3 className="text-3xl font-bold">Clone and Ship</h3>
-            <p className="text-muted-foreground max-w-xl">
-              Production-ready starters with best practices built in. Clone,
-              customize, deploy.
-            </p>
-          </div>
-          <a
-            href="https://github.com/questpie/questpie-cms/tree/main/examples"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-2 text-sm text-muted-foreground hover:text-primary transition-colors"
-          >
-            View all on GitHub
-            <ArrowRight className="h-4 w-4" />
-          </a>
-        </div>
+						<div className="space-y-2.5">
+							{highlights.map((item) => (
+								<div
+									key={item.title}
+									className="inline-flex w-full items-center gap-2 border border-border bg-card/30 px-3 py-2 text-sm text-muted-foreground"
+								>
+									<item.icon className="h-3.5 w-3.5 text-primary" />
+									{item.title}
+								</div>
+							))}
+						</div>
 
-        <div className="grid md:grid-cols-3 gap-6">
-          {/* Main example */}
-          <div className="group flex flex-col p-6 border border-border hover:border-primary/50 transition-colors">
-            <div className="flex justify-between items-start mb-4">
-              <span className="font-mono text-xs text-primary">
-                {example.stack}
-              </span>
-              <a
-                href={example.githubLink}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-muted-foreground hover:text-foreground transition-colors"
-              >
-                <Github className="h-4 w-4" />
-              </a>
-            </div>
+						<a
+							href="https://github.com/questpie/questpie-cms/tree/main/examples/tanstack-barbershop"
+							target="_blank"
+							rel="noreferrer"
+							className="inline-flex items-center gap-2 text-sm font-medium text-primary transition-colors hover:text-primary/80"
+						>
+							Explore the Barbershop codebase
+							<ArrowUpRight className="h-4 w-4" />
+						</a>
+					</div>
 
-            <h4 className="font-bold mb-2 group-hover:text-primary transition-colors">
-              {example.title}
-            </h4>
+					<div className="grid gap-4 sm:grid-cols-[1.3fr_1fr]">
+						<article className="border border-border bg-card/40 p-5 sm:row-span-2">
+							<p className="mb-4 font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+								Dashboard
+							</p>
+							<div className="space-y-3">
+								<div className="h-16 border border-border bg-background/60" />
+								<div className="grid grid-cols-3 gap-3">
+									<div className="h-20 border border-border bg-background/60" />
+									<div className="h-20 border border-border bg-background/60" />
+									<div className="h-20 border border-border bg-background/60" />
+								</div>
+								<div className="h-28 border border-border bg-background/60" />
+							</div>
+						</article>
 
-            <p className="text-sm text-muted-foreground mb-4">
-              {example.description}
-            </p>
+						<article className="border border-border bg-card/40 p-4">
+							<p className="mb-3 font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+								Reactive Form
+							</p>
+							<div className="space-y-2">
+								<div className="h-8 border border-border bg-background/60" />
+								<div className="h-8 border border-border bg-background/60" />
+								<div className="h-20 border border-border bg-background/60" />
+							</div>
+						</article>
 
-            <ul className="text-xs text-muted-foreground space-y-1 mb-6">
-              {example.features.map((feature) => (
-                <li key={feature} className="flex items-center gap-2">
-                  <div className="w-1 h-1 bg-primary" />
-                  {feature}
-                </li>
-              ))}
-            </ul>
+						<article className="border border-border bg-card/40 p-4">
+							<p className="mb-3 font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+								Typed RPC
+							</p>
+							<div className="h-[124px] border border-border bg-background/60 p-3 font-mono text-[11px] text-muted-foreground">
+								<p>client.rpc.getAvailableSlots( )</p>
+								<p className="mt-2">-&gt; slots: string[]</p>
+								<p className="mt-2">-&gt; nextWindow: string</p>
+							</div>
+						</article>
+					</div>
+				</div>
 
-            <div className="mt-auto flex gap-3">
-              <a
-                href={example.githubLink}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex-1 inline-flex items-center justify-center h-9 px-4 text-xs font-medium border border-border hover:border-primary/50 transition-colors"
-              >
-                <FolderOpen className="h-3.5 w-3.5 mr-2" />
-                Clone
-              </a>
-              <Link
-                to="/docs/$"
-                className="flex-1 inline-flex items-center justify-center h-9 px-4 text-xs font-medium bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
-              >
-                Docs
-                <ArrowRight className="h-3.5 w-3.5 ml-2" />
-              </Link>
-            </div>
-          </div>
-
-          {/* Coming soon placeholders */}
-          {[1, 2].map((i) => (
-            <div
-              key={i}
-              className="flex flex-col items-center justify-center p-6 border border-dashed border-border/30 text-center min-h-[280px]"
-            >
-              <div className="w-10 h-10 bg-muted/50 flex items-center justify-center mb-4">
-                <FolderOpen className="h-5 w-5 text-muted-foreground/50" />
-              </div>
-              <p className="text-sm text-muted-foreground">More coming soon</p>
-            </div>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
+				<div className="mt-10 flex justify-center">
+					<Link
+						to="/docs/$"
+						params={{
+							_splat: "examples/tanstack-barbershop-architecture-tour",
+						}}
+						className="inline-flex items-center gap-2 border border-border px-5 py-2.5 text-sm font-medium transition-colors hover:border-primary/40 hover:bg-card/60"
+					>
+						Read Architecture Tour
+						<ArrowUpRight className="h-4 w-4" />
+					</Link>
+				</div>
+			</div>
+		</section>
+	);
 }

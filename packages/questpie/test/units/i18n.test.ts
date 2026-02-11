@@ -447,6 +447,7 @@ describe("i18n", () => {
         sk: {
           "error.notFound": "Zdroj nenajdeny",
           "error.notFound.withId": "{{resource}} nenajdeny: {{id}}",
+          "error.badRequest": "Nespravna poziadavka",
           "error.forbidden": "Pristup zamietnuty",
           "error.unauthorized": "Vyzaduje sa autentifikacia",
         },
@@ -501,6 +502,22 @@ describe("i18n", () => {
       const json = error.toJSON(false, t, "sk");
 
       expect(json.message).toBe("Pristup zamietnuty");
+    });
+
+    test("should keep custom bad request message when translator provided", () => {
+      const error = ApiError.badRequest("Storage alias route requires config");
+      const json = error.toJSON(false, t, "sk");
+
+      expect(error.messageKey).toBeUndefined();
+      expect(json.message).toBe("Storage alias route requires config");
+    });
+
+    test("should translate default bad request message", () => {
+      const error = ApiError.badRequest();
+      const json = error.toJSON(false, t, "sk");
+
+      expect(error.messageKey).toBe("error.badRequest");
+      expect(json.message).toBe("Nespravna poziadavka");
     });
 
     test("should translate fromZodError", () => {

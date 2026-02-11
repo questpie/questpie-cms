@@ -1,0 +1,222 @@
+---
+title: Custom Field Type
+description: Create a custom field type with server definition and admin renderer
+---
+
+# Custom Field Type
+
+Custom fields let you extend QUESTPIE's type system without forking. This guide walks through creating a `color` field end-to-end — from database column to admin renderer.
+
+## Overview
+
+A custom field has two parts:
+
+1. **Server definition** — database column, Zod validation, query operators, introspection metadata
+2. **Admin renderer** — React component that renders the field in forms and tables
+
+## Step 1: Define the Field
+
+```ts
+import { defineField, commonStringOperators } from "@questpie/questpie/server/fields";
+import { varchar } from "drizzle-orm/pg-core";
+import { z } from "zod";
+
+interface ColorFieldConfig {
+  format?: "hex" | "rgb";
+  swatches?: string[];
+}
+
+const colorField = defineField<ColorFieldConfig, string>()({
+  type: "color",
+  _value: undefined as unknown as string,
+
+  toColumn: (name, config) => {
+    // Store as varchar(7) for hex colors (#RRGGBB)
+    return varchar(name, { length: 7 });
+  },
+
+  toZodSchema: (config) => {
+    return z.string().regex(
+      /^#[0-9a-fA-F]{6}$/,
+      "Must be a valid hex color (e.g. #FF5733)",
+    );
+  },
+
+  getOperators: () => ({
+    column: commonStringOperators,
+    jsonb: commonStringOperators,
+  }),
+
+  getMetadata: (config) => ({
+    type: "color",
+    format: config?.format ?? "hex",
+    swatches: config?.swatches,
+  }),
+});
+```
+
+### What Each Method Does
+
+| Method | Purpose | Called When |
+|---|---|---|
+| `toColumn` | Returns a Drizzle column definition | Schema generation, migrations |
+| `toZodSchema` | Returns a Zod schema for validation | Create/update validation |
+| `getOperators` | Returns supported where clause operators | Query building |
+| `getMetadata` | Returns introspection data for the admin | Admin panel rendering |
+
+## Step 2: Register on the Server Builder
+
+```ts
+import { q } from "@questpie/questpie";
+
+const cms = q({ name: "app" })
+  .fields({ color: colorField })
+  .collections({
+    brands: q.collection("brands").fields((f) => ({
+      name: f.text().notNull(),
+      primaryColor: f.color({ swatches: ["#FF5733", "#33FF57", "#3357FF"] }).notNull(),
+      secondaryColor: f.color(),
+    })),
+  })
+  .build({ ... });
+```
+
+Now `f.color()` is available in any collection or global definition.
+
+## Step 3: Create the Admin Renderer
+
+```tsx
+// admin/fields/color-field.tsx
+import { useState } from "react";
+
+interface ColorFieldRendererProps {
+  field: { name: string; label?: string; config?: { swatches?: string[] } };
+  value: string | null;
+  onChange: (value: string) => void;
+  disabled?: boolean;
+  error?: string;
+}
+
+export function ColorFieldRenderer({
+  field,
+  value,
+  onChange,
+  disabled,
+  error,
+}: ColorFieldRendererProps) {
+  const [showPicker, setShowPicker] = useState(false);
+  const swatches = field.config?.swatches ?? [];
+
+  return (
+    <div>
+      <label className="text-sm font-medium">{field.label ?? field.name}</label>
+      <div className="flex items-center gap-2 mt-1">
+        <button
+          type="button"
+          className="w-10 h-10 rounded border"
+          style={{ backgroundColor: value ?? "#ffffff" }}
+          onClick={() => !disabled && setShowPicker(!showPicker)}
+        />
+        <input
+          type="text"
+          value={value ?? ""}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder="#FF5733"
+          className="input"
+          disabled={disabled}
+        />
+      </div>
+      {swatches.length > 0 && (
+        <div className="flex gap-1 mt-2">
+          {swatches.map((swatch) => (
+            <button
+              key={swatch}
+              type="button"
+              className="w-6 h-6 rounded"
+              style={{ backgroundColor: swatch }}
+              onClick={() => onChange(swatch)}
+            />
+          ))}
+        </div>
+      )}
+      {error && <p className="text-sm text-destructive mt-1">{error}</p>}
+    </div>
+  );
+}
+```
+
+## Step 4: Register the Renderer
+
+```ts
+// admin/index.ts
+import { qa, adminModule } from "@questpie/admin/client";
+import { ColorFieldRenderer } from "./fields/color-field";
+import type { AppCMS } from "../server/cms";
+
+export const admin = qa<AppCMS>()
+  .use(adminModule)
+  .fields({
+    color: {
+      type: "color",
+      component: ColorFieldRenderer,
+    },
+  });
+```
+
+The `type: "color"` must match what `getMetadata()` returns on the server.
+
+## Step 5: Table Display (Optional)
+
+For the table/list view, you can provide a separate display component:
+
+```tsx
+function ColorDisplay({ value }: { value: string | null }) {
+  if (!value) return <span className="text-muted">—</span>;
+  return (
+    <div className="flex items-center gap-2">
+      <span className="w-4 h-4 rounded" style={{ backgroundColor: value }} />
+      <span className="text-sm font-mono">{value}</span>
+    </div>
+  );
+}
+```
+
+Register it alongside the field renderer:
+
+```ts
+.fields({
+  color: {
+    type: "color",
+    component: ColorFieldRenderer,
+    displayComponent: ColorDisplay,
+  },
+})
+```
+
+## How the Pieces Connect
+
+```
+Server                          Admin
+───────                         ─────
+defineField({ type: "color" })  →  getMetadata() emits { type: "color" }
+         ↓                              ↓
+q.fields({ color })             qa.fields({ color: { type: "color", component } })
+         ↓                              ↓
+f.color() in collection         Registry resolves "color" → ColorFieldRenderer
+         ↓                              ↓
+toColumn → DB column            Component renders in form
+toZodSchema → validation        Component renders in table
+getOperators → where queries
+```
+
+## Common Mistakes
+
+- **Type mismatch** — `getMetadata().type` must exactly match the registry key in `qa.fields()`
+- **Missing operators** — if you don't provide operators, the field won't be filterable in the admin table
+- **Forgetting toZodSchema** — without validation, any string would be accepted
+
+## Related Pages
+
+- [Field API](/docs/reference/field-api) — Field definition interface
+- [Field Renderer Registry](/docs/admin/field-renderer-registry) — Built-in renderers
+- [Registry API](/docs/reference/registry-api) — Registry types

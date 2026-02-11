@@ -49,8 +49,8 @@ export interface CollectionSchema {
 	/** Description */
 	description?: I18nText;
 
-	/** Icon identifier */
-	icon?: string;
+	/** Icon component reference */
+	icon?: { type: string; props: Record<string, unknown> };
 
 	/** Field schemas */
 	fields: Record<string, FieldSchema>;
@@ -460,7 +460,7 @@ export async function introspectCollection(
 		label: adminConfig?.config?.label,
 		description: adminConfig?.config?.description,
 		// Keep full ComponentReference for icon (client resolves via component registry)
-		icon: adminConfig?.config?.icon?.props?.name as string | undefined,
+		icon: adminConfig?.config?.icon,
 		fields,
 		access,
 		options: {

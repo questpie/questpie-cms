@@ -54,12 +54,10 @@ export function useSaveView(collectionName: string) {
       }
 
       return collections.adminSavedViews.create({
-        data: {
-          ...data,
-          collectionName,
-          userId: data.userId || "anonymous",
-          isDefault: false,
-        },
+        ...data,
+        collectionName,
+        userId: data.userId || "anonymous",
+        isDefault: false,
       });
     },
     onSuccess: () => {

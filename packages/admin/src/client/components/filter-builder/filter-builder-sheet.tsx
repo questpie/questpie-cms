@@ -20,6 +20,9 @@ import type {
 } from "./types.js";
 
 export interface FilterBuilderSheetProps extends FilterBuilderProps {
+  /** Default columns from .list() config or auto-detection, used for reset */
+  defaultColumns?: string[];
+
   /** Saved views for this collection */
   savedViews?: SavedView[];
 
@@ -40,6 +43,7 @@ export function FilterBuilderSheet({
   onConfigChange,
   isOpen,
   onOpenChange,
+  defaultColumns,
   savedViews = [],
   savedViewsLoading = false,
   onSaveView,
@@ -75,7 +79,7 @@ export function FilterBuilderSheet({
     const resetConfig: ViewConfiguration = {
       filters: [],
       sortConfig: null,
-      visibleColumns: availableFields.map((f) => f.name),
+      visibleColumns: defaultColumns ?? availableFields.map((f) => f.name),
       realtime: undefined,
     };
     setLocalConfig(resetConfig);

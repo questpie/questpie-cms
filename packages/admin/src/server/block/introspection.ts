@@ -8,7 +8,7 @@ import { type I18nText, isI18nLocaleMap } from "questpie/shared";
 import type {
 	AdminBlockConfig,
 	BlockCategoryConfig,
-	IconReference,
+	ComponentReference,
 } from "../augmentation.js";
 import type { AnyBlockDefinition, BlockBuilderState } from "./block-builder.js";
 
@@ -31,7 +31,7 @@ export interface BlockSchema {
 		/** Description */
 		description?: I18nText;
 		/** Icon reference */
-		icon?: IconReference;
+		icon?: ComponentReference;
 		/** Category for grouping in block picker */
 		category?: BlockCategoryConfig;
 		/** Order within category in block picker */

@@ -14,9 +14,9 @@ import type { Questpie } from "../../config/cms.js";
 import type { QuestpieConfig } from "../../config/types.js";
 import { ApiError } from "../../errors/index.js";
 import type {
-  CollectionAccessFilter,
-  PopulatedSearchResponse,
-  SearchMeta,
+	CollectionAccessFilter,
+	PopulatedSearchResponse,
+	SearchMeta,
 } from "../../integrated/search/types.js";
 import type { AdapterConfig, AdapterContext } from "../types.js";
 import { resolveContext } from "../utils/context.js";
@@ -24,303 +24,349 @@ import { parseRpcBody } from "../utils/request.js";
 import { handleError, smartResponse } from "../utils/response.js";
 
 export const createSearchRoutes = <
-  TConfig extends QuestpieConfig = QuestpieConfig,
+	TConfig extends QuestpieConfig = QuestpieConfig,
 >(
-  cms: Questpie<TConfig>,
-  config: AdapterConfig<TConfig> = {},
+	cms: Questpie<TConfig>,
+	config: AdapterConfig<TConfig> = {},
 ) => {
-  const errorResponse = (
-    error: unknown,
-    request: Request,
-    locale?: string,
-  ): Response => {
-    return handleError(error, { request, cms, locale });
-  };
+	const errorResponse = (
+		error: unknown,
+		request: Request,
+		locale?: string,
+	): Response => {
+		return handleError(error, { request, cms, locale });
+	};
 
-  return {
-    /**
-     * Search across collections
-     * POST /cms/search
-     *
-     * Features:
-     * - Respects collection-level access controls via SQL JOINs
-     * - Populates full records via CRUD (hooks run)
-     * - Returns search metadata merged with records
-     *
-     * Request body:
-     * {
-     *   query: string;
-     *   collections?: string[];
-     *   locale?: string;
-     *   limit?: number;
-     *   offset?: number;
-     *   filters?: Record<string, string | string[]>;
-     *   highlights?: boolean;
-     *   facets?: FacetDefinition[];
-     * }
-     *
-     * Response:
-     * {
-     *   docs: [{ ...fullRecord, _search: { score, highlights, indexedTitle } }],
-     *   total: number,
-     *   facets?: FacetResult[]
-     * }
-     */
-    search: async (
-      request: Request,
-      _params: Record<string, never>,
-      context?: AdapterContext,
-    ): Promise<Response> => {
-      const resolved = await resolveContext(cms, request, config, context);
+	const canReindexCollection = async (params: {
+		request: Request;
+		collectionName: string;
+		collection: unknown;
+		session?: { user: any; session: any } | null;
+		db: unknown;
+		locale?: string;
+	}): Promise<boolean> => {
+		const customAccess = config.search?.reindexAccess;
 
-      // Check if search service is available
-      if (!cms.search) {
-        return errorResponse(
-          ApiError.notFound("Search", "Search service not configured"),
-          request,
-          resolved.cmsContext.locale,
-        );
-      }
+		if (typeof customAccess === "boolean") {
+			return customAccess;
+		}
 
-      const body = await parseRpcBody(request);
-      if (body === null) {
-        return errorResponse(
-          ApiError.badRequest("Invalid JSON body"),
-          request,
-          resolved.cmsContext.locale,
-        );
-      }
+		if (typeof customAccess === "function") {
+			try {
+				return await customAccess({
+					request: params.request,
+					cms,
+					session: params.session,
+					db: params.db,
+					locale: params.locale,
+					collection: params.collectionName,
+				});
+			} catch {
+				return false;
+			}
+		}
 
-      try {
-        // Build access filters for each collection
-        const allCollections = cms.getCollections();
-        const requestedCollections: string[] =
-          body.collections ?? Object.keys(allCollections);
-        const accessFilters: CollectionAccessFilter[] = [];
-        const accessibleCollections: string[] = [];
+		// Default policy: derive from collection update access rule.
+		// If update access is denied, reindex is denied.
+		const updateAccessRule = (params.collection as any)?.state?.access?.update;
+		const updateAccessResult = await executeAccessRule(updateAccessRule, {
+			cms,
+			db: params.db,
+			session: params.session,
+			locale: params.locale,
+		});
 
-        for (const collectionName of requestedCollections) {
-          const collection =
-            allCollections[collectionName as keyof typeof allCollections];
-          if (!collection) continue;
+		return updateAccessResult !== false;
+	};
 
-          // Check read access for this collection
-          const accessRule = (collection as any).state?.access?.read;
-          const accessWhere = await executeAccessRule(accessRule, {
-            cms,
-            db: resolved.cmsContext.db ?? cms.db,
-            session: resolved.cmsContext.session,
-            locale: resolved.cmsContext.locale,
-          });
+	return {
+		/**
+		 * Search across collections
+		 * POST /cms/search
+		 *
+		 * Features:
+		 * - Respects collection-level access controls via SQL JOINs
+		 * - Populates full records via CRUD (hooks run)
+		 * - Returns search metadata merged with records
+		 *
+		 * Request body:
+		 * {
+		 *   query: string;
+		 *   collections?: string[];
+		 *   locale?: string;
+		 *   limit?: number;
+		 *   offset?: number;
+		 *   filters?: Record<string, string | string[]>;
+		 *   highlights?: boolean;
+		 *   facets?: FacetDefinition[];
+		 * }
+		 *
+		 * Response:
+		 * {
+		 *   docs: [{ ...fullRecord, _search: { score, highlights, indexedTitle } }],
+		 *   total: number,
+		 *   facets?: FacetResult[]
+		 * }
+		 */
+		search: async (
+			request: Request,
+			_params: Record<string, never>,
+			context?: AdapterContext,
+		): Promise<Response> => {
+			const resolved = await resolveContext(cms, request, config, context);
 
-          // Skip collections with no access
-          if (accessWhere === false) continue;
+			// Check if search service is available
+			if (!cms.search) {
+				return errorResponse(
+					ApiError.notFound("Search", "Search service not configured"),
+					request,
+					resolved.cmsContext.locale,
+				);
+			}
 
-          // Build access filter for this collection
-          accessFilters.push({
-            collection: collectionName,
-            table: (collection as any).table,
-            accessWhere,
-            softDelete: (collection as any).state?.options?.softDelete ?? false,
-          });
-          accessibleCollections.push(collectionName);
-        }
+			const body = await parseRpcBody(request);
+			if (body === null) {
+				return errorResponse(
+					ApiError.badRequest("Invalid JSON body"),
+					request,
+					resolved.cmsContext.locale,
+				);
+			}
 
-        // If no collections are accessible, return empty results
-        if (accessibleCollections.length === 0) {
-          return smartResponse(
-            {
-              docs: [],
-              total: 0,
-              facets: [],
-            } satisfies PopulatedSearchResponse,
-            request,
-          );
-        }
+			try {
+				// Build access filters for each collection
+				const allCollections = cms.getCollections();
+				const requestedCollections: string[] =
+					body.collections ?? Object.keys(allCollections);
+				const accessFilters: CollectionAccessFilter[] = [];
+				const accessibleCollections: string[] = [];
 
-        // Execute search with access filtering
-        const searchResults = await cms.search.search({
-          query: body.query || "",
-          collections: accessibleCollections,
-          locale: body.locale ?? resolved.cmsContext.locale,
-          limit: body.limit ?? 10,
-          offset: body.offset ?? 0,
-          filters: body.filters,
-          highlights: body.highlights ?? true,
-          facets: body.facets,
-          mode: body.mode,
-          accessFilters,
-        });
+				for (const collectionName of requestedCollections) {
+					const collection =
+						allCollections[collectionName as keyof typeof allCollections];
+					if (!collection) continue;
 
-        // If no results, return early
-        if (searchResults.results.length === 0) {
-          return smartResponse(
-            {
-              docs: [],
-              total: searchResults.total,
-              facets: searchResults.facets,
-            } satisfies PopulatedSearchResponse,
-            request,
-          );
-        }
+					// Check read access for this collection
+					const accessRule = (collection as any).state?.access?.read;
+					const accessWhere = await executeAccessRule(accessRule, {
+						cms,
+						db: resolved.cmsContext.db ?? cms.db,
+						session: resolved.cmsContext.session,
+						locale: resolved.cmsContext.locale,
+					});
 
-        // Build search metadata map for merging with CRUD results
-        const searchMetaMap = new Map<string, SearchMeta>();
-        for (const result of searchResults.results) {
-          const key = `${result.collection}:${result.recordId}`;
-          searchMetaMap.set(key, {
-            score: result.score,
-            highlights: result.highlights,
-            indexedTitle: result.title,
-            indexedContent: result.content,
-          });
-        }
+					// Skip collections with no access
+					if (accessWhere === false) continue;
 
-        // Group search results by collection
-        const idsByCollection = new Map<string, string[]>();
-        for (const result of searchResults.results) {
-          const ids = idsByCollection.get(result.collection) ?? [];
-          ids.push(result.recordId);
-          idsByCollection.set(result.collection, ids);
-        }
+					// Build access filter for this collection
+					accessFilters.push({
+						collection: collectionName,
+						table: (collection as any).table,
+						accessWhere,
+						softDelete: (collection as any).state?.options?.softDelete ?? false,
+					});
+					accessibleCollections.push(collectionName);
+				}
 
-        // Populate full records via CRUD (this runs hooks!)
-        const populatedDocs: any[] = [];
-        const crudContext = {
-          session: resolved.cmsContext.session,
-          locale: resolved.cmsContext.locale,
-          db: resolved.cmsContext.db ?? cms.db,
-        };
+				// If no collections are accessible, return empty results
+				if (accessibleCollections.length === 0) {
+					return smartResponse(
+						{
+							docs: [],
+							total: 0,
+							facets: [],
+						} satisfies PopulatedSearchResponse,
+						request,
+					);
+				}
 
-        for (const [collectionName, ids] of idsByCollection) {
-          const collection =
-            allCollections[collectionName as keyof typeof allCollections];
-          if (!collection) continue;
+				// Execute search with access filtering
+				const searchResults = await cms.search.search({
+					query: body.query || "",
+					collections: accessibleCollections,
+					locale: body.locale ?? resolved.cmsContext.locale,
+					limit: body.limit ?? 10,
+					offset: body.offset ?? 0,
+					filters: body.filters,
+					highlights: body.highlights ?? true,
+					facets: body.facets,
+					mode: body.mode,
+					accessFilters,
+				});
 
-          // Generate CRUD for this collection
-          const crud = (collection as any).generateCRUD?.(
-            resolved.cmsContext.db ?? cms.db,
-            cms,
-          );
-          if (!crud) continue;
+				// If no results, return early
+				if (searchResults.results.length === 0) {
+					return smartResponse(
+						{
+							docs: [],
+							total: searchResults.total,
+							facets: searchResults.facets,
+						} satisfies PopulatedSearchResponse,
+						request,
+					);
+				}
 
-          try {
-            const crudResult = await crud.find(
-              {
-                where: { id: { in: ids } },
-                limit: ids.length,
-              },
-              crudContext,
-            );
+				// Build search metadata map for merging with CRUD results
+				const searchMetaMap = new Map<string, SearchMeta>();
+				for (const result of searchResults.results) {
+					const key = `${result.collection}:${result.recordId}`;
+					searchMetaMap.set(key, {
+						score: result.score,
+						highlights: result.highlights,
+						indexedTitle: result.title,
+						indexedContent: result.content,
+					});
+				}
 
-            // Merge search metadata with CRUD results
-            for (const doc of crudResult.docs) {
-              const key = `${collectionName}:${doc.id}`;
-              const searchMeta = searchMetaMap.get(key);
-              if (searchMeta) {
-                populatedDocs.push({
-                  ...doc,
-                  _collection: collectionName,
-                  _search: searchMeta,
-                });
-              }
-            }
-          } catch (err) {
-            // Log but continue - don't fail entire search if one collection errors
-            console.error(
-              `[Search] Failed to populate ${collectionName}:`,
-              err,
-            );
-          }
-        }
+				// Group search results by collection
+				const idsByCollection = new Map<string, string[]>();
+				for (const result of searchResults.results) {
+					const ids = idsByCollection.get(result.collection) ?? [];
+					ids.push(result.recordId);
+					idsByCollection.set(result.collection, ids);
+				}
 
-        // Re-sort by search score to maintain relevance order
-        populatedDocs.sort(
-          (a, b) => (b._search?.score ?? 0) - (a._search?.score ?? 0),
-        );
+				// Populate full records via CRUD (this runs hooks!)
+				const populatedDocs: any[] = [];
+				const crudContext = {
+					session: resolved.cmsContext.session,
+					locale: resolved.cmsContext.locale,
+					db: resolved.cmsContext.db ?? cms.db,
+				};
 
-        return smartResponse(
-          {
-            docs: populatedDocs,
-            total: searchResults.total,
-            facets: searchResults.facets,
-          } satisfies PopulatedSearchResponse,
-          request,
-        );
-      } catch (error) {
-        return errorResponse(error, request, resolved.cmsContext.locale);
-      }
-    },
+				for (const [collectionName, ids] of idsByCollection) {
+					const collection =
+						allCollections[collectionName as keyof typeof allCollections];
+					if (!collection) continue;
 
-    /**
-     * Reindex a collection
-     * POST /cms/search/reindex/:collection
-     *
-     * PROTECTED: Requires authentication and admin role.
-     * This is a potentially expensive operation that rebuilds the search index.
-     */
-    reindex: async (
-      request: Request,
-      params: { collection: string },
-      context?: AdapterContext,
-    ): Promise<Response> => {
-      const resolved = await resolveContext(cms, request, config, context);
+					// Generate CRUD for this collection
+					const crud = (collection as any).generateCRUD?.(
+						resolved.cmsContext.db ?? cms.db,
+						cms,
+					);
+					if (!crud) continue;
 
-      // SECURITY: Require authentication
-      if (!resolved.cmsContext.session) {
-        return errorResponse(
-          ApiError.unauthorized("Authentication required"),
-          request,
-          resolved.cmsContext.locale,
-        );
-      }
+					try {
+						const crudResult = await crud.find(
+							{
+								where: { id: { in: ids } },
+								limit: ids.length,
+							},
+							crudContext,
+						);
 
-      // SECURITY: Require admin role
-      const user = resolved.cmsContext.session.user as
-        | { role?: string }
-        | undefined;
-      if (user?.role !== "admin") {
-        return errorResponse(
-          ApiError.forbidden({
-            operation: "update",
-            resource: `search/reindex/${params.collection}`,
-            reason: "Admin role required for reindexing",
-            requiredRole: "admin",
-            userRole: user?.role,
-          }),
-          request,
-          resolved.cmsContext.locale,
-        );
-      }
+						// Merge search metadata with CRUD results
+						for (const doc of crudResult.docs) {
+							const key = `${collectionName}:${doc.id}`;
+							const searchMeta = searchMetaMap.get(key);
+							if (searchMeta) {
+								populatedDocs.push({
+									...doc,
+									_collection: collectionName,
+									_search: searchMeta,
+								});
+							}
+						}
+					} catch (err) {
+						// Log but continue - don't fail entire search if one collection errors
+						console.error(
+							`[Search] Failed to populate ${collectionName}:`,
+							err,
+						);
+					}
+				}
 
-      // Check if search service is available
-      if (!cms.search) {
-        return errorResponse(
-          ApiError.notFound("Search", "Search service not configured"),
-          request,
-          resolved.cmsContext.locale,
-        );
-      }
+				// Re-sort by search score to maintain relevance order
+				populatedDocs.sort(
+					(a, b) => (b._search?.score ?? 0) - (a._search?.score ?? 0),
+				);
 
-      // Check if collection exists
-      const collection = cms.getCollections()[params.collection as any];
-      if (!collection) {
-        return errorResponse(
-          ApiError.notFound("Collection", params.collection),
-          request,
-          resolved.cmsContext.locale,
-        );
-      }
+				return smartResponse(
+					{
+						docs: populatedDocs,
+						total: searchResults.total,
+						facets: searchResults.facets,
+					} satisfies PopulatedSearchResponse,
+					request,
+				);
+			} catch (error) {
+				return errorResponse(error, request, resolved.cmsContext.locale);
+			}
+		},
 
-      try {
-        await cms.search.reindex(params.collection);
-        return smartResponse(
-          { success: true, collection: params.collection },
-          request,
-        );
-      } catch (error) {
-        return errorResponse(error, request, resolved.cmsContext.locale);
-      }
-    },
-  };
+		/**
+		 * Reindex a collection
+		 * POST /cms/search/reindex/:collection
+		 *
+		 * PROTECTED: Requires authentication and reindex access policy.
+		 * This is a potentially expensive operation that rebuilds the search index.
+		 */
+		reindex: async (
+			request: Request,
+			params: { collection: string },
+			context?: AdapterContext,
+		): Promise<Response> => {
+			const resolved = await resolveContext(cms, request, config, context);
+
+			// SECURITY: Require authentication
+			if (!resolved.cmsContext.session) {
+				return errorResponse(
+					ApiError.unauthorized("Authentication required"),
+					request,
+					resolved.cmsContext.locale,
+				);
+			}
+
+			// Check if search service is available
+			if (!cms.search) {
+				return errorResponse(
+					ApiError.notFound("Search", "Search service not configured"),
+					request,
+					resolved.cmsContext.locale,
+				);
+			}
+
+			// Check if collection exists
+			const collection = cms.getCollections()[params.collection as any];
+			if (!collection) {
+				return errorResponse(
+					ApiError.notFound("Collection", params.collection),
+					request,
+					resolved.cmsContext.locale,
+				);
+			}
+
+			const db = resolved.cmsContext.db ?? cms.db;
+			const hasReindexAccess = await canReindexCollection({
+				request,
+				collectionName: params.collection,
+				collection,
+				session: resolved.cmsContext.session,
+				db,
+				locale: resolved.cmsContext.locale,
+			});
+
+			if (!hasReindexAccess) {
+				return errorResponse(
+					ApiError.forbidden({
+						operation: "update",
+						resource: `search/reindex/${params.collection}`,
+						reason: "Reindex access denied by policy",
+					}),
+					request,
+					resolved.cmsContext.locale,
+				);
+			}
+
+			try {
+				await cms.search.reindex(params.collection);
+				return smartResponse(
+					{ success: true, collection: params.collection },
+					request,
+				);
+			} catch (error) {
+				return errorResponse(error, request, resolved.cmsContext.locale);
+			}
+		},
+	};
 };

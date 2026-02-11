@@ -1,0 +1,233 @@
+---
+title: Build a Page Builder
+description: Use blocks, preview, and localized content for landing pages
+---
+
+# Build a Page Builder
+
+This guide shows how to build a page builder with drag-and-drop blocks, live preview, and localized content — the same pattern used in the TanStack Barbershop example's `pages` collection.
+
+## Step 1: Define Block Types
+
+Blocks are the building units. Each block defines its own fields and admin appearance.
+
+```ts
+import { adminModule } from "@questpie/admin/server";
+
+const heroBlock = adminModule.block("hero")
+  .fields((f) => ({
+    heading: f.text().notNull(),
+    subheading: f.text(),
+    image: f.upload(),
+    ctaLabel: f.text(),
+    ctaUrl: f.url(),
+  }))
+  .admin({
+    label: "Hero Section",
+    icon: "ph:layout",
+    description: "Full-width hero with heading and CTA",
+  });
+
+const textBlock = adminModule.block("text")
+  .fields((f) => ({
+    body: f.richText().notNull(),
+  }))
+  .admin({
+    label: "Text Block",
+    icon: "ph:text-aa",
+  });
+
+const imageBlock = adminModule.block("image")
+  .fields((f) => ({
+    image: f.upload().notNull(),
+    alt: f.text(),
+    caption: f.text(),
+  }))
+  .admin({
+    label: "Image",
+    icon: "ph:image",
+  });
+
+const columnsBlock = adminModule.block("columns")
+  .fields((f) => ({
+    columns: f.number({ min: 2, max: 4 }).notNull().default(2),
+    items: f.array({
+      items: z.object({
+        heading: z.string(),
+        body: z.string(),
+        icon: z.string().optional(),
+      }),
+    }),
+  }))
+  .admin({
+    label: "Columns",
+    icon: "ph:columns",
+  });
+```
+
+## Step 2: Create the Pages Collection
+
+```ts
+const pages = q.collection("pages")
+  .fields((f) => ({
+    title: f.text().notNull().localized(),
+    slug: f.text().notNull(),
+    content: f.blocks({
+      types: [heroBlock, textBlock, imageBlock, columnsBlock],
+    }).localized(),
+    isPublished: f.boolean().notNull().default(false),
+    // SEO fields
+    metaTitle: f.text().localized(),
+    metaDescription: f.textarea().localized(),
+    ogImage: f.upload(),
+  }))
+  .title((t) => t.title)
+  .options({ timestamps: true, versioning: true })
+  .hooks({
+    beforeValidate: ({ data, operation }) => {
+      // Auto-generate slug from title
+      if (operation === "create" || (operation === "update" && data.title && !data.slug)) {
+        data.slug = data.title
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, "-")
+          .replace(/(^-|-$)/g, "");
+      }
+    },
+  })
+  .build();
+```
+
+## Step 3: Configure Admin Form
+
+Use reactive fields to organize the form:
+
+```ts
+.form({
+  layout: [
+    { fields: ["title", "slug", "content"], span: 8 },
+    { fields: ["isPublished", "metaTitle", "metaDescription", "ogImage"], span: 4, label: "Settings" },
+  ],
+  fields: {
+    slug: {
+      readOnly: (data) => !!data.id,  // read-only after creation
+      description: "Auto-generated from title. Cannot be changed after creation.",
+    },
+    metaTitle: {
+      hidden: (data) => !data.isPublished,
+    },
+    metaDescription: {
+      hidden: (data) => !data.isPublished,
+    },
+  },
+})
+```
+
+## Step 4: Enable Live Preview
+
+```ts
+.preview({
+  url: (record) => `${process.env.FRONTEND_URL}/${record.slug}`,
+})
+```
+
+The admin panel opens an iframe with your frontend URL. When users edit blocks, changes are sent via `postMessage` for instant visual feedback.
+
+### Frontend Integration
+
+On your frontend page, listen for preview messages:
+
+```tsx
+import { usePreviewData } from "@questpie/admin/client";
+
+function PageRenderer() {
+  const data = usePreviewData<PageData>();
+
+  return (
+    <div>
+      <h1>{data.title}</h1>
+      {data.content.map((block, i) => (
+        <BlockRenderer
+          key={i}
+          block={block}
+          data-qp-block-id={block.id}   // enables click-to-focus
+          data-qp-block-type={block.type}
+        />
+      ))}
+    </div>
+  );
+}
+```
+
+The `data-qp-*` attributes enable **click-to-focus** — clicking a block in the preview scrolls to and focuses the corresponding block editor in the admin panel.
+
+## Step 5: Render Blocks on the Frontend
+
+```tsx
+function BlockRenderer({ block }: { block: Block }) {
+  switch (block.type) {
+    case "hero":
+      return (
+        <section className="hero">
+          <h1>{block.data.heading}</h1>
+          {block.data.subheading && <p>{block.data.subheading}</p>}
+          {block.data.ctaLabel && (
+            <a href={block.data.ctaUrl}>{block.data.ctaLabel}</a>
+          )}
+        </section>
+      );
+    case "text":
+      return <RichTextRenderer content={block.data.body} />;
+    case "image":
+      return (
+        <figure>
+          <img src={block.data.image.url} alt={block.data.alt} />
+          {block.data.caption && <figcaption>{block.data.caption}</figcaption>}
+        </figure>
+      );
+    case "columns":
+      return (
+        <div className={`grid grid-cols-${block.data.columns}`}>
+          {block.data.items.map((item, i) => (
+            <div key={i}>
+              <h3>{item.heading}</h3>
+              <p>{item.body}</p>
+            </div>
+          ))}
+        </div>
+      );
+  }
+}
+```
+
+## Versioning
+
+With `versioning: true`, every save creates a version. Content editors can:
+- View version history in the admin panel
+- Compare changes between versions
+- Revert to any previous version
+
+This is particularly useful for page content where accidental changes need to be recoverable.
+
+## Localization
+
+Both `title` and `content` are marked `.localized()`, so each locale gets its own translated version. The admin panel shows a locale switcher, and the frontend passes `locale` when querying:
+
+```ts
+const page = await cms.api.collections.pages.findOne({
+  where: { slug: "about" },
+}, { locale: "de" });
+```
+
+## Common Mistakes
+
+- **Not setting blocks on the richText/blocks field** — without `types`, the block picker has nothing to show
+- **Missing `data-qp-*` attributes** — click-to-focus won't work without them
+- **Forgetting `.localized()` on content** — content fields need per-locale storage for multilingual pages
+
+## Related Pages
+
+- [Blocks System](/docs/admin/blocks-system) — Block builder details
+- [Preview System](/docs/admin/preview-system) — Preview configuration
+- [Reactive Fields](/docs/server/reactive-fields) — Hidden, readOnly, compute
+- [Versioning](/docs/server/versioning) — Version history
+- [Localization](/docs/server/localization) — Multi-locale content

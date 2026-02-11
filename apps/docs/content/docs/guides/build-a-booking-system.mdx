@@ -1,0 +1,288 @@
+---
+title: Build a Booking System
+description: End-to-end booking architecture with collections, reactive logic, RPC, and jobs
+---
+
+# Build a Booking System
+
+This guide walks through building a barbershop booking system using QUESTPIE — the same architecture used in the TanStack Barbershop example. It covers entity modeling, relations, reactive fields, RPC functions, and background jobs.
+
+## Entity Model
+
+A booking system needs four interconnected collections:
+
+```
+barbers ──┐
+           ├── barberServices (m:n junction)
+services ──┘
+           │
+appointments ── references barber + service + customer data
+```
+
+## Step 1: Define Collections
+
+### Services
+
+```ts
+const services = q.collection("services")
+  .fields((f) => ({
+    name: f.text().notNull(),
+    description: f.textarea(),
+    duration: f.number({ min: 15 }).notNull(),  // minutes
+    price: f.number({ min: 0, precision: 10, scale: 2 }).notNull(),
+    isActive: f.boolean().notNull().default(true),
+  }))
+  .title((t) => t.name)
+  .options({ timestamps: true })
+  .build();
+```
+
+### Barbers
+
+```ts
+const barbers = q.collection("barbers")
+  .fields((f) => ({
+    name: f.text().notNull(),
+    email: f.email().notNull(),
+    phone: f.text(),
+    avatar: f.upload(),
+    bio: f.textarea(),
+    services: f.relation("services", { type: "manyToMany", through: "barberServices" }),
+  }))
+  .title((t) => t.name)
+  .options({ timestamps: true })
+  .build();
+```
+
+### Appointments
+
+```ts
+const appointments = q.collection("appointments")
+  .fields((f) => ({
+    barber: f.relation("barbers").notNull(),
+    service: f.relation("services").notNull(),
+    customerName: f.text().notNull(),
+    customerEmail: f.email().notNull(),
+    customerPhone: f.text(),
+    date: f.date().notNull(),
+    startTime: f.time().notNull(),
+    endTime: f.time().notNull(),
+    status: f.select(["pending", "confirmed", "completed", "cancelled"]).notNull().default("pending"),
+    notes: f.textarea(),
+    // Cancellation fields — only visible when status is "cancelled"
+    cancellationReason: f.textarea(),
+    cancelledAt: f.datetime(),
+  }))
+  .title((t) => t.customerName)
+  .options({ timestamps: true })
+  .build();
+```
+
+## Step 2: Reactive Fields
+
+Hide cancellation fields unless the appointment is cancelled:
+
+```ts
+.form({
+  fields: {
+    cancellationReason: {
+      hidden: (data) => data.status !== "cancelled",
+    },
+    cancelledAt: {
+      hidden: (data) => data.status !== "cancelled",
+      readOnly: true,
+    },
+  },
+})
+```
+
+When a user changes `status` to "cancelled", the cancellation fields appear dynamically. This works in real-time — no page reload needed.
+
+## Step 3: RPC Functions
+
+### Slot Availability
+
+```ts
+const getAvailableSlots = q.fn({
+  schema: z.object({
+    barberId: z.string(),
+    date: z.string(),
+    serviceId: z.string().optional(),
+  }),
+  handler: async ({ input, app }) => {
+    const { barberId, date, serviceId } = input;
+
+    // Get service duration
+    let duration = 30; // default
+    if (serviceId) {
+      const service = await app.api.collections.services.findOne({
+        where: { id: serviceId },
+      });
+      if (service) duration = service.duration;
+    }
+
+    // Get existing appointments for this barber on this date
+    const existing = await app.api.collections.appointments.find({
+      where: {
+        barber: barberId,
+        date,
+        status: { in: ["pending", "confirmed"] },
+      },
+    });
+
+    // Generate available slots (9 AM - 5 PM, in duration-sized increments)
+    const slots = [];
+    for (let hour = 9; hour < 17; hour++) {
+      for (let min = 0; min < 60; min += duration) {
+        const time = `${String(hour).padStart(2, "0")}:${String(min).padStart(2, "0")}`;
+        const isBooked = existing.docs.some(
+          (apt) => apt.startTime <= time && apt.endTime > time,
+        );
+        if (!isBooked) {
+          slots.push({ time, available: true });
+        }
+      }
+    }
+
+    return { slots };
+  },
+});
+```
+
+### Create Booking
+
+```ts
+const createBooking = q.fn({
+  schema: z.object({
+    barberId: z.string(),
+    serviceId: z.string(),
+    date: z.string(),
+    time: z.string(),
+    customerName: z.string(),
+    customerEmail: z.string().email(),
+    customerPhone: z.string().optional(),
+  }),
+  handler: async ({ input, app }) => {
+    const service = await app.api.collections.services.findOne({
+      where: { id: input.serviceId },
+    });
+    if (!service) throw ApiError.notFound("Service", input.serviceId);
+
+    // Calculate end time
+    const [h, m] = input.time.split(":").map(Number);
+    const endMinutes = h * 60 + m + service.duration;
+    const endTime = `${String(Math.floor(endMinutes / 60)).padStart(2, "0")}:${String(endMinutes % 60).padStart(2, "0")}`;
+
+    const appointment = await app.api.collections.appointments.create({
+      barber: input.barberId,
+      service: input.serviceId,
+      date: input.date,
+      startTime: input.time,
+      endTime,
+      customerName: input.customerName,
+      customerEmail: input.customerEmail,
+      customerPhone: input.customerPhone,
+    });
+
+    // Send confirmation email via job queue
+    await app.queue.sendConfirmation.publish({
+      appointmentId: appointment.id,
+      customerEmail: input.customerEmail,
+    });
+
+    return appointment;
+  },
+});
+```
+
+## Step 4: Background Jobs
+
+### Confirmation Email
+
+```ts
+const sendConfirmation = q.job({
+  name: "sendConfirmation",
+  schema: z.object({
+    appointmentId: z.string(),
+    customerEmail: z.string().email(),
+  }),
+  handler: async ({ payload, app }) => {
+    const appointment = await app.api.collections.appointments.findOne({
+      where: { id: payload.appointmentId },
+      with: { barber: true, service: true },
+    });
+    if (!appointment) return;
+
+    await app.email.sendTemplate({
+      template: "appointmentConfirmation",
+      to: payload.customerEmail,
+      context: {
+        customerName: appointment.customerName,
+        barberName: appointment.barber.name,
+        serviceName: appointment.service.name,
+        date: appointment.date,
+        time: appointment.startTime,
+      },
+    });
+  },
+});
+```
+
+### Cancellation Hook
+
+Automatically record cancellation time and send notification:
+
+```ts
+.hooks({
+  beforeChange: ({ data, original, operation }) => {
+    if (operation === "update" && data.status === "cancelled" && original?.status !== "cancelled") {
+      data.cancelledAt = new Date();
+    }
+  },
+  afterChange: async ({ data, original, operation, app }) => {
+    if (operation === "update" && data.status === "cancelled" && original?.status !== "cancelled") {
+      await app.queue.sendCancellation.publish({
+        appointmentId: data.id,
+        customerEmail: data.customerEmail,
+      });
+    }
+  },
+})
+```
+
+## Step 5: Assemble the CMS
+
+```ts
+export const cms = q({ name: "barbershop" })
+  .use(adminModule)
+  .collections({ services, barbers, appointments })
+  .jobs({ sendConfirmation, sendCancellation })
+  .build({
+    app: { url: process.env.APP_URL! },
+    db: { url: process.env.DATABASE_URL! },
+  });
+
+export const appRpc = rpc<typeof cms>().router({
+  booking: rpc<typeof cms>().router({
+    getAvailableSlots,
+    createBooking,
+  }),
+});
+```
+
+## Patterns Used
+
+- **Relations** — barber ↔ services (manyToMany), appointment → barber/service (belongsTo)
+- **Reactive fields** — cancellation fields hidden until status changes
+- **RPC** — slot availability and booking creation as typed functions
+- **Jobs** — email notifications processed asynchronously
+- **Hooks** — automatic cancellation timestamp
+
+## Related Pages
+
+- [Collections](/docs/server/collections) — Collection builder
+- [Relations](/docs/server/relations) — Relation types
+- [Reactive Fields](/docs/server/reactive-fields) — Hidden, readOnly, compute
+- [RPC](/docs/server/rpc) — Typed procedures
+- [Queue & Jobs](/docs/infrastructure/queue-and-jobs) — Background job processing
+- [Email](/docs/infrastructure/email) — Email templates and sending

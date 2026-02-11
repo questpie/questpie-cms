@@ -97,6 +97,8 @@ export interface BlockBuilderState<
 	maxChildren?: number;
 	/** Prefetch function */
 	prefetch?: BlockPrefetchFn;
+	/** Optional registered component names from Questpie builder registry */
+	"~components"?: string[];
 }
 
 /**
@@ -126,12 +128,78 @@ export interface BlockDefinition<
  * Create a component proxy for type-safe icon and UI element references.
  * Used in .admin() config functions.
  */
-function createComponentProxy(): AdminConfigContext["c"] {
-	return {
-		icon: (name: string) => ({ type: "icon", props: { name } }) as const,
-		badge: (props: { text: string; color?: string }) =>
-			({ type: "badge", props }) as const,
-	};
+function createComponentProxy(
+	registeredComponentNames: string[] = [],
+): AdminConfigContext["c"] {
+	const registered = new Set(registeredComponentNames);
+	const hasRegistry = registered.size > 0;
+
+	return new Proxy(
+		{} as Record<string, (props: Record<string, unknown> | string) => unknown>,
+		{
+			get: (_target, prop: string | symbol) => {
+				if (typeof prop !== "string") {
+					return undefined;
+				}
+
+				if (prop === "then") {
+					return undefined;
+				}
+
+				if (hasRegistry && !registered.has(prop)) {
+					throw new Error(
+						`Unknown component "${prop}" for block admin config. ` +
+							`Available components: ${[...registered].sort().join(", ")}`,
+					);
+				}
+
+				return (props: Record<string, unknown> | string) => {
+					if (prop === "icon" && typeof props === "string") {
+						return { type: "icon", props: { name: props } } as const;
+					}
+
+					if (typeof props === "object" && props !== null) {
+						return { type: prop, props } as const;
+					}
+
+					return { type: prop, props: { value: props } } as const;
+				};
+			},
+			has: (_target, prop: string | symbol) => {
+				if (typeof prop !== "string") {
+					return false;
+				}
+				return hasRegistry ? registered.has(prop) : true;
+			},
+			ownKeys: () => (hasRegistry ? [...registered] : []),
+			getOwnPropertyDescriptor: (_target, prop: string | symbol) => {
+				if (typeof prop !== "string") {
+					return undefined;
+				}
+
+				if (hasRegistry && !registered.has(prop)) {
+					return undefined;
+				}
+
+				return {
+					configurable: true,
+					enumerable: hasRegistry,
+					writable: false,
+					value: (props: Record<string, unknown> | string) => {
+						if (prop === "icon" && typeof props === "string") {
+							return { type: "icon", props: { name: props } } as const;
+						}
+
+						if (typeof props === "object" && props !== null) {
+							return { type: prop, props } as const;
+						}
+
+						return { type: prop, props: { value: props } } as const;
+					},
+				};
+			},
+		},
+	) as AdminConfigContext["c"];
 }
 
 // ============================================================================
@@ -180,9 +248,12 @@ export class BlockBuilder<
 			| AdminBlockConfig
 			| ((ctx: AdminConfigContext) => AdminBlockConfig),
 	): BlockBuilder<TState & { admin: AdminBlockConfig }, TFieldMap> {
+		const registeredComponents =
+			(this._state as any)["~components"] ?? ([] as string[]);
+
 		const config =
 			typeof configOrFn === "function"
-				? configOrFn({ c: createComponentProxy() })
+				? configOrFn({ c: createComponentProxy(registeredComponents) })
 				: configOrFn;
 
 		return new BlockBuilder({

@@ -181,11 +181,15 @@ export class ApiError extends Error {
   /**
    * Create BAD_REQUEST error
    */
-  static badRequest(message: string, fieldErrors?: FieldError[]): ApiError {
+  static badRequest(
+    message = "Bad request",
+    fieldErrors?: FieldError[],
+  ): ApiError {
+    const useDefaultTranslation = message === "Bad request";
     return new ApiError({
       code: "BAD_REQUEST",
       message,
-      messageKey: "error.badRequest",
+      messageKey: useDefaultTranslation ? "error.badRequest" : undefined,
       fieldErrors,
     });
   }

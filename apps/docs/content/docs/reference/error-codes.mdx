@@ -1,0 +1,268 @@
+---
+title: Error Codes
+description: API error codes, HTTP status mapping, error shapes, and database error handling
+---
+
+# Error Codes
+
+All errors returned by the QUESTPIE API follow a consistent shape. This page documents every error code, its HTTP status, when it's thrown, and the response format.
+
+## Error Response Shape
+
+```ts
+{
+  error: {
+    code: string;            // Machine-readable code
+    message: string;         // Human-readable message (i18n when available)
+    fieldErrors?: {          // Per-field validation errors
+      path: string;          // e.g. "email", "posts.0.title"
+      message: string;
+      value?: unknown;
+    }[];
+    context?: {              // Additional context (varies by error type)
+      access?: AccessErrorContext;
+      hook?: HookErrorContext;
+      db?: DBErrorContext;
+    };
+    stack?: string;          // Stack trace (development only)
+    cause?: string;          // Original error (development only)
+  }
+}
+```
+
+## Error Codes
+
+| Code | HTTP Status | Description |
+|---|---|---|
+| `BAD_REQUEST` | 400 | Malformed input, missing parameters, invalid query |
+| `UNAUTHORIZED` | 401 | Missing or invalid authentication |
+| `FORBIDDEN` | 403 | Authenticated but not authorized for this operation |
+| `NOT_FOUND` | 404 | Resource does not exist |
+| `CONFLICT` | 409 | Unique constraint violation or duplicate entry |
+| `UNPROCESSABLE_CONTENT` | 422 | Valid request structure but cannot be processed |
+| `VALIDATION_ERROR` | 400 | Field-level validation failed (Zod) |
+| `HOOK_ERROR` | 500 | Lifecycle hook threw an error |
+| `INTERNAL_SERVER_ERROR` | 500 | Unexpected server error |
+| `NOT_IMPLEMENTED` | 501 | Feature not enabled (e.g. versioning, realtime) |
+
+## Factory Methods
+
+Errors are created via static methods on `ApiError`:
+
+### `ApiError.notFound(resource, id?)`
+
+```ts
+ApiError.notFound("Collection", "posts")
+// → 404: "Collection not found: posts"
+```
+
+Thrown when: collection not found, record not found, global not found, file not found, route not found.
+
+### `ApiError.forbidden(context)`
+
+```ts
+ApiError.forbidden({
+  operation: "update",
+  resource: "posts",
+  reason: "Insufficient permissions",
+})
+// → 403: "Access denied"
+```
+
+Context fields: `operation`, `resource`, `reason`, `requiredRole?`, `userRole?`, `fieldPath?`.
+
+Thrown when: access control denies an operation, field-level access restrictions, RPC function access.
+
+### `ApiError.unauthorized(message?)`
+
+```ts
+ApiError.unauthorized("Token expired")
+// → 401: "Token expired"
+```
+
+Thrown when: missing auth token, invalid/expired token, private file access without credentials.
+
+### `ApiError.badRequest(message?, fieldErrors?)`
+
+```ts
+ApiError.badRequest("Missing collection name")
+// → 400: "Missing collection name"
+
+ApiError.badRequest("Invalid input", [
+  { path: "email", message: "Invalid email format" },
+])
+// → 400 with fieldErrors array
+```
+
+Thrown when: malformed JSON body, missing required parameters, invalid query parameters, method not allowed.
+
+### `ApiError.fromZodError(zodError, message?)`
+
+```ts
+ApiError.fromZodError(zodError, "Validation failed")
+// → 400 with fieldErrors extracted from Zod issues
+```
+
+Thrown when: request body or field input fails Zod validation. Each Zod issue becomes a `fieldError` with `path` and `message`.
+
+### `ApiError.conflict(message)`
+
+```ts
+ApiError.conflict("A record with this email already exists")
+// → 409
+```
+
+Thrown when: unique constraint violation detected (PostgreSQL error 23505).
+
+### `ApiError.internal(message?, cause?)`
+
+```ts
+ApiError.internal("Failed to process", originalError)
+// → 500: "Failed to process"
+```
+
+The `cause` is preserved for debugging but only exposed in development mode.
+
+### `ApiError.notImplemented(feature)`
+
+```ts
+ApiError.notImplemented("Versioning")
+// → 501: "Versioning is not implemented or not enabled"
+```
+
+Thrown when: accessing versioning on a non-versioned collection, realtime not configured, feature not enabled.
+
+### `ApiError.hookError(hookContext, message, cause?)`
+
+```ts
+ApiError.hookError(
+  { hook: "beforeChange", operation: "create", collection: "posts" },
+  "Hook failed",
+  originalError,
+)
+// → 500
+```
+
+Hook context fields: `hook`, `operation`, `collection?`, `global?`, `recordId?`, `fieldPath?`.
+
+## Database Error Mapping
+
+PostgreSQL constraint violations are automatically detected and converted to appropriate `ApiError` instances:
+
+| PostgreSQL Code | Constraint | Resulting Error | HTTP |
+|---|---|---|---|
+| `23505` | Unique violation | `CONFLICT` — "A record with this {field} already exists" | 409 |
+| `23503` | Foreign key violation | `BAD_REQUEST` — "Referenced record does not exist" | 400 |
+| `23502` | NOT NULL violation | `VALIDATION_ERROR` — "{field} is required" | 400 |
+| `23514` | CHECK violation | `VALIDATION_ERROR` — "Invalid value for {field}" | 400 |
+
+Field names are extracted from constraint names (e.g. `barbers_email_unique` → `email`).
+
+## Error Context Types
+
+### AccessErrorContext
+
+```ts
+{
+  operation: "create" | "read" | "update" | "delete";
+  resource: string;
+  reason: string;
+  requiredRole?: string;
+  userRole?: string;
+  fieldPath?: string;
+}
+```
+
+### HookErrorContext
+
+```ts
+{
+  hook: "beforeChange" | "afterChange" | "beforeRead" | "afterRead"
+      | "beforeValidate" | "beforeDelete" | "afterDelete" | "beforeOperation";
+  operation: "create" | "read" | "update" | "delete";
+  collection?: string;
+  global?: string;
+  recordId?: string;
+  fieldPath?: string;
+}
+```
+
+### DBErrorContext
+
+```ts
+{
+  operation: "select" | "insert" | "update" | "delete";
+  table: string;
+  constraint?: string;
+}
+```
+
+## Errors by Operation
+
+### Collection CRUD
+
+| Operation | Possible Errors |
+|---|---|
+| `create` | `FORBIDDEN`, `BAD_REQUEST`, `VALIDATION_ERROR`, `CONFLICT`, `INTERNAL_SERVER_ERROR` |
+| `find` / `findOne` | `FORBIDDEN`, `NOT_FOUND` |
+| `update` | `FORBIDDEN`, `BAD_REQUEST`, `NOT_FOUND`, `VALIDATION_ERROR`, `CONFLICT` |
+| `delete` | `FORBIDDEN`, `NOT_FOUND` |
+| `findVersions` | `NOT_IMPLEMENTED`, `BAD_REQUEST`, `NOT_FOUND`, `FORBIDDEN` |
+| `revertToVersion` | `NOT_IMPLEMENTED`, `FORBIDDEN`, `NOT_FOUND` |
+
+### Globals
+
+| Operation | Possible Errors |
+|---|---|
+| `get` | `FORBIDDEN`, `NOT_FOUND` |
+| `update` | `FORBIDDEN`, `BAD_REQUEST`, `VALIDATION_ERROR` |
+| Version operations | `NOT_IMPLEMENTED`, `FORBIDDEN`, `NOT_FOUND` |
+
+### Other Routes
+
+| Route | Possible Errors |
+|---|---|
+| Auth | `NOT_IMPLEMENTED` |
+| Storage | `NOT_FOUND`, `BAD_REQUEST`, `UNAUTHORIZED` |
+| Search | `NOT_FOUND`, `UNAUTHORIZED`, `FORBIDDEN` |
+| RPC | `FORBIDDEN`, `BAD_REQUEST`, `VALIDATION_ERROR` |
+| Realtime | `NOT_FOUND`, `NOT_IMPLEMENTED` |
+
+## I18n Message Keys
+
+Errors support translation via the backend i18n system:
+
+| Key | Default Message |
+|---|---|
+| `error.notFound` | "Resource not found" |
+| `error.notFound.withId` | "{{resource}} not found: {{id}}" |
+| `error.forbidden` | "Access denied" |
+| `error.unauthorized` | "Authentication required" |
+| `error.validation` | "Validation failed" |
+| `error.internal` | "Internal server error" |
+| `error.badRequest` | "Bad request" |
+| `error.conflict` | "Resource conflict" |
+| `error.notImplemented` | "{{feature}} is not implemented" |
+| `crud.create.forbidden` | "You don't have permission to create {{resource}}" |
+| `crud.read.forbidden` | "You don't have permission to read {{resource}}" |
+| `crud.update.forbidden` | "You don't have permission to update {{resource}}" |
+| `crud.delete.forbidden` | "You don't have permission to delete {{resource}}" |
+| `error.database.uniqueViolation` | "Duplicate {{field}}: {{value}}" |
+| `error.database.foreignKeyViolation` | "Invalid {{field}}: referenced record does not exist" |
+| `error.database.notNullViolation` | "{{field}} is required" |
+| `error.database.checkViolation` | "Invalid value for {{field}}" |
+
+## Development vs Production
+
+In development mode, error responses include:
+- `stack` — full stack trace
+- `cause` — original error message
+
+In production, these fields are omitted. Only `code`, `message`, `fieldErrors`, and `context` are returned.
+
+## Related Pages
+
+- [CRUD API](/docs/reference/crud-api) — Operations that produce errors
+- [Hooks API](/docs/reference/hooks-api) — Hook execution that may throw
+- [Access Control](/docs/server/access-control) — Rules that produce FORBIDDEN
+- [Validation](/docs/server/validation) — Validation that produces VALIDATION_ERROR

@@ -1,0 +1,94 @@
+---
+title: Actions System
+description: Custom actions with forms, bulk operations, and context-aware triggers
+---
+
+# Actions System
+
+Actions let you add custom operations to collections and globals. They appear as buttons in the admin UI — on table rows, bulk selections, and form headers.
+
+## Defining Actions
+
+Actions are defined on the server using the collection builder:
+
+```typescript
+const posts = qb.collection("posts")
+  .fields((f) => ({
+    title: f.text({ required: true }),
+    status: f.select({ options: ["draft", "published", "archived"] }),
+  }))
+  .functions({
+    publish: {
+      input: z.object({ id: z.string() }),
+      handler: async ({ input, app }) => {
+        await app.collections.posts.update(input.id, {
+          status: "published",
+        });
+        return { success: true };
+      },
+    },
+    archive: {
+      input: z.object({ ids: z.array(z.string()) }),
+      handler: async ({ input, app }) => {
+        await app.collections.posts.updateMany(
+          { id: { in: input.ids } },
+          { status: "archived" },
+        );
+        return { archived: input.ids.length };
+      },
+    },
+  });
+```
+
+## Action Forms
+
+Actions can include input forms that collect user data before executing:
+
+```typescript
+const posts = qb.collection("posts")
+  .functions({
+    schedulePublish: {
+      input: z.object({
+        id: z.string(),
+        publishAt: z.string().datetime(),
+        notifySubscribers: z.boolean().default(true),
+      }),
+      handler: async ({ input, app }) => {
+        // Schedule the publish job
+        await app.queue.schedulePublish.publish({
+          postId: input.id,
+          publishAt: input.publishAt,
+          notify: input.notifySubscribers,
+        });
+        return { scheduled: true };
+      },
+    },
+  });
+```
+
+The admin panel automatically generates a form dialog for the `input` schema, with field types inferred from Zod validators.
+
+## Bulk Actions
+
+Actions that accept an array of IDs appear in the bulk actions toolbar when multiple rows are selected in a table view.
+
+## Access Control
+
+Action visibility and execution can be controlled via access rules:
+
+```typescript
+const posts = qb.collection("posts")
+  .functions({
+    publish: {
+      access: ({ session }) => session?.user?.role === "editor",
+      input: z.object({ id: z.string() }),
+      handler: async ({ input, app }) => {
+        // ...
+      },
+    },
+  });
+```
+
+## RPC Integration
+
+Actions are powered by the same RPC system used for typed client SDK calls. They're fully type-safe from server definition to client invocation.
