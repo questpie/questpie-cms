@@ -89,12 +89,12 @@ export function Footer() {
 							</li>
 							<li>
 								<a
-									href="https://github.com/questpie/questpie-cms/discussions"
+									href="https://github.com/questpie/questpie-cms/pulls"
 									target="_blank"
 									rel="noreferrer"
 									className="transition-colors hover:text-primary"
 								>
-									Discussions
+									Pull requests
 								</a>
 							</li>
 						</ul>

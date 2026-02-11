@@ -5,7 +5,7 @@ description: Configure navigation, dashboard widgets, and admin branding
 
 # Dashboard, Sidebar & Branding
 
-The dashboard, sidebar, and branding are configured across the server and client layers. The server defines structure (what widgets to show, what sidebar items to display); the client defines presentation (brand name, colors, rendering).
+The dashboard, sidebar, and branding are configured on the server builder (`q`) via `@questpie/admin/server`. The client (`qa`) only resolves registries and renders the server contract.
 
 ## Sidebar
 
@@ -176,18 +176,14 @@ d.tabs({
 
 ## Branding
 
-Branding is configured on the client via `qa().config()`:
+Branding is configured on the server via `.branding()`:
 
 ```ts
-const admin = qa<AppCMS>()
-  .use(coreAdminModule)
-  .config({
-    branding: {
-      name: "Barbershop Admin",
-      logo: { type: "icon", props: { name: "ph:scissors" } },
-      favicon: "/favicon.ico",
-      primaryColor: "#7c3aed",
-    },
+const cms = q({ name: "barbershop" })
+  .use(adminModule)
+  .branding({
+    name: { en: "Barbershop Admin", sk: "Barbershop Admin" },
+    logo: "/logo.svg",
   });
 ```
 
@@ -195,32 +191,54 @@ const admin = qa<AppCMS>()
 
 | Option | Type | Description |
 |---|---|---|
-| `name` | `string` | Brand name shown in sidebar header |
-| `logo` | `ComponentReference` | Logo component reference |
-| `favicon` | `string` | Favicon URL |
-| `primaryColor` | `string` | Primary accent color |
+| `name` | `string \| Record<string, string>` | Brand name shown in sidebar header |
+| `logo` | `unknown` | Logo value rendered by the admin shell |
 
 ## Locale Configuration
 
 ```ts
-.config({
-  locale: {
-    default: "en",
-    supported: ["en", "de", "sk"],
-  },
-})
+q({ name: "barbershop" })
+  .use(adminModule)
+  .adminLocale({
+    locales: ["en", "sk"],
+    defaultLocale: "en",
+  })
+  .locale({
+    locales: [{ code: "en" }, { code: "sk" }],
+    defaultLocale: "en",
+  })
+  .messages({
+    en: { "common.save": "Save" },
+    sk: { "common.save": "Ulozit" },
+  });
 ```
 
-The admin renders a locale switcher when `supported` contains more than one locale.
+- `.adminLocale()` controls admin UI language options.
+- `.locale()` controls content locale options for localized fields.
+- `.messages()` provides translation messages.
+
+Use `useServerTranslations` in `AdminLayoutProvider` so the client fetches locales/messages from the server.
+
+```tsx
+<AdminLayoutProvider
+  admin={admin}
+  client={client}
+  useServerTranslations
+>
+  {children}
+</AdminLayoutProvider>
+```
 
 ## Common Mistakes
 
-- **Sidebar without `.sidebar()`** — Without explicit sidebar config, the admin auto-generates sidebar items from collections and globals. This works but gives you no control over grouping or ordering.
+- **Configuring branding on `qa()`** — Branding belongs on server `q().branding()`.
+- **Configuring admin UI locale on `qa()`** — Use `q().adminLocale()` and `useServerTranslations`.
 - **Widget `span` exceeding columns** — If `span: 3` but `columns: 2`, the widget overflows. Keep `span` at most equal to `columns`.
 - **Missing collection in sidebar** — If a collection exists but isn't in the sidebar, it's still accessible via URL but not discoverable. Always include active collections in the sidebar.
 
 ## Related Pages
 
 - [Admin Overview](/docs/admin) — Architecture overview
-- [Client Builder (qa)](/docs/admin/client-builder-qa) — Where branding is configured
+- [Client Builder (qa)](/docs/admin/client-builder-qa) — Registry ownership
 - [Component Registry](/docs/admin/component-registry) — How icon references work
+- [Localization](/docs/server/localization) — Content vs admin locale split

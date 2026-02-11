@@ -144,16 +144,14 @@ export const barbers = qb
 
 ### `admin/admin.ts`
 
-The client-side builder. It only handles rendering concerns:
+The client-side builder. It only handles registries and rendering concerns:
 
 ```ts
 import { adminModule, qa } from "@questpie/admin/client";
 import type { AppCMS } from "../server/cms";
 
 export const admin = qa<AppCMS>()
-  .use(adminModule)
-  .branding({ name: "My App" })
-  .locale({ locales: ["en", "sk"], defaultLocale: "en" });
+  .use(adminModule);
 ```
 
 ### `routes/api/cms.ts`

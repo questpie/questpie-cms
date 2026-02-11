@@ -1,179 +1,124 @@
 ---
 title: Client Builder (qa)
-description: Configure the admin client with registries, branding, and modules
+description: Compose client registries for admin rendering
 ---
 
 # Client Builder (`qa`)
 
-The `qa()` function creates an `AdminBuilder` that configures the client-side admin panel. It manages registries (fields, views, components, widgets), branding, locale settings, and client-side extensions.
-
-## Why This Exists
-
-The server defines what the admin should show. The client builder defines how to render it. `qa()` is the composition root for all client-side admin configuration — field renderers, custom views, branding, and theme settings.
+`qa()` creates the client admin builder. It exists to register client-side renderers for server-defined contracts.
 
 ## What `qa` Owns
 
-- **Field registry** — Maps field type IDs to React form components and cell renderers
-- **View registry** — Maps view IDs to list and form view components
-- **Component registry** — Maps component refs to React components (icons, badges, etc.)
-- **Widget registry** — Maps widget types to dashboard widget components
-- **Branding** — Name, logo, favicon, primary color
-- **Locale** — Default and supported locales for the admin UI
-- **Pages** — Custom admin pages beyond collections and globals
+- field registry (`.fields()`)
+- view registry (`.views()`)
+- component registry (`.components()`)
+- widget registry (`.widgets()`)
+- page registry (`.pages()`)
+- module composition (`.use()`)
 
 ## What `qa` Does Not Own
 
-- Collection/global schemas (server-defined)
-- Admin contracts — sidebar, dashboard, list/form config (server-defined)
-- Access control rules (server-enforced)
-- Introspection payloads (server-generated)
+- schema definitions (`.collection()`, `.global()`)
+- admin contracts (`.admin()`, `.list()`, `.form()`, `.sidebar()`, `.dashboard()`)
+- branding (`.branding()`)
+- admin UI locales (`.adminLocale()`)
+
+Those live on the server `q()` builder via `@questpie/admin/server`.
 
 ## Setup
 
 ```ts
-import { qa, coreAdminModule } from "@questpie/admin/client";
+import { qa, adminModule } from "@questpie/admin/client";
 import type { AppCMS } from "../server/cms";
 
-export const admin = qa<AppCMS>()
-  .use(coreAdminModule)  // Registers all built-in fields, views, widgets
-  .config({
-    branding: {
-      name: "Barbershop Admin",
-      logo: { type: "icon", props: { name: "ph:scissors" } },
-      primaryColor: "#7c3aed",
-    },
-    locale: {
-      default: "en",
-      supported: ["en", "de", "sk"],
-    },
-  });
+export const admin = qa<AppCMS>().use(adminModule);
 ```
 
-## Builder Methods
+`adminModule` provides built-in field/view/widget/component registries.
+
+## Methods
 
 ### `.use(module)`
 
-Merge another `AdminBuilder` (module). This is how `coreAdminModule` registers all built-in renderers:
+Compose another admin builder module:
 
 ```ts
-qa<AppCMS>()
-  .use(coreAdminModule)           // Built-in fields, views, widgets
-  .use(myCustomFieldsModule)      // Your custom field renderers
+const admin = qa<AppCMS>()
+  .use(adminModule)
+  .use(myCustomModule);
 ```
 
-### `.fields(fieldDefs)`
+### `.fields(map)`
 
 Register field renderers:
 
 ```ts
 .fields({
-  point: {
-    name: "point",
-    kind: "field",
-    createField: (config) => PointFieldComponent,
-    createCell: (config) => PointCellComponent,
-  },
+  color: qa.field("color", { component: ColorField }),
 })
 ```
 
-### `.views(viewDefs)`
+### `.views(map)`
 
-Register list and form view types:
+Register list and edit view types:
 
 ```ts
 .views({
-  kanban: {
-    name: "kanban",
-    kind: "listView",
-    component: KanbanView,
-  },
+  kanban: qa.listView("kanban", { component: KanbanView }),
+  splitForm: qa.editView("splitForm", { component: SplitFormView }),
 })
 ```
 
-### `.widgets(widgetDefs)`
+### `.components(map)`
 
-Register dashboard widget types:
-
-```ts
-.widgets({
-  customChart: {
-    name: "customChart",
-    kind: "widget",
-    component: CustomChartWidget,
-  },
-})
-```
-
-### `.components(components)`
-
-Register components for server-driven rendering:
+Register components used by server component references:
 
 ```ts
 .components({
-  myCustomIcon: MyCustomIconComponent,
+  icon: MyIcon,
+  badge: MyBadge,
 })
 ```
 
-### `.config(config)`
+### `.widgets(map)`
 
-Set admin-wide configuration:
+Register dashboard widget renderers:
 
 ```ts
-.config({
-  branding: { name: "My App", primaryColor: "#3b82f6" },
-  locale: { default: "en", supported: ["en", "fr"] },
+.widgets({
+  analytics: qa.widget("analytics", { component: AnalyticsWidget }),
 })
 ```
 
-### `.pages(pageDefs)`
+### `.pages(map)`
 
 Register custom admin pages:
 
 ```ts
 .pages({
-  analytics: {
-    name: "analytics",
-    path: "/analytics",
-    component: AnalyticsPage,
-  },
+  analytics: qa.page("analytics", { component: AnalyticsPage }).path("/analytics"),
 })
 ```
 
-## Core Admin Module
+## Primitive Helpers
 
-`coreAdminModule` is the built-in module that registers all default renderers. It includes:
+You can use helper factories directly:
 
-**Fields:** text, email, password, url, tel, textarea, number, checkbox, switch, select, date, datetime, time, json, richText, upload, uploadMany, relation, reverseRelation, array, object, blocks, embedded, assetPreview
-
-**Views:** table (list), form (edit)
-
-**Widgets:** stats, chart, recentItems, quickActions, value, table, timeline, progress
-
-**Components:** icon, badge
-
-Always `.use(coreAdminModule)` as your base, then layer custom registrations on top.
-
-## Type Safety
-
-Pass your server CMS type as a generic parameter to get autocomplete for collection names, field types, and RPC handlers:
-
-```ts
-import type { AppCMS } from "../server/cms";
-
-const admin = qa<AppCMS>()
-//               ^^^^^^^
-//               Enables autocomplete for collections, globals, fields
-```
+- `qa.field(name, config)`
+- `qa.listView(name, config)`
+- `qa.editView(name, config)`
+- `qa.widget(name, config)`
+- `qa.page(name, config)`
 
 ## Common Mistakes
 
-- **Forgetting `.use(coreAdminModule)`** — Without it, no built-in field renderers are registered and the admin panel renders nothing.
-- **Registering fields after `.config()`** — Order matters. Register fields and views before setting config.
-- **Not passing the server type** — Without `qa<AppCMS>()`, you lose autocomplete for server-defined collections and fields.
+- Forgetting `.use(adminModule)` and ending up with empty registries.
+- Putting branding/locale on `qa()` instead of configuring them on server `q()`.
+- Duplicating schema or access logic on the client.
 
 ## Related Pages
 
-- [Registries Overview](/docs/admin/registries-overview) — How registries work
-- [Field Renderer Registry](/docs/admin/field-renderer-registry) — Custom field renderers
-- [View Registry](/docs/admin/view-registry-list-and-form) — Custom list and form views
-- [Component Registry](/docs/admin/component-registry) — Custom component refs
+- [Admin Overview](/docs/admin) — Architecture split (server vs client)
+- [qa Builder API](/docs/reference/qa-builder-api) — Full API reference
+- [q Builder API](/docs/reference/q-builder-api) — Server methods (`.branding()`, `.adminLocale()`)
+- [Registries Overview](/docs/admin/registries-overview) — Registry concepts

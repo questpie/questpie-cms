@@ -19,7 +19,7 @@ Server (q + admin server module)
 
 Client (qa + admin client module)
   → field / view / component registries  — how things render
-  → branding, locale, UI overrides       — look and feel
+  → widget/page registries               — client extensions
 ```
 
 The server defines **WHAT** your CMS is. The client defines **HOW** it looks. If you keep this split clear, the framework stays simple at any scale.
@@ -96,13 +96,12 @@ import { adminModule, qa } from "@questpie/admin/client";
 import type { AppCMS } from "../server/cms";
 
 export const admin = qa<AppCMS>()
-  .use(adminModule)
-  .branding({ name: "My CMS" });
+  .use(adminModule);
 ```
 
 ## Common Mistakes
 
-- **Duplicating schema in the client** — The server is the single source of truth. The client admin config should only handle rendering concerns (branding, locale, custom renderers).
+- **Duplicating schema in the client** — The server is the single source of truth. The client admin config should only handle registries and rendering overrides.
 - **Forgetting the server module** — You need `q.use(adminModule)` on the server side, not just `qa.use(adminModule)` on the client.
 - **Hardcoding views** — Use the registry pattern instead of hardcoding component references.
 

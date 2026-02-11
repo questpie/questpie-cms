@@ -353,8 +353,7 @@ import { adminModule, qa } from "@questpie/admin/client";
 import type { AppCMS } from "../server/cms";
 
 export const admin = qa<AppCMS>()
-  .use(adminModule)
-  .branding({ name: "My First CMS" });
+  .use(adminModule);
 ```
 
 ## Step 7: Mount API

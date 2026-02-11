@@ -78,17 +78,15 @@ The admin's stylesheet is built on shadcn/ui conventions — see their [theming 
 
 ### 5. Branding
 
-Set the admin name, logo, and primary color:
+Set admin branding on the server builder:
 
 ```ts
-.config({
-  branding: {
-    name: "My Brand",
-    logo: { type: "icon", props: { name: "my-logo" } },
-    primaryColor: "#3b82f6",
-    favicon: "/my-favicon.ico",
-  },
-})
+const cms = q({ name: "app" })
+  .use(adminModule)
+  .branding({
+    name: { en: "My Brand" },
+    logo: "/logo.svg",
+  });
 ```
 
 See [Dashboard, Sidebar & Branding](/docs/admin/dashboard-sidebar-branding).

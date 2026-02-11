@@ -12,7 +12,7 @@ In QUESTPIE, the server owns contracts and behavior. The client owns rendering.
 | Layer                               | Owns     | Examples                                                                                        |
 | ----------------------------------- | -------- | ----------------------------------------------------------------------------------------------- |
 | Server (`q`, `adminModule` server)  | **WHAT** | fields, validation, access, `.admin()`, `.list()`, `.form()`, `.dashboard()`, `.sidebar()`, rpc |
-| Client (`qa`, `adminModule` client) | **HOW**  | field renderers, view renderers, component rendering, branding, locale                          |
+| Client (`qa`, `adminModule` client) | **HOW**  | field renderers, view renderers, component rendering, widget/page registries                    |
 
 ## Why this is better than dual config
 
@@ -38,8 +38,7 @@ export const pages = qb
 ```ts
 // Client decides HOW those references are rendered
 export const admin = qa<AppCMS>()
-  .use(adminModule)
-  .branding({ name: "Product Control" });
+  .use(adminModule);
 ```
 
 ## Common mistake

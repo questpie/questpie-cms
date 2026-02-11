@@ -16,7 +16,7 @@ const cards = [
 	{
 		icon: Paintbrush,
 		title: "Client Rendering",
-		body: "Client resolves field/view/component registries and keeps full control over visuals, interaction patterns, and branding.",
+		body: "Client resolves field/view/component registries and keeps full control over visuals and interaction patterns.",
 		accent: "HOW",
 	},
 ];

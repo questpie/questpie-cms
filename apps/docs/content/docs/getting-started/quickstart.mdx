@@ -122,7 +122,7 @@ export type AppRpc = typeof appRpc;
 
 ## Step 5: Configure the Admin Client
 
-The client builder handles rendering concerns — branding, locale, and custom UI. It receives all schema information from the server via introspection.
+The client builder handles registries and rendering concerns. It receives schema/admin contracts from the server via introspection.
 
 ```ts
 // src/questpie/admin/admin.ts
@@ -130,8 +130,7 @@ import { adminModule, qa } from "@questpie/admin/client";
 import type { AppCMS } from "../server/cms";
 
 export const admin = qa<AppCMS>()
-  .use(adminModule)
-  .branding({ name: "Quickstart CMS" });
+  .use(adminModule);
 ```
 
 ## Step 6: Mount the API
@@ -186,7 +185,7 @@ Open `http://localhost:3000/admin` to see the admin panel with your Posts collec
 
 1. **Field builder is the source of truth** — field definitions drive the database schema, API validation, and admin UI
 2. **Admin blueprint is server-defined** — `.admin()`, `.list()`, `.form()` tell the admin panel what to render
-3. **Client config is rendering-only** — `qa()` handles branding and UI customization, not data structure
+3. **Client config is rendering-only** — `qa()` handles registries and rendering customization, not data structure
 4. **RPC is typed end-to-end** — Zod schema validates input, TypeScript infers the return type
 
 ## Common Mistakes

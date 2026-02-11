@@ -31,8 +31,7 @@ const presets: Preset[] = [
   .components({
     icon: AppIcon,
     badge: AppBadge,
-  })
-  .branding({ name: "Product Control" });`,
+  });`,
 		points: [
 			"Register custom field renderers",
 			"Use domain-native controls (maps, slots, visual pickers)",
@@ -78,12 +77,10 @@ const presets: Preset[] = [
     badge: AppBadge,
     statusPill: StatusPill,
     emptyState: EmptyStateCard,
-  })
-  .branding({ name: "Product Control" })
-  .locale({ default: "en", supported: ["en", "sk"] });`,
+  });`,
 		points: [
 			"Resolve component refs from registry",
-			"Theme and brand at app level",
+			"Keep UI composition in one place",
 			"Keep tokens/components/UX rules inside your design system",
 		],
 		previewTitle: "Contracts from server, presentation from your app",
@@ -106,8 +103,7 @@ const presets: Preset[] = [
   .components({
     activityFeed: LiveActivityFeed,
     presenceAvatar: PresenceAvatar,
-  })
-  .branding({ name: "Product Control" });`,
+  });`,
 		points: [
 			"Live presence for operators working in parallel",
 			"Realtime highlights for changed rows/fields",
@@ -205,7 +201,9 @@ export function Stack() {
 					</div>
 
 					<div className="space-y-4">
-						<CodeWindow title={activePreset.file}>{activePreset.code}</CodeWindow>
+						<CodeWindow title={activePreset.file}>
+							{activePreset.code}
+						</CodeWindow>
 
 						<div className="border border-border bg-card/30 p-4">
 							<div className="mb-4 space-y-1">
@@ -272,7 +270,10 @@ function StackVisualization({ preset }: { preset: PresetId }) {
 					{ title: "In Progress", items: ["Coloring", "Haircut"] },
 					{ title: "Done", items: ["Styling", "Checkout"] },
 				].map((column) => (
-					<div key={column.title} className="border border-border bg-background/60 p-3">
+					<div
+						key={column.title}
+						className="border border-border bg-background/60 p-3"
+					>
 						<p className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
 							{column.title}
 						</p>

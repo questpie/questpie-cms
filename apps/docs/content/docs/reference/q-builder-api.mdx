@@ -124,6 +124,40 @@ Configure localization.
 
 **Parameter:** `{ locales: string[]; defaultLocale: string }`
 
+### `.branding(config)` _(with `@questpie/admin/server`)_
+
+Configure admin branding on the server builder.
+
+```ts
+import { adminModule } from "@questpie/admin/server";
+
+q({ name: "app" })
+  .use(adminModule)
+  .branding({
+    name: { en: "My Admin" },
+    logo: "/logo.svg",
+  })
+```
+
+This method is added by the admin server module. It is not part of bare `q()`.
+
+### `.adminLocale(config)` _(with `@questpie/admin/server`)_
+
+Configure admin UI locales (interface language), separately from content locales.
+
+```ts
+import { adminModule } from "@questpie/admin/server";
+
+q({ name: "app" })
+  .use(adminModule)
+  .adminLocale({
+    locales: ["en", "sk"],
+    defaultLocale: "en",
+  })
+```
+
+Use `.locale()` for content language; use `.adminLocale()` for admin UI language.
+
 ### `.messages(messages, options?)`
 
 Add backend translation messages. These power `cms.t()` for type-safe translations.

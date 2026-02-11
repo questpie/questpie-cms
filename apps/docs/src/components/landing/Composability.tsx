@@ -28,7 +28,7 @@ const layers = [
 		label: "Client",
 		api: "qa()",
 		description:
-			"Field renderers, views, widgets, branding — all registries.",
+			"Field renderers, views, widgets, components — all registries.",
 	},
 ];
 
@@ -74,9 +74,7 @@ export function Composability() {
 							<div className="mb-3 flex h-9 w-9 items-center justify-center border border-primary/20 bg-primary/10 text-primary transition-colors group-hover:bg-primary/20">
 								<layer.icon className="h-4 w-4" />
 							</div>
-							<h4 className="text-sm font-semibold mb-1">
-								{layer.label}
-							</h4>
+							<h4 className="text-sm font-semibold mb-1">{layer.label}</h4>
 							<code className="text-[10px] font-mono text-primary">
 								{layer.api}
 							</code>

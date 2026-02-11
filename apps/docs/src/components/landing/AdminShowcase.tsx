@@ -30,7 +30,7 @@ const tabs: { id: TabId; label: string; description: string }[] = [
 	{
 		id: "sidebar",
 		label: "Sidebar",
-		description: "Navigation, branding, groups",
+		description: "Navigation, groups, structure",
 	},
 ];
 
@@ -92,7 +92,8 @@ export function AdminShowcase() {
 						The admin panel writes itself
 					</h3>
 					<p className="text-muted-foreground text-balance">
-						Dashboard, tables, forms, sidebar — generated from server definitions. Customize every view through registries.
+						Dashboard, tables, forms, sidebar — generated from server
+						definitions. Customize every view through registries.
 					</p>
 				</motion.div>
 
@@ -186,9 +187,7 @@ export function AdminShowcase() {
 								<h4
 									className={cn(
 										"text-sm font-semibold transition-colors",
-										active === tab.id
-											? "text-primary"
-											: "text-foreground",
+										active === tab.id ? "text-primary" : "text-foreground",
 									)}
 								>
 									{tab.label}
@@ -233,9 +232,7 @@ function DashboardMock() {
 							{stat.label}
 						</p>
 						<p className="mt-1 text-xl font-bold">{stat.value}</p>
-						<p className="mt-0.5 text-[10px] text-primary">
-							{stat.change}
-						</p>
+						<p className="mt-0.5 text-[10px] text-primary">{stat.change}</p>
 					</div>
 				))}
 			</div>
@@ -245,15 +242,13 @@ function DashboardMock() {
 						Content over time
 					</p>
 					<div className="flex items-end gap-1 h-20">
-						{[40, 55, 35, 65, 80, 60, 75, 90, 70, 85, 95, 88].map(
-							(h, i) => (
-								<div
-									key={i}
-									className="flex-1 bg-primary/20 transition-all hover:bg-primary/40"
-									style={{ height: `${h}%` }}
-								/>
-							),
-						)}
+						{[40, 55, 35, 65, 80, 60, 75, 90, 70, 85, 95, 88].map((h, i) => (
+							<div
+								key={i}
+								className="flex-1 bg-primary/20 transition-all hover:bg-primary/40"
+								style={{ height: `${h}%` }}
+							/>
+						))}
 					</div>
 				</div>
 				<div className="border border-border bg-background/60 backdrop-blur-sm p-3">
@@ -267,14 +262,9 @@ function DashboardMock() {
 							"Migration Notes",
 							"v1 Changelog",
 						].map((item) => (
-							<div
-								key={item}
-								className="flex items-center gap-2 text-xs"
-							>
+							<div key={item} className="flex items-center gap-2 text-xs">
 								<div className="h-1.5 w-1.5 bg-primary/40" />
-								<span className="text-foreground truncate">
-									{item}
-								</span>
+								<span className="text-foreground truncate">{item}</span>
 							</div>
 						))}
 					</div>
@@ -316,9 +306,7 @@ function TableMock() {
 		<div className="space-y-3">
 			<div className="flex items-center gap-2">
 				<div className="flex-1 border border-border bg-background/60 backdrop-blur-sm px-3 py-1.5">
-					<span className="text-xs text-muted-foreground">
-						Search posts...
-					</span>
+					<span className="text-xs text-muted-foreground">Search posts...</span>
 				</div>
 				<div className="flex gap-1.5">
 					{["Status: All", "Author: All"].map((filter) => (
@@ -350,9 +338,7 @@ function TableMock() {
 						<span className="text-xs text-foreground truncate">
 							{row.title}
 						</span>
-						<span className="text-xs text-muted-foreground">
-							{row.author}
-						</span>
+						<span className="text-xs text-muted-foreground">{row.author}</span>
 						<span
 							className={cn(
 								"inline-flex w-fit items-center px-1.5 py-0.5 text-[9px] font-medium",
@@ -377,9 +363,7 @@ function TableMock() {
 							key={p}
 							className={cn(
 								"inline-flex h-5 w-5 items-center justify-center border",
-								p === "1"
-									? "border-primary text-primary"
-									: "border-border",
+								p === "1" ? "border-primary text-primary" : "border-border",
 							)}
 						>
 							{p}
@@ -534,10 +518,8 @@ function SidebarMock() {
 					</p>
 					<p className="text-sm text-muted-foreground">
 						Sidebar sections, grouping, and item counts — all from{" "}
-						<code className="text-xs text-foreground">
-							.sidebar()
-						</code>{" "}
-						in your builder config.
+						<code className="text-xs text-foreground">.sidebar()</code> in your
+						builder config.
 					</p>
 				</div>
 				<div className="border border-border bg-background/60 backdrop-blur-sm p-4">
@@ -545,8 +527,8 @@ function SidebarMock() {
 						Client-rendered
 					</p>
 					<p className="text-sm text-muted-foreground">
-						Swap the sidebar component via the client registry to
-						match your product's design system.
+						Swap the sidebar component via the client registry to match your
+						product's design system.
 					</p>
 				</div>
 			</div>

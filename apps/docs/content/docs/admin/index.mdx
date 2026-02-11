@@ -45,19 +45,17 @@ const cms = q({ name: "app" })
 
 ### Client — `@questpie/admin/client`
 
-Builds the admin configuration: registries for fields, views, components, and widgets, plus branding and locale settings.
+Builds the admin rendering layer: registries for fields, views, components, widgets, and pages.
 
 ```ts
 import { qa, coreAdminModule } from "@questpie/admin/client";
 import type { AppCMS } from "../server/cms";
 
 export const admin = qa<AppCMS>()
-  .use(coreAdminModule)
-  .config({
-    branding: { name: "Barbershop Admin" },
-    locale: { default: "en", supported: ["en", "de", "sk"] },
-  });
+  .use(coreAdminModule);
 ```
+
+Branding and admin UI locales are configured on the server builder (`q`) via `@questpie/admin/server` (`.branding()`, `.adminLocale()`).
 
 ## How Rendering Works
 

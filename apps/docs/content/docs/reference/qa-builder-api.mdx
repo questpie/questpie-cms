@@ -1,22 +1,38 @@
 ---
 title: qa Builder API
-description: Admin builder methods — field renderers, views, components, widgets, pages, and branding
+description: Client registry builder methods for fields, views, components, widgets, and pages
 ---
 
 # qa Builder API
 
-`qa()` creates the client admin builder. It registers renderers, components, and views that the admin panel uses to display server-defined schemas. It does not define schema — it resolves and renders server contracts.
+`qa()` creates the client admin builder. It only registers client-side renderers for server-defined contracts.
 
 ```ts
 import { qa, adminModule } from "@questpie/admin/client";
 import type { AppCMS } from "../server/cms";
 
-export const admin = qa<AppCMS>()
-  .use(adminModule)
-  .branding({ name: "My CMS" });
+export const admin = qa<AppCMS>().use(adminModule);
 ```
 
-The type parameter `AppCMS` provides type-safe access to your server schema.
+The `AppCMS` type parameter gives autocomplete against your server schema.
+
+## Scope
+
+`qa()` owns registries and registry composition:
+
+- field renderers
+- list/edit views
+- component references
+- dashboard widgets
+- custom pages
+
+`qa()` intentionally does not own app-level admin chrome config.
+
+- no `.branding()` on `qa`
+- no `.locale()` on `qa`
+- no `.config()` on `qa`
+
+Branding and admin UI locales are configured on the server builder (`q`) via `@questpie/admin/server` methods like `.branding()` and `.adminLocale()`.
 
 ## Methods
 
@@ -125,23 +141,15 @@ Register custom pages accessible via the admin router.
 
 **Parameter:** `Record<string, PageRegistryEntry>`
 
-### `.branding(config)`
+## Helper Factories
 
-Configure the admin panel's appearance.
+`qa` also exports primitive helper factories for advanced composition:
 
-```ts
-.branding({
-  name: "Barbershop Admin",
-  logo: "/logo.svg",
-  favicon: "/favicon.ico",
-})
-```
-
-| Field | Type | Description |
-|---|---|---|
-| `name` | `string` | Application name in sidebar and title |
-| `logo` | `string` | Logo URL for sidebar |
-| `favicon` | `string` | Favicon URL |
+- `qa.field(name, config)`
+- `qa.listView(name, config)`
+- `qa.editView(name, config)`
+- `qa.widget(name, config)`
+- `qa.page(name, config)`
 
 ## Core Admin Module
 
@@ -154,13 +162,6 @@ Configure the admin panel's appearance.
 **Widgets:** `stats`, `progress`, `timeline`
 
 **Components:** `IconifyIcon`, `ComponentRenderer`
-
-## Resolution Flow
-
-1. Server introspection sends field metadata with `type` values
-2. Admin panel looks up `type` in the field registry
-3. Matching renderer component is used to display and edit the field
-4. If no match is found, a fallback text input is rendered
 
 ## Type Safety
 
@@ -175,12 +176,13 @@ const admin = qa<AppCMS>()
 // admin now knows about all collections, globals, and their fields
 ```
 
-This enables type-safe sidebar configuration, dashboard widget data sources, and form layout definitions.
+This enables typed registry authoring against real server entities.
 
 ## Related Pages
 
 - [Admin Overview](/docs/admin) — Architecture and setup
 - [Registries Overview](/docs/admin/registries-overview) — How registries work
+- [q Builder API](/docs/reference/q-builder-api) — Server methods (`.branding()`, `.adminLocale()`)
 - [Field Renderer Registry](/docs/admin/field-renderer-registry) — Built-in field renderers
 - [View Registry](/docs/admin/view-registry-list-and-form) — Table and form views
 - [Component Registry](/docs/admin/component-registry) — Custom components
