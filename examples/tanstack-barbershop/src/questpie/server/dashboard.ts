@@ -268,7 +268,7 @@ export const dashboard = qb.dashboard(({ d, c, a }) =>
 								href: `/admin/collections/appointments/${apt.id}`,
 							}));
 						},
-						span: 1,
+						span: 2,
 					},
 				],
 			},

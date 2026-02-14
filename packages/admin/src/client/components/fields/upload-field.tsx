@@ -69,6 +69,22 @@ import { sanitizeFilename, useResolvedControl } from "./field-utils";
 import { FieldWrapper } from "./field-wrapper";
 
 // ============================================================================
+// Helpers
+// ============================================================================
+
+/**
+ * Normalize accept to always be an array.
+ * Supports both string and array formats from field configs.
+ */
+function normalizeAccept(
+	accept: string | string[] | undefined,
+): string[] | undefined {
+	if (!accept) return undefined;
+	if (Array.isArray(accept)) return accept;
+	return [accept];
+}
+
+// ============================================================================
 // Types
 // ============================================================================
 
@@ -81,8 +97,9 @@ export interface UploadFieldProps extends BaseFieldProps {
 	/**
 	 * Accepted file types (MIME types or extensions)
 	 * @example ["image/*", "application/pdf"]
+	 * @example "image/*"
 	 */
-	accept?: string[];
+	accept?: string | string[];
 
 	/**
 	 * Maximum file size in bytes
@@ -227,7 +244,7 @@ interface SingleUploadInnerProps {
 	error?: string;
 	collection: string;
 	unresolvedCollectionMessage?: string;
-	accept?: string[];
+	accept?: string | string[];
 	maxSize?: number;
 	showPreview: boolean;
 	editable: boolean;
@@ -257,6 +274,9 @@ function SingleUploadInner({
 	onUploadError,
 	className,
 }: SingleUploadInnerProps) {
+	// Normalize accept to always be an array (supports both string and array from field config)
+	const normalizedAccept = normalizeAccept(accept);
+
 	const { t } = useTranslation();
 	const resolveText = useResolveText();
 	const resolvedPlaceholder = placeholder
@@ -321,16 +341,16 @@ function SingleUploadInner({
 
 	const hintText = React.useMemo(() => {
 		const parts: string[] = [];
-		if (accept?.length) {
-			const types = accept
-				.map((t) => {
+		if (normalizedAccept?.length) {
+			const types = normalizedAccept
+				.map((t: string) => {
 					if (t.startsWith("image/")) return "Images";
 					if (t.startsWith("video/")) return "Videos";
 					if (t.startsWith("audio/")) return "Audio";
 					if (t === "application/pdf") return "PDF";
 					return t;
 				})
-				.filter((v, i, a) => a.indexOf(v) === i);
+				.filter((v: string, i: number, a: string[]) => a.indexOf(v) === i);
 			parts.push(types.join(", "));
 		}
 		if (maxSize) {
@@ -338,7 +358,7 @@ function SingleUploadInner({
 			parts.push(`Max ${mb}MB`);
 		}
 		return parts.join(" • ") || undefined;
-	}, [accept, maxSize]);
+	}, [normalizedAccept, maxSize]);
 
 	const hasValue = !!assetId;
 	const isLoading = isUploading || (hasValue && isLoadingAsset);
@@ -377,7 +397,7 @@ function SingleUploadInner({
 			) : (
 				<Dropzone
 					onDrop={handleDrop}
-					accept={accept}
+					accept={normalizedAccept}
 					maxSize={maxSize}
 					multiple={false}
 					disabled={disabled}
@@ -406,7 +426,7 @@ function SingleUploadInner({
 				open={isPickerOpen}
 				onOpenChange={setIsPickerOpen}
 				mode="single"
-				accept={accept}
+				accept={normalizedAccept}
 				onSelect={handlePickerSelect}
 				collection={collection || undefined}
 			/>
@@ -435,7 +455,7 @@ interface MultipleUploadInnerProps {
 	error?: string;
 	collection: string;
 	unresolvedCollectionMessage?: string;
-	accept?: string[];
+	accept?: string | string[];
 	maxSize?: number;
 	maxItems?: number;
 	orderable: boolean;
@@ -466,6 +486,9 @@ function MultipleUploadInner({
 	onUploadError,
 	className,
 }: MultipleUploadInnerProps) {
+	// Normalize accept to always be an array (supports both string and array from field config)
+	const normalizedAccept = normalizeAccept(accept);
+
 	const { t } = useTranslation();
 	const resolveText = useResolveText();
 	const resolvedPlaceholder = placeholder
@@ -634,16 +657,16 @@ function MultipleUploadInner({
 
 	const hintText = React.useMemo(() => {
 		const parts: string[] = [];
-		if (accept?.length) {
-			const types = accept
-				.map((t) => {
+		if (normalizedAccept?.length) {
+			const types = normalizedAccept
+				.map((t: string) => {
 					if (t.startsWith("image/")) return "Images";
 					if (t.startsWith("video/")) return "Videos";
 					if (t.startsWith("audio/")) return "Audio";
 					if (t === "application/pdf") return "PDF";
 					return t;
 				})
-				.filter((v, i, a) => a.indexOf(v) === i);
+				.filter((v: string, i: number, a: string[]) => a.indexOf(v) === i);
 			parts.push(types.join(", "));
 		}
 		if (maxSize) {
@@ -651,7 +674,7 @@ function MultipleUploadInner({
 			parts.push(`Max ${mb}MB`);
 		}
 		return parts.join(" • ") || undefined;
-	}, [accept, maxSize]);
+	}, [normalizedAccept, maxSize]);
 
 	const hasItems = assetIds.length > 0 || pendingUploads.length > 0;
 	const canAddMore = !maxItems || assetIds.length < maxItems;
@@ -727,7 +750,7 @@ function MultipleUploadInner({
 			{canAddMore && !isUploading && !!collection && (
 				<Dropzone
 					onDrop={handleDrop}
-					accept={accept}
+					accept={normalizedAccept}
 					maxSize={maxSize}
 					multiple={true}
 					disabled={disabled}
@@ -761,7 +784,7 @@ function MultipleUploadInner({
 				open={isPickerOpen}
 				onOpenChange={setIsPickerOpen}
 				mode="multiple"
-				accept={accept}
+				accept={normalizedAccept}
 				onSelect={handlePickerSelect}
 				maxItems={maxItems ? maxItems - assetIds.length : undefined}
 				collection={collection || undefined}

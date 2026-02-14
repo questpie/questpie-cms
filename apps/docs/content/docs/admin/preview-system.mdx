@@ -1,113 +1,415 @@
 ---
 title: Preview System
-description: Live preview with side-by-side editing and click-to-focus
+description: Live preview with side-by-side editing, draft mode, and click-to-focus
 ---
 
 # Preview System
 
-QUESTPIE supports live preview — a side-by-side panel in the form view that shows how the content looks on your frontend. Preview URLs are defined on the server; the admin renders the preview iframe and handles communication.
+QUESTPIE supports live preview - a side-by-side panel in the form view that shows how content looks on your frontend. Preview URLs are defined on the server; the admin renders the preview iframe and handles bidirectional communication.
 
 ## Why This Exists
 
-Content editors want to see how their changes look before publishing. The preview system embeds your frontend in an iframe next to the form, updates it as fields change, and supports click-to-focus navigation from the preview to the corresponding form field.
+Content editors want to see how their changes look before publishing. The preview system:
+- Embeds your frontend in an iframe next to the form
+- Updates the preview as fields change (debounced)
+- Supports click-to-focus navigation from preview to form field
+- Handles draft mode via secure tokens
 
-## Setup
+## Architecture Overview
 
-### Server Configuration
+```text
+┌─────────────────────────────────────────────────────────────────┐
+│                        Admin Panel                               │
+├─────────────────────────────────────────────────────────────────┤
+│  ┌─────────────────────┐    ┌─────────────────────────────────┐ │
+│  │     Form Panel      │    │       Preview Iframe            │ │
+│  │                     │    │                                 │ │
+│  │  [Title: ____]      │───▶│   ┌─────────────────────────┐   │ │
+│  │  [Content: ___]     │    │   │  Your Frontend Page     │   │ │
+│  │  [Image: ___]       │◀───│   │  (with preview data)    │   │ │
+│  │                     │    │   └─────────────────────────┘   │ │
+│  └─────────────────────┘    └─────────────────────────────────┘ │
+└─────────────────────────────────────────────────────────────────┘
+         │                              │
+         │ postMessage                  │ postMessage
+         │ (PREVIEW_REFRESH)            │ (FIELD_CLICKED)
+         ▼                              ▼
+```
 
-Add `.preview()` to a collection:
+## Server Configuration
 
-```ts
-export const barbers = qb
-  .collection("barbers")
+### 1. Add `.preview()` to Collection
+
+```ts title="collections/pages.ts"
+import { qb } from "@/questpie/server/builder";
+
+export const pages = qb
+  .collection("pages")
   .fields((f) => ({
-    name: f.text({ required: true }),
-    slug: f.text({}),
-    bio: f.richText({}),
-    avatar: f.upload({}),
+    title: f.text({ required: true, localized: true }),
+    slug: f.text({ required: true }),
+    content: f.blocks({ localized: true }),
+    isPublished: f.boolean({ default: false }),
   }))
   .preview({
     enabled: true,
-    position: "right",        // "right" | "bottom"
-    defaultWidth: 50,         // Percentage of form width
-    url: ({ record }) =>
-      `/barbers/${String(record.slug ?? "preview")}?preview=true`,
-  });
+    position: "right",
+    defaultWidth: 50,
+    url: ({ record, locale }) => {
+      const slug = record.slug as string;
+      // "home" slug maps to root, others to /{slug}
+      const path = slug === "home" ? "/" : `/${slug}`;
+      return `${path}?preview=true${locale ? `&locale=${locale}` : ""}`;
+    },
+  })
+  .list(({ v }) => v.table({}))
+  .form(({ v, f }) => v.form({ fields: [f.title, f.slug, f.content] }));
 ```
 
-### Preview Configuration
+### Preview Configuration Options
 
 | Option | Type | Default | Description |
-|---|---|---|---|
-| `enabled` | `boolean` | `false` | Enable preview panel |
-| `position` | `"right" \| "bottom"` | `"right"` | Panel position relative to form |
-| `defaultWidth` | `number` | `50` | Default width percentage (right position) |
-| `url` | `(ctx) => string` | — | Function generating the preview URL from record data |
+|--------|------|---------|-------------|
+| `enabled` | `boolean` | `true` | Enable preview panel |
+| `position` | `"right" \| "left" \| "bottom"` | `"right"` | Panel position relative to form |
+| `defaultWidth` | `number` | `50` | Default width percentage |
+| `url` | `(ctx) => string` | required | Function generating preview URL |
 
-## How It Works
+The `url` function receives:
+- `record` - Current form values
+- `locale` - Current content locale (if localized)
 
-```text
-Form editing → debounced data update → postMessage to iframe → frontend re-renders
+### 2. Create Preview API Route
+
+The preview system uses secure tokens for draft mode. Create an API route to handle token verification:
+
+```ts title="routes/api/preview.ts"
+import { createDraftModeCookie } from "@questpie/admin/shared";
+import { createPreviewTokenVerifier } from "@questpie/admin/server";
+import { createFileRoute } from "@tanstack/react-router";
+
+const verifyPreviewToken = createPreviewTokenVerifier();
+
+export const Route = createFileRoute("/api/preview")({
+  server: {
+    handlers: {
+      GET: async ({ request }) => {
+        const url = new URL(request.url);
+        const disable = url.searchParams.get("disable");
+
+        // Handle preview disable (clear cookie)
+        if (disable === "true") {
+          return new Response(null, {
+            status: 302,
+            headers: {
+              Location: "/",
+              "Set-Cookie": createDraftModeCookie(false),
+              "Cache-Control": "private, no-store",
+            },
+          });
+        }
+
+        // Handle preview enable
+        const token = url.searchParams.get("token");
+        if (!token) {
+          return new Response("Missing token parameter", { status: 400 });
+        }
+
+        const payload = verifyPreviewToken(token);
+        if (!payload) {
+          return new Response("Invalid or expired preview token", { status: 401 });
+        }
+
+        // Set draft mode cookie and redirect
+        return new Response(null, {
+          status: 302,
+          headers: {
+            Location: payload.path,
+            "Set-Cookie": createDraftModeCookie(true),
+            "Cache-Control": "private, no-store",
+          },
+        });
+      },
+    },
+  },
+});
 ```
 
-1. The admin form view embeds an iframe pointing to the preview URL
-2. As the editor changes field values, the admin sends the updated data via `postMessage`
-3. The frontend application receives the message and re-renders with the preview data
-4. The preview panel is resizable via drag handle
+### 3. Set Environment Variable
+
+Add a secret for signing preview tokens:
+
+```bash title=".env"
+SECRET=your-secure-random-string-here
+# or specifically for preview:
+PREVIEW_SECRET=your-preview-secret-here
+```
 
 ## Frontend Integration
 
-Your frontend needs to listen for preview messages:
+### Basic Integration with `useCollectionPreview`
 
-```ts
-// In your frontend route component
-useEffect(() => {
-  const handler = (event: MessageEvent) => {
-    if (event.data?.type === "questpie:preview") {
-      setPreviewData(event.data.payload);
-    }
+The `useCollectionPreview` hook handles all preview communication:
+
+```tsx title="components/PageRenderer.tsx"
+import {
+  BlockRenderer,
+  PreviewProvider,
+  useCollectionPreview,
+  type BlockContent,
+} from "@questpie/admin/client";
+import { useRouter } from "@tanstack/react-router";
+
+interface PageRendererProps {
+  page: {
+    id: string;
+    title: string;
+    content: BlockContent;
   };
-  window.addEventListener("message", handler);
-  return () => window.removeEventListener("message", handler);
-}, []);
+}
+
+export function PageRenderer({ page }: PageRendererProps) {
+  const router = useRouter();
+
+  const {
+    data,                  // Reactive data (preview or initial)
+    isPreviewMode,         // Whether in preview mode
+    selectedBlockId,       // Currently selected block (for highlighting)
+    focusedField,          // Currently focused field path
+    handleFieldClick,      // Handler for field clicks
+    handleBlockClick,      // Handler for block clicks
+  } = useCollectionPreview({
+    initialData: page,
+    onRefresh: () => router.invalidate(),
+  });
+
+  return (
+    <PreviewProvider
+      isPreviewMode={isPreviewMode}
+      focusedField={focusedField}
+      onFieldClick={handleFieldClick}
+    >
+      <article className={isPreviewMode ? "preview-mode" : ""}>
+        <h1>{data.title}</h1>
+        
+        {data.content && (
+          <BlockRenderer
+            content={data.content}
+            renderers={blockRenderers}
+            data={data.content._data}
+            selectedBlockId={selectedBlockId}
+            onBlockClick={isPreviewMode ? handleBlockClick : undefined}
+          />
+        )}
+
+        {isPreviewMode && <PreviewModeIndicator />}
+      </article>
+    </PreviewProvider>
+  );
+}
+
+function PreviewModeIndicator() {
+  return (
+    <div className="fixed bottom-4 right-4 bg-blue-500 text-white px-4 py-2 rounded-full shadow-lg">
+      Preview Mode - Click elements to edit
+    </div>
+  );
+}
 ```
 
-## Click-to-Focus
+### Click-to-Focus with `PreviewField`
 
-With click-to-focus, clicking an element in the preview panel focuses the corresponding field in the form. This requires adding `data-questpie-field` attributes to your frontend components:
+Wrap clickable elements with `PreviewField` for click-to-focus functionality:
+
+```tsx title="components/BarberProfile.tsx"
+import {
+  PreviewProvider,
+  PreviewField,
+  useCollectionPreview,
+} from "@questpie/admin/client";
+
+export function BarberProfile({ barber }) {
+  const {
+    data,
+    isPreviewMode,
+    focusedField,
+    handleFieldClick,
+  } = useCollectionPreview({
+    initialData: barber,
+  });
+
+  return (
+    <PreviewProvider
+      isPreviewMode={isPreviewMode}
+      focusedField={focusedField}
+      onFieldClick={handleFieldClick}
+    >
+      <div className="profile">
+        {/* Clicking this focuses the "name" field in admin */}
+        <PreviewField field="name" as="h1" className="text-4xl font-bold">
+          {data.name}
+        </PreviewField>
+
+        {/* Clicking this focuses the "bio" field in admin */}
+        <PreviewField field="bio" as="div" className="prose">
+          {data.bio}
+        </PreviewField>
+
+        {/* For nested fields */}
+        <PreviewField field="contact.email" as="a" href={`mailto:${data.contact?.email}`}>
+          {data.contact?.email}
+        </PreviewField>
+      </div>
+    </PreviewProvider>
+  );
+}
+```
+
+### Manual Integration (without hooks)
+
+If you need more control, listen for messages directly:
 
 ```tsx
-// In your frontend component
-<h1 data-questpie-field="title">{data.title}</h1>
-<div data-questpie-field="bio">{data.bio}</div>
-<img data-questpie-field="avatar" src={data.avatar?.url} />
+import { useEffect, useState } from "react";
+
+export function ManualPreviewPage({ initialData }) {
+  const [data, setData] = useState(initialData);
+  const [isPreviewMode, setIsPreviewMode] = useState(false);
+
+  useEffect(() => {
+    const handler = (event: MessageEvent) => {
+      // Verify origin in production
+      if (event.data?.type === "PREVIEW_REFRESH") {
+        setIsPreviewMode(true);
+        // Data comes from parent iframe
+      }
+    };
+
+    window.addEventListener("message", handler);
+    
+    // Signal that preview is ready
+    window.parent?.postMessage({ type: "PREVIEW_READY" }, "*");
+    
+    return () => window.removeEventListener("message", handler);
+  }, []);
+
+  return <div>{/* render with data */}</div>;
+}
 ```
 
-When the preview iframe detects a click on an element with `data-questpie-field`, it sends a message back to the admin, which scrolls to and focuses the corresponding form field.
+## PostMessage Protocol
 
-## Preview URLs
+### Admin to Preview Messages
 
-Keep preview URLs:
-- **Deterministic** — The same record should always produce the same URL
-- **Environment-aware** — Use relative paths or env-based base URLs
-- **Token-based** — Add `?preview=true` or a preview token for draft content
+| Type | Description |
+|------|-------------|
+| `PREVIEW_REFRESH` | Data updated, re-render preview |
+| `SELECT_BLOCK` | Highlight a specific block |
+| `FOCUS_FIELD` | Scroll to and highlight a field |
+
+### Preview to Admin Messages
+
+| Type | Description |
+|------|-------------|
+| `PREVIEW_READY` | Preview iframe loaded and ready |
+| `FIELD_CLICKED` | User clicked a field in preview |
+| `BLOCK_CLICKED` | User clicked a block in preview |
+| `REFRESH_COMPLETE` | Preview finished re-rendering |
+
+## Draft Mode
+
+The preview system uses a `__draft_mode` cookie to enable draft content:
+
+```ts
+// Check if draft mode is enabled
+import { isDraftMode } from "@questpie/admin/shared";
+
+export async function loader({ request }) {
+  const cookieHeader = request.headers.get("Cookie");
+  const draftMode = isDraftMode(cookieHeader);
+
+  if (draftMode) {
+    // Fetch draft/unpublished content
+    return fetchDraftContent();
+  } else {
+    // Fetch published content only
+    return fetchPublishedContent();
+  }
+}
+```
+
+## Token Flow
+
+```text
+1. Editor clicks "Preview" in admin
+2. Admin calls mintPreviewToken RPC → gets signed JWT-like token
+3. Admin opens iframe: /api/preview?token=xxx
+4. Preview route verifies token, sets __draft_mode cookie
+5. Preview route redirects to target path
+6. Frontend detects cookie, loads draft content
+7. Admin and preview communicate via postMessage
+```
+
+## Best Practices
+
+### Preview URLs
 
 ```ts
 // Good: relative, deterministic
-url: ({ record }) => `/barbers/${record.slug}?preview=true`
+url: ({ record }) => `/${record.slug}?preview=true`
 
 // Good: environment-aware
-url: ({ record }) => `${process.env.FRONTEND_URL}/barbers/${record.slug}?preview=true`
+url: ({ record }) => `${process.env.PUBLIC_URL}/${record.slug}?preview=true`
+
+// Good: locale-aware
+url: ({ record, locale }) => `/${locale}/${record.slug}?preview=true`
+
+// Bad: hardcoded domain
+url: ({ record }) => `https://example.com/${record.slug}` // Avoid!
 ```
 
-## Common Mistakes
+### Performance
 
-- **Cross-origin issues** — If the frontend runs on a different domain, configure CORS headers and use `targetOrigin` in `postMessage`.
-- **Heavy preview renders** — The preview refreshes on every field change (debounced). Keep your frontend render lightweight or increase the debounce delay.
-- **Missing `?preview=true`** — Without a preview flag, your frontend may redirect or show published-only content. Always include a preview parameter.
+- Preview refreshes are debounced (300ms default)
+- Keep frontend renders lightweight
+- Use React.memo for expensive components
+- Consider skeleton states during updates
+
+### Security
+
+- Always verify token signatures
+- Use environment-specific secrets
+- Set appropriate CORS headers for cross-origin previews
+- Expire tokens (default: 1 hour)
+
+## Common Issues
+
+### Preview button not showing
+
+1. Check that `.preview()` is configured on the collection
+2. Verify `enabled: true` (or omit, defaults to true)
+3. Ensure the `url` function is defined
+
+### Cross-origin errors
+
+If frontend runs on different domain:
+
+```ts
+// In your preview message handler
+window.parent?.postMessage(
+  { type: "PREVIEW_READY" },
+  "https://your-admin-domain.com" // Specific origin, not "*"
+);
+```
+
+### Draft content not loading
+
+1. Check `__draft_mode` cookie is set
+2. Verify preview API route is working
+3. Ensure `SECRET` or `PREVIEW_SECRET` env var is set
 
 ## Related Pages
 
-- [Collections](/docs/server/collections) — Server-side `.preview()` configuration
-- [View Registry](/docs/admin/view-registry-list-and-form) — Form view with preview panel
-- [Blocks System](/docs/admin/blocks-system) — Block preview in page builders
+- [Collections](/docs/server/collections) - Server-side collection configuration
+- [Blocks System](/docs/admin/blocks-system) - Block preview in page builders
+- [View Registry](/docs/admin/view-registry-list-and-form) - Form view configuration

@@ -50,6 +50,16 @@ export const pages = qb
 		label: { en: "Pages", sk: "Stránky" },
 		icon: c.icon("ph:article"),
 	}))
+	.preview({
+		enabled: true,
+		position: "right",
+		defaultWidth: 50,
+		url: ({ record }) => {
+			const slug = record.slug as string;
+			// "home" slug maps to root, others map to /{slug}
+			return slug === "home" ? "/?preview=true" : `/${slug}?preview=true`;
+		},
+	})
 	.list(({ v }) => v.table({}))
 	.form(({ v, f }) =>
 		v.form({

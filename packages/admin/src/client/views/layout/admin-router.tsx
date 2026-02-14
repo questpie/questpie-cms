@@ -22,8 +22,8 @@ import type {
 	MaybeLazyComponent,
 	PageDefinition,
 } from "../../builder";
-import { Card } from "../../components/index.js";
-import { useAdminConfig } from "../../hooks/use-admin-config";
+import { Card, Skeleton } from "../../components/index.js";
+import { useSuspenseAdminConfig } from "../../hooks/use-admin-config";
 import { useCollectionSchema } from "../../hooks/use-collection-schema";
 import { useGlobalSchema } from "../../hooks/use-global-schema";
 import { parsePrefillParams } from "../../hooks/use-prefill-params";
@@ -139,17 +139,10 @@ export interface AdminRouterProps {
 }
 
 // ============================================================================
-// Internal Hook - Resolve props from store
+// Internal Hook - Resolve config from store (Suspense-based)
 // ============================================================================
 
-function useRouterProps(props: {
-	collections?: Record<string, CollectionRouterConfig>;
-	globals?: Record<string, GlobalRouterConfig>;
-	pages?: Record<string, PageDefinition<string>>;
-	dashboardConfig?: DashboardConfig;
-	DashboardComponent?: React.ComponentType;
-	defaultViews?: DefaultViewsConfig;
-}): {
+interface RouterConfig {
 	collections: Record<string, CollectionRouterConfig>;
 	globals: Record<string, GlobalRouterConfig>;
 	pages: Record<string, PageDefinition<string>>;
@@ -158,25 +151,40 @@ function useRouterProps(props: {
 	dashboardConfig?: DashboardConfig;
 	DashboardComponent?: React.ComponentType;
 	defaultViews?: DefaultViewsConfig;
-} {
+}
+
+/**
+ * Hook that resolves router configuration using Suspense.
+ * Suspends until server config is loaded - no loading checks needed.
+ */
+function useRouterConfig(props: {
+	collections?: Record<string, CollectionRouterConfig>;
+	globals?: Record<string, GlobalRouterConfig>;
+	pages?: Record<string, PageDefinition<string>>;
+	dashboardConfig?: DashboardConfig;
+	DashboardComponent?: React.ComponentType;
+	defaultViews?: DefaultViewsConfig;
+}): RouterConfig {
 	// Subscribe to admin from store reactively
 	const admin = useAdminStore((s) => s.admin);
 
-	// Fetch server-side admin config
-	const { data: serverConfig } = useAdminConfig();
+	// Fetch server-side admin config (suspends until ready)
+	const { data: serverConfig } = useSuspenseAdminConfig();
 
 	const storePages = admin.getPages();
 	const storeListViews = admin.getListViews() as Record<string, any>;
 	const storeEditViews = admin.getEditViews() as Record<string, any>;
 	const storeDefaultViews = admin.getDefaultViews();
 
-	// Build collection/global configs from server config keys (for route matching)
+	// Build collection/global configs from server config keys
+	// Hidden collections are included - they can be accessed via ResourceSheet
+	// but won't appear in navigation (handled by sidebar)
 	const serverCollections = React.useMemo<Record<string, any>>(() => {
 		if (props.collections) return props.collections;
 		const result: Record<string, any> = {};
 		if (serverConfig?.collections) {
-			for (const name of Object.keys(serverConfig.collections)) {
-				result[name] = serverConfig.collections[name] ?? {};
+			for (const [name, meta] of Object.entries(serverConfig.collections)) {
+				result[name] = meta ?? {};
 			}
 		}
 		return result;
@@ -186,8 +194,8 @@ function useRouterProps(props: {
 		if (props.globals) return props.globals;
 		const result: Record<string, any> = {};
 		if (serverConfig?.globals) {
-			for (const name of Object.keys(serverConfig.globals)) {
-				result[name] = serverConfig.globals[name] ?? {};
+			for (const [name, meta] of Object.entries(serverConfig.globals)) {
+				result[name] = meta ?? {};
 			}
 		}
 		return result;
@@ -196,13 +204,9 @@ function useRouterProps(props: {
 	// Server dashboard takes priority
 	const mergedDashboard = React.useMemo<DashboardConfig | undefined>(() => {
 		const serverDashboard = serverConfig?.dashboard;
-
-		// If server has items, use server config entirely
 		if (serverDashboard?.items?.length) {
 			return serverDashboard as DashboardConfig;
 		}
-
-		// Otherwise fall back to local prop
 		return props.dashboardConfig;
 	}, [props.dashboardConfig, serverConfig?.dashboard]);
 
@@ -371,6 +375,23 @@ function UnknownViewState({
 	);
 }
 
+/**
+ * Skeleton shown while router config is loading (Suspense fallback)
+ */
+function RouterSkeleton() {
+	return (
+		<div className="container space-y-4 py-6">
+			<Skeleton className="h-8 w-48" />
+			<Skeleton className="h-10 w-full" />
+			<div className="space-y-2">
+				<Skeleton className="h-12 w-full" />
+				<Skeleton className="h-12 w-full" />
+				<Skeleton className="h-12 w-full" />
+			</div>
+		</div>
+	);
+}
+
 function RegistryViewRenderer({
 	loader,
 	componentProps,
@@ -519,6 +540,50 @@ function DefaultNotFound() {
 	);
 }
 
+function RestrictedAccess({
+	type,
+	name,
+	navigate,
+	basePath,
+}: {
+	type: "collection" | "global";
+	name: string;
+	navigate: (path: string) => void;
+	basePath: string;
+}) {
+	return (
+		<div className="container py-12">
+			<Card className="relative mx-auto max-w-lg overflow-hidden p-8 text-center">
+				<div className="absolute -right-16 -top-16 h-40 w-40 rounded-full bg-muted/50 blur-3xl" />
+				<div className="absolute -left-16 -bottom-16 h-40 w-40 rounded-full bg-muted/30 blur-3xl" />
+				<div className="relative">
+					<div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-muted">
+						<Icon
+							icon="ph:lock-simple"
+							className="h-8 w-8 text-muted-foreground"
+						/>
+					</div>
+					<h1 className="mb-2 text-xl font-semibold">Access Restricted</h1>
+					<p className="mb-6 text-sm text-muted-foreground">
+						The {type}{" "}
+						<span className="font-mono text-foreground">"{name}"</span> is not
+						available in the admin panel. It may be hidden or you don't have
+						permission to access it.
+					</p>
+					<button
+						type="button"
+						onClick={() => navigate(basePath)}
+						className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+					>
+						<Icon icon="ph:arrow-left" className="h-4 w-4" />
+						Back to Dashboard
+					</button>
+				</div>
+			</Card>
+		</div>
+	);
+}
+
 function LazyPageRenderer({ config }: { config: PageDefinition<string> }) {
 	const [Component, setComponent] = React.useState<React.ComponentType | null>(
 		null,
@@ -614,7 +679,25 @@ function LazyPageRenderer({ config }: { config: PageDefinition<string> }) {
  * />
  * ```
  */
-export function AdminRouter({
+/**
+ * AdminRouter Component
+ *
+ * Routes to the appropriate view based on URL segments.
+ * Uses Suspense internally - shows skeleton while config loads.
+ */
+export function AdminRouter(props: AdminRouterProps): React.ReactElement {
+	return (
+		<React.Suspense fallback={<RouterSkeleton />}>
+			<AdminRouterInner {...props} />
+		</React.Suspense>
+	);
+}
+
+/**
+ * Inner router component that uses Suspense for data loading.
+ * Guaranteed to have config loaded when rendering.
+ */
+function AdminRouterInner({
 	segments,
 	navigate,
 	basePath = "/admin",
@@ -646,7 +729,7 @@ export function AdminRouter({
 		[searchParams],
 	);
 
-	// Resolve props from store or use provided values
+	// Resolve config using suspense - guaranteed to have data
 	const {
 		collections,
 		globals,
@@ -656,7 +739,7 @@ export function AdminRouter({
 		dashboardConfig,
 		DashboardComponent,
 		defaultViews,
-	} = useRouterProps({
+	} = useRouterConfig({
 		collections: collectionsProp,
 		globals: globalsProp,
 		pages: pagesProp,
@@ -722,6 +805,19 @@ export function AdminRouter({
 	if (route.type === "collection-list") {
 		const { name } = route;
 		const config = collections[name];
+
+		// Collection not found - show restricted access
+		if (!config) {
+			return (
+				<RestrictedAccess
+					type="collection"
+					name={name}
+					navigate={navigate}
+					basePath={basePath}
+				/>
+			);
+		}
+
 		const custom = collectionComponents[name];
 		const viewNameFromSchema = (activeCollectionSchema as any)?.admin?.list
 			?.view;
@@ -772,6 +868,19 @@ export function AdminRouter({
 		const { name } = route;
 		const id = route.type === "collection-edit" ? route.id : undefined;
 		const config = collections[name];
+
+		// Collection not found - show restricted access
+		if (!config) {
+			return (
+				<RestrictedAccess
+					type="collection"
+					name={name}
+					navigate={navigate}
+					basePath={basePath}
+				/>
+			);
+		}
+
 		const custom = collectionComponents[name];
 		const formDefaults = defaultViews?.collectionForm;
 		const viewNameFromSchema = (activeCollectionSchema as any)?.admin?.form
@@ -829,6 +938,19 @@ export function AdminRouter({
 	if (route.type === "global-edit") {
 		const { name } = route;
 		const config = globals[name];
+
+		// Global not found (may be hidden or inaccessible)
+		if (!config) {
+			return (
+				<RestrictedAccess
+					type="global"
+					name={name}
+					navigate={navigate}
+					basePath={basePath}
+				/>
+			);
+		}
+
 		const custom = globalComponents[name];
 		const viewNameFromSchema = (activeGlobalSchema as any)?.admin?.form?.view;
 		const viewNameFromConfig = getConfiguredViewName((config as any)?.form);

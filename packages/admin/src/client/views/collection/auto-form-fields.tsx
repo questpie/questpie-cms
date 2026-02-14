@@ -198,27 +198,13 @@ function mapFormSchemaToConfig(
 ): FormViewConfig | undefined {
 	if (!form) return undefined;
 
-	if (form.tabs?.length) {
-		return {
-			fields: [
-				{
-					type: "tabs",
-					tabs: form.tabs.map((tab, index) => ({
-						id: formatTabId(tab.label, index),
-						label: tab.label,
-						fields: mapSectionsToLayout(tab.sections ?? []),
-					})),
-				},
-			],
-		};
-	}
-
-	if (form.sections?.length) {
-		return { fields: mapSectionsToLayout(form.sections) };
-	}
-
+	// New format: form already has the correct FormViewConfig structure
+	// with fields array containing inline sections/tabs
 	if (form.fields?.length) {
-		return { fields: form.fields };
+		return {
+			fields: form.fields as FieldLayoutItem[],
+			sidebar: form.sidebar as FormSidebarConfig | undefined,
+		};
 	}
 
 	return undefined;

@@ -85,6 +85,7 @@ import {
 } from "../../utils/detect-relations";
 
 import { AutoFormFields } from "./auto-form-fields";
+import { FormViewSkeleton } from "./view-skeletons";
 
 // ============================================================================
 // Constants
@@ -306,9 +307,11 @@ export default function FormView({
 	// Try to get preview context (will be null if not in LivePreviewMode)
 	const previewContext = useLivePreviewContext();
 
-	// Preview configuration from collection config
-	const previewConfig = (config as any)?.preview as PreviewConfig | undefined;
-	const hasPreview = !!previewConfig?.url && previewConfig?.enabled !== false;
+	// Preview configuration from introspected schema (server-side .preview() config)
+	// Note: url function cannot be serialized, so we use hasUrlBuilder flag + RPC
+	const schemaPreview = schema?.admin?.preview;
+	const hasPreview =
+		!!schemaPreview?.hasUrlBuilder && schemaPreview?.enabled !== false;
 
 	// Check URL for ?preview=true on mount
 	const [isLivePreviewOpen, setIsLivePreviewOpen] = React.useState(() => {
@@ -1038,27 +1041,40 @@ export default function FormView({
 		};
 	}, [watchedValues, isEditMode, isBlocked, refreshLock]);
 
-	// Generate preview URL (must be after useWatch for reactive updates)
-	// Compute preview URL for LivePreviewMode
-	const previewUrl = React.useMemo(() => {
-		if (!hasPreview || !previewConfig?.url) return null;
-		try {
-			// Use watched values (reactive) instead of form.getValues() (non-reactive)
-			const formValues = (watchedValues ?? {}) as Record<string, any>;
-			return previewConfig.url(formValues, contentLocale);
-		} catch {
-			return null;
-		}
-	}, [hasPreview, previewConfig, watchedValues, contentLocale]);
+	// Generate preview URL via server RPC (url function runs server-side)
+	// Must be after useWatch for reactive updates to form values
+	const [previewUrl, setPreviewUrl] = React.useState<string | null>(null);
 
+	React.useEffect(() => {
+		if (!hasPreview || !client) {
+			setPreviewUrl(null);
+			return;
+		}
+
+		// Debounce the RPC call to avoid too many requests
+		const timeoutId = setTimeout(async () => {
+			try {
+				const formValues = (watchedValues ?? {}) as Record<string, unknown>;
+				// Type assertion needed - getPreviewUrl is dynamically registered via adminModule
+				const rpc = (client as any).rpc;
+				const result = await rpc.getPreviewUrl({
+					collection,
+					record: formValues,
+					locale: contentLocale,
+				});
+				setPreviewUrl(result?.url ?? null);
+			} catch {
+				setPreviewUrl(null);
+			}
+		}, 300);
+
+		return () => clearTimeout(timeoutId);
+	}, [hasPreview, client, collection, watchedValues, contentLocale]);
+
+	// Show skeleton until form data is ready (edit mode only)
+	// This prevents race conditions where form fields render before data is loaded
 	if (isEditMode && isLoading) {
-		return (
-			<div className="w-full">
-				<div className="flex h-64 items-center justify-center text-muted-foreground">
-					<Icon icon="ph:spinner-gap" className="size-6 animate-spin" />
-				</div>
-			</div>
-		);
+		return <FormViewSkeleton />;
 	}
 
 	const collectionLabel = resolveText(

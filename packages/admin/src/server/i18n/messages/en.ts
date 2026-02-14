@@ -392,6 +392,8 @@ export default {
 	"defaults.users.sections.basicInfo": "Basic Information",
 	"defaults.users.sections.permissions": "Permissions",
 	"defaults.users.sections.accessControl": "Access Control",
+	"defaults.users.tabs.profile": "Profile",
+	"defaults.users.tabs.security": "Security",
 	"defaults.users.actions.createUser.label": "Create User",
 	"defaults.users.actions.createUser.title": "Create User",
 	"defaults.users.actions.createUser.description":
@@ -447,6 +449,7 @@ export default {
 	"defaults.assets.fields.visibility.description":
 		"Public files are accessible without authentication. Private files require a signed URL.",
 	"defaults.assets.sections.fileInfo": "File Information",
+	"defaults.assets.sections.dimensions": "Dimensions",
 	"defaults.assets.sections.metadata": "Metadata",
 	"defaults.assets.sections.metadata.description":
 		"Add descriptive information for accessibility and SEO",

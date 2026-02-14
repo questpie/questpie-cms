@@ -11,7 +11,6 @@ import * as React from "react";
 import type { BlockNode } from "../../blocks/types.js";
 import type { FieldDefinition } from "../../builder/field/field.js";
 import { useResolveText } from "../../i18n/hooks.js";
-import { FormField } from "../../views/collection/form-field.js";
 import { Button } from "../ui/button.js";
 import {
 	useBlockEditor,
@@ -160,38 +159,28 @@ function BlockFormField({ name, blockId, definition }: BlockFormFieldProps) {
 		| React.ComponentType<any>
 		| undefined;
 
-	// If field has a registered component, use it with scoped name
-	if (FieldComponent) {
-		const componentProps = {
-			name: scopedName,
-			label,
-			description,
-			placeholder,
-			required: options.required ?? false,
-			disabled: options.disabled ?? false,
-			readOnly: options.readOnly ?? false,
-			localized: options.localized ?? false, // IMPORTANT: Pass localized for LocaleBadge
-			// Pass all field-specific options
-			...stripUiOptions(options),
-		};
-
-		return <FieldComponent {...componentProps} />;
+	// All fields should have a registered component (registry-first)
+	if (!FieldComponent) {
+		return (
+			<div className="text-sm text-destructive">
+				No component registered for field type: {fieldType}
+			</div>
+		);
 	}
 
-	// Fallback to FormField for unregistered field types
-	return (
-		<FormField
-			name={scopedName}
-			label={label}
-			description={description}
-			placeholder={placeholder}
-			required={options.required}
-			disabled={options.disabled}
-			localized={options.localized} // IMPORTANT: Pass localized for LocaleBadge
-			type={fieldType as any}
-			options={options.options}
-		/>
-	);
+	const componentProps = {
+		name: scopedName,
+		label,
+		description,
+		placeholder,
+		required: options.required ?? false,
+		disabled: options.disabled ?? false,
+		readOnly: options.readOnly ?? false,
+		localized: options.localized ?? false,
+		...stripUiOptions(options),
+	};
+
+	return <FieldComponent {...componentProps} />;
 }
 
 // Strip UI-specific options that shouldn't be passed to field components

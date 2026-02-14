@@ -279,9 +279,28 @@ export function useReactiveFields({
 		form,
 	]);
 
+	// Track if we've done initial fetch (to avoid running on empty form data)
+	const isInitializedRef = React.useRef(false);
+
 	// Effect to trigger reactive updates on dep changes
+	// Also handles initial fetch when form data becomes available (fixes race condition)
 	React.useEffect(() => {
 		if (!enabled || watchDeps.size === 0) return;
+
+		// Check if form has actual data (not empty defaults)
+		// This prevents fetching before form data is loaded
+		const hasFormData = Object.keys(formValues).some(
+			(key) => formValues[key] !== undefined && formValues[key] !== null,
+		);
+		if (!hasFormData) return;
+
+		// Initial fetch when data first becomes available
+		if (!isInitializedRef.current) {
+			isInitializedRef.current = true;
+			prevValuesRef.current = { ...formValues };
+			fetchReactiveStates();
+			return;
+		}
 
 		// Check if any watched deps changed
 		let hasChanges = false;
@@ -312,16 +331,6 @@ export function useReactiveFields({
 			}
 		};
 	}, [enabled, watchDeps, formValues, debounce, fetchReactiveStates]);
-
-	// Initial fetch on mount
-	React.useEffect(() => {
-		if (enabled && Object.keys(reactiveConfigs).length > 0) {
-			prevValuesRef.current = { ...formValues };
-			fetchReactiveStates();
-		}
-		// Only run on mount
-		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, []);
 
 	// Refresh function
 	const refresh = React.useCallback(() => {

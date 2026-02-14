@@ -7,11 +7,46 @@ import * as React from "react";
 import { CollectionEditLink } from "../../../admin-link";
 import { resolveIconElement } from "../../../component-renderer";
 import { Button } from "../../../ui/button";
+import { Skeleton } from "../../../ui/skeleton";
 import {
 	getImageUrl,
 	getItemDisplayValue,
 	type RelationDisplayProps,
 } from "./types";
+
+const gridCols = {
+	1: "grid-cols-1",
+	2: "grid-cols-2",
+	3: "grid-cols-2 sm:grid-cols-3",
+	4: "grid-cols-2 sm:grid-cols-3 lg:grid-cols-4",
+};
+
+function GridSkeleton({
+	count = 6,
+	gridColumns = 3,
+}: {
+	count?: number;
+	gridColumns?: 1 | 2 | 3 | 4;
+}) {
+	const skeletonKeys = React.useMemo(
+		() => Array.from({ length: count }, () => crypto.randomUUID()),
+		[count],
+	);
+
+	return (
+		<div className={`grid gap-2 ${gridCols[gridColumns]}`}>
+			{skeletonKeys.map((key) => (
+				<div
+					key={key}
+					className="flex items-center gap-2 rounded-md border border-border/60 bg-card/30 backdrop-blur-sm p-2"
+				>
+					<Skeleton className="size-8 shrink-0 rounded" />
+					<Skeleton className="h-4 flex-1 max-w-[120px] rounded" />
+				</div>
+			))}
+		</div>
+	);
+}
 
 export function GridDisplay({
 	items,
@@ -22,17 +57,17 @@ export function GridDisplay({
 	fields,
 	gridColumns = 3,
 	linkToDetail = false,
+	isLoading = false,
+	loadingCount = 6,
 }: RelationDisplayProps) {
 	const getTitle = (item: any) =>
 		item[fields?.title || "_title"] || getItemDisplayValue(item);
 	const getImage = (item: any) => getImageUrl(item, fields?.image);
 
-	const gridCols = {
-		1: "grid-cols-1",
-		2: "grid-cols-2",
-		3: "grid-cols-2 sm:grid-cols-3",
-		4: "grid-cols-2 sm:grid-cols-3 lg:grid-cols-4",
-	};
+	// Show skeleton when loading and no items
+	if (isLoading && items.length === 0) {
+		return <GridSkeleton count={loadingCount} gridColumns={gridColumns} />;
+	}
 
 	return (
 		<div className={`grid gap-2 ${gridCols[gridColumns]}`}>

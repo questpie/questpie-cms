@@ -208,6 +208,9 @@ export function RelationPicker<T extends Questpie<any>>({
 		() => new Map(),
 	);
 
+	// Track loading state for items
+	const [isLoadingItems, setIsLoadingItems] = React.useState(false);
+
 	// Load options from server with search
 	const loadOptions = React.useCallback(
 		async (search: string): Promise<SelectOption<string>[]> => {
@@ -303,19 +306,30 @@ export function RelationPicker<T extends Questpie<any>>({
 
 	// Fetch selected items on mount for display
 	React.useEffect(() => {
-		if (!client || !selectedIds.length) return;
+		if (!client || !selectedIds.length) {
+			setIsLoadingItems(false);
+			return;
+		}
 
 		// Fetch any selected items that we don't have in cache
 		const missingIds = selectedIds.filter((id) => !fetchedItems.has(id));
-		if (missingIds.length === 0) return;
+		if (missingIds.length === 0) {
+			setIsLoadingItems(false);
+			return;
+		}
+
+		setIsLoadingItems(true);
+
+		let cancelled = false;
 
 		(async () => {
 			try {
 				for (const id of missingIds) {
+					if (cancelled) return;
 					const response = await (client as any).collections[
 						targetCollection
 					].findOne({ where: { id } });
-					if (response) {
+					if (!cancelled && response) {
 						// Immutable update - spread prev and add new entry
 						setFetchedItems((prev) => new Map([...prev, [id, response]]));
 					}
@@ -323,8 +337,16 @@ export function RelationPicker<T extends Questpie<any>>({
 			} catch (error) {
 				console.error("Failed to fetch selected items:", error);
 				toast.error("Failed to load selected items");
+			} finally {
+				if (!cancelled) {
+					setIsLoadingItems(false);
+				}
 			}
 		})();
+
+		return () => {
+			cancelled = true;
+		};
 	}, [client, targetCollection, selectedIds, fetchedItems]);
 
 	// Get selected items from cache
@@ -411,7 +433,7 @@ export function RelationPicker<T extends Questpie<any>>({
 			)}
 
 			{/* Selected Items Display */}
-			{selectedItems && selectedItems.length > 0 && (
+			{(selectedItems.length > 0 || isLoadingItems) && (
 				<RelationItemsDisplay
 					display={display}
 					items={selectedItems}
@@ -425,6 +447,8 @@ export function RelationPicker<T extends Questpie<any>>({
 					renderItem={renderItem}
 					actions={displayActions}
 					collectionConfig={targetConfig as any}
+					isLoading={isLoadingItems}
+					loadingCount={selectedIds.length || 3}
 				/>
 			)}
 
@@ -474,8 +498,8 @@ export function RelationPicker<T extends Questpie<any>>({
 				</div>
 			)}
 
-			{/* Empty State */}
-			{selectedIds.length === 0 && (
+			{/* Empty State - only show when not loading */}
+			{selectedIds.length === 0 && !isLoadingItems && (
 				<div className="rounded-lg border border-dashed p-4 text-center">
 					<p className="text-sm text-muted-foreground">
 						{resolvedPlaceholder || emptyLabel}

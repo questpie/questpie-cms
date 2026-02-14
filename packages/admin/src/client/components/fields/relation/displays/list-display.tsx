@@ -7,7 +7,48 @@ import * as React from "react";
 import { CollectionEditLink } from "../../../admin-link";
 import { resolveIconElement } from "../../../component-renderer";
 import { Button } from "../../../ui/button";
+import { Skeleton } from "../../../ui/skeleton";
 import { getItemDisplayValue, type RelationDisplayProps } from "./types";
+
+function ListSkeleton({
+	count = 3,
+	editable = false,
+}: {
+	count?: number;
+	editable?: boolean;
+}) {
+	const skeletonKeys = React.useMemo(
+		() => Array.from({ length: count }, () => crypto.randomUUID()),
+		[count],
+	);
+
+	if (editable) {
+		return (
+			<div className="space-y-2 rounded-lg border border-border/60 bg-card/30 backdrop-blur-sm p-3">
+				{skeletonKeys.map((key) => (
+					<div
+						key={key}
+						className="flex items-center gap-2 rounded-md border border-border/60 bg-card/30 backdrop-blur-sm p-2"
+					>
+						<Skeleton className="size-3.5 rounded" />
+						<Skeleton className="h-4 flex-1 max-w-[200px] rounded" />
+					</div>
+				))}
+			</div>
+		);
+	}
+
+	return (
+		<ul className="space-y-1">
+			{skeletonKeys.map((key) => (
+				<li key={key} className="flex items-center gap-1">
+					<Skeleton className="size-3 rounded" />
+					<Skeleton className="h-4 w-32 rounded" />
+				</li>
+			))}
+		</ul>
+	);
+}
 
 export function ListDisplay({
 	items,
@@ -18,6 +59,8 @@ export function ListDisplay({
 	orderable = false,
 	linkToDetail = false,
 	renderItem,
+	isLoading = false,
+	loadingCount = 3,
 }: RelationDisplayProps) {
 	const iconElement = resolveIconElement(collectionIcon, {
 		className: "size-3.5 text-muted-foreground shrink-0",
@@ -25,6 +68,12 @@ export function ListDisplay({
 	const smallIconElement = resolveIconElement(collectionIcon, {
 		className: "size-3 text-muted-foreground",
 	});
+
+	// Show skeleton when loading and no items
+	if (isLoading && items.length === 0) {
+		return <ListSkeleton count={loadingCount} editable={editable} />;
+	}
+
 	// Editable list with cards
 	if (editable) {
 		return (

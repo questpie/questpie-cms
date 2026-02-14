@@ -124,14 +124,15 @@ export type AdapterRoutes = {
 		) => Promise<Response>;
 	};
 	realtime: {
+		/**
+		 * Unified SSE endpoint for multiplexed realtime subscriptions.
+		 *
+		 * POST /realtime
+		 * Body: { topics: [{ id, resourceType, resource, where?, with?, limit?, offset?, orderBy? }] }
+		 */
 		subscribe: (
 			request: Request,
-			params: { collection: string },
-			context?: AdapterContext,
-		) => Promise<Response>;
-		subscribeGlobal: (
-			request: Request,
-			params: { global: string },
+			params: Record<string, string>,
 			context?: AdapterContext,
 		) => Promise<Response>;
 	};

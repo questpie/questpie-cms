@@ -7,6 +7,7 @@
 		"field-renderer-registry",
 		"view-registry-list-and-form",
 		"component-registry",
+		"visibility-rules",
 		"dashboard-sidebar-branding",
 		"blocks-system",
 		"actions-system",

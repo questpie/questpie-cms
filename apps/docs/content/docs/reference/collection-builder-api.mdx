@@ -236,9 +236,19 @@ General admin panel configuration.
   icon: "ph:article",
   group: "Content",
   description: "Manage blog posts",
-  defaultAccess: false,
+  hidden: false,
+  order: 1,
 })
 ```
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `label` | `string \| I18nText` | Display name in admin UI |
+| `icon` | `string` | Iconify icon name (e.g., `"ph:article"`) |
+| `group` | `string` | Group name for auto-generated sidebar |
+| `description` | `string \| I18nText` | Help text shown in admin |
+| `hidden` | `boolean` | Hide from sidebar, search, and direct URL access. See [Visibility Rules](/docs/admin/visibility-rules). |
+| `order` | `number` | Sort order within group (lower values appear first) |
 
 ### `.list(config)`
 

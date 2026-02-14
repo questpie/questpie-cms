@@ -21,16 +21,19 @@ export type { QueryKey, DefaultError, UseQueryOptions, UseMutationOptions };
 // ============================================================================
 
 export {
-	buildCollectionRealtimeUrl,
-	buildGlobalRealtimeUrl,
+	buildCollectionTopic,
+	buildGlobalTopic,
+	destroyAllMultiplexers,
+	getMultiplexer,
 	type RealtimeQueryConfig,
 	type SSESnapshotOptions,
 	sseSnapshotStream,
+	type TopicConfig,
 } from "./realtime.js";
 
 import {
-	buildCollectionRealtimeUrl,
-	buildGlobalRealtimeUrl,
+	buildCollectionTopic,
+	buildGlobalTopic,
 	sseSnapshotStream,
 } from "./realtime.js";
 
@@ -215,13 +218,6 @@ type CollectionQueryOptionsAPI<
 		{ where: any },
 		{ success: boolean; count: number }
 	>;
-	/**
-	 * Get realtime SSE URL for this collection.
-	 * Use with `sseToAsyncIterable` or `streamedQuery`.
-	 */
-	realtimeUrl: (
-		options?: FirstArg<CollectionFind<TCMS, TRPC, K>>,
-	) => string | null;
 };
 
 type GlobalQueryOptionsAPI<
@@ -237,11 +233,6 @@ type GlobalQueryOptionsAPI<
 		},
 		QueryData<GlobalUpdate<TCMS, TRPC, K>>
 	>;
-	/**
-	 * Get realtime SSE URL for this global.
-	 * Use with `sseToAsyncIterable` or `streamedQuery`.
-	 */
-	realtimeUrl: (options?: FirstArg<GlobalGet<TCMS, TRPC, K>>) => string | null;
 };
 
 export type QuestpieQueryOptionsProxy<
@@ -385,25 +376,18 @@ export function createQuestpieQueryOptions<
 							normalizeQueryKeyOptions(options),
 						]);
 
-						const realtimeUrl =
-							queryConfig?.realtime && config.realtime?.baseUrl
-								? buildCollectionRealtimeUrl(
-										{
-											baseUrl: config.realtime.baseUrl,
-											enabled: config.realtime.enabled,
-											withCredentials: config.realtime.withCredentials,
-										},
-										collectionName,
-										options,
-									)
-								: null;
-
-						if (realtimeUrl) {
+						if (queryConfig?.realtime && config.realtime?.baseUrl) {
+							const topic = buildCollectionTopic(collectionName, options);
 							return queryOptions({
 								queryKey: qKey,
 								queryFn: streamedQuery({
 									streamFn: ({ signal }) =>
-										sseSnapshotStream({ url: realtimeUrl, signal }),
+										sseSnapshotStream({
+											baseUrl: config.realtime!.baseUrl,
+											topic,
+											withCredentials: config.realtime?.withCredentials,
+											signal,
+										}),
 									reducer: (_: any, chunk: any) => chunk,
 									initialValue: undefined,
 								}),
@@ -423,26 +407,19 @@ export function createQuestpieQueryOptions<
 							normalizeQueryKeyOptions(options),
 						]);
 
-						const realtimeUrl =
-							queryConfig?.realtime && config.realtime?.baseUrl
-								? buildCollectionRealtimeUrl(
-										{
-											baseUrl: config.realtime.baseUrl,
-											enabled: config.realtime.enabled,
-											withCredentials: config.realtime.withCredentials,
-										},
-										collectionName,
-										options,
-									)
-								: null;
-
-						if (realtimeUrl) {
+						if (queryConfig?.realtime && config.realtime?.baseUrl) {
+							const topic = buildCollectionTopic(collectionName, options);
 							// For count, we extract totalDocs from the snapshot
 							return queryOptions({
 								queryKey: qKey,
 								queryFn: streamedQuery({
 									streamFn: ({ signal }) =>
-										sseSnapshotStream({ url: realtimeUrl, signal }),
+										sseSnapshotStream({
+											baseUrl: config.realtime!.baseUrl,
+											topic,
+											withCredentials: config.realtime?.withCredentials,
+											signal,
+										}),
 									reducer: (_: any, chunk: any) =>
 										typeof chunk?.totalDocs === "number"
 											? chunk.totalDocs
@@ -538,18 +515,6 @@ export function createQuestpieQueryOptions<
 								errorMap,
 							),
 						}),
-					realtimeUrl: (options?: any) => {
-						if (!config.realtime?.baseUrl) return null;
-						return buildCollectionRealtimeUrl(
-							{
-								baseUrl: config.realtime.baseUrl,
-								enabled: config.realtime.enabled,
-								withCredentials: config.realtime.withCredentials,
-							},
-							collectionName,
-							options,
-						);
-					},
 				};
 			},
 		},
@@ -574,25 +539,18 @@ export function createQuestpieQueryOptions<
 							normalizeQueryKeyOptions(options),
 						]);
 
-						const realtimeUrl =
-							queryConfig?.realtime && config.realtime?.baseUrl
-								? buildGlobalRealtimeUrl(
-										{
-											baseUrl: config.realtime.baseUrl,
-											enabled: config.realtime.enabled,
-											withCredentials: config.realtime.withCredentials,
-										},
-										globalName as string,
-										options,
-									)
-								: null;
-
-						if (realtimeUrl) {
+						if (queryConfig?.realtime && config.realtime?.baseUrl) {
+							const topic = buildGlobalTopic(globalName as string, options);
 							return queryOptions({
 								queryKey: qKey,
 								queryFn: streamedQuery({
 									streamFn: ({ signal }) =>
-										sseSnapshotStream({ url: realtimeUrl, signal }),
+										sseSnapshotStream({
+											baseUrl: config.realtime!.baseUrl,
+											topic,
+											withCredentials: config.realtime?.withCredentials,
+											signal,
+										}),
 									reducer: (_: any, chunk: any) => chunk,
 									initialValue: undefined,
 								}),
@@ -616,18 +574,6 @@ export function createQuestpieQueryOptions<
 								errorMap,
 							),
 						}),
-					realtimeUrl: (options?: any) => {
-						if (!config.realtime?.baseUrl) return null;
-						return buildGlobalRealtimeUrl(
-							{
-								baseUrl: config.realtime.baseUrl,
-								enabled: config.realtime.enabled,
-								withCredentials: config.realtime.withCredentials,
-							},
-							globalName as string,
-							options,
-						);
-					},
 				};
 			},
 		},

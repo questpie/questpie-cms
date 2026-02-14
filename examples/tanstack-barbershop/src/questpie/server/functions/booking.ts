@@ -108,7 +108,7 @@ export const getAvailableTimeSlots = r.fn({
         slotTime.getTime() + service.duration * 60000,
       );
 
-      const isOccupied = appointments.docs.some((apt: any) => {
+      const isOccupied = activeAppointments.some((apt: any) => {
         const aptStart = new Date(apt.scheduledAt);
         const aptDuration = servicesMap.get(apt.service as string)?.duration ?? service.duration;
         const aptEnd = new Date(aptStart.getTime() + aptDuration * 60000);
@@ -142,16 +142,55 @@ export const createBooking = r.fn({
     if (!service) throw new Error("Service not found");
 
     const scheduledDate = new Date(input.scheduledAt);
-    const allAtTime = await app.api.collections.appointments.find({
+    const requestedEnd = new Date(scheduledDate.getTime() + service.duration * 60000);
+
+    // Get all appointments for this barber on the same day
+    const startOfDay = new Date(scheduledDate);
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(scheduledDate);
+    endOfDay.setHours(23, 59, 59, 999);
+
+    const allAppointments = await app.api.collections.appointments.find({
       where: {
         barber: input.barberId,
-        scheduledAt: scheduledDate,
+        scheduledAt: {
+          gte: startOfDay,
+          lte: endOfDay,
+        },
       },
     });
 
-    const existing = allAtTime.docs.find((apt: any) => apt.status !== "cancelled");
+    // Check for overlapping appointments
+    const activeAppointments = allAppointments.docs.filter(
+      (apt: any) => apt.status !== "cancelled",
+    );
 
-    if (existing) {
+    // Get service durations for existing appointments
+    const serviceIds = [...new Set(activeAppointments.map((apt: any) => apt.service))];
+    const servicesMap = new Map<string, { duration: number }>();
+
+    if (serviceIds.length > 0) {
+      const relatedServices = await app.api.collections.services.find({
+        where: {
+          id: { in: serviceIds },
+        },
+      });
+      for (const svc of relatedServices.docs) {
+        servicesMap.set(svc.id, { duration: svc.duration });
+      }
+    }
+
+    // Check for time slot conflicts
+    const hasConflict = activeAppointments.some((apt: any) => {
+      const aptStart = new Date(apt.scheduledAt);
+      const aptDuration = servicesMap.get(apt.service as string)?.duration ?? service.duration;
+      const aptEnd = new Date(aptStart.getTime() + aptDuration * 60000);
+
+      // Check if time slots overlap
+      return scheduledDate < aptEnd && requestedEnd > aptStart;
+    });
+
+    if (hasConflict) {
       throw new Error("This time slot is no longer available.");
     }
 

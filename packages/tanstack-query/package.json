@@ -23,12 +23,17 @@
 		"@tanstack/react-query": "^5.0.0"
 	},
 	"exports": {
-		".": {
-			"import": "./dist/index.mjs",
-			"types": "./dist/index.d.mts"
-		}
+		".": "./src/index.ts",
+		"./package.json": "./package.json"
 	},
 	"publishConfig": {
-		"access": "public"
-	}
+		"access": "public",
+		"exports": {
+			".": "./dist/index.mjs",
+			"./package.json": "./package.json"
+		}
+	},
+	"main": "./dist/index.mjs",
+	"module": "./dist/index.mjs",
+	"types": "./dist/index.d.mts"
 }

@@ -80,6 +80,7 @@ export { getContentLocales, localeFunctions } from "./functions/locales.js";
 export {
 	createPreviewFunctions,
 	createPreviewTokenVerifier,
+	getPreviewUrl,
 	type PreviewTokenPayload,
 	previewFunctions,
 	verifyPreviewTokenDirect,
@@ -220,28 +221,47 @@ export const adminModule = adminBaseBuilder
 					searchable: [f.name, f.email],
 					defaultSort: { field: f.name, direction: "asc" },
 					actions: {
-						header: { primary: [a.create] },
+						header: { primary: [a.create], secondary: [] },
+						row: [a.delete],
 						bulk: [a.deleteMany],
 					},
 				}),
 			)
 			.form(({ v, f }) =>
 				v.form({
+					sidebar: {
+						position: "right",
+						fields: [f.image, f.role, f.emailVerified],
+					},
 					fields: [
 						{
-							type: "section",
-							label: { key: "defaults.users.sections.basicInfo" },
-							fields: [f.name, f.email],
-						},
-						{
-							type: "section",
-							label: { key: "defaults.users.sections.permissions" },
-							fields: [f.role, f.emailVerified],
-						},
-						{
-							type: "section",
-							label: { key: "defaults.users.sections.accessControl" },
-							fields: [f.banned, f.banReason],
+							type: "tabs",
+							tabs: [
+								{
+									id: "profile",
+									label: { key: "defaults.users.tabs.profile" },
+									fields: [
+										{
+											type: "section",
+											label: { key: "defaults.users.sections.basicInfo" },
+											layout: "grid",
+											columns: 2,
+											fields: [f.name, f.email],
+										},
+									],
+								},
+								{
+									id: "security",
+									label: { key: "defaults.users.tabs.security" },
+									fields: [
+										{
+											type: "section",
+											label: { key: "defaults.users.sections.accessControl" },
+											fields: [f.banned, f.banReason, f.banExpires],
+										},
+									],
+								},
+							],
 						},
 					],
 				}),
@@ -250,12 +270,56 @@ export const adminModule = adminBaseBuilder
 		assets: bindCollectionToBuilder(
 			starterModule.state.collections.assets,
 			adminBaseBuilder,
-		).admin(({ c }) => ({
-			label: { key: "defaults.assets.label" },
-			icon: c.icon("ph:image"),
-			description: { key: "defaults.assets.description" },
-			group: "administration",
-		})),
+		)
+			.admin(({ c }) => ({
+				label: { key: "defaults.assets.label" },
+				icon: c.icon("ph:image"),
+				description: { key: "defaults.assets.description" },
+				group: "administration",
+			}))
+			.list(({ v, f, a }) =>
+				v.table({
+					// Note: filename, mimeType, size, createdAt are upload fields (added by .upload())
+					// so we use string literals instead of f.* proxy
+					columns: ["filename", "mimeType", "size"],
+					searchable: ["filename", f.alt],
+					defaultSort: { field: "createdAt", direction: "desc" },
+					actions: {
+						header: { primary: [], secondary: [] },
+						row: [a.delete],
+						bulk: [a.deleteMany],
+					},
+				}),
+			)
+			.form(({ v, f }) =>
+				v.form({
+					sidebar: {
+						position: "right",
+						fields: [
+							{
+								type: "section",
+								label: { key: "defaults.assets.sections.fileInfo" },
+								// Note: filename, mimeType, size, visibility are upload fields
+								fields: ["filename", "mimeType", "size", "visibility"],
+							},
+						],
+					},
+					fields: [
+						{
+							type: "section",
+							label: { key: "defaults.assets.sections.dimensions" },
+							layout: "grid",
+							columns: 2,
+							fields: [f.width, f.height],
+						},
+						{
+							type: "section",
+							label: { key: "defaults.assets.sections.metadata" },
+							fields: [f.alt, f.caption],
+						},
+					],
+				}),
+			),
 
 		// Hide internal auth collections
 		session: starterModule.state.collections.session.admin({ hidden: true }),

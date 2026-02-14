@@ -16,7 +16,7 @@ import {
 	useReactTable,
 } from "@tanstack/react-table";
 import * as React from "react";
-import { useMemo, useState } from "react";
+import { Suspense, useMemo, useState } from "react";
 import type { ActionsConfig } from "../../builder/types/action-types";
 import type {
 	CollectionBuilderState,
@@ -54,7 +54,8 @@ import {
 	useCollectionList,
 } from "../../hooks/use-collection";
 import { useCollectionFields } from "../../hooks/use-collection-fields";
-import { useCollectionMeta } from "../../hooks/use-collection-meta";
+import { useSuspenseCollectionMeta } from "../../hooks/use-collection-meta";
+import { useSessionState } from "../../hooks/use-current-user";
 import { getLockUser, useLocks } from "../../hooks/use-locks";
 import { useRealtimeHighlight } from "../../hooks/use-realtime-highlight";
 import {
@@ -83,6 +84,7 @@ import {
 	computeDefaultColumns,
 	getAllAvailableFields,
 } from "./columns";
+import { TableViewSkeleton } from "./view-skeletons";
 
 // ============================================================================
 // Types
@@ -195,6 +197,10 @@ export interface TableViewProps {
 /**
  * TableView - Default table-based list view for collections
  *
+ * Uses Suspense for data loading to eliminate race conditions.
+ * Critical data (collectionMeta, user session, preferences) is loaded
+ * before rendering, ensuring stable initial state.
+ *
  * Features:
  * - Auto-generates columns from collection config
  * - Search and filter functionality
@@ -214,7 +220,19 @@ export interface TableViewProps {
  * />
  * ```
  */
-export default function TableView({
+export default function TableView(props: TableViewProps): React.ReactElement {
+	return (
+		<Suspense fallback={<TableViewSkeleton />}>
+			<TableViewInner {...props} />
+		</Suspense>
+	);
+}
+
+/**
+ * Inner component that uses Suspense queries.
+ * This component will suspend until all critical data is loaded.
+ */
+function TableViewInner({
 	collection,
 	config,
 	viewConfig,
@@ -249,8 +267,12 @@ export default function TableView({
 	const resolvedActionsConfig =
 		actionsConfig ?? (resolvedListConfig as any)?.actions;
 
-	// Fetch collection metadata from backend (for title field detection, timestamps, etc.)
-	const { data: collectionMeta } = useCollectionMeta(collection);
+	// Get user session for preferences (suspense-enabled)
+	const { user } = useSessionState();
+
+	// Fetch collection metadata from backend (suspense-enabled)
+	// This will suspend until data is loaded, eliminating race conditions
+	const { data: collectionMeta } = useSuspenseCollectionMeta(collection);
 
 	// i18n translations
 	const { t } = useTranslation();
@@ -317,10 +339,12 @@ export default function TableView({
 	);
 
 	// View state (filters, sort, visible columns, realtime) - with database persistence
+	// Uses Suspense internally for loading preferences
 	const viewState = useViewState(
 		defaultColumns,
 		{ realtime: resolvedRealtime },
 		collection,
+		user?.id,
 	);
 	const effectiveRealtime = viewState.config.realtime ?? resolvedRealtime;
 
@@ -650,8 +674,17 @@ export default function TableView({
 			orderedColumns.push(titleCol as ColumnDef<any>);
 		}
 
+		// Determine which columns to show
+		// If visibleColumns is empty, show ALL columns (default behavior)
+		const columnsToShow =
+			viewState.config.visibleColumns.length > 0
+				? viewState.config.visibleColumns
+				: columns
+						.map((c) => (c as any).accessorKey || (c as any).id)
+						.filter(Boolean);
+
 		// Add remaining visible columns (excluding title since it's already added)
-		for (const colName of viewState.config.visibleColumns) {
+		for (const colName of columnsToShow) {
 			// Skip title column - already added first
 			if (colName === titleColName) continue;
 

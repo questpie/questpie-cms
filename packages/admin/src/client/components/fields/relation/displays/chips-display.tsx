@@ -8,7 +8,23 @@ import { CollectionEditLink } from "../../../admin-link";
 import { resolveIconElement } from "../../../component-renderer";
 import { Badge } from "../../../ui/badge";
 import { Button } from "../../../ui/button";
+import { Skeleton } from "../../../ui/skeleton";
 import { getItemDisplayValue, type RelationDisplayProps } from "./types";
+
+function ChipsSkeleton({ count = 3 }: { count?: number }) {
+	const skeletonKeys = React.useMemo(
+		() => Array.from({ length: count }, () => crypto.randomUUID()),
+		[count],
+	);
+
+	return (
+		<div className="flex flex-wrap gap-2">
+			{skeletonKeys.map((key) => (
+				<Skeleton key={key} className="h-6 w-20 rounded-full" />
+			))}
+		</div>
+	);
+}
 
 export function ChipsDisplay({
 	items,
@@ -17,10 +33,17 @@ export function ChipsDisplay({
 	actions,
 	editable = false,
 	linkToDetail = false,
+	isLoading = false,
+	loadingCount = 3,
 }: RelationDisplayProps) {
 	const iconElement = resolveIconElement(collectionIcon, {
 		className: "size-3 text-muted-foreground",
 	});
+
+	// Show skeleton when loading and no items
+	if (isLoading && items.length === 0) {
+		return <ChipsSkeleton count={loadingCount} />;
+	}
 
 	return (
 		<div className="flex flex-wrap gap-2">

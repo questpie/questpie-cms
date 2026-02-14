@@ -230,48 +230,9 @@ export const createFetchHandler = (
 			);
 		}
 
-		// Realtime routes
+		// Realtime route - unified POST endpoint for multiplexed subscriptions
 		if (segments[0] === "realtime") {
-			const maybeGlobals = segments[1];
-			if (!maybeGlobals) {
-				return errorResponse(
-					ApiError.badRequest("Collection not specified"),
-					request,
-				);
-			}
-
-			if (maybeGlobals === "globals") {
-				const globalName = segments[2];
-				if (!globalName) {
-					return errorResponse(
-						ApiError.badRequest("Global not specified"),
-						request,
-					);
-				}
-
-				if (request.method === "GET") {
-					return routes.realtime.subscribeGlobal(
-						request,
-						{ global: globalName },
-						context,
-					);
-				}
-
-				return errorResponse(
-					ApiError.badRequest("Method not allowed"),
-					request,
-				);
-			}
-
-			if (request.method === "GET") {
-				return routes.realtime.subscribe(
-					request,
-					{ collection: maybeGlobals },
-					context,
-				);
-			}
-
-			return errorResponse(ApiError.badRequest("Method not allowed"), request);
+			return routes.realtime.subscribe(request, {}, context);
 		}
 
 		// Storage file serving

@@ -25,12 +25,17 @@
 		"questpie": "^1.0.0"
 	},
 	"exports": {
-		".": {
-			"import": "./dist/server.mjs",
-			"types": "./dist/server.d.mts"
-		}
+		".": "./src/server.ts",
+		"./package.json": "./package.json"
 	},
 	"publishConfig": {
-		"access": "public"
-	}
+		"access": "public",
+		"exports": {
+			".": "./dist/server.mjs",
+			"./package.json": "./package.json"
+		}
+	},
+	"main": "./dist/server.mjs",
+	"module": "./dist/server.mjs",
+	"types": "./dist/server.d.mts"
 }

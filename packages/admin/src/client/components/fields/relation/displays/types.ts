@@ -110,6 +110,16 @@ export interface RelationDisplayProps {
 	 * Collection config for cell rendering (enables proper cell components)
 	 */
 	collectionConfig?: CollectionFieldsConfig;
+
+	/**
+	 * Whether items are being loaded
+	 */
+	isLoading?: boolean;
+
+	/**
+	 * Number of skeleton items to show when loading
+	 */
+	loadingCount?: number;
 }
 
 /**

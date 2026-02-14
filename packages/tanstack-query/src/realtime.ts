@@ -1,20 +1,35 @@
 /**
  * Realtime utilities for TanStack Query integration
  *
- * Provides SSE streaming for use with experimental_streamedQuery.
+ * Uses SSE multiplexer to efficiently handle multiple subscriptions
+ * over a single HTTP connection.
  */
+
+import {
+	getMultiplexer,
+	type TopicConfig,
+	type TopicInput,
+} from "./multiplexer.js";
+
+// Re-export types
+export type { TopicConfig, TopicInput } from "./multiplexer.js";
+export { destroyAllMultiplexers, getMultiplexer } from "./multiplexer.js";
 
 // ============================================================================
 // Types
 // ============================================================================
 
 export type SSESnapshotOptions = {
-	/** SSE endpoint URL */
-	url: string;
+	/** Base URL for the CMS API (e.g., "/api/cms") */
+	baseUrl: string;
+	/** Topic configuration */
+	topic: TopicConfig;
 	/** Include credentials (cookies) - defaults to true */
 	withCredentials?: boolean;
 	/** Abort signal for cleanup */
 	signal?: AbortSignal;
+	/** Optional custom topic ID */
+	customId?: string;
 };
 
 export type RealtimeQueryConfig = {
@@ -31,10 +46,10 @@ export type RealtimeQueryConfig = {
 // ============================================================================
 
 /**
- * Create an AsyncGenerator that yields snapshot data from SSE.
+ * Create an AsyncGenerator that yields snapshot data via the SSE multiplexer.
  *
- * The server sends `snapshot` events with format: `{ seq: number, data: TData }`
- * This function extracts and yields the `data` field directly.
+ * This function uses a shared multiplexer connection to efficiently handle
+ * multiple subscriptions without hitting browser connection limits.
  *
  * Use with TanStack Query's experimental `streamedQuery`:
  *
@@ -46,7 +61,8 @@ export type RealtimeQueryConfig = {
  *   queryKey: ['posts'],
  *   queryFn: streamedQuery({
  *     streamFn: ({ signal }) => sseSnapshotStream({
- *       url: '/api/cms/realtime/posts',
+ *       baseUrl: '/api/cms',
+ *       topic: { resourceType: 'collection', resource: 'posts' },
  *       signal,
  *     }),
  *     reducer: (_, chunk) => chunk, // Replace with latest snapshot
@@ -58,142 +74,96 @@ export type RealtimeQueryConfig = {
 export async function* sseSnapshotStream<TData>(
 	options: SSESnapshotOptions,
 ): AsyncGenerator<TData, void, unknown> {
-	const { url, withCredentials = true, signal } = options;
+	const { baseUrl, topic, withCredentials = true, signal, customId } = options;
 
-	// Queue for events waiting to be consumed
+	// Queue for data waiting to be consumed
 	const queue: TData[] = [];
 
-	// Promise resolver for when new events arrive
+	// Promise resolver for when new data arrives
 	let resolveNext: (() => void) | null = null;
 
 	// Track if the stream is closed
 	let closed = false;
-	let closeError: Error | null = null;
 
-	// Create EventSource
-	const eventSource = new EventSource(url, { withCredentials });
+	// Get the shared multiplexer for this base URL
+	const multiplexer = getMultiplexer(baseUrl, withCredentials);
 
-	// Cleanup function
-	const cleanup = () => {
-		closed = true;
-		eventSource.close();
-		resolveNext?.();
-	};
-
-	// Handle abort signal
-	if (signal) {
-		if (signal.aborted) {
-			cleanup();
-			return;
-		}
-		signal.addEventListener("abort", cleanup);
-	}
-
-	// Handle connection errors
-	eventSource.onerror = () => {
-		closeError = new Error("SSE connection error");
-		cleanup();
-	};
-
-	// Handle snapshot events
-	const onSnapshot = (event: MessageEvent) => {
-		try {
-			const parsed = JSON.parse(event.data) as { seq?: number; data?: TData };
-			if (parsed.data !== undefined) {
-				queue.push(parsed.data);
+	// Subscribe to the topic via multiplexer
+	const unsubscribe = multiplexer.subscribe(
+		topic,
+		(data) => {
+			if (!closed) {
+				queue.push(data as TData);
 				resolveNext?.();
 			}
-		} catch {
-			// Ignore parse errors
-		}
-	};
-
-	eventSource.addEventListener("snapshot", onSnapshot);
+		},
+		signal,
+		customId,
+	);
 
 	try {
-		while (!closed) {
-			// If queue has items, yield them
+		while (!closed && !signal?.aborted) {
+			// Yield all queued items
 			while (queue.length > 0) {
 				yield queue.shift()!;
 			}
 
-			// Wait for more events
-			if (!closed) {
+			// Wait for more data
+			if (!closed && !signal?.aborted) {
 				await new Promise<void>((resolve) => {
 					resolveNext = resolve;
 				});
 				resolveNext = null;
 			}
 		}
-
-		// If closed with error, throw
-		if (closeError) {
-			throw closeError;
-		}
 	} finally {
-		cleanup();
-		if (signal) {
-			signal.removeEventListener("abort", cleanup);
-		}
+		closed = true;
+		unsubscribe();
 	}
 }
 
 // ============================================================================
-// URL Builders
+// Helpers
 // ============================================================================
 
 /**
- * Build realtime URL for a collection
+ * Build a topic config for a collection query.
  */
-export function buildCollectionRealtimeUrl(
-	config: RealtimeQueryConfig,
+export function buildCollectionTopic(
 	collectionName: string,
-	options?: Record<string, unknown>,
-): string {
-	const base = `${config.baseUrl}/realtime/${encodeURIComponent(collectionName)}`;
-	if (!options) return base;
-
-	const params = new URLSearchParams();
-	appendQueryParams(params, options);
-	const query = params.toString();
-	return query ? `${base}?${query}` : base;
+	options?: {
+		where?: Record<string, unknown>;
+		with?: Record<string, unknown>;
+		limit?: number;
+		offset?: number;
+		orderBy?: Record<string, "asc" | "desc">;
+	},
+): TopicConfig {
+	return {
+		resourceType: "collection",
+		resource: collectionName,
+		...(options?.where && { where: options.where }),
+		...(options?.with && { with: options.with }),
+		...(options?.limit !== undefined && { limit: options.limit }),
+		...(options?.offset !== undefined && { offset: options.offset }),
+		...(options?.orderBy && { orderBy: options.orderBy }),
+	};
 }
 
 /**
- * Build realtime URL for a global
+ * Build a topic config for a global query.
  */
-export function buildGlobalRealtimeUrl(
-	config: RealtimeQueryConfig,
+export function buildGlobalTopic(
 	globalName: string,
-	options?: Record<string, unknown>,
-): string {
-	const base = `${config.baseUrl}/realtime/globals/${encodeURIComponent(globalName)}`;
-	if (!options) return base;
-
-	const params = new URLSearchParams();
-	appendQueryParams(params, options);
-	const query = params.toString();
-	return query ? `${base}?${query}` : base;
-}
-
-function appendQueryParams(
-	params: URLSearchParams,
-	obj: Record<string, unknown>,
-	prefix = "",
-): void {
-	for (const [key, value] of Object.entries(obj)) {
-		const fullKey = prefix ? `${prefix}[${key}]` : key;
-
-		if (value === undefined || value === null) continue;
-
-		if (Array.isArray(value)) {
-			for (const item of value) {
-				params.append(`${fullKey}[]`, String(item));
-			}
-		} else if (typeof value === "object") {
-			appendQueryParams(params, value as Record<string, unknown>, fullKey);
-		} else {
-			params.append(fullKey, String(value));
-		}
-	}
+	options?: {
+		where?: Record<string, unknown>;
+		with?: Record<string, unknown>;
+	},
+): TopicConfig {
+	return {
+		resourceType: "global",
+		resource: globalName,
+		...(options?.where && { where: options.where }),
+		...(options?.with && { with: options.with }),
+	};
 }

@@ -444,24 +444,6 @@ export function ReverseRelationField({
 		return { [sourceField]: prefillValue };
 	}, [editingItemId, sourceField, currentId, isMultipleRelation]);
 
-	// Loading state
-	if (isLoading) {
-		return (
-			<div className="space-y-2">
-				{label && (
-					<div className="flex items-center gap-2">
-						<span className="text-sm font-medium">{resolveText(label)}</span>
-						{localized && <LocaleBadge locale={locale || "i18n"} />}
-					</div>
-				)}
-				<div className="flex items-center gap-2 text-muted-foreground">
-					<Icon icon="ph:spinner" className="size-4 animate-spin" />
-					<span className="text-sm">{t("relation.loading")}</span>
-				</div>
-			</div>
-		);
-	}
-
 	// No current ID (new item)
 	if (!currentId) {
 		return (
@@ -615,10 +597,13 @@ export function ReverseRelationField({
 				emptyMessage={resolvedEmptyMessage}
 				actions={displayActions}
 				collectionConfig={sourceConfig as any}
+				isLoading={isLoading}
+				loadingCount={limit}
 			/>
 
 			{/* Create button in empty state (when no label header) */}
 			{items.length === 0 &&
+				!isLoading &&
 				!label &&
 				allowCreate &&
 				!showAssignmentControls && (

@@ -10,6 +10,7 @@
  * - Recursive nesting of sections/tabs
  */
 
+import { Icon } from "@iconify/react";
 import type * as React from "react";
 import type {
 	AnyWidgetConfig,
@@ -36,6 +37,12 @@ import {
 	CardHeader,
 	CardTitle,
 } from "../../components/ui/card";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuTrigger,
+} from "../../components/ui/dropdown-menu";
 import {
 	Tabs,
 	TabsContent,
@@ -97,14 +104,16 @@ const gridClasses: Record<number, string> = {
 
 /**
  * Span classes for widget column spanning
+ * - span:1 widgets can be 2x2 on @xs (half width each)
+ * - span:2+ widgets are full width on mobile/tablet, then expand at larger breakpoints
  */
 const spanClasses: Record<number, string> = {
 	1: "col-span-1",
-	2: "col-span-1 @xs:col-span-2",
-	3: "col-span-1 @xs:col-span-2 @md:col-span-3",
-	4: "col-span-1 @xs:col-span-2 @md:col-span-3 @lg:col-span-4",
-	5: "col-span-1 @xs:col-span-2 @md:col-span-3 @lg:col-span-5",
-	6: "col-span-1 @xs:col-span-2 @md:col-span-3 @lg:col-span-6",
+	2: "col-span-full @sm:col-span-2",
+	3: "col-span-full @sm:col-span-2 @md:col-span-3",
+	4: "col-span-full @sm:col-span-2 @md:col-span-3 @lg:col-span-4",
+	5: "col-span-full @sm:col-span-2 @md:col-span-3 @lg:col-span-5",
+	6: "col-span-full @sm:col-span-2 @md:col-span-3 @lg:col-span-6",
 	12: "col-span-full",
 };
 
@@ -210,6 +219,12 @@ function DashboardHeader({
 		}
 	};
 
+	// Split actions: primary (first with variant=primary or first action) shown as button
+	// Rest go into dropdown on mobile, all visible on desktop
+	const primaryAction =
+		actions?.find((a) => a.variant === "primary") || actions?.[0];
+	const secondaryActions = actions?.filter((a) => a !== primaryAction) || [];
+
 	return (
 		<div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
 			<div className="min-w-0 flex-1">
@@ -224,9 +239,28 @@ function DashboardHeader({
 			</div>
 			{actions && actions.length > 0 && (
 				<div className="flex items-center gap-2 shrink-0">
-					{actions.map((action) => {
+					{/* Primary action always visible */}
+					{primaryAction && (
+						<Button
+							key={primaryAction.id}
+							variant={
+								primaryAction.variant === "primary"
+									? "default"
+									: primaryAction.variant || "default"
+							}
+							onClick={() => handleActionClick(primaryAction)}
+						>
+							{resolveIconElement(primaryAction.icon, {
+								"data-icon": "inline-start",
+							})}
+							{resolveText(primaryAction.label)}
+						</Button>
+					)}
+
+					{/* Secondary actions: visible on md+, hidden on mobile */}
+					{secondaryActions.map((action) => {
 						const iconElement = resolveIconElement(action.icon, {
-							className: "h-4 w-4 mr-2",
+							"data-icon": "inline-start",
 						});
 						const variant = action.variant || "default";
 
@@ -234,14 +268,40 @@ function DashboardHeader({
 							<Button
 								key={action.id}
 								variant={variant === "primary" ? "default" : variant}
-								size="sm"
 								onClick={() => handleActionClick(action)}
+								className="hidden md:inline-flex"
 							>
 								{iconElement}
 								{resolveText(action.label)}
 							</Button>
 						);
 					})}
+
+					{/* Dropdown for secondary actions on mobile */}
+					{secondaryActions.length > 0 && (
+						<DropdownMenu>
+							<DropdownMenuTrigger
+								render={
+									<Button variant="outline" size="icon" className="md:hidden">
+										<Icon icon="ph:dots-three-vertical" className="size-4" />
+									</Button>
+								}
+							/>
+							<DropdownMenuContent align="end">
+								{secondaryActions.map((action) => (
+									<DropdownMenuItem
+										key={action.id}
+										onClick={() => handleActionClick(action)}
+									>
+										{resolveIconElement(action.icon, {
+											className: "size-4 mr-2",
+										})}
+										{resolveText(action.label)}
+									</DropdownMenuItem>
+								))}
+							</DropdownMenuContent>
+						</DropdownMenu>
+					)}
 				</div>
 			)}
 		</div>

@@ -178,32 +178,86 @@ export type FormFieldEntry =
 	  } & FormFieldReactiveConfig);
 
 /**
- * Form section with fields that can have inline reactive config.
+ * Form section layout for form views.
  */
-export interface FormSection {
+export interface FormSectionLayout {
+	type: "section";
+	/** Section label */
 	label?: I18nText;
+	/** Section description */
 	description?: I18nText;
-	fields: FormFieldEntry[];
-	collapsible?: boolean;
+	/** Visual wrapper mode */
+	wrapper?: "flat" | "collapsible";
+	/** Default collapsed state (for collapsible wrapper) */
 	defaultCollapsed?: boolean;
+	/** Field arrangement mode */
+	layout?: "stack" | "inline" | "grid";
+	/** Number of columns (for grid layout) */
+	columns?: number;
+	/** Custom gap (in quarter rems) */
+	gap?: number;
+	/** Fields in this section */
+	fields: FieldLayoutItem[];
+	/** Conditional visibility */
+	hidden?: boolean;
+	/** Custom CSS class */
+	className?: string;
+}
+
+/**
+ * Tab configuration for tabbed form views.
+ */
+export interface FormTabConfig {
+	/** Unique tab identifier */
+	id: string;
+	/** Tab label */
+	label: I18nText;
+	/** Tab icon */
+	icon?: { type: string; props: Record<string, unknown> };
+	/** Fields in this tab */
+	fields: FieldLayoutItem[];
+	/** Conditional visibility */
+	hidden?: boolean;
+}
+
+/**
+ * Tabs layout for form views.
+ */
+export interface FormTabsLayout {
+	type: "tabs";
+	tabs: FormTabConfig[];
+}
+
+/**
+ * Field layout item - union of field reference or layout container.
+ */
+export type FieldLayoutItem =
+	| string
+	| FormFieldEntry
+	| FormSectionLayout
+	| FormTabsLayout;
+
+/**
+ * Form sidebar configuration.
+ */
+export interface FormSidebarConfig {
+	/** Sidebar position (default: "right") */
+	position?: "left" | "right";
+	/** Fields in the sidebar */
+	fields: FieldLayoutItem[];
 }
 
 /**
  * Admin form view schema (from .form())
+ * Matches FormViewConfig from augmentation.ts
  */
 export interface AdminFormViewSchema {
 	/** View type (form, wizard, etc.) */
 	view?: string;
-	/** Fields to include - can be simple names or objects with reactive config */
-	fields?: FormFieldEntry[];
-	/** Form sections */
-	sections?: FormSection[];
-	/** Form tabs */
-	tabs?: Array<{
-		label: I18nText;
-		icon?: { type: string; props: Record<string, unknown> };
-		sections: FormSection[];
-	}>;
+	/** Main content fields - can contain sections, tabs, or simple field references */
+	fields?: FieldLayoutItem[];
+	/** Sidebar configuration */
+	sidebar?: FormSidebarConfig;
 }
 
 // ============================================================================
@@ -324,12 +378,13 @@ function extractAdminConfig(
 	}
 
 	// Extract form view config (.form())
+	// Pass through the entire config as-is since FormViewConfig structure
+	// uses inline sections/tabs within the fields array
 	if (stateAny.adminForm) {
 		result.form = {
 			view: stateAny.adminForm.view,
 			fields: stateAny.adminForm.fields,
-			sections: stateAny.adminForm.sections,
-			tabs: stateAny.adminForm.tabs,
+			sidebar: stateAny.adminForm.sidebar,
 		};
 	}
 
