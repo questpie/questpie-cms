@@ -8,7 +8,7 @@
  * - Auto-generates fields when no form config is defined
  */
 
-import type { Questpie } from "questpie";
+import type { CollectionSchema, Questpie } from "questpie";
 import * as React from "react";
 import { useFormContext, useWatch } from "react-hook-form";
 import type {
@@ -25,7 +25,8 @@ import {
 	getFieldName,
 	isFieldReference,
 } from "../../builder/types/field-types";
-import { containerGridColumnClasses } from "../../components/fields/field-utils";
+import { resolveIconElement } from "../../components/component-renderer";
+import { getGridColumnsClass } from "../../components/fields/field-utils";
 import {
 	Accordion,
 	AccordionContent,
@@ -38,6 +39,8 @@ import {
 	TabsList,
 	TabsTrigger,
 } from "../../components/ui/tabs";
+import { useCollectionFields } from "../../hooks/use-collection-fields";
+import { useGlobalFields } from "../../hooks/use-global-fields";
 import { useResolveText } from "../../i18n/hooks";
 import { cn } from "../../utils";
 import { getFullFieldName, resolveValue } from "./field-context";
@@ -57,6 +60,12 @@ interface CollectionConfig {
 	form?: FormViewConfig;
 }
 
+type AdminFormSchema = CollectionSchema["admin"] extends infer TAdmin
+	? TAdmin extends { form?: infer TForm }
+		? TForm
+		: undefined
+	: undefined;
+
 export interface AutoFormFieldsProps<
 	T extends Questpie<any> = Questpie<any>,
 	K extends string = string,
@@ -67,9 +76,17 @@ export interface AutoFormFieldsProps<
 	cms?: T;
 
 	/**
-	 * Collection name
+	 * Collection or global name
 	 */
 	collection: K;
+
+	/**
+	 * Schema source mode.
+	 * - "collection": Fetch collection schema (default)
+	 * - "global": Fetch global schema
+	 * @default "collection"
+	 */
+	mode?: "collection" | "global";
 
 	/**
 	 * Collection config (CollectionBuilderState)
@@ -115,8 +132,16 @@ function normalizeFieldItem(item: FieldLayoutItem): {
 	if (typeof item === "string") {
 		return { field: item };
 	}
-	if (isFieldReference(item)) {
-		return item;
+	if (
+		typeof item === "object" &&
+		item !== null &&
+		"field" in item &&
+		typeof item.field === "string"
+	) {
+		return {
+			field: item.field,
+			className: "className" in item ? item.className : undefined,
+		};
 	}
 	return null;
 }
@@ -125,14 +150,78 @@ function normalizeFieldItem(item: FieldLayoutItem): {
 // Layout Helpers
 // ============================================================================
 
-function getGridColumnsClass(columns?: number) {
-	if (!columns) return "";
-	return containerGridColumnClasses[columns] || "";
-}
-
 function getGapStyle(gap?: number) {
 	if (gap === undefined) return undefined;
 	return `${gap * 0.25}rem`;
+}
+
+// ============================================================================
+// Schema Mapping Helpers
+// ============================================================================
+
+function formatTabId(label: unknown, index: number): string {
+	if (typeof label === "string") {
+		const normalized = label
+			.toLowerCase()
+			.replace(/\s+/g, "-")
+			.replace(/[^a-z0-9-_]/g, "");
+		return normalized || `tab-${index}`;
+	}
+	if (label && typeof label === "object" && "key" in label) {
+		const key = (label as { key?: string }).key;
+		if (key) return key;
+	}
+	return `tab-${index}`;
+}
+
+function mapSectionsToLayout(
+	sections: Array<{
+		label?: any;
+		description?: any;
+		fields: FieldLayoutItem[];
+		collapsible?: boolean;
+		defaultCollapsed?: boolean;
+	}>,
+): FieldLayoutItem[] {
+	return sections.map((section) => ({
+		type: "section",
+		label: section.label,
+		description: section.description,
+		fields: section.fields,
+		wrapper: section.collapsible ? "collapsible" : "flat",
+		defaultCollapsed: section.defaultCollapsed,
+	}));
+}
+
+function mapFormSchemaToConfig(
+	form?: AdminFormSchema,
+): FormViewConfig | undefined {
+	if (!form) return undefined;
+
+	if (form.tabs?.length) {
+		return {
+			fields: [
+				{
+					type: "tabs",
+					tabs: form.tabs.map((tab, index) => ({
+						id: formatTabId(tab.label, index),
+						label: tab.label,
+						fields: mapSectionsToLayout(tab.sections ?? []),
+					})),
+				},
+			],
+		};
+	}
+
+	if (form.sections?.length) {
+		return { fields: mapSectionsToLayout(form.sections) };
+	}
+
+	if (form.fields?.length) {
+		return { fields: form.fields };
+	}
+
+	return undefined;
 }
 
 // ============================================================================
@@ -190,7 +279,7 @@ function renderFields({
 
 	if (!visibleFields.length) return null;
 
-	const gridClass = columns > 1 ? getGridColumnsClass(columns) : "";
+	const gridClass = columns > 1 ? getGridColumnsClass(columns, true) : "";
 
 	// Calculate if last field should span full width
 	// (when there's an odd number of fields in a multi-column grid)
@@ -258,14 +347,14 @@ function renderFields({
 function getLayoutKey(item: SectionLayout | TabsLayout): string {
 	if (item.type === "tabs") {
 		const tabKey = item.tabs
-			.map((tab) => tab.id)
+			.map((tab: TabConfig) => tab.id)
 			.filter(Boolean)
 			.join("-");
 		return tabKey ? `tabs-${tabKey}` : "tabs";
 	}
 
 	const fieldKey = item.fields
-		.map((fieldItem) => {
+		.map((fieldItem: FieldLayoutItem) => {
 			if (isFieldReference(fieldItem)) {
 				return getFieldName(fieldItem) ?? "field";
 			}
@@ -459,7 +548,7 @@ function renderSection({
 			// Inline layout - horizontal flexbox
 			return (
 				<div className={cn("flex flex-wrap gap-4", section.className)}>
-					{section.fields.map((item, idx) => {
+					{section.fields.map((item, _idx) => {
 						const fieldName = getFieldName(item);
 						if (!fieldName || !fields[fieldName]) return null;
 						if (excludedFields?.has(fieldName)) return null;
@@ -609,7 +698,7 @@ function renderTabs({
 	) => string;
 }): React.ReactNode {
 	const visibleTabs = tabsLayout.tabs.filter(
-		(tab) => !resolveValue(tab.hidden, formValues, false),
+		(tab: TabConfig) => !resolveValue(tab.hidden, formValues, false),
 	);
 
 	if (!visibleTabs.length) return null;
@@ -619,14 +708,14 @@ function renderTabs({
 	return (
 		<Tabs defaultValue={defaultTab}>
 			<TabsList variant="line">
-				{visibleTabs.map((tab) => (
+				{visibleTabs.map((tab: TabConfig) => (
 					<TabsTrigger key={tab.id} value={tab.id}>
-						{tab.icon && <tab.icon className="mr-2 size-4" />}
+						{resolveIconElement(tab.icon, { className: "mr-2 size-4" })}
 						{resolveText(tab.label, tab.id, formValues)}
 					</TabsTrigger>
 				))}
 			</TabsList>
-			{visibleTabs.map((tab) => (
+			{visibleTabs.map((tab: TabConfig) => (
 				<TabsContent key={tab.id} value={tab.id} className="mt-4">
 					{renderFieldLayoutItems({
 						fieldItems: tab.fields,
@@ -737,12 +826,31 @@ function extractFieldNamesFromFieldItems(
 export function AutoFormFields<T extends Questpie<any>, K extends string>({
 	cms: _cms,
 	collection,
+	mode = "collection",
 	config,
 	registry,
 	renderField,
 	fieldPrefix,
 	allCollectionsConfig,
 }: AutoFormFieldsProps<T, K>): React.ReactElement {
+	// Use the appropriate hook based on mode
+	const collectionResult = useCollectionFields(
+		mode === "collection" ? collection : "",
+		{
+			fallbackFields: mode === "collection" ? config?.fields : undefined,
+			schemaQueryOptions: { enabled: mode === "collection" },
+		},
+	);
+	const globalResult = useGlobalFields(mode === "global" ? collection : "", {
+		schemaQueryOptions: { enabled: mode === "global" },
+	});
+
+	const resolvedFields =
+		mode === "global"
+			? { ...globalResult.fields, ...config?.fields }
+			: collectionResult.fields;
+	const schema =
+		mode === "global" ? (globalResult.schema as any) : collectionResult.schema;
 	const form = useFormContext() as any;
 	// Use useWatch hook (React pattern) instead of form.watch() method
 	// Watch all form values - the fieldPrefix scoping is handled below
@@ -765,10 +873,12 @@ export function AutoFormFields<T extends Questpie<any>, K extends string>({
 	const resolveText = useResolveText();
 
 	// Get fields config
-	const fields = (config?.fields || {}) as Record<string, FieldDefinition>;
+	const fields = (resolvedFields || {}) as Record<string, FieldDefinition>;
 
 	// Extract form config from view builder (~config property)
-	const formConfig = (config?.form as any)?.["~config"] ?? config?.form;
+	const schemaFormConfig = mapFormSchemaToConfig(schema?.admin?.form);
+	const formConfig =
+		(config?.form as any)?.["~config"] ?? config?.form ?? schemaFormConfig;
 
 	// Get all field names for auto-generation
 	const allFieldNames = Object.keys(fields);
@@ -830,7 +940,7 @@ export function AutoFormFields<T extends Questpie<any>, K extends string>({
 	const mainContent = renderMainContent();
 
 	// Check if sidebar layout is needed
-	const hasSidebar = formConfig?.sidebar && formConfig.sidebar.fields?.length;
+	const hasSidebar = formConfig?.sidebar?.fields?.length;
 
 	if (hasSidebar && formConfig?.sidebar) {
 		const sidebarContent = renderSidebar({

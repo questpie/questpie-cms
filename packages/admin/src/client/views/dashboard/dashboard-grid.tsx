@@ -12,6 +12,7 @@
 
 import type * as React from "react";
 import type {
+	AnyWidgetConfig,
 	DashboardAction,
 	DashboardConfig,
 	DashboardLayoutItem,
@@ -21,6 +22,7 @@ import type {
 	WidgetComponentProps,
 	WidgetConfig,
 } from "../../builder";
+import { resolveIconElement } from "../../components/component-renderer";
 import {
 	Accordion,
 	AccordionContent,
@@ -118,11 +120,22 @@ function getGridClass(columns: number): string {
 }
 
 /**
- * Get column span class for a widget
+ * Get column span class for a widget.
+ * Returns responsive span classes that gracefully collapse on smaller screens.
+ * For custom responsive behavior, use className prop directly.
  */
 function getSpanClass(span: number | undefined): string {
-	if (!span || span <= 1) return "";
-	return spanClasses[span] || "";
+	if (!span || span <= 1) return "col-span-1";
+	if (spanClasses[span]) return spanClasses[span];
+
+	// Generate responsive classes for spans not in the map (7-11)
+	// Progressive collapse: full span at lg+, 3 at md, 2 at xs, 1 on mobile
+	if (span >= 7 && span <= 11) {
+		return `col-span-1 @xs:col-span-2 @md:col-span-3 @lg:col-span-${span}`;
+	}
+
+	// Fallback for any other value
+	return `col-span-${Math.min(span, 12)}`;
 }
 
 /**
@@ -212,10 +225,9 @@ function DashboardHeader({
 			{actions && actions.length > 0 && (
 				<div className="flex items-center gap-2 shrink-0">
 					{actions.map((action) => {
-						const Icon =
-							action.icon && typeof action.icon !== "string"
-								? action.icon
-								: null;
+						const iconElement = resolveIconElement(action.icon, {
+							className: "h-4 w-4 mr-2",
+						});
 						const variant = action.variant || "default";
 
 						return (
@@ -225,7 +237,7 @@ function DashboardHeader({
 								size="sm"
 								onClick={() => handleActionClick(action)}
 							>
-								{Icon && <Icon className="h-4 w-4 mr-2" />}
+								{iconElement}
 								{resolveText(action.label)}
 							</Button>
 						);
@@ -248,6 +260,7 @@ interface LayoutItemRendererProps {
 	navigate?: (path: string) => void;
 	widgetRegistry?: Record<string, React.ComponentType<WidgetComponentProps>>;
 	resolveText: (text: any) => string;
+	dashboardRealtime?: boolean;
 }
 
 function LayoutItemRenderer({
@@ -258,14 +271,19 @@ function LayoutItemRenderer({
 	navigate,
 	widgetRegistry,
 	resolveText,
+	dashboardRealtime,
 }: LayoutItemRendererProps) {
 	// Widget
 	if (isWidgetConfig(item)) {
 		const spanClass = getSpanClass(item.span);
+		const widgetConfig =
+			dashboardRealtime !== undefined && item.realtime === undefined
+				? ({ ...item, realtime: dashboardRealtime } as AnyWidgetConfig)
+				: item;
 		return (
-			<div className={cn("min-h-0 h-full", spanClass)}>
+			<div className={cn("min-h-0 h-full", spanClass, item.className)}>
 				<DashboardWidget
-					config={item}
+					config={widgetConfig}
 					basePath={basePath}
 					navigate={navigate}
 					widgetRegistry={widgetRegistry}
@@ -284,6 +302,7 @@ function LayoutItemRenderer({
 				navigate={navigate}
 				widgetRegistry={widgetRegistry}
 				resolveText={resolveText}
+				dashboardRealtime={dashboardRealtime}
 			/>
 		);
 	}
@@ -298,6 +317,7 @@ function LayoutItemRenderer({
 				navigate={navigate}
 				widgetRegistry={widgetRegistry}
 				resolveText={resolveText}
+				dashboardRealtime={dashboardRealtime}
 			/>
 		);
 	}
@@ -315,6 +335,7 @@ interface SectionRendererProps {
 	navigate?: (path: string) => void;
 	widgetRegistry?: Record<string, React.ComponentType<WidgetComponentProps>>;
 	resolveText: (text: any) => string;
+	dashboardRealtime?: boolean;
 }
 
 function SectionRenderer({
@@ -323,6 +344,7 @@ function SectionRenderer({
 	navigate,
 	widgetRegistry,
 	resolveText,
+	dashboardRealtime,
 }: SectionRendererProps) {
 	const {
 		label,
@@ -360,6 +382,7 @@ function SectionRenderer({
 					navigate={navigate}
 					widgetRegistry={widgetRegistry}
 					resolveText={resolveText}
+					dashboardRealtime={dashboardRealtime}
 				/>
 			))}
 		</div>
@@ -444,6 +467,7 @@ interface TabsRendererProps {
 	navigate?: (path: string) => void;
 	widgetRegistry?: Record<string, React.ComponentType<WidgetComponentProps>>;
 	resolveText: (text: any) => string;
+	dashboardRealtime?: boolean;
 }
 
 function TabsRenderer({
@@ -452,6 +476,7 @@ function TabsRenderer({
 	navigate,
 	widgetRegistry,
 	resolveText,
+	dashboardRealtime,
 }: TabsRendererProps) {
 	const { tabs: tabConfigs, defaultTab, variant = "default" } = tabs;
 
@@ -465,7 +490,9 @@ function TabsRenderer({
 			>
 				{tabConfigs.map((tab) => (
 					<TabsTrigger key={tab.id} value={tab.id}>
-						{tab.icon && <tab.icon className="h-4 w-4 mr-2" />}
+						{resolveIconElement(tab.icon, {
+							className: "h-4 w-4 mr-2",
+						})}
 						{resolveText(tab.label)}
 						{tab.badge !== undefined && (
 							<span className="ml-2 rounded-full bg-muted px-2 py-0.5 text-xs">
@@ -484,6 +511,7 @@ function TabsRenderer({
 						navigate={navigate}
 						widgetRegistry={widgetRegistry}
 						resolveText={resolveText}
+						dashboardRealtime={dashboardRealtime}
 					/>
 				</TabsContent>
 			))}
@@ -497,6 +525,7 @@ interface TabContentRendererProps {
 	navigate?: (path: string) => void;
 	widgetRegistry?: Record<string, React.ComponentType<WidgetComponentProps>>;
 	resolveText: (text: any) => string;
+	dashboardRealtime?: boolean;
 }
 
 function TabContentRenderer({
@@ -505,6 +534,7 @@ function TabContentRenderer({
 	navigate,
 	widgetRegistry,
 	resolveText,
+	dashboardRealtime,
 }: TabContentRendererProps) {
 	// Default to 4 columns for tab content
 	const columns = 4;
@@ -526,6 +556,7 @@ function TabContentRenderer({
 					navigate={navigate}
 					widgetRegistry={widgetRegistry}
 					resolveText={resolveText}
+					dashboardRealtime={dashboardRealtime}
 				/>
 			))}
 		</div>
@@ -577,7 +608,12 @@ export function DashboardGrid({
 	className,
 }: DashboardGridProps): React.ReactElement {
 	const resolveText = useResolveText();
-	const { title, description, columns = 4 } = config;
+	const {
+		title,
+		description,
+		columns = 4,
+		realtime: dashboardRealtime,
+	} = config;
 
 	// Support both new `items` and legacy `widgets` array
 	const layoutItems = config.items || config.widgets || [];
@@ -633,6 +669,7 @@ export function DashboardGrid({
 						navigate={navigate}
 						widgetRegistry={widgetRegistry}
 						resolveText={resolveText}
+						dashboardRealtime={dashboardRealtime}
 					/>
 				))}
 			</div>

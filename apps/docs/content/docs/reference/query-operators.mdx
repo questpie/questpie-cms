@@ -1,0 +1,247 @@
+---
+title: Query Operators
+description: Where clause operators for filtering, comparison, text search, and relation queries
+---
+
+# Query Operators
+
+All `where` clauses in CRUD operations (`.find()`, `.findOne()`, `.update()`, `.delete()`, etc.) support these operators.
+
+## Basic Equality
+
+A plain value is shorthand for `eq`:
+
+```ts
+// These are equivalent
+{ status: "published" }
+{ status: { eq: "published" } }
+```
+
+## Comparison Operators
+
+Work on all scalar types (string, number, date).
+
+| Operator | SQL | Description |
+|---|---|---|
+| `eq` | `= value` | Equal |
+| `ne` | `!= value` | Not equal (or `IS NOT NULL` if value is null) |
+| `gt` | `> value` | Greater than |
+| `gte` | `>= value` | Greater than or equal |
+| `lt` | `< value` | Less than |
+| `lte` | `<= value` | Less than or equal |
+
+```ts
+// Number comparison
+{ age: { gte: 18, lte: 65 } }
+
+// Date comparison
+{ createdAt: { gt: "2024-01-01T00:00:00Z" } }
+```
+
+## Array Operators
+
+| Operator | SQL | Description |
+|---|---|---|
+| `in` | `IN (values)` | Value is one of |
+| `notIn` | `NOT IN (values)` | Value is not one of |
+
+```ts
+{ status: { in: ["active", "pending"] } }
+{ role: { notIn: ["banned", "suspended"] } }
+```
+
+## Range Operator
+
+| Operator | SQL | Description |
+|---|---|---|
+| `between` | `BETWEEN min AND max` | Value is within range (inclusive) |
+
+```ts
+{ price: { between: [10, 100] } }
+```
+
+## String Operators
+
+| Operator | SQL | Case | Description |
+|---|---|---|---|
+| `like` | `LIKE pattern` | Sensitive | SQL LIKE pattern (`%` = wildcard) |
+| `ilike` | `ILIKE pattern` | Insensitive | SQL ILIKE pattern |
+| `notLike` | `NOT LIKE pattern` | Sensitive | Negated LIKE |
+| `notIlike` | `NOT ILIKE pattern` | Insensitive | Negated ILIKE |
+| `contains` | `ILIKE '%value%'` | Insensitive | Substring match |
+| `startsWith` | `ILIKE 'value%'` | Insensitive | Prefix match |
+| `endsWith` | `ILIKE '%value'` | Insensitive | Suffix match |
+
+```ts
+// Substring search
+{ name: { contains: "john" } }
+
+// Pattern matching
+{ email: { ilike: "%@example.com" } }
+
+// Prefix
+{ title: { startsWith: "Getting" } }
+```
+
+## Null Operators
+
+| Operator | SQL | Description |
+|---|---|---|
+| `isNull` | `IS NULL` (if true) / `IS NOT NULL` (if false) | Check nullity |
+| `isNotNull` | `IS NOT NULL` (if true) / `IS NULL` (if false) | Check non-nullity |
+
+```ts
+// Find records where deletedAt is null (not deleted)
+{ deletedAt: { isNull: true } }
+
+// Find records that have an email set
+{ email: { isNotNull: true } }
+```
+
+## Array/JSONB Operators
+
+PostgreSQL-specific operators for array and JSONB columns.
+
+| Operator | SQL | Description |
+|---|---|---|
+| `arrayContains` | `@> array` | Column array contains all given values |
+| `arrayContained` | `<@ array` | Column array is contained within given values |
+| `arrayOverlaps` | `&& array` | Column array has any overlap with given values |
+
+```ts
+// Tags include "featured"
+{ tags: { arrayContains: ["featured"] } }
+
+// Tags are a subset of the given list
+{ tags: { arrayContained: ["tech", "news", "featured"] } }
+
+// Tags share at least one value
+{ tags: { arrayOverlaps: ["javascript", "typescript"] } }
+```
+
+## Logical Operators
+
+Combine multiple conditions.
+
+### AND
+
+All conditions must match. Fields at the same level are implicitly ANDed.
+
+```ts
+// Implicit AND (fields on same object)
+{ status: "published", age: { gte: 18 } }
+
+// Explicit AND (same field, different conditions, or complex logic)
+{ AND: [
+  { status: "active" },
+  { OR: [{ role: "admin" }, { role: "editor" }] },
+]}
+```
+
+### OR
+
+At least one condition must match.
+
+```ts
+{ OR: [
+  { status: "pending" },
+  { status: "review" },
+]}
+```
+
+### NOT
+
+Negate a condition.
+
+```ts
+{ NOT: { status: "deleted" } }
+
+// Combined
+{ AND: [
+  { status: "published" },
+  { NOT: { category: "internal" } },
+]}
+```
+
+## Relation Operators
+
+Filter records based on related records. Different operators are available depending on the relation type.
+
+### Belongs-To / One-to-One
+
+| Operator | Description |
+|---|---|
+| `is` | Related record matches condition |
+| `isNot` | Related record does not match condition |
+
+```ts
+// Posts by verified authors
+{ author: { is: { verified: true } } }
+
+// Posts NOT by banned authors
+{ author: { isNot: { banned: true } } }
+```
+
+### Has-Many / Many-to-Many
+
+| Operator | Description |
+|---|---|
+| `some` | At least one related record matches |
+| `none` | No related records match |
+| `every` | All related records match |
+
+```ts
+// Posts with at least one approved comment
+{ comments: { some: { approved: true } } }
+
+// Posts with zero spam comments
+{ comments: { none: { spam: true } } }
+
+// Posts where ALL comments are approved
+{ comments: { every: { approved: true } } }
+```
+
+Relation operators generate SQL subqueries (EXISTS / NOT EXISTS).
+
+## Raw SQL
+
+For advanced queries not covered by built-in operators:
+
+```ts
+{ RAW: (table) => sql`${table.score} > ${table.threshold} * 1.5` }
+```
+
+Use sparingly — raw SQL bypasses type safety and operator validation.
+
+## Operator Support by Field Type
+
+| Field Type | Supported Operators |
+|---|---|
+| `text`, `textarea`, `email`, `url` | `eq`, `ne`, `in`, `notIn`, `like`, `ilike`, `notLike`, `notIlike`, `contains`, `startsWith`, `endsWith`, `isNull`, `isNotNull` |
+| `number` | `eq`, `ne`, `gt`, `gte`, `lt`, `lte`, `between`, `in`, `notIn`, `isNull`, `isNotNull` |
+| `date`, `datetime` | `eq`, `ne`, `gt`, `gte`, `lt`, `lte`, `in`, `notIn`, `isNull`, `isNotNull` |
+| `boolean` | `eq`, `ne`, `isNull`, `isNotNull` |
+| `select` | `eq`, `ne`, `in`, `notIn`, `isNull`, `isNotNull` |
+| `json`, `object` | `eq`, `ne`, `isNull`, `isNotNull` |
+| `array` | `eq`, `ne`, `arrayContains`, `arrayContained`, `arrayOverlaps`, `isNull`, `isNotNull` |
+| `relation` | `is`, `isNot`, `some`, `none`, `every` |
+
+## HTTP Query Parameters
+
+In HTTP requests, the `where` clause is passed as JSON:
+
+```
+GET /api/cms/collections/posts?where={"status":"published","title":{"contains":"guide"}}
+```
+
+For complex queries:
+
+```
+GET /api/cms/collections/posts?where={"OR":[{"status":"published"},{"featured":true}]}
+```
+
+## Related Pages
+
+- [CRUD API](/docs/reference/crud-api) — Operations that accept `where`
+- [Collections](/docs/server/collections) — Collection definitions
+- [Field Types](/docs/server/field-types) — Field types and their capabilities

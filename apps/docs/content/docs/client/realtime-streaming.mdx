@@ -1,0 +1,139 @@
+---
+title: Realtime Streaming
+description: SSE snapshot streaming for live data updates with TanStack Query
+---
+
+# Realtime Streaming
+
+QUESTPIE's client SDK includes SSE (Server-Sent Events) utilities for streaming live data updates. When a collection changes, connected clients receive the updated data snapshot via SSE, and TanStack Query automatically re-renders.
+
+## Why This Exists
+
+Instead of polling for changes, SSE streaming pushes updates to the client as they happen. Combined with TanStack Query, this means your UI stays in sync with the database without manual refresh or periodic refetching.
+
+## How It Works
+
+```text
+Client connects → GET /realtime/collections/{name}?seq=0
+Server sends → data: { snapshot of current query results }
+Record changes → Server sends → data: { updated snapshot }
+Client receives → TanStack Query cache updated → UI re-renders
+```
+
+The client sends the last sequence number (`seq`) it received. The server only sends new snapshots when data has changed since that sequence.
+
+## Setup
+
+Enable realtime in the query options factory:
+
+```ts
+import { createQuestpieQueryOptions } from "@questpie/tanstack-query";
+
+const cms = createQuestpieQueryOptions(client, {
+  realtime: {
+    baseUrl: "/api/cms",       // Must match your adapter basePath
+    enabled: true,
+    withCredentials: true,     // Send cookies for auth
+  },
+});
+```
+
+## Usage with TanStack Query
+
+Enable realtime per query:
+
+```ts
+// Collection query with realtime updates
+const { data } = useQuery(
+  cms.collections.posts.find(
+    { where: { status: "published" }, limit: 10 },
+    { realtime: true },
+  ),
+);
+// data updates automatically when any post changes
+
+// Global with realtime
+const { data: settings } = useQuery(
+  cms.globals.siteSettings.get(
+    {},
+    { realtime: true },
+  ),
+);
+```
+
+Without `{ realtime: true }`, queries use standard fetch without SSE.
+
+## SSE Snapshot Stream
+
+For custom integrations outside TanStack Query, use `sseSnapshotStream` directly:
+
+```ts
+import { sseSnapshotStream } from "@questpie/tanstack-query";
+
+const stream = sseSnapshotStream({
+  url: "/api/cms/realtime/collections/posts?where={\"status\":\"published\"}",
+  withCredentials: true,
+  signal: abortController.signal,
+});
+
+for await (const snapshot of stream) {
+  console.log("Updated data:", snapshot);
+  // snapshot contains the full query result
+}
+```
+
+### `sseSnapshotStream(options)`
+
+Returns an `AsyncGenerator` that yields data snapshots:
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `url` | `string` | — | SSE endpoint URL |
+| `withCredentials` | `boolean` | `true` | Send cookies for auth |
+| `signal` | `AbortSignal` | — | Abort controller signal |
+
+## URL Builders
+
+Build realtime URLs programmatically:
+
+```ts
+import {
+  buildCollectionRealtimeUrl,
+  buildGlobalRealtimeUrl,
+} from "@questpie/tanstack-query";
+
+const collectionUrl = buildCollectionRealtimeUrl(
+  { baseUrl: "/api/cms", enabled: true },
+  "posts",
+  { where: { status: "published" } },
+);
+// "/api/cms/realtime/collections/posts?where=..."
+
+const globalUrl = buildGlobalRealtimeUrl(
+  { baseUrl: "/api/cms", enabled: true },
+  "siteSettings",
+);
+// "/api/cms/realtime/globals/siteSettings"
+```
+
+## SSE Endpoints
+
+| Endpoint | Description |
+|---|---|
+| `GET /realtime/collections/{name}` | Stream collection changes |
+| `GET /realtime/globals/{name}` | Stream global changes |
+
+Query parameters (like `where`, `limit`, `offset`) are forwarded to the server. The server re-executes the query when changes occur and sends the new result.
+
+## Common Mistakes
+
+- **Missing `realtime` config** — Without `realtime: { baseUrl, enabled: true }` in the query options factory, realtime queries silently fall back to standard fetch.
+- **Wrong `baseUrl`** — The realtime `baseUrl` must match your adapter's `basePath`. If your API is at `/api/cms`, the realtime base must be `/api/cms` too.
+- **Not using `{ realtime: true }` per query** — Realtime must be opted into per query. The global `enabled: true` just makes it available; each query still needs `{ realtime: true }`.
+- **Too many SSE connections** — Each realtime query opens an SSE connection. Be mindful of connection limits in production.
+
+## Related Pages
+
+- [TanStack Query](/docs/client/tanstack-query) — Query options factory
+- [Realtime](/docs/infrastructure/realtime) — Server-side realtime setup
+- [Client Overview](/docs/client) — Client SDK overview

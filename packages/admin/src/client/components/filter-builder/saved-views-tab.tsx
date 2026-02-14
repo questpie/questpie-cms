@@ -1,9 +1,4 @@
-import {
-	ArrowRight,
-	FloppyDisk,
-	SpinnerGap,
-	Trash,
-} from "@phosphor-icons/react";
+import { Icon } from "@iconify/react";
 import { useState } from "react";
 import { useTranslation } from "../../i18n/index.js";
 import { Button } from "../ui/button.js";
@@ -67,14 +62,14 @@ export function SavedViewsTab({
 						size="sm"
 						className="h-9 px-3 rounded-md"
 					>
-						<FloppyDisk size={16} />
+						<Icon icon="ph:floppy-disk" width={16} height={16} />
 					</Button>
 				</div>
 				<p className="text-xs text-muted-foreground mt-2">
 					{t("viewOptions.saveDescription")}
 				</p>
 				{!hasActiveConfig && (
-					<p className="text-xs text-amber-600 mt-1">
+					<p className="text-xs text-warning mt-1">
 						{t("viewOptions.noChangesToSave")}
 					</p>
 				)}
@@ -88,7 +83,7 @@ export function SavedViewsTab({
 
 				{isLoading && (
 					<div className="flex justify-center p-4 text-muted-foreground">
-						<SpinnerGap className="size-5 animate-spin" />
+						<Icon icon="ph:spinner-gap" className="size-5 animate-spin" />
 					</div>
 				)}
 
@@ -142,10 +137,12 @@ export function SavedViewsTab({
 									}}
 									className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive"
 								>
-									<Trash size={14} />
+									<Icon icon="ph:trash" width={14} height={14} />
 								</Button>
-								<ArrowRight
-									size={14}
+								<Icon
+									icon="ph:arrow-right"
+									width={14}
+									height={14}
 									className="opacity-0 group-hover:opacity-100 text-primary transition-opacity"
 								/>
 							</div>

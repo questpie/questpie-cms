@@ -25,6 +25,9 @@
 	--accent: oklch(0.97 0 0);
 	--accent-foreground: oklch(0.2686 0 89.88);
 	--destructive: oklch(0.58 0.22 27);
+	--success: oklch(0.59 0.18 145);
+	--warning: oklch(0.75 0.18 85);
+	--info: oklch(0.55 0.2 250);
 	--border: oklch(0.9219 0 89.88);
 	--input: oklch(0.9219 0 89.88);
 	--ring: oklch(0.5984 0.3015 310.74);
@@ -88,6 +91,9 @@
 	--accent: oklch(0.1776 0 89.88);
 	--accent-foreground: oklch(0.8699 0 89.88);
 	--destructive: oklch(0.704 0.191 22.216);
+	--success: oklch(0.7 0.17 145);
+	--warning: oklch(0.8 0.16 85);
+	--info: oklch(0.65 0.18 250);
 	--border: oklch(0.3211 0 89.88);
 	--input: oklch(0.3211 0 89.88);
 	--ring: oklch(0.5984 0.3015 310.74);
@@ -135,6 +141,9 @@
 	--color-input: var(--input);
 	--color-border: var(--border);
 	--color-destructive: var(--destructive);
+	--color-success: var(--success);
+	--color-warning: var(--warning);
+	--color-info: var(--info);
 	--color-accent-foreground: var(--accent-foreground);
 	--color-accent: var(--accent);
 	--color-muted-foreground: var(--muted-foreground);
@@ -431,4 +440,75 @@
 
 .animate-field-glow {
 	animation: field-glow 2s ease-in-out;
+}
+
+/* =============================================================================
+   Realtime Highlight Animation
+   ============================================================================= */
+
+@keyframes realtime-pulse {
+	0% {
+		background-color: oklch(0.72 0.19 142 / 0.25);
+	}
+	100% {
+		background-color: transparent;
+	}
+}
+
+.animate-realtime-pulse {
+	animation: realtime-pulse 1.5s ease-out;
+}
+
+/* Dark mode - slightly brighter green for visibility */
+.dark .animate-realtime-pulse {
+	animation-name: realtime-pulse-dark;
+}
+
+@keyframes realtime-pulse-dark {
+	0% {
+		background-color: oklch(0.72 0.19 142 / 0.2);
+	}
+	100% {
+		background-color: transparent;
+	}
+}
+
+/* Delete animation - red pulse + fade out */
+@keyframes realtime-delete {
+	0% {
+		background-color: oklch(0.65 0.2 27 / 0.25);
+		opacity: 1;
+	}
+	70% {
+		background-color: oklch(0.65 0.2 27 / 0.15);
+		opacity: 0.7;
+	}
+	100% {
+		background-color: oklch(0.65 0.2 27 / 0.1);
+		opacity: 0;
+	}
+}
+
+.animate-realtime-delete {
+	animation: realtime-delete 1.5s ease-out forwards;
+	pointer-events: none;
+}
+
+.dark .animate-realtime-delete {
+	animation-name: realtime-delete-dark;
+}
+
+@keyframes realtime-delete-dark {
+	0% {
+		background-color: oklch(0.65 0.2 27 / 0.2);
+		opacity: 1;
+	}
+	70% {
+		background-color: oklch(0.65 0.2 27 / 0.12);
+		opacity: 0.7;
+	}
+	100% {
+		background-color: oklch(0.65 0.2 27 / 0.08);
+		opacity: 0;
+	}
 }

@@ -1,5 +1,3 @@
-import type { Migration } from "../../src/server/migration/types.js";
-import type { PGlite } from "@electric-sql/pglite";
 import {
   afterAll,
   beforeAll,
@@ -8,16 +6,18 @@ import {
   expect,
   test,
 } from "bun:test";
-import { sql } from "drizzle-orm";
-import { boolean, integer, text, varchar } from "drizzle-orm/pg-core";
 import { existsSync, mkdirSync, readdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
-import { createTestDb, testMigrationDir } from "../utils/test-db";
-import { collection, questpie } from "../../src/server/index.js";
+import type { PGlite } from "@electric-sql/pglite";
+import { sql } from "drizzle-orm";
+import { builtinFields } from "../../src/server/fields/builtin/defaults.js";
+import { questpie } from "../../src/server/index.js";
+import type { Migration } from "../../src/server/migration/types.js";
 import { MockKVAdapter } from "../utils/mocks/kv.adapter";
 import { MockLogger } from "../utils/mocks/logger.adapter";
 import { MockMailAdapter } from "../utils/mocks/mailer.adapter";
 import { MockQueueAdapter } from "../utils/mocks/queue.adapter";
+import { createTestDb, testMigrationDir } from "../utils/test-db";
 
 describe("Migration System - Programmatic", () => {
   let app: any;
@@ -27,15 +27,18 @@ describe("Migration System - Programmatic", () => {
     // Create in-memory PGlite instance
     pgClient = await createTestDb();
 
-    // Define test collections
-    const posts = collection("posts").fields({
-      title: varchar("title", { length: 255 }).notNull(),
-      content: text("content"),
-      published: boolean("published").default(false),
-    });
+    // Create questpie instance with fields
+    const q = questpie({ name: "test-cms" }).fields(builtinFields);
+
+    // Define test collections using q.collection()
+    const posts = q.collection("posts").fields((f) => ({
+      title: f.text({ required: true, maxLength: 255 }),
+      content: f.textarea(),
+      published: f.boolean({ default: false }),
+    }));
 
     // Create CMS instance
-    const builder = questpie({ name: "test-cms" }).collections({ posts });
+    const builder = q.collections({ posts });
 
     app = builder.build({
       app: { url: "http://localhost:3000" },
@@ -267,12 +270,13 @@ describe("Migration System - DrizzleMigrationGenerator", () => {
     const { DrizzleMigrationGenerator } =
       await import("../../src/server/migration/generator.js");
 
-    const posts = collection("posts").fields({
-      title: varchar("title", { length: 255 }).notNull(),
-      content: text("content"),
-    });
+    const q = questpie({ name: "test-cms" }).fields(builtinFields);
+    const posts = q.collection("posts").fields((f) => ({
+      title: f.text({ required: true, maxLength: 255 }),
+      content: f.textarea(),
+    }));
 
-    const builder = questpie({ name: "test-cms" }).collections({ posts });
+    const builder = q.collections({ posts });
     const app = builder.build({
       app: { url: "http://localhost:3000" },
       db: { pglite: pgClient },
@@ -306,11 +310,12 @@ describe("Migration System - DrizzleMigrationGenerator", () => {
     const { DrizzleMigrationGenerator } =
       await import("../../src/server/migration/generator.js");
 
-    const posts = collection("posts").fields({
-      title: varchar("title", { length: 255 }).notNull(),
-    });
+    const q = questpie({ name: "test-cms" }).fields(builtinFields);
+    const posts = q.collection("posts").fields((f) => ({
+      title: f.text({ required: true, maxLength: 255 }),
+    }));
 
-    const builder = questpie({ name: "test-cms" }).collections({ posts });
+    const builder = q.collections({ posts });
     const app = builder.build({
       app: { url: "http://localhost:3000" },
       db: { pglite: pgClient },

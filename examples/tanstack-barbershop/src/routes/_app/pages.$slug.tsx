@@ -3,7 +3,6 @@
  *
  * Demonstrates:
  * - BlockRenderer for rendering block content
- * - prefetchBlockData for SSR data fetching
  * - useCollectionPreview for live preview in admin
  * - Block click-to-focus (hover highlight + click to focus block in form)
  */
@@ -16,10 +15,10 @@ import {
 } from "@questpie/admin/client";
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { getPage } from "@/lib/getPages.function";
-import blocks from "@/questpie/admin/blocks";
+import renderers from "@/questpie/admin/blocks";
 
 export const Route = createFileRoute("/_app/pages/$slug")({
-	// Server-side loader - fetches page and prefetches block data
+	// Server-side loader - fetches page
 	loader: async (ctx) => {
 		return getPage({ data: { slug: ctx.params.slug } });
 	},
@@ -51,7 +50,7 @@ export const Route = createFileRoute("/_app/pages/$slug")({
 
 function PageComponent() {
 	type PageLoaderData = Awaited<ReturnType<typeof getPage>>;
-	const { page, blockData } = Route.useLoaderData() as PageLoaderData;
+	const { page } = Route.useLoaderData() as PageLoaderData;
 	const router = useRouter();
 
 	// Preview hook - enables live updates from admin via refresh
@@ -82,8 +81,8 @@ function PageComponent() {
 				{data.content && (
 					<BlockRenderer
 						content={data.content as BlockContent}
-						blocks={blocks}
-						data={blockData}
+						renderers={renderers}
+						data={data.content._data}
 						selectedBlockId={selectedBlockId}
 						onBlockClick={isPreviewMode ? handleBlockClick : undefined}
 					/>

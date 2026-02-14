@@ -1,0 +1,101 @@
+---
+title: Realtime Features
+description: useLock, useLocks, and useRealtimeHighlight hooks for collaborative admin experiences
+---
+
+# Realtime Features
+
+The admin panel includes built-in hooks for collaborative editing, live updates, and change awareness.
+
+## Document Locks — `useLock`
+
+Prevent editing conflicts by acquiring a lock on a document:
+
+```typescript
+import { useLock } from "@questpie/admin/client";
+
+function PostEditor({ postId }: { postId: string }) {
+  const lock = useLock("posts", postId);
+
+  if (lock.isLocked && !lock.isOwnLock) {
+    return <p>Locked by {lock.lockedBy}</p>;
+  }
+
+  return <form>...</form>;
+}
+```
+
+### `useLock` API
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `isLocked` | `boolean` | Whether the document is currently locked |
+| `isOwnLock` | `boolean` | Whether the current user holds the lock |
+| `lockedBy` | `string \| null` | Display name of the lock holder |
+| `acquire()` | `() => Promise<void>` | Request a lock |
+| `release()` | `() => Promise<void>` | Release the lock |
+
+## Lock Awareness — `useLocks`
+
+See all active locks across a collection:
+
+```typescript
+import { useLocks } from "@questpie/admin/client";
+
+function PostsTable() {
+  const locks = useLocks("posts");
+
+  return (
+    <table>
+      {posts.map(post => (
+        <tr key={post.id}>
+          <td>{post.title}</td>
+          <td>
+            {locks[post.id] && (
+              <span>Editing: {locks[post.id].user}</span>
+            )}
+          </td>
+        </tr>
+      ))}
+    </table>
+  );
+}
+```
+
+## Change Highlighting — `useRealtimeHighlight`
+
+Visual pulse effect when a row or field changes:
+
+```typescript
+import { useRealtimeHighlight } from "@questpie/admin/client";
+
+function PostRow({ post }: { post: Post }) {
+  const { ref, isHighlighted } = useRealtimeHighlight(post.id);
+
+  return (
+    <tr
+      ref={ref}
+      style={{
+        animation: isHighlighted ? "realtime-pulse 1s ease-out" : undefined,
+      }}
+    >
+      <td>{post.title}</td>
+      <td>{post.status}</td>
+    </tr>
+  );
+}
+```
+
+The `realtime-pulse` animation is provided in the admin CSS. It creates a subtle purple left-border pulse effect that draws attention to changed rows without being disruptive.
+
+## Presence
+
+The admin panel tracks which users are viewing which collections and documents. Presence data is available to custom view components and can be rendered as avatar indicators, online dots, or activity feeds.
+
+## How These Work Together
+
+In a typical admin experience:
+1. **Presence** shows who's online and where they are
+2. **Locks** prevent simultaneous edits to the same document
+3. **Highlights** show which rows changed while you were looking at the table
+4. **Streamed queries** keep the data fresh without manual refresh

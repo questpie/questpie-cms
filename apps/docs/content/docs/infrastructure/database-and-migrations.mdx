@@ -1,0 +1,114 @@
+---
+title: Database & Migrations
+description: PostgreSQL setup, Drizzle ORM, and schema management
+---
+
+# Database & Migrations
+
+QUESTPIE uses PostgreSQL as its database and Drizzle ORM for schema management. Tables are auto-generated from your collection and global definitions. Migrations handle schema changes between versions.
+
+## Why This Approach
+
+Your collection definitions produce Drizzle table schemas automatically. When you add a field, the framework generates the corresponding column. Migrations let you track and apply these changes across environments.
+
+## Database Setup
+
+### PostgreSQL
+
+```ts
+.build({
+  db: {
+    url: "postgres://postgres:postgres@localhost:5432/mydb",
+  },
+  // ...
+})
+```
+
+### PGlite (Development)
+
+For local development without installing PostgreSQL:
+
+```ts
+import { PGlite } from "@electric-sql/pglite";
+
+.build({
+  db: {
+    url: "pglite://./data",  // local file-based database
+  },
+  // ...
+})
+```
+
+## Auto-Generated Schema
+
+Each collection generates:
+- **Main table** — `{collectionName}` with columns from `.fields()`
+- **I18n table** — `{collectionName}_i18n` for localized fields (if any)
+- **Indexes** — from `.indexes()`
+- **Foreign keys** — from `f.relation()` fields
+
+The `id` (UUID), `createdAt`, and `updatedAt` columns are added automatically when `timestamps: true` (the default).
+
+## Migrations
+
+Define migrations and register them in the builder:
+
+```ts
+// migrations/0001-initial.ts
+import { defineMigration } from "questpie";
+
+export const initialMigration = defineMigration({
+  name: "0001-initial",
+  up: async (db) => {
+    // SQL or Drizzle operations
+    await db.execute(`CREATE EXTENSION IF NOT EXISTS pg_trgm`);
+  },
+  down: async (db) => {
+    // Rollback logic
+  },
+});
+```
+
+Register in the builder:
+
+```ts
+import { initialMigration } from "./migrations/0001-initial";
+
+.migrations([initialMigration])
+```
+
+## Accessing the Database
+
+The Drizzle client is available in hooks, RPC handlers, and jobs:
+
+```ts
+// In a hook
+.hooks({
+  afterChange: async ({ data, db }) => {
+    // db is the Drizzle client (may be within a transaction)
+    await db.execute(sql`UPDATE counters SET value = value + 1`);
+  },
+})
+
+// In an RPC handler
+handler: async ({ app }) => {
+  const result = await app.db.execute(sql`SELECT count(*) FROM posts`);
+  return { count: result.rows[0].count };
+}
+```
+
+## Transactions
+
+CRUD operations run within transactions by default. Hooks receive the transactional `db` client. See [Context & Transactions](/docs/server/context-and-transactions).
+
+## Common Mistakes
+
+- **Modifying tables directly** — Always use migrations for schema changes. Direct modifications won't be tracked.
+- **Forgetting `pg_trgm`** — If you use search, add `CREATE EXTENSION IF NOT EXISTS pg_trgm` in your initial migration.
+- **Wrong connection string format** — Use `postgres://user:pass@host:port/dbname`, not `postgresql://`.
+
+## Related Pages
+
+- [Collections](/docs/server/collections) — How collections generate tables
+- [Context & Transactions](/docs/server/context-and-transactions) — Transaction management
+- [Installation](/docs/getting-started/installation) — Database driver setup

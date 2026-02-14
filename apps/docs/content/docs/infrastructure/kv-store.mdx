@@ -1,0 +1,175 @@
+---
+title: KV Store
+description: In-memory and Redis key-value caching with TTL and tag-based invalidation
+---
+
+# KV Store
+
+QUESTPIE includes a key-value store for caching, rate limiting, and ephemeral state. The default adapter uses an in-memory Map; swap to Redis for multi-process or multi-server deployments.
+
+## Why This Exists
+
+Many CMS operations benefit from short-lived caching — expensive query results, computed aggregates, rate limit counters, or temporary tokens. The KV service provides a simple `get`/`set` interface with optional TTL and tag-based invalidation, available everywhere as `cms.kv`.
+
+## Setup
+
+### Memory (Default)
+
+Works out of the box — no configuration needed:
+
+```ts
+.build({
+  // kv not specified → uses MemoryKVAdapter
+})
+```
+
+### Redis
+
+For production with multiple processes or servers:
+
+```ts
+import { IORedisKVAdapter } from "questpie";
+import Redis from "ioredis";
+
+.build({
+  // ...
+  kv: {
+    adapter: new IORedisKVAdapter(new Redis(process.env.REDIS_URL)),
+    defaultTtl: 300, // 5 minutes
+  },
+})
+```
+
+## Basic Operations
+
+```ts
+// Set a value
+await cms.kv.set("user:123:profile", { name: "Jane", role: "admin" });
+
+// Set with TTL (seconds)
+await cms.kv.set("rate:login:192.168.1.1", 1, 60); // expires in 60s
+
+// Get a typed value
+const profile = await cms.kv.get<{ name: string; role: string }>("user:123:profile");
+
+// Check existence
+const exists = await cms.kv.has("user:123:profile");
+
+// Delete
+await cms.kv.delete("user:123:profile");
+
+// Clear everything
+await cms.kv.clear();
+```
+
+## Tag-Based Invalidation
+
+Tags let you group related cache entries and invalidate them together. This is useful for cache busting when a record changes.
+
+```ts
+// Cache with tags (adapter-level method)
+await adapter.setWithTags(
+  "posts:list:page1",
+  postsPage1,
+  ["posts", "homepage"],
+  300,
+);
+
+await adapter.setWithTags(
+  "posts:list:page2",
+  postsPage2,
+  ["posts"],
+  300,
+);
+
+// Invalidate all "posts" tagged entries at once
+await adapter.invalidateByTag("posts");
+// Both page1 and page2 are now gone
+
+// Invalidate multiple tags
+await adapter.invalidateByTags(["posts", "homepage"]);
+```
+
+## Using KV in Hooks and RPC
+
+Access the KV service through the CMS instance:
+
+```ts
+import { getApp } from "questpie";
+
+// In a hook
+.hooks({
+  afterChange: async ({ app, data }) => {
+    const cms = getApp(app);
+    // Invalidate cached data when record changes
+    await cms.kv.delete(`settings-cache`);
+  },
+})
+
+// In an RPC handler
+handler: async ({ app }) => {
+  const cms = getApp(app);
+
+  // Check cache first
+  const cached = await cms.kv.get<number>("stats:total-posts");
+  if (cached !== null) return { count: cached };
+
+  // Compute and cache
+  const result = await cms.api.collections.posts.count({});
+  await cms.kv.set("stats:total-posts", result, 60);
+  return { count: result };
+}
+```
+
+## Configuration
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `adapter` | `KVAdapter` | `MemoryKVAdapter` | Storage backend |
+| `defaultTtl` | `number` | — | Default TTL in seconds for `set()` calls without explicit TTL |
+
+## KVAdapter Interface
+
+```ts
+interface KVAdapter {
+  get<T = unknown>(key: string): Promise<T | null>;
+  set(key: string, value: unknown, ttl?: number): Promise<void>;
+  delete(key: string): Promise<void>;
+  has(key: string): Promise<boolean>;
+  clear(): Promise<void>;
+
+  // Optional: tag-based invalidation
+  setWithTags?(key: string, value: unknown, tags: string[], ttl?: number): Promise<void>;
+  invalidateByTag?(tag: string): Promise<void>;
+  invalidateByTags?(tags: string[]): Promise<void>;
+}
+```
+
+## Adapters
+
+### MemoryKVAdapter (Default)
+
+In-process Map with lazy TTL expiration. Supports tag-based invalidation via an internal tag index. Data is lost on process restart.
+
+### IORedisKVAdapter
+
+Uses Redis `SET`/`GET` with `SETEX` for TTL. Tags are stored as Redis SETs with `tag:` prefix. Pipeline operations ensure atomicity for multi-key operations.
+
+```ts
+import { IORedisKVAdapter } from "questpie";
+import Redis from "ioredis";
+
+new IORedisKVAdapter(new Redis(process.env.REDIS_URL))
+```
+
+## Common Mistakes
+
+- **Caching without TTL** — Set a TTL to prevent stale data. Use `defaultTtl` in config for a safety net.
+- **Using Memory adapter in production clusters** — Each process has its own cache. Use Redis when running multiple instances.
+- **Storing large objects** — KV is for small, frequently accessed data. Store large blobs in object storage.
+
+## Related Pages
+
+- [Infrastructure Overview](/docs/infrastructure) — All integrated services
+- [Queue & Jobs](/docs/infrastructure/queue-and-jobs) — Background processing
+- [Hooks & Lifecycle](/docs/server/hooks-and-lifecycle) — Cache invalidation from hooks

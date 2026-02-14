@@ -84,23 +84,21 @@ export function AuthGuard({
   const basePath = useAdminStore(selectBasePath);
   const navigate = useAdminStore(selectNavigate);
 
-  // If disabled, render children directly
-  if (disabled) {
-    return <>{children}</>;
-  }
+  // Determine if auth is enabled (not disabled and has auth client)
+  const authEnabled = !disabled && authClient !== null;
 
-  // If no auth client provided, render children (auth is optional)
-  if (!authClient) {
-    return <>{children}</>;
-  }
-
-  // Use Better Auth's session hook
-  const { data: session, isPending, error } = authClient.useSession();
+  // Use Better Auth's session hook - always call to follow Rules of Hooks
+  // When authClient is null, we use a stable mock that returns no session
+  const sessionResult = authClient?.useSession();
+  const session = authEnabled ? sessionResult?.data : null;
+  const isPending = authEnabled ? (sessionResult?.isPending ?? false) : false;
 
   // Handle redirect after render (useEffect for side effects)
   const resolvedLoginPath = loginPath ?? `${basePath}/login`;
   const shouldRedirect =
-    !isPending && (!session || session.user?.role !== requiredRole);
+    authEnabled &&
+    !isPending &&
+    (!session || session.user?.role !== requiredRole);
 
   React.useEffect(() => {
     if (shouldRedirect && !unauthorizedFallback) {
@@ -113,6 +111,11 @@ export function AuthGuard({
       navigate(redirectUrl);
     }
   }, [shouldRedirect, unauthorizedFallback, resolvedLoginPath, navigate]);
+
+  // If disabled or no auth client, render children directly
+  if (!authEnabled) {
+    return <>{children}</>;
+  }
 
   // Loading state
   if (isPending) {

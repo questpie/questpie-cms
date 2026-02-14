@@ -9,6 +9,7 @@ import * as React from "react";
 import { useFormContext, useWatch } from "react-hook-form";
 import type { ComponentRegistry } from "../../builder";
 import type { FieldDefinition } from "../../builder/field/field";
+import { useAdminConfig } from "../../hooks/use-admin-config";
 import { useCollectionMeta } from "../../hooks/use-collection-meta";
 import { useFieldHooks } from "../../hooks/use-field-hooks";
 import { useResolveText } from "../../i18n/hooks";
@@ -262,8 +263,7 @@ export function FieldRenderer({
 	// Use scoped locale (from LocaleScopeProvider in ResourceSheet) or global locale
 	const { locale } = useScopedLocale();
 	const resolveText = useResolveText();
-	// Get admin for blocks registry
-	const admin = useAdminStore(selectAdmin);
+	const { data: adminConfig } = useAdminConfig();
 
 	// Use useWatch hook (React pattern) instead of form.getValues() method
 	// This ensures reactive updates when form values change
@@ -310,6 +310,13 @@ export function FieldRenderer({
 	// Get field options for hooks
 	const fieldOptions = getFieldOptions(fieldDef);
 
+	// Check if compute is client-side (function) vs server-side (object with handler)
+	// Server-side compute is handled by useReactiveFields in form-view.tsx
+	const clientSideCompute =
+		typeof fieldOptions.compute === "function"
+			? fieldOptions.compute
+			: undefined;
+
 	// Use field hooks for compute, onChange, loadOptions
 	const {
 		handleChange,
@@ -321,7 +328,7 @@ export function FieldRenderer({
 		fieldName,
 		fullFieldName: context.fullFieldName,
 		locale,
-		compute: fieldOptions.compute,
+		compute: clientSideCompute,
 		onChange: fieldOptions.onChange,
 		defaultValue: fieldOptions.defaultValue,
 		loadOptions: fieldOptions.loadOptions,
@@ -397,7 +404,7 @@ export function FieldRenderer({
 		content = renderDefinitionComponent({
 			context,
 			componentProps,
-			blocks: admin.state.blocks,
+			blocks: adminConfig?.blocks,
 		});
 	}
 

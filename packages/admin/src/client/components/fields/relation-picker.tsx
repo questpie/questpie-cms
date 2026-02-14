@@ -11,14 +11,16 @@
  * - Responsive: Popover on desktop, Drawer on mobile
  */
 
-import { Plus } from "@phosphor-icons/react";
+import { Icon } from "@iconify/react";
 import { createQuestpieQueryOptions } from "@questpie/tanstack-query";
 import { useQueryClient } from "@tanstack/react-query";
 import type { Questpie } from "questpie";
 import * as React from "react";
 import { toast } from "sonner";
+import { useAdminConfig } from "../../hooks/use-admin-config";
 import { useResolveText, useTranslation } from "../../i18n/hooks";
-import { selectAdmin, selectClient, useAdminStore } from "../../runtime";
+import { selectClient, useAdminStore } from "../../runtime";
+import { resolveIconElement } from "../component-renderer";
 import { SelectSingle } from "../primitives/select-single";
 import type { SelectOption } from "../primitives/types";
 import { ResourceSheet } from "../sheets/resource-sheet";
@@ -179,13 +181,10 @@ export function RelationPicker<T extends Questpie<any>>({
 		string | undefined
 	>();
 
-	// Get admin config for target collection
-	const admin = useAdminStore(selectAdmin);
-	const collections = admin?.getCollections() ?? {};
-	const targetConfig = collections[targetCollection];
-	const CollectionIcon = (targetConfig as any)?.icon as
-		| React.ComponentType<{ className?: string }>
-		| undefined;
+	// Get admin config for target collection from server
+	const { data: serverConfig } = useAdminConfig();
+	const targetConfig = serverConfig?.collections?.[targetCollection];
+	const collectionIconRef = (targetConfig as any)?.icon;
 	const displayColumns = React.useMemo(() => {
 		if (columns && columns.length > 0) return columns;
 		if (display === "table" && targetConfig) {
@@ -251,9 +250,9 @@ export function RelationPicker<T extends Questpie<any>>({
 						label: renderOption
 							? String(renderOption(item))
 							: item._title || item.id || "",
-						icon: CollectionIcon ? (
-							<CollectionIcon className="size-3.5 text-muted-foreground" />
-						) : undefined,
+						icon: resolveIconElement(collectionIconRef, {
+							className: "size-3.5 text-muted-foreground",
+						}),
 					}));
 			} catch (error) {
 				console.error("Failed to load relation options:", error);
@@ -267,7 +266,7 @@ export function RelationPicker<T extends Questpie<any>>({
 			filter,
 			selectedIds,
 			renderOption,
-			CollectionIcon,
+			collectionIconRef,
 		],
 	);
 
@@ -396,9 +395,9 @@ export function RelationPicker<T extends Questpie<any>>({
 						htmlFor={name}
 						className="text-sm font-medium flex items-center gap-1.5"
 					>
-						{CollectionIcon && (
-							<CollectionIcon className="size-3.5 text-muted-foreground" />
-						)}
+						{resolveIconElement(collectionIconRef, {
+							className: "size-3.5 text-muted-foreground",
+						})}
 						{resolvedLabel}
 						{required && <span className="text-destructive">*</span>}
 						{maxItems && (
@@ -417,7 +416,7 @@ export function RelationPicker<T extends Questpie<any>>({
 					display={display}
 					items={selectedItems}
 					collection={targetCollection}
-					collectionIcon={CollectionIcon}
+					collectionIcon={collectionIconRef}
 					editable={!readOnly && !disabled}
 					orderable={orderable && !readOnly && !disabled}
 					columns={displayColumns}
@@ -470,7 +469,7 @@ export function RelationPicker<T extends Questpie<any>>({
 						title={createLabel}
 						aria-label={createLabel}
 					>
-						<Plus className="h-4 w-4" />
+						<Icon icon="ph:plus" className="h-4 w-4" />
 					</Button>
 				</div>
 			)}

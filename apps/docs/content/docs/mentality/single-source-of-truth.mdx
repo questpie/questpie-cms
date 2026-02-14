@@ -1,0 +1,53 @@
+---
+title: Single Source of Truth
+description: Keep schema, behavior, and admin blueprint in one place
+---
+
+# Single Source of Truth
+
+Your collection/global definitions should be the canonical source for:
+
+- data shape
+- validation rules
+- access rules
+- admin metadata and layout blueprint
+
+## Collection example
+
+```ts
+export const appointments = qb
+  .collection("appointments")
+  .fields((f) => ({
+    status: f.select({
+      label: { en: "Status" },
+      options: [
+        { value: "pending", label: { en: "Pending" } },
+        { value: "confirmed", label: { en: "Confirmed" } },
+        { value: "cancelled", label: { en: "Cancelled" } },
+      ],
+      required: true,
+      default: "pending",
+    }),
+    cancellationReason: f.textarea({
+      label: { en: "Cancellation Reason" },
+      meta: {
+        admin: {
+          hidden: ({ data }) => data.status !== "cancelled",
+        },
+      },
+    }),
+  }))
+  .form(({ v, f }) => v.form({ fields: [f.status, f.cancellationReason] }));
+```
+
+The same server definition controls runtime behavior and admin UX decisions.
+
+## Benefits
+
+- fewer regressions across backend and admin
+- faster refactors
+- stronger type inference across the full app
+
+## Smell to avoid
+
+If you describe a field in server code and re-describe the same field structure in client code, you are likely reintroducing drift.

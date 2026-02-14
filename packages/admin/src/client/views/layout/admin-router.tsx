@@ -13,21 +13,22 @@
  * - /admin/:customPage -> Custom pages
  */
 
-import { SpinnerGap } from "@phosphor-icons/react";
+import { Icon } from "@iconify/react";
 import * as React from "react";
 import type {
 	ComponentRegistry,
 	DashboardConfig,
 	DefaultViewsConfig,
+	MaybeLazyComponent,
 	PageDefinition,
 } from "../../builder";
 import { Card } from "../../components/index.js";
+import { useAdminConfig } from "../../hooks/use-admin-config";
+import { useCollectionSchema } from "../../hooks/use-collection-schema";
+import { useGlobalSchema } from "../../hooks/use-global-schema";
 import { parsePrefillParams } from "../../hooks/use-prefill-params";
 import { useAdminStore } from "../../runtime/provider";
-import FormView from "../collection/form-view";
-import TableView from "../collection/table-view";
 import { DashboardGrid } from "../dashboard/dashboard-grid";
-import GlobalFormView from "../globals/global-form-view";
 
 // ============================================================================
 // Types
@@ -152,6 +153,8 @@ function useRouterProps(props: {
 	collections: Record<string, CollectionRouterConfig>;
 	globals: Record<string, GlobalRouterConfig>;
 	pages: Record<string, PageDefinition<string>>;
+	listViews: Record<string, any>;
+	editViews: Record<string, any>;
 	dashboardConfig?: DashboardConfig;
 	DashboardComponent?: React.ComponentType;
 	defaultViews?: DefaultViewsConfig;
@@ -159,19 +162,58 @@ function useRouterProps(props: {
 	// Subscribe to admin from store reactively
 	const admin = useAdminStore((s) => s.admin);
 
-	const storeCollections = admin.getCollections();
-	const storeGlobals = admin.getGlobals();
+	// Fetch server-side admin config
+	const { data: serverConfig } = useAdminConfig();
+
 	const storePages = admin.getPages();
-	const storeDashboard = admin.getDashboard();
+	const storeListViews = admin.getListViews() as Record<string, any>;
+	const storeEditViews = admin.getEditViews() as Record<string, any>;
 	const storeDefaultViews = admin.getDefaultViews();
 
+	// Build collection/global configs from server config keys (for route matching)
+	const serverCollections = React.useMemo<Record<string, any>>(() => {
+		if (props.collections) return props.collections;
+		const result: Record<string, any> = {};
+		if (serverConfig?.collections) {
+			for (const name of Object.keys(serverConfig.collections)) {
+				result[name] = serverConfig.collections[name] ?? {};
+			}
+		}
+		return result;
+	}, [props.collections, serverConfig?.collections]);
+
+	const serverGlobals = React.useMemo<Record<string, any>>(() => {
+		if (props.globals) return props.globals;
+		const result: Record<string, any> = {};
+		if (serverConfig?.globals) {
+			for (const name of Object.keys(serverConfig.globals)) {
+				result[name] = serverConfig.globals[name] ?? {};
+			}
+		}
+		return result;
+	}, [props.globals, serverConfig?.globals]);
+
+	// Server dashboard takes priority
+	const mergedDashboard = React.useMemo<DashboardConfig | undefined>(() => {
+		const serverDashboard = serverConfig?.dashboard;
+
+		// If server has items, use server config entirely
+		if (serverDashboard?.items?.length) {
+			return serverDashboard as DashboardConfig;
+		}
+
+		// Otherwise fall back to local prop
+		return props.dashboardConfig;
+	}, [props.dashboardConfig, serverConfig?.dashboard]);
+
 	return {
-		collections: props.collections ?? storeCollections,
-		globals: props.globals ?? storeGlobals,
+		collections: serverCollections,
+		globals: serverGlobals,
 		pages: props.pages ?? storePages,
-		dashboardConfig: props.dashboardConfig ?? storeDashboard,
-		DashboardComponent:
-			props.DashboardComponent ?? (storeDashboard as any)?.component,
+		listViews: storeListViews,
+		editViews: storeEditViews,
+		dashboardConfig: mergedDashboard,
+		DashboardComponent: props.DashboardComponent,
 		defaultViews: props.defaultViews ?? storeDefaultViews,
 	};
 }
@@ -227,6 +269,188 @@ function matchRoute(
 	}
 
 	return { type: "not-found" };
+}
+
+const DEFAULT_LIST_VIEW_ID = "table";
+const DEFAULT_EDIT_VIEW_ID = "form";
+
+function getConfiguredViewName(config: unknown): string | undefined {
+	if (!config || typeof config !== "object") return undefined;
+	const maybeConfig = config as Record<string, any>;
+	if (typeof maybeConfig.view === "string") return maybeConfig.view;
+	if (typeof maybeConfig.name === "string") return maybeConfig.name;
+	if (typeof maybeConfig.state?.name === "string")
+		return maybeConfig.state.name;
+	return undefined;
+}
+
+function getViewLoader(definition: unknown): MaybeLazyComponent | undefined {
+	if (!definition || typeof definition !== "object") return undefined;
+	const maybeDefinition = definition as Record<string, any>;
+	return (
+		(maybeDefinition.component as MaybeLazyComponent | undefined) ??
+		(maybeDefinition.state?.component as MaybeLazyComponent | undefined)
+	);
+}
+
+function getViewBaseConfig(
+	definition: unknown,
+): Record<string, unknown> | undefined {
+	if (!definition || typeof definition !== "object") return undefined;
+	const maybeDefinition = definition as Record<string, any>;
+	const config =
+		(maybeDefinition["~config"] as Record<string, unknown> | undefined) ??
+		(maybeDefinition.state?.["~config"] as Record<string, unknown> | undefined);
+
+	if (!config || typeof config !== "object") return undefined;
+	return config;
+}
+
+function mergeViewConfig(
+	base: unknown,
+	override: unknown,
+): Record<string, unknown> | undefined {
+	const baseConfig =
+		base && typeof base === "object"
+			? (base as Record<string, unknown>)
+			: undefined;
+	const overrideConfig =
+		override && typeof override === "object"
+			? (override as Record<string, unknown>)
+			: undefined;
+
+	if (!baseConfig && !overrideConfig) return undefined;
+
+	return {
+		...(baseConfig ?? {}),
+		...(overrideConfig ?? {}),
+	};
+}
+
+function isDynamicImportLoader(
+	loader: MaybeLazyComponent | undefined,
+): loader is () => Promise<{ default: React.ComponentType<any> }> {
+	if (typeof loader !== "function") return false;
+
+	const candidate = loader as any;
+	if (candidate.prototype?.isReactComponent || candidate.prototype?.render) {
+		return false;
+	}
+
+	if (candidate.$$typeof) {
+		return false;
+	}
+
+	return loader.length === 0;
+}
+
+function ViewLoadingState() {
+	return (
+		<div className="flex h-64 items-center justify-center text-muted-foreground">
+			<Icon icon="ph:spinner-gap" className="size-6 animate-spin" />
+		</div>
+	);
+}
+
+function UnknownViewState({
+	viewKind,
+	viewId,
+}: {
+	viewKind: "list" | "edit";
+	viewId: string;
+}) {
+	return (
+		<div className="container ">
+			<Card className="border-warning/30 bg-warning/5 p-6">
+				<h1 className="text-lg font-semibold">Unknown {viewKind} view</h1>
+				<p className="mt-2 text-sm text-muted-foreground">
+					View "{viewId}" is not registered in the admin view registry.
+				</p>
+			</Card>
+		</div>
+	);
+}
+
+function RegistryViewRenderer({
+	loader,
+	componentProps,
+	viewKind,
+	viewId,
+}: {
+	loader?: MaybeLazyComponent;
+	componentProps: Record<string, unknown>;
+	viewKind: "list" | "edit";
+	viewId: string;
+}) {
+	const [state, setState] = React.useState<{
+		Component: React.ComponentType<any> | React.LazyExoticComponent<any> | null;
+		loading: boolean;
+		error: Error | null;
+	}>({
+		Component: null,
+		loading: true,
+		error: null,
+	});
+
+	React.useEffect(() => {
+		if (!loader) {
+			setState({ Component: null, loading: false, error: null });
+			return;
+		}
+
+		if (!isDynamicImportLoader(loader)) {
+			setState({
+				Component: loader as React.ComponentType<any>,
+				loading: false,
+				error: null,
+			});
+			return;
+		}
+
+		let mounted = true;
+		setState((prev) => ({ ...prev, loading: true, error: null }));
+
+		(async () => {
+			try {
+				const result = await loader();
+				if (!mounted) return;
+
+				const Component = (result.default ||
+					result) as React.ComponentType<any>;
+				setState({ Component, loading: false, error: null });
+			} catch (error) {
+				if (!mounted) return;
+				setState({
+					Component: null,
+					loading: false,
+					error:
+						error instanceof Error
+							? error
+							: new Error("Failed to load view component"),
+				});
+			}
+		})();
+
+		return () => {
+			mounted = false;
+		};
+	}, [loader]);
+
+	if (state.loading) {
+		return <ViewLoadingState />;
+	}
+
+	if (state.error || !state.Component) {
+		return <UnknownViewState viewKind={viewKind} viewId={viewId} />;
+	}
+
+	const Component = state.Component;
+
+	return (
+		<React.Suspense fallback={<ViewLoadingState />}>
+			<Component {...componentProps} />
+		</React.Suspense>
+	);
 }
 
 // ============================================================================
@@ -344,7 +568,7 @@ function LazyPageRenderer({ config }: { config: PageDefinition<string> }) {
 	if (loading) {
 		return (
 			<div className="flex h-64 items-center justify-center text-muted-foreground">
-				<SpinnerGap className="size-6 animate-spin" />
+				<Icon icon="ph:spinner-gap" className="size-6 animate-spin" />
 			</div>
 		);
 	}
@@ -427,6 +651,8 @@ export function AdminRouter({
 		collections,
 		globals,
 		pages,
+		listViews,
+		editViews,
 		dashboardConfig,
 		DashboardComponent,
 		defaultViews,
@@ -440,6 +666,29 @@ export function AdminRouter({
 	});
 
 	const route = matchRoute(segments, collections, globals, pages);
+
+	const activeCollectionName =
+		route.type === "collection-list" ||
+		route.type === "collection-create" ||
+		route.type === "collection-edit"
+			? route.name
+			: "";
+
+	const activeGlobalName = route.type === "global-edit" ? route.name : "";
+
+	const { data: activeCollectionSchema } = useCollectionSchema(
+		activeCollectionName as any,
+		{
+			enabled: !!activeCollectionName,
+		},
+	);
+
+	const { data: activeGlobalSchema } = useGlobalSchema(
+		activeGlobalName as any,
+		{
+			enabled: !!activeGlobalName,
+		},
+	);
 
 	// Dashboard
 	if (route.type === "dashboard") {
@@ -469,40 +718,77 @@ export function AdminRouter({
 		return <DefaultDashboard config={defaultViews?.dashboard} />;
 	}
 
-	// Collection List - use TableView from registry
+	// Collection List
 	if (route.type === "collection-list") {
 		const { name } = route;
 		const config = collections[name];
 		const custom = collectionComponents[name];
+		const viewNameFromSchema = (activeCollectionSchema as any)?.admin?.list
+			?.view;
+		const viewNameFromConfig = getConfiguredViewName((config as any)?.list);
+		const selectedListView =
+			viewNameFromSchema ?? viewNameFromConfig ?? DEFAULT_LIST_VIEW_ID;
+		const selectedListViewDefinition = listViews[selectedListView];
+		const selectedListViewConfig = mergeViewConfig(
+			getViewBaseConfig(selectedListViewDefinition),
+			(config as any)?.list?.["~config"] ??
+				(config as any)?.list ??
+				(activeCollectionSchema as any)?.admin?.list,
+		);
+
+		const listViewLoader =
+			getViewLoader(selectedListViewDefinition) ??
+			defaultViews?.collectionList?.component;
 
 		// Priority 1: Custom component override
 		if (custom?.List) {
 			return <custom.List />;
 		}
 
-		// Priority 2: TableView from registry (default list view)
-		// Key forces remount when collection changes to reset all internal state
+		// Priority 2: Registry-resolved list view
 		return (
-			<TableView
+			<RegistryViewRenderer
 				key={name}
-				collection={name}
-				config={config}
-				navigate={navigate}
-				basePath={basePath}
-				showSearch={defaultViews?.collectionList?.showSearch}
-				showFilters={defaultViews?.collectionList?.showFilters}
-				showToolbar={defaultViews?.collectionList?.showToolbar}
+				loader={listViewLoader}
+				viewKind="list"
+				viewId={selectedListView}
+				componentProps={{
+					collection: name,
+					config,
+					viewConfig: selectedListViewConfig,
+					navigate,
+					basePath,
+					showSearch: defaultViews?.collectionList?.showSearch,
+					showFilters: defaultViews?.collectionList?.showFilters,
+					showToolbar: defaultViews?.collectionList?.showToolbar,
+					realtime: defaultViews?.collectionList?.realtime,
+				}}
 			/>
 		);
 	}
 
-	// Collection Create/Edit - use FormView from registry
+	// Collection Create/Edit
 	if (route.type === "collection-create" || route.type === "collection-edit") {
 		const { name } = route;
 		const id = route.type === "collection-edit" ? route.id : undefined;
 		const config = collections[name];
 		const custom = collectionComponents[name];
 		const formDefaults = defaultViews?.collectionForm;
+		const viewNameFromSchema = (activeCollectionSchema as any)?.admin?.form
+			?.view;
+		const viewNameFromConfig = getConfiguredViewName((config as any)?.form);
+		const selectedEditView =
+			viewNameFromSchema ?? viewNameFromConfig ?? DEFAULT_EDIT_VIEW_ID;
+		const selectedEditViewDefinition = editViews[selectedEditView];
+		const selectedEditViewConfig = mergeViewConfig(
+			getViewBaseConfig(selectedEditViewDefinition),
+			(config as any)?.form?.["~config"] ??
+				(config as any)?.form ??
+				(activeCollectionSchema as any)?.admin?.form,
+		);
+
+		const editViewLoader =
+			getViewLoader(selectedEditViewDefinition) ?? formDefaults?.component;
 
 		// Priority 1: Custom component override
 		if (custom?.Form) {
@@ -516,20 +802,25 @@ export function AdminRouter({
 				? prefillValues
 				: undefined;
 
-		// Priority 2: FormView from registry (default edit view)
-		// Key forces remount when collection/id changes to reset all internal state
+		// Priority 2: Registry-resolved edit view
 		return (
-			<FormView
+			<RegistryViewRenderer
 				key={`${name}-${id ?? "create"}`}
-				collection={name}
-				id={id}
-				config={config}
-				navigate={navigate}
-				basePath={basePath}
-				defaultValues={defaultValues}
-				registry={registry}
-				allCollectionsConfig={collections}
-				showMeta={formDefaults?.showMeta}
+				loader={editViewLoader}
+				viewKind="edit"
+				viewId={selectedEditView}
+				componentProps={{
+					collection: name,
+					id,
+					config,
+					viewConfig: selectedEditViewConfig,
+					navigate,
+					basePath,
+					defaultValues,
+					registry,
+					allCollectionsConfig: collections,
+					showMeta: formDefaults?.showMeta,
+				}}
 			/>
 		);
 	}
@@ -539,21 +830,41 @@ export function AdminRouter({
 		const { name } = route;
 		const config = globals[name];
 		const custom = globalComponents[name];
+		const viewNameFromSchema = (activeGlobalSchema as any)?.admin?.form?.view;
+		const viewNameFromConfig = getConfiguredViewName((config as any)?.form);
+		const selectedEditView =
+			viewNameFromSchema ?? viewNameFromConfig ?? DEFAULT_EDIT_VIEW_ID;
+		const selectedEditViewDefinition = editViews[selectedEditView];
+		const selectedEditViewConfig = mergeViewConfig(
+			getViewBaseConfig(selectedEditViewDefinition),
+			(config as any)?.form?.["~config"] ??
+				(config as any)?.form ??
+				(activeGlobalSchema as any)?.admin?.form,
+		);
+
+		const globalViewLoader =
+			getViewLoader(selectedEditViewDefinition) ??
+			defaultViews?.globalForm?.component;
 
 		if (custom?.Form) {
 			return <custom.Form />;
 		}
 
-		// Key forces remount when global changes to reset all internal state
 		return (
-			<GlobalFormView
+			<RegistryViewRenderer
 				key={name}
-				global={name}
-				config={config}
-				navigate={navigate}
-				basePath={basePath}
-				registry={registry}
-				allGlobalsConfig={globals}
+				loader={globalViewLoader}
+				viewKind="edit"
+				viewId={selectedEditView}
+				componentProps={{
+					global: name,
+					config,
+					viewConfig: selectedEditViewConfig,
+					navigate,
+					basePath,
+					registry,
+					allGlobalsConfig: globals,
+				}}
 			/>
 		);
 	}

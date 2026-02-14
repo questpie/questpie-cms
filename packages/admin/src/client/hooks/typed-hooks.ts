@@ -277,12 +277,6 @@ export function createTypedHooks<
 		return useMutation({
 			...baseOptions,
 			onSuccess: (data: any, variables: any, context: any) => {
-				queryClient.invalidateQueries({
-					queryKey: listQueryKey,
-				});
-				queryClient.invalidateQueries({
-					queryKey: countQueryKey,
-				});
 				(mutationOptions?.onSuccess as any)?.(data, variables, context);
 			},
 			onSettled: (data: any, error: any, variables: any, context: any) => {
@@ -335,15 +329,6 @@ export function createTypedHooks<
 		return useMutation({
 			...baseOptions,
 			onSuccess: (data: any, variables: any, context: any) => {
-				queryClient.invalidateQueries({
-					queryKey: listQueryKey,
-				});
-				queryClient.invalidateQueries({
-					queryKey: countQueryKey,
-				});
-				queryClient.invalidateQueries({
-					queryKey: itemQueryKey,
-				});
 				(mutationOptions?.onSuccess as any)?.(data, variables, context);
 			},
 			onSettled: (data: any, error: any, variables: any, context: any) => {
@@ -399,15 +384,6 @@ export function createTypedHooks<
 		return useMutation({
 			...baseOptions,
 			onSuccess: (data: any, variables: any, context: any) => {
-				queryClient.invalidateQueries({
-					queryKey: listQueryKey,
-				});
-				queryClient.invalidateQueries({
-					queryKey: countQueryKey,
-				});
-				queryClient.invalidateQueries({
-					queryKey: itemQueryKey,
-				});
 				(mutationOptions?.onSuccess as any)?.(data, variables, context);
 			},
 			onSettled: (data: any, error: any, variables: any, context: any) => {
@@ -479,9 +455,6 @@ export function createTypedHooks<
 		return useMutation({
 			...(queryOpts as any).globals[globalName as string].update(),
 			onSuccess: (data: any, variables: any, context: any) => {
-				queryClient.invalidateQueries({
-					queryKey: globalQueryKey,
-				});
 				(mutationOptions?.onSuccess as any)?.(data, variables, context);
 			},
 			onSettled: (data: any, error: any, variables: any, context: any) => {

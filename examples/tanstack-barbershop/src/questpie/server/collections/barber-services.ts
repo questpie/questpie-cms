@@ -1,13 +1,38 @@
-import { q } from "questpie";
-import { text } from "drizzle-orm/pg-core";
+import { qb } from "@/questpie/server/builder";
 import { barbers } from "@/questpie/server/collections/barbers";
 import { services } from "@/questpie/server/collections/services";
 
-export const barberServices = q.collection("barber_services").fields({
-  barberId: text("barber_id")
-    .notNull()
-    .references(() => barbers.table.id, { onDelete: "cascade" }),
-  serviceId: text("service_id")
-    .notNull()
-    .references(() => services.table.id, { onDelete: "cascade" }),
-});
+export const barberServices = qb
+	.collection("barber_services")
+	.fields((f) => ({
+		barber: f.relation({
+			to: () => barbers,
+			required: true,
+			onDelete: "cascade",
+			label: { en: "Barber", sk: "Holič" },
+		}),
+		service: f.relation({
+			to: () => services,
+			required: true,
+			onDelete: "cascade",
+			label: { en: "Service", sk: "Služba" },
+		}),
+	}))
+	.admin(({ c }) => ({
+		label: { en: "Barber Services", sk: "Služby holičov" },
+		icon: c.icon("ph:link"),
+	}))
+	.list(({ v }) => v.table({}))
+	.form(({ v, f }) =>
+		v.form({
+			fields: [
+				{
+					type: "section",
+					label: { en: "Assignment", sk: "Priradenie" },
+					layout: "grid",
+					columns: 2,
+					fields: [f.barber, f.service],
+				},
+			],
+		}),
+	);

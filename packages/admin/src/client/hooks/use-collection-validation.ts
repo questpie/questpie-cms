@@ -5,12 +5,13 @@
  * Provides automatic validation with i18n support for react-hook-form.
  */
 
-import { useCallback, useMemo } from "react";
-import { z } from "zod";
 import type { ZodErrorMapFn } from "questpie/shared";
+import { useCallback, useMemo } from "react";
 import type { FieldErrors, FieldValues, Resolver } from "react-hook-form";
+import type { z } from "zod";
 import { createFormSchema } from "../builder/validation";
 import { selectAdmin, useAdminStore } from "../runtime";
+import { useCollectionFields } from "./use-collection-fields";
 import { useValidationErrorMap } from "./use-validation-error-map";
 
 /**
@@ -49,16 +50,12 @@ export function useCollectionValidation<
   TFieldValues extends FieldValues = FieldValues,
 >(collection: string): Resolver<TFieldValues> | undefined {
   const admin = useAdminStore(selectAdmin);
+  const { fields } = useCollectionFields(collection);
   const schema = useMemo(() => {
     if (!admin) return undefined;
-
-    const collections = admin.getCollections();
-    const config = collections[collection];
-
-    if (!config?.fields) return undefined;
-
-    return createFormSchema(config.fields);
-  }, [admin, collection]);
+    if (!fields || Object.keys(fields).length === 0) return undefined;
+    return createFormSchema(fields, admin.getFields());
+  }, [admin, fields]);
   const errorMap = useValidationErrorMap();
 
   const resolver: Resolver<TFieldValues> = useCallback(

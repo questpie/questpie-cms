@@ -1,5 +1,21 @@
 {
 	"title": "Reference",
 	"defaultOpen": true,
-	"pages": ["cms-config", "cli"]
+	"pages": [
+		"index",
+		"q-builder-api",
+		"collection-builder-api",
+		"global-builder-api",
+		"field-api",
+		"qa-builder-api",
+		"registry-api",
+		"rpc-api",
+		"adapter-api",
+		"crud-api",
+		"hooks-api",
+		"infrastructure-api",
+		"error-codes",
+		"query-operators",
+		"cli"
+	]
 }

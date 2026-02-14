@@ -1,164 +1,180 @@
 import { Link } from "@tanstack/react-router";
 import { Github, Menu, X } from "lucide-react";
-import { useState, useEffect } from "react";
-import { cn } from "@/lib/utils";
+import { useEffect, useState } from "react";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { cn } from "@/lib/utils";
+
+const navItems = [
+	{ label: "Docs", href: "/docs/$", type: "internal" as const },
+	{
+		label: "Examples",
+		href: "https://github.com/questpie/questpie-cms/tree/main/examples",
+		type: "external" as const,
+	},
+	{
+		label: "Guides",
+		href: "/docs/$",
+		type: "internal" as const,
+		params: { _splat: "guides" },
+	},
+];
 
 export function Navbar() {
-  const [isScrolled, setIsScrolled] = useState(false);
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+	const [isScrolled, setIsScrolled] = useState(false);
+	const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
-  useEffect(() => {
-    const handleScroll = () => {
-      setIsScrolled(window.scrollY > 20);
-    };
-    window.addEventListener("scroll", handleScroll);
-    return () => window.removeEventListener("scroll", handleScroll);
-  }, []);
+	useEffect(() => {
+		const handleScroll = () => {
+			setIsScrolled(window.scrollY > 8);
+		};
+		window.addEventListener("scroll", handleScroll, { passive: true });
+		return () => window.removeEventListener("scroll", handleScroll);
+	}, []);
 
-  return (
-    <header
-      className={cn(
-        "fixed top-0 left-0 right-0 z-50 transition-all duration-300 border-b border-transparent",
-        isScrolled
-          ? "bg-background/60 backdrop-blur-xl border-border/50 py-3"
-          : "bg-transparent py-5",
-      )}
-    >
-      <div className="w-full max-w-7xl mx-auto px-4">
-        <nav className="flex items-center justify-between">
-          {/* Logo */}
-          <Link to="/" className="flex items-center gap-2 group">
-            {/* Symbol for mobile - light mode */}
-            <img
-              src="/symbol/Q-symbol-dark-pink.svg"
-              alt="QUESTPIE"
-              className="h-8 w-auto sm:hidden block dark:hidden"
-            />
-            {/* Symbol for mobile - dark mode */}
-            <img
-              src="/symbol/Q-symbol-white-pink.svg"
-              alt="QUESTPIE"
-              className="h-8 w-auto sm:hidden hidden dark:block dark:sm:hidden"
-            />
-            {/* Full logo for desktop - light mode */}
-            <img
-              src="/logo/Questpie-dark-pink.svg"
-              alt="QUESTPIE"
-              className="h-6 w-auto hidden sm:block dark:hidden"
-            />
-            {/* Full logo for desktop - dark mode */}
-            <img
-              src="/logo/Questpie-white-pink.svg"
-              alt="QUESTPIE"
-              className="h-6 w-auto hidden dark:sm:block"
-            />
-          </Link>
+	return (
+		<header
+			className={cn(
+				"fixed inset-x-0 top-0 z-50 border-b border-transparent transition-all duration-300",
+				isScrolled
+					? "bg-background/70 backdrop-blur-xl border-border/60 py-3"
+					: "bg-transparent py-5",
+			)}
+		>
+			<div className="mx-auto w-full max-w-7xl px-4">
+				<nav className="flex items-center justify-between">
+					<Link to="/" className="group flex items-center gap-2">
+						<img
+							src="/symbol/Q-symbol-dark-pink.svg"
+							alt="QUESTPIE"
+							className="block h-8 w-auto dark:hidden sm:hidden"
+						/>
+						<img
+							src="/symbol/Q-symbol-white-pink.svg"
+							alt="QUESTPIE"
+							className="hidden h-8 w-auto dark:block dark:sm:hidden"
+						/>
+						<img
+							src="/logo/Questpie-dark-pink.svg"
+							alt="QUESTPIE"
+							className="hidden h-6 w-auto dark:hidden sm:block"
+						/>
+						<img
+							src="/logo/Questpie-white-pink.svg"
+							alt="QUESTPIE"
+							className="hidden h-6 w-auto dark:sm:block"
+						/>
+					</Link>
 
-          {/* Desktop Nav */}
-          <div className="hidden md:flex items-center gap-8">
-            <Link
-              to="/docs/$"
-              className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors"
-            >
-              Documentation
-            </Link>
-            <a
-              href="#features"
-              className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors"
-            >
-              Features
-            </a>
-            <a
-              href="#examples"
-              className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors"
-            >
-              Examples
-            </a>
-            <div className="w-px h-4 bg-border" />
-            <div className="flex items-center gap-2">
-              <ThemeToggle />
-              <a
-                href="https://github.com/questpie/questpie-cms"
-                target="_blank"
-                rel="noreferrer"
-                className="text-muted-foreground hover:text-foreground transition-colors"
-              >
-                <Github className="w-5 h-5" />
-              </a>
-              <Link
-                to="/docs/$"
-                className="inline-flex items-center justify-center h-9 px-4 text-xs font-medium bg-primary/10 text-primary border border-primary/20 hover:bg-primary/20 transition-all uppercase tracking-wider font-mono"
-              >
-                Get Started
-              </Link>
-            </div>
-          </div>
+					<div className="hidden items-center gap-7 md:flex">
+						{navItems.map((item) =>
+							item.type === "internal" ? (
+								<Link
+									key={item.label}
+									to={item.href}
+									params={item.params as never}
+									className="text-sm font-medium text-muted-foreground transition-colors hover:text-primary"
+								>
+									{item.label}
+								</Link>
+							) : (
+								<a
+									key={item.label}
+									href={item.href}
+									target="_blank"
+									rel="noreferrer"
+									className="text-sm font-medium text-muted-foreground transition-colors hover:text-primary"
+								>
+									{item.label}
+								</a>
+							),
+						)}
 
-          {/* Mobile Menu Toggle */}
-          <button
-            className="md:hidden p-2 text-muted-foreground hover:text-foreground"
-            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-          >
-            {isMobileMenuOpen ? (
-              <X className="w-6 h-6" />
-            ) : (
-              <Menu className="w-6 h-6" />
-            )}
-          </button>
-        </nav>
+						<a
+							href="https://github.com/questpie/questpie-cms"
+							target="_blank"
+							rel="noreferrer"
+							className="text-muted-foreground transition-colors hover:text-foreground"
+						>
+							<Github className="h-5 w-5" />
+						</a>
+						<ThemeToggle />
+						<Link
+							to="/docs/$"
+							params={{ _splat: "getting-started/quickstart" }}
+							className="inline-flex h-9 items-center justify-center border border-primary/30 bg-primary/10 px-4 font-mono text-[11px] font-medium uppercase tracking-wider text-primary transition-all hover:bg-primary/20"
+						>
+							Start Building
+						</Link>
+					</div>
 
-        {/* Mobile Nav */}
-        {isMobileMenuOpen && (
-          <div className="absolute top-full left-0 right-0 bg-background/95 backdrop-blur-xl border-b border-border p-4 md:hidden animate-in slide-in-from-top-2">
-            <div className="flex flex-col gap-4">
-              <Link
-                to="/docs/$"
-                className="text-sm font-medium text-muted-foreground hover:text-primary py-2"
-                onClick={() => setIsMobileMenuOpen(false)}
-              >
-                Documentation
-              </Link>
-              <a
-                href="#features"
-                className="text-sm font-medium text-muted-foreground hover:text-primary py-2"
-                onClick={() => setIsMobileMenuOpen(false)}
-              >
-                Features
-              </a>
-              <a
-                href="#examples"
-                className="text-sm font-medium text-muted-foreground hover:text-primary py-2"
-                onClick={() => setIsMobileMenuOpen(false)}
-              >
-                Examples
-              </a>
-              <div className="h-px bg-border my-2" />
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <ThemeToggle />
-                  <a
-                    href="https://github.com/questpie/questpie-cms"
-                    target="_blank"
-                    rel="noreferrer"
-                    className="flex items-center gap-2 text-muted-foreground hover:text-foreground"
-                  >
-                    <Github className="w-5 h-5" />
-                    <span className="text-sm">GitHub</span>
-                  </a>
-                </div>
-                <Link
-                  to="/docs/$"
-                  className="text-xs font-medium bg-primary/10 text-primary border border-primary/20 px-4 py-2 uppercase tracking-wider font-mono"
-                  onClick={() => setIsMobileMenuOpen(false)}
-                >
-                  Get Started
-                </Link>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-    </header>
-  );
+					<button
+						type="button"
+						className="p-2 text-muted-foreground transition-colors hover:text-foreground md:hidden"
+						onClick={() => setIsMobileMenuOpen((v) => !v)}
+						aria-label="Toggle navigation"
+					>
+						{isMobileMenuOpen ? (
+							<X className="h-6 w-6" />
+						) : (
+							<Menu className="h-6 w-6" />
+						)}
+					</button>
+				</nav>
+
+				{isMobileMenuOpen && (
+					<div className="animate-in slide-in-from-top-2 absolute left-0 right-0 top-full border-b border-border bg-background/95 p-4 backdrop-blur-xl duration-300 md:hidden">
+						<div className="flex flex-col gap-4">
+							<Link
+								to="/docs/$"
+								className="py-1 text-sm font-medium text-muted-foreground"
+								onClick={() => setIsMobileMenuOpen(false)}
+							>
+								Docs
+							</Link>
+							<Link
+								to="/docs/$"
+								params={{ _splat: "guides" }}
+								className="py-1 text-sm font-medium text-muted-foreground"
+								onClick={() => setIsMobileMenuOpen(false)}
+							>
+								Guides
+							</Link>
+							<a
+								href="https://github.com/questpie/questpie-cms/tree/main/examples"
+								target="_blank"
+								rel="noreferrer"
+								className="py-1 text-sm font-medium text-muted-foreground"
+								onClick={() => setIsMobileMenuOpen(false)}
+							>
+								Examples
+							</a>
+							<div className="my-1 h-px bg-border" />
+							<div className="flex items-center justify-between">
+								<div className="flex items-center gap-4">
+									<ThemeToggle />
+									<a
+										href="https://github.com/questpie/questpie-cms"
+										target="_blank"
+										rel="noreferrer"
+										className="inline-flex items-center gap-2 text-sm text-muted-foreground"
+									>
+										<Github className="h-5 w-5" />
+										GitHub
+									</a>
+								</div>
+								<Link
+									to="/docs/$"
+									params={{ _splat: "getting-started/quickstart" }}
+									className="inline-flex h-8 items-center justify-center border border-primary/30 bg-primary/10 px-3 font-mono text-[11px] uppercase tracking-wider text-primary"
+									onClick={() => setIsMobileMenuOpen(false)}
+								>
+									Start
+								</Link>
+							</div>
+						</div>
+					</div>
+				)}
+			</div>
+		</header>
+	);
 }

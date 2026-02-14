@@ -1,0 +1,44 @@
+{
+  "name": "create-questpie",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Create a new QuestPie CMS project",
+  "bin": {
+    "create-questpie": "./dist/index.mjs"
+  },
+  "files": [
+    "dist",
+    "templates"
+  ],
+  "scripts": {
+    "build": "tsdown",
+    "dev": "tsdown --watch",
+    "check-types": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@clack/prompts": "^0.10.0",
+    "commander": "^13.0.0",
+    "picocolors": "^1.1.1"
+  },
+  "devDependencies": {
+    "bun-types": "latest",
+    "tsdown": "^0.18.3",
+    "typescript": "^5.9.2"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/nicepie/questpie-cms.git",
+    "directory": "packages/create-questpie"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "keywords": [
+    "questpie",
+    "cms",
+    "create",
+    "scaffold",
+    "template"
+  ],
+  "license": "MIT"
+}

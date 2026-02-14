@@ -1,0 +1,53 @@
+---
+title: Introspection Contract
+description: How server metadata is transported and rendered in the client
+---
+
+# Introspection Contract
+
+Introspection is the contract between server definitions and admin rendering.
+
+## Contract goals
+
+- transport metadata as plain serializable objects
+- include field types, labels, constraints, admin references
+- avoid transporting executable UI logic
+
+## Simplified flow
+
+```text
+Server builders
+  -> collection/global metadata
+  -> introspection payload
+  -> client registry resolution
+  -> rendered admin UI
+```
+
+## Example shape
+
+```ts
+{
+  collections: {
+    pages: {
+      fields: {
+        title: { type: "text", label: { en: "Title" }, required: true },
+      },
+      admin: {
+        icon: { type: "icon", props: { name: "ph:article" } },
+      },
+      list: { view: "table", config: {} },
+      form: { view: "form", config: {} },
+    },
+  },
+}
+```
+
+## Client responsibility
+
+- resolve `view` ids via view registry
+- resolve `{ type, props }` component references via component registry
+- resolve field type renderers via field registry
+
+## Common mistake
+
+Assuming only built-in view/component names exist. Treat all names as registry-resolved.

@@ -21,7 +21,7 @@ import {
 import { Alert, AlertDescription } from "../../components/ui/alert";
 import { Button } from "../../components/ui/button";
 import { Spinner } from "../../components/ui/spinner";
-import { WarningCircle } from "@phosphor-icons/react";
+import { Icon } from "@iconify/react";
 
 export interface AcceptInvitePageProps {
   /**
@@ -187,7 +187,7 @@ export function AcceptInvitePage({
       >
         <div className="space-y-4">
           <Alert variant="destructive">
-            <WarningCircle />
+            <Icon icon="ph:warning-circle" />
             <AlertDescription>{invitation.message}</AlertDescription>
           </Alert>
           <p className="text-muted-foreground text-center text-sm">

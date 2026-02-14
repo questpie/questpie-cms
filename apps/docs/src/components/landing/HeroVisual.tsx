@@ -2,47 +2,49 @@ import { CheckCircle, FileText, Plus, Sparkles } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { PrismLight as SyntaxHighlighter } from "react-syntax-highlighter";
 import typescript from "react-syntax-highlighter/dist/esm/languages/prism/typescript";
-import {
-	coldarkCold,
-	coldarkDark,
-} from "react-syntax-highlighter/dist/esm/styles/prism";
+import coldarkCold from "react-syntax-highlighter/dist/esm/styles/prism/coldark-cold";
+import coldarkDark from "react-syntax-highlighter/dist/esm/styles/prism/coldark-dark";
 import { cn } from "@/lib/utils";
 
 SyntaxHighlighter.registerLanguage("typescript", typescript);
 
 // Step 1: Define your collection schema
-const schemaCode = `// server/posts.ts
-const posts = q.collection('posts')
-  .fields({
-    title: varchar('title'),
-    content: text('content'),
-    status: varchar('status'),
-  })
-  .access({ read: true })`;
+const schemaCode = `// server/collections/posts.ts
+const posts = qb.collection('posts')
+  .fields((f) => ({
+    title: f.text({ required: true }),
+    content: f.richText(),
+    status: f.select({
+      options: ['draft', 'published'],
+    }),
+  }))`;
 
 // Step 2: Auto-generated endpoints
 const endpointsCode = `// Auto-generated REST API
-GET    /api/posts
-GET    /api/posts/:id
-POST   /api/posts
-PATCH  /api/posts/:id
-DELETE /api/posts/:id
+GET    /api/cms/posts
+GET    /api/cms/posts/:id
+POST   /api/cms/posts
+PATCH  /api/cms/posts/:id
+DELETE /api/cms/posts/:id
 
 // Type-safe SDK
-const { docs } = await api.posts.find({
+const { docs } = await client.collections.posts.find({
   where: { status: 'published' }
 })`;
 
-// Step 3: Configure the admin UI
-const adminCode = `// admin/posts.ts
-const posts = qa.collection('posts')
-  .fields(({ r }) => ({
-    title: r.text(),
-    content: r.richText(),
-    status: r.select({ options: ['draft', 'published'] })
+// Step 3: Chain admin config (same file)
+const adminCode = `// server/collections/posts.ts (continued)
+posts
+  .admin(({ c }) => ({
+    label: 'Posts',
+    icon: c.icon('ph:article'),
   }))
   .list(({ v, f }) => v.table({
-    columns: [f.title, f.status]
+    columns: [f.title, f.status],
+    searchable: ['title'],
+  }))
+  .form(({ v, f }) => v.form({
+    fields: [f.title, f.content, f.status],
   }))`;
 
 type Phase =
@@ -168,7 +170,7 @@ export function HeroVisual() {
 									? "server/posts.ts"
 									: phase === "endpoints" || phase === "endpoints-done"
 										? "Generated API"
-										: "admin/posts.ts"}
+										: "server/posts.ts"}
 							</span>
 						</div>
 						<div className="flex items-center gap-2">
@@ -244,7 +246,7 @@ export function HeroVisual() {
 								? "Step 1 — Define Schema"
 								: phase === "endpoints" || phase === "endpoints-done"
 									? "Step 2 — API Ready"
-									: "Step 3 — Configure Admin"}
+									: "Step 3 — Chain Admin Config"}
 						</span>
 					</div>
 				</div>
@@ -418,7 +420,9 @@ export function HeroVisual() {
 							>
 								{step}
 							</span>
-							{i < 3 && <span className="text-muted-foreground mx-0.5">→</span>}
+							{i < 3 && (
+								<span className="text-muted-foreground mx-0.5">&rarr;</span>
+							)}
 						</div>
 					);
 				})}

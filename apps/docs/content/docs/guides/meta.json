@@ -2,14 +2,15 @@
 	"title": "Guides",
 	"defaultOpen": true,
 	"pages": [
-		"authentication",
-		"storage-upload",
-		"queue-jobs",
-		"email-templates",
-		"modular-composition",
-		"custom-adapters",
-		"realtime-subscriptions",
-		"custom-api-routes",
-		"typescript-best-practices"
+		"index",
+		"build-a-booking-system",
+		"build-a-page-builder",
+		"custom-field-type",
+		"custom-view-type",
+		"custom-adapter",
+		"builder-extension-packages",
+		"authentication-flows",
+		"file-uploads-and-storage",
+		"production-hardening"
 	]
 }

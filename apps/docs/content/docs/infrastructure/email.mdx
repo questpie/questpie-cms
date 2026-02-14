@@ -1,0 +1,151 @@
+---
+title: Email
+description: Email templates with React, SMTP adapter, and development console
+---
+
+# Email
+
+QUESTPIE includes a mailer service for sending transactional emails. Define templates as React components with Zod-validated context, and send them via SMTP or log to the console during development.
+
+## Why This Exists
+
+CMS applications often need to send emails — appointment confirmations, password resets, notifications. QUESTPIE's email system lets you define type-safe templates and send them through `app.email`.
+
+## Setup
+
+```ts
+import { SmtpAdapter, ConsoleAdapter } from "questpie";
+
+.build({
+  // ...
+  email: {
+    adapter: process.env.NODE_ENV === "production"
+      ? new SmtpAdapter({
+          transport: {
+            host: process.env.SMTP_HOST!,
+            port: Number(process.env.SMTP_PORT || "587"),
+            secure: true,
+            auth: {
+              user: process.env.SMTP_USER!,
+              pass: process.env.SMTP_PASS!,
+            },
+          },
+        })
+      : new ConsoleAdapter({ logHtml: false }),
+  },
+})
+```
+
+## Defining Email Templates
+
+Templates are defined with `email()` and registered in the builder:
+
+```ts
+import { email } from "questpie";
+import { z } from "zod";
+
+export const appointmentConfirmation = email({
+  name: "appointmentConfirmation",
+  schema: z.object({
+    customerName: z.string(),
+    date: z.string(),
+    time: z.string(),
+    barberName: z.string(),
+    serviceName: z.string(),
+  }),
+  subject: (ctx) => `Appointment confirmed for ${ctx.date}`,
+  render: ({ customerName, date, time, barberName, serviceName }) => (
+    <div>
+      <h1>Hi {customerName}!</h1>
+      <p>Your appointment has been confirmed:</p>
+      <ul>
+        <li>Date: {date} at {time}</li>
+        <li>Barber: {barberName}</li>
+        <li>Service: {serviceName}</li>
+      </ul>
+    </div>
+  ),
+});
+```
+
+Register templates in the builder:
+
+```ts
+.emailTemplates({ appointmentConfirmation })
+```
+
+## Sending Emails
+
+### Using Templates
+
+```ts
+// In a hook, RPC handler, or job
+await app.email.sendTemplate({
+  template: "appointmentConfirmation",
+  to: "customer@example.com",
+  context: {
+    customerName: "Jane",
+    date: "March 15, 2025",
+    time: "10:00 AM",
+    barberName: "John",
+    serviceName: "Haircut",
+  },
+});
+```
+
+### Raw Email
+
+```ts
+await app.email.send({
+  to: "user@example.com",
+  subject: "Hello",
+  html: "<h1>Hello World</h1>",
+});
+```
+
+## Adapters
+
+### SmtpAdapter
+
+Production email via NodeMailer:
+
+```ts
+new SmtpAdapter({
+  transport: {
+    host: "smtp.example.com",
+    port: 587,
+    secure: true,
+    auth: { user: "...", pass: "..." },
+  },
+})
+```
+
+### ConsoleAdapter
+
+Development-only — logs emails to the console:
+
+```ts
+new ConsoleAdapter({ logHtml: false })
+```
+
+### Ethereal Test Adapter
+
+For testing with a real SMTP server that catches all emails:
+
+```ts
+import { createEtherealSmtpAdapter } from "questpie";
+
+const adapter = await createEtherealSmtpAdapter();
+// Logs preview URLs for each sent email
+```
+
+## Common Mistakes
+
+- **No adapter configured** — Without an email adapter, `app.email.send()` will fail. Use `ConsoleAdapter` for development.
+- **Missing template registration** — Templates must be registered via `.emailTemplates()` before they can be sent.
+- **Sending emails synchronously in hooks** — Use background jobs for non-critical emails to avoid slowing down API responses.
+
+## Related Pages
+
+- [Queue & Jobs](/docs/infrastructure/queue-and-jobs) — Send emails asynchronously via jobs
+- [Hooks & Lifecycle](/docs/server/hooks-and-lifecycle) — Trigger emails from hooks

@@ -1,0 +1,113 @@
+---
+title: Preview System
+description: Live preview with side-by-side editing and click-to-focus
+---
+
+# Preview System
+
+QUESTPIE supports live preview — a side-by-side panel in the form view that shows how the content looks on your frontend. Preview URLs are defined on the server; the admin renders the preview iframe and handles communication.
+
+## Why This Exists
+
+Content editors want to see how their changes look before publishing. The preview system embeds your frontend in an iframe next to the form, updates it as fields change, and supports click-to-focus navigation from the preview to the corresponding form field.
+
+## Setup
+
+### Server Configuration
+
+Add `.preview()` to a collection:
+
+```ts
+export const barbers = qb
+  .collection("barbers")
+  .fields((f) => ({
+    name: f.text({ required: true }),
+    slug: f.text({}),
+    bio: f.richText({}),
+    avatar: f.upload({}),
+  }))
+  .preview({
+    enabled: true,
+    position: "right",        // "right" | "bottom"
+    defaultWidth: 50,         // Percentage of form width
+    url: ({ record }) =>
+      `/barbers/${String(record.slug ?? "preview")}?preview=true`,
+  });
+```
+
+### Preview Configuration
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `enabled` | `boolean` | `false` | Enable preview panel |
+| `position` | `"right" \| "bottom"` | `"right"` | Panel position relative to form |
+| `defaultWidth` | `number` | `50` | Default width percentage (right position) |
+| `url` | `(ctx) => string` | — | Function generating the preview URL from record data |
+
+## How It Works
+
+```text
+Form editing → debounced data update → postMessage to iframe → frontend re-renders
+```
+
+1. The admin form view embeds an iframe pointing to the preview URL
+2. As the editor changes field values, the admin sends the updated data via `postMessage`
+3. The frontend application receives the message and re-renders with the preview data
+4. The preview panel is resizable via drag handle
+
+## Frontend Integration
+
+Your frontend needs to listen for preview messages:
+
+```ts
+// In your frontend route component
+useEffect(() => {
+  const handler = (event: MessageEvent) => {
+    if (event.data?.type === "questpie:preview") {
+      setPreviewData(event.data.payload);
+    }
+  };
+  window.addEventListener("message", handler);
+  return () => window.removeEventListener("message", handler);
+}, []);
+```
+
+## Click-to-Focus
+
+With click-to-focus, clicking an element in the preview panel focuses the corresponding field in the form. This requires adding `data-questpie-field` attributes to your frontend components:
+
+```tsx
+// In your frontend component
+<h1 data-questpie-field="title">{data.title}</h1>
+<div data-questpie-field="bio">{data.bio}</div>
+<img data-questpie-field="avatar" src={data.avatar?.url} />
+```
+
+When the preview iframe detects a click on an element with `data-questpie-field`, it sends a message back to the admin, which scrolls to and focuses the corresponding form field.
+
+## Preview URLs
+
+Keep preview URLs:
+- **Deterministic** — The same record should always produce the same URL
+- **Environment-aware** — Use relative paths or env-based base URLs
+- **Token-based** — Add `?preview=true` or a preview token for draft content
+
+```ts
+// Good: relative, deterministic
+url: ({ record }) => `/barbers/${record.slug}?preview=true`
+
+// Good: environment-aware
+url: ({ record }) => `${process.env.FRONTEND_URL}/barbers/${record.slug}?preview=true`
+```
+
+## Common Mistakes
+
+- **Cross-origin issues** — If the frontend runs on a different domain, configure CORS headers and use `targetOrigin` in `postMessage`.
+- **Heavy preview renders** — The preview refreshes on every field change (debounced). Keep your frontend render lightweight or increase the debounce delay.
+- **Missing `?preview=true`** — Without a preview flag, your frontend may redirect or show published-only content. Always include a preview parameter.
+
+## Related Pages
+
+- [Collections](/docs/server/collections) — Server-side `.preview()` configuration
+- [View Registry](/docs/admin/view-registry-list-and-form) — Form view with preview panel
+- [Blocks System](/docs/admin/blocks-system) — Block preview in page builders

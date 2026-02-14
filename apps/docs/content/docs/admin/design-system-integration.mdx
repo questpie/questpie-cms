@@ -1,0 +1,112 @@
+---
+title: Design System Integration
+description: Customize the admin UI with your own components, theming, and styling
+---
+
+# Design System Integration
+
+QUESTPIE ships contracts, not a forced visual identity. The admin UI is built on [shadcn/ui](https://ui.shadcn.com/) and Tailwind CSS, but every rendering layer is extensible through registries. You can replace field components, views, icons, and theme tokens while keeping the type-safe server contracts.
+
+## Why This Exists
+
+Organizations have their own design systems, brand colors, and UI conventions. The registry pattern lets you override any admin component while preserving the introspection contract between server and client.
+
+## Integration Points
+
+### 1. Custom Field Renderers
+
+Replace how individual field types render in forms and table cells:
+
+```ts
+const admin = qa<AppCMS>()
+  .use(coreAdminModule)
+  .fields({
+    text: {
+      name: "text",
+      kind: "field",
+      createField: (config) => MyBrandTextField,
+      createCell: (config) => MyBrandTextCell,
+    },
+  });
+```
+
+See [Field Renderer Registry](/docs/admin/field-renderer-registry).
+
+### 2. Custom Views
+
+Replace the entire list or form view with your own implementation:
+
+```ts
+.views({
+  kanban: {
+    name: "kanban",
+    kind: "listView",
+    component: MyKanbanView,
+  },
+})
+```
+
+See [View Registry](/docs/admin/view-registry-list-and-form).
+
+### 3. Component Registry Overrides
+
+Replace the icon or badge components with your design system's equivalents:
+
+```ts
+.components({
+  icon: MyDesignSystemIcon,
+  badge: MyDesignSystemBadge,
+})
+```
+
+See [Component Registry](/docs/admin/component-registry).
+
+### 4. Theming
+
+The admin uses CSS custom properties for colors, spacing, and typography. Override them in your CSS:
+
+```css
+:root {
+  --primary: 262 80% 50%;
+  --primary-foreground: 0 0% 100%;
+  --radius: 0.5rem;
+  --font-sans: "Inter", sans-serif;
+}
+```
+
+The admin's stylesheet is built on shadcn/ui conventions — see their [theming docs](https://ui.shadcn.com/docs/theming) for the full list of CSS variables.
+
+### 5. Branding
+
+Set admin branding on the server builder:
+
+```ts
+const cms = q({ name: "app" })
+  .use(adminModule)
+  .branding({
+    name: { en: "My Brand" },
+    logo: "/logo.svg",
+  });
+```
+
+See [Dashboard, Sidebar & Branding](/docs/admin/dashboard-sidebar-branding).
+
+## Best Practices
+
+1. **Keep server contracts serializable** — Don't put React components or functions in server config. Use component references.
+2. **Register custom renderers in `qa()`** — All visual customization goes through the admin builder.
+3. **Test across viewports** — The admin supports desktop and mobile layouts. Test custom components in both.
+4. **Respect the field config props** — Custom renderers should handle `readOnly`, `disabled`, `hidden`, `required`, and `localized` consistently.
+
+## Common Mistakes
+
+- **Modifying shadcn/ui source directly** — Override via CSS variables or registry replacements, not by patching the source files.
+- **Breaking the contract** — Custom field renderers must still read from `value` and write via `onChange`. The form state management expects this contract.
+- **Ignoring dark mode** — The admin supports light and dark modes via shadcn/ui. Custom components should respect the `dark` class.
+
+## Related Pages
+
+- [Client Builder (qa)](/docs/admin/client-builder-qa) — Where customization is configured
+- [Registries Overview](/docs/admin/registries-overview) — The registry extension model
+- [Field Renderer Registry](/docs/admin/field-renderer-registry) — Custom field components
+- [Component Registry](/docs/admin/component-registry) — Custom component refs

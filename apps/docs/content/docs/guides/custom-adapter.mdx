@@ -1,0 +1,191 @@
+---
+title: Custom Adapter
+description: Build a framework adapter using the fetch handler standard
+---
+
+# Custom Adapter
+
+If your framework isn't covered by `@questpie/hono`, `@questpie/elysia`, or `@questpie/next`, you can build a custom adapter. The core `createFetchHandler` returns a standard Web API `Request → Response` function that works with any runtime.
+
+## How Adapters Work
+
+Every adapter does three things:
+
+1. Convert the framework's request object to a standard `Request`
+2. Call `createFetchHandler(cms, config)` with that request
+3. Convert the standard `Response` back to the framework's response format
+
+## Step 1: Create the Fetch Handler
+
+```ts
+import { createFetchHandler } from "@questpie/questpie";
+import { cms } from "./cms";
+import { appRpc } from "./rpc";
+
+const handler = createFetchHandler(cms, {
+  basePath: "/api/cms",
+  rpc: appRpc,
+});
+```
+
+The handler accepts a `Request` and returns `Promise<Response | null>`. It returns `null` when the URL doesn't match any CMS route, allowing fallthrough to other handlers.
+
+## Step 2: Integrate with Your Framework
+
+### Express Example
+
+```ts
+import express from "express";
+
+const app = express();
+
+app.all("/api/cms/*", async (req, res) => {
+  // Convert Express request to standard Request
+  const url = new URL(req.url, `${req.protocol}://${req.get("host")}`);
+  const request = new Request(url, {
+    method: req.method,
+    headers: req.headers as HeadersInit,
+    body: ["GET", "HEAD"].includes(req.method) ? undefined : req,
+    duplex: "half",
+  });
+
+  // Call the handler
+  const response = await handler(request);
+
+  if (!response) {
+    res.status(404).send("Not found");
+    return;
+  }
+
+  // Convert standard Response to Express response
+  res.status(response.status);
+  response.headers.forEach((value, key) => {
+    res.setHeader(key, value);
+  });
+
+  if (response.body) {
+    const reader = response.body.getReader();
+    const pump = async () => {
+      const { done, value } = await reader.read();
+      if (done) { res.end(); return; }
+      res.write(value);
+      await pump();
+    };
+    await pump();
+  } else {
+    res.end(await response.text());
+  }
+});
+```
+
+### Fastify Example
+
+```ts
+import Fastify from "fastify";
+
+const fastify = Fastify();
+
+fastify.all("/api/cms/*", async (request, reply) => {
+  const url = new URL(request.url, `http://${request.hostname}`);
+  const stdRequest = new Request(url, {
+    method: request.method,
+    headers: request.headers as HeadersInit,
+    body: ["GET", "HEAD"].includes(request.method) ? undefined : request.body,
+  });
+
+  const response = await handler(stdRequest);
+
+  if (!response) {
+    reply.status(404).send("Not found");
+    return;
+  }
+
+  reply.status(response.status);
+  response.headers.forEach((value, key) => {
+    reply.header(key, value);
+  });
+  reply.send(await response.arrayBuffer());
+});
+```
+
+### Bun.serve
+
+```ts
+Bun.serve({
+  async fetch(request) {
+    const response = await handler(request);
+    if (response) return response;
+
+    // Fallback to other routes
+    return new Response("Not found", { status: 404 });
+  },
+});
+```
+
+Bun natively uses the Web API `Request`/`Response`, so no conversion is needed.
+
+## Checklist
+
+Before releasing your adapter, verify:
+
+- **Headers** — all request headers are forwarded (especially `Authorization`, `Content-Type`, `Cookie`)
+- **Body** — POST/PATCH/DELETE bodies are correctly forwarded (including JSON and multipart/form-data)
+- **URL** — the full URL including query parameters is preserved
+- **Streaming** — SSE responses (realtime) stream correctly without buffering
+- **File uploads** — multipart form data for storage uploads works
+- **Status codes** — response status codes are preserved (don't default everything to 200)
+- **Response headers** — `Content-Type`, `Set-Cookie`, and CORS headers are forwarded
+
+## Streaming (SSE)
+
+The realtime endpoint returns a `ReadableStream` response for Server-Sent Events. Your adapter must:
+
+1. Not buffer the response body
+2. Keep the connection open
+3. Forward chunks as they arrive
+
+If your framework doesn't support streaming responses, realtime features won't work — but all other CMS functionality will.
+
+## Package Structure
+
+If publishing as a package:
+
+```
+my-adapter/
+  src/
+    server.ts     — Main adapter function
+    client.ts     — Optional: typed client factory
+    index.ts      — Re-exports
+  package.json
+```
+
+### Server Export
+
+```ts
+// server.ts
+export function questpieMyFramework(
+  cms: Questpie,
+  config?: { basePath?: string; rpc?: RpcRouter },
+) {
+  const handler = createFetchHandler(cms, config);
+  // Return framework-specific middleware/handler
+  return myFrameworkMiddleware(handler);
+}
+```
+
+### Client Export (Optional)
+
+```ts
+// client.ts
+export function createClientFromMyFramework<TApp>(
+  config?: { baseUrl?: string },
+) {
+  return createClient<TApp>(config);
+}
+```
+
+## Related Pages
+
+- [Adapter API](/docs/reference/adapter-api) — Route table and handler signature
+- [Adapters Overview](/docs/client/adapters-overview) — How adapters work
+- [Hono Adapter](/docs/client/hono-adapter) — Reference implementation

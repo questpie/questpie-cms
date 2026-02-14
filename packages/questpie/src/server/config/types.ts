@@ -1,10 +1,12 @@
 import type {
 	CollectionAccess,
+	ExtractFieldsByLocation,
 	InferTableWithColumns,
-	LocalizedFields,
-	NonLocalizedFields,
 } from "#questpie/server/collection/builder/types.js";
-import type { FunctionsMap } from "#questpie/server/functions/types.js";
+import type {
+	FieldDefinition,
+	FieldDefinitionState,
+} from "#questpie/server/fields/types.js";
 import type { TranslationsConfig } from "#questpie/server/i18n/types.js";
 import type {
 	Collection,
@@ -20,6 +22,22 @@ import type {
 	GetCollection,
 	GetGlobal,
 } from "#questpie/shared/type-utils.js";
+
+// Local type definitions using new TState approach
+// These types maintain backward compatibility while using the new field definition system
+type NonLocalizedFields<
+	TFields extends Record<string, any>,
+	TLocalized extends ReadonlyArray<keyof TFields>,
+> = TFields extends Record<string, FieldDefinition<FieldDefinitionState>>
+	? ExtractFieldsByLocation<TFields, "main">
+	: Omit<TFields, TLocalized[number]>;
+
+type LocalizedFields<
+	TFields extends Record<string, any>,
+	TLocalized extends ReadonlyArray<keyof TFields>,
+> = TFields extends Record<string, FieldDefinition<FieldDefinitionState>>
+	? ExtractFieldsByLocation<TFields, "i18n">
+	: Pick<TFields, TLocalized[number]>;
 
 // Re-export for convenience (many files import from here)
 export type {
@@ -312,11 +330,6 @@ export interface QuestpieConfig {
 	globals?: Record<string, AnyGlobalOrBuilder>;
 
 	/**
-	 * RPC functions (root-level)
-	 */
-	functions?: FunctionsMap;
-
-	/**
 	 * Global localization settings
 	 */
 	locale?: LocaleConfig;
@@ -439,6 +452,13 @@ export interface QuestpieConfig {
 	translations?: TranslationsConfig;
 
 	/**
+	 * Context resolver for extending request context.
+	 * Called on each request to add custom properties (e.g., tenantId, propertyId).
+	 * Defined via `.context()` on the builder.
+	 */
+	contextResolver?: ContextResolver;
+
+	/**
 	 * Phantom type for tracking message keys.
 	 * Not used at runtime - purely for type inference.
 	 * @internal
@@ -451,9 +471,6 @@ export interface QuestpieConfig {
  */
 export type GetCollections<T extends QuestpieConfig> = T["collections"];
 export type GetGlobals<T extends QuestpieConfig> = NonNullable<T["globals"]>;
-export type GetFunctions<T extends QuestpieConfig> = NonNullable<
-	T["functions"]
->;
 export type GetAuth<T extends QuestpieConfig> = T["auth"];
 export type GetDbConfig<T extends QuestpieConfig> = T["db"];
 
@@ -472,3 +489,66 @@ export interface ContextExtensions {
 	// To be extended by plugins or user config
 	[key: string]: any;
 }
+
+// ============================================================================
+// Context Extension System
+// ============================================================================
+
+/**
+ * Interface for extending request context via module augmentation.
+ * Add custom properties that will be available in all access functions, hooks, etc.
+ *
+ * @example
+ * ```ts
+ * // In your app's types file
+ * declare module 'questpie' {
+ *   interface QuestpieContextExtension {
+ *     tenantId: string | null
+ *     propertyId: string | null
+ *   }
+ * }
+ * ```
+ */
+export type QuestpieContextExtension = {};
+
+/**
+ * Parameters passed to the context resolver function.
+ */
+export interface ContextResolverParams {
+	/** The incoming HTTP request */
+	request: Request;
+	/** The resolved session (may be null if unauthenticated) */
+	session: { user: any; session: any } | null | undefined;
+	/** Database client for queries */
+	db: any;
+}
+
+/**
+ * Context resolver function type.
+ * Returns custom context properties that will be merged into RequestContext.
+ *
+ * @example
+ * ```ts
+ * .context(async ({ request, session, db }) => {
+ *   const tenantId = request.headers.get('x-tenant-id')
+ *
+ *   if (tenantId && session?.user) {
+ *     // Validate access
+ *     const hasAccess = await db.query.tenantMembers.findFirst({
+ *       where: and(
+ *         eq(tenantMembers.tenantId, tenantId),
+ *         eq(tenantMembers.userId, session.user.id)
+ *       )
+ *     })
+ *     if (!hasAccess) {
+ *       throw new Error('No access to this tenant')
+ *     }
+ *   }
+ *
+ *   return { tenantId }
+ * })
+ * ```
+ */
+export type ContextResolver<
+	T extends Record<string, any> = Record<string, any>,
+> = (params: ContextResolverParams) => Promise<T> | T;

@@ -9,10 +9,10 @@ import { DEFAULT_LOCALE, DEFAULT_LOCALE_CONFIG } from "questpie/shared";
 import type { AdminBuilder } from "./admin-builder";
 import type { AdminBuilderState } from "./admin-types";
 import type {
-	RegisteredAdmin,
-	RegisteredCMS,
-	RegisteredCollectionNames,
-	RegisteredGlobalNames,
+  RegisteredAdmin,
+  RegisteredCMS,
+  RegisteredCollectionNames,
+  RegisteredGlobalNames,
 } from "./registry";
 
 // ============================================================================
@@ -29,15 +29,15 @@ type ExtractBuilderState<T> = T extends { state: infer S } ? S : T;
  * Map over a record and extract state from each builder value.
  */
 type ExtractBuilderStates<T> = {
-	[K in keyof T]: ExtractBuilderState<T[K]>;
+  [K in keyof T]: ExtractBuilderState<T[K]>;
 };
 
 /**
  * Input type for Admin - accepts either an AdminBuilder or Admin instance
  */
 export type AdminInput<TState extends AdminBuilderState = AdminBuilderState> =
-	| AdminBuilder<TState>
-	| Admin<TState>;
+  | AdminBuilder<TState>
+  | Admin<TState>;
 
 // ============================================================================
 // Admin Class
@@ -47,7 +47,6 @@ export type AdminInput<TState extends AdminBuilderState = AdminBuilderState> =
  * Admin runtime instance
  *
  * Provides methods to access admin configuration at runtime.
- * Can be created from an AdminBuilder directly - no need for Admin.from().
  *
  * @example
  * ```ts
@@ -57,308 +56,209 @@ export type AdminInput<TState extends AdminBuilderState = AdminBuilderState> =
  * <AdminLayoutProvider admin={admin} ... />
  *
  * // Or create Admin instance explicitly if needed
- * const adminInstance = Admin.from(adminBuilder);
+ * const adminInstance = Admin.normalize(adminBuilder);
  * ```
  */
 export class Admin<TState extends AdminBuilderState = AdminBuilderState> {
-	constructor(public readonly state: TState) {}
+  constructor(public readonly state: TState) {}
 
-	/**
-	 * Create Admin from an AdminBuilder or return existing Admin instance.
-	 * This is called internally by AdminLayoutProvider - you don't need to call it manually.
-	 *
-	 * @deprecated Pass the builder directly to AdminLayoutProvider instead
-	 */
-	static from<TBuilder extends AdminBuilder<any> | Admin<any>>(
-		input: TBuilder,
-	): TBuilder extends AdminBuilder<infer TState>
-		? Admin<TState>
-		: TBuilder extends Admin<infer TState>
-			? Admin<TState>
-			: never {
-		// If already an Admin instance, return as-is
-		if (input instanceof Admin) {
-			return input as any;
-		}
-		// Otherwise extract state from builder
-		return new Admin((input as AdminBuilder<any>).state) as any;
-	}
+  /**
+   * Normalize input to Admin instance (internal helper)
+   */
+  static normalize<TState extends AdminBuilderState>(
+    input: AdminInput<TState>,
+  ): Admin<TState> {
+    if (input instanceof Admin) {
+      return input;
+    }
+    return new Admin(input.state);
+  }
 
-	/**
-	 * Normalize input to Admin instance (internal helper)
-	 */
-	static normalize<TState extends AdminBuilderState>(
-		input: AdminInput<TState>,
-	): Admin<TState> {
-		if (input instanceof Admin) {
-			return input;
-		}
-		return new Admin(input.state);
-	}
+  // ============================================================================
+  // Page Methods
+  // ============================================================================
 
-	// ============================================================================
-	// Collection Methods
-	// ============================================================================
+  /**
+   * Get all custom page configurations.
+   * Automatically extracts `.state` from builders.
+   */
+  getPages(): ExtractBuilderStates<TState["pages"]> {
+    const pages = this.state.pages ?? {};
+    const result: Record<string, any> = {};
 
-	/**
-	 * Get all collection names
-	 */
-	getCollectionNames(): string[] {
-		return Object.keys(this.state.collections ?? {});
-	}
+    for (const [name, config] of Object.entries(pages)) {
+      // Extract state from builders, pass through plain configs
+      result[name] =
+        config && typeof config === "object" && "state" in config
+          ? (config as any).state
+          : config;
+    }
 
-	/**
-	 * Get all collection configurations.
-	 * Automatically extracts `.state` from builders.
-	 */
-	getCollections(): ExtractBuilderStates<TState["collections"]> {
-		const collections = this.state.collections ?? {};
-		const result: Record<string, any> = {};
+    return result as ExtractBuilderStates<TState["pages"]>;
+  }
 
-		for (const [name, config] of Object.entries(collections)) {
-			// Extract state from builders, pass through plain configs
-			result[name] =
-				config && typeof config === "object" && "state" in config
-					? (config as any).state
-					: config;
-		}
+  // ============================================================================
+  // Component Methods
+  // ============================================================================
 
-		return result as ExtractBuilderStates<TState["collections"]>;
-	}
+  /**
+   * Get all registered component implementations.
+   */
+  getComponents(): ExtractBuilderStates<TState["components"]> {
+    const components = this.state.components ?? {};
+    const result: Record<string, any> = {};
 
-	/**
-	 * Get configuration for a specific collection.
-	 * Automatically extracts `.state` from builder.
-	 */
-	getCollectionConfig(
-		name: string,
-	): ExtractBuilderState<TState["collections"][string]> | undefined {
-		const config = (this.state.collections as Record<string, any>)?.[name];
-		if (!config) return undefined;
+    for (const [name, config] of Object.entries(components)) {
+      result[name] =
+        config && typeof config === "object" && "state" in config
+          ? (config as any).state
+          : config;
+    }
 
-		// Extract state from builder, pass through plain config
-		return config && typeof config === "object" && "state" in config
-			? config.state
-			: config;
-	}
+    return result as ExtractBuilderStates<TState["components"]>;
+  }
 
-	// ============================================================================
-	// Global Methods
-	// ============================================================================
+  /**
+   * Get a specific component implementation by name.
+   */
+  getComponent(
+    name: string,
+  ): ExtractBuilderState<TState["components"][string]> | undefined {
+    const config = (this.state.components as Record<string, any>)?.[name];
+    if (!config) return undefined;
 
-	/**
-	 * Get all global names
-	 */
-	getGlobalNames(): string[] {
-		return Object.keys(this.state.globals ?? {});
-	}
+    return config && typeof config === "object" && "state" in config
+      ? config.state
+      : config;
+  }
 
-	/**
-	 * Get all global configurations.
-	 * Automatically extracts `.state` from builders.
-	 */
-	getGlobals(): ExtractBuilderStates<TState["globals"]> {
-		const globals = this.state.globals ?? {};
-		const result: Record<string, any> = {};
+  /**
+   * Get configuration for a specific page.
+   * Automatically extracts `.state` from builder.
+   */
+  getPageConfig(
+    name: string,
+  ): ExtractBuilderState<TState["pages"][string]> | undefined {
+    const config = (this.state.pages as Record<string, any>)?.[name];
+    if (!config) return undefined;
 
-		for (const [name, config] of Object.entries(globals)) {
-			// Extract state from builders, pass through plain configs
-			result[name] =
-				config && typeof config === "object" && "state" in config
-					? (config as any).state
-					: config;
-		}
+    // Extract state from builder, pass through plain config
+    return config && typeof config === "object" && "state" in config
+      ? config.state
+      : config;
+  }
 
-		return result as ExtractBuilderStates<TState["globals"]>;
-	}
+  // ============================================================================
+  // UI Configuration Methods
+  // ============================================================================
 
-	/**
-	 * Get configuration for a specific global.
-	 * Automatically extracts `.state` from builder.
-	 */
-	getGlobalConfig(
-		name: string,
-	): ExtractBuilderState<TState["globals"][string]> | undefined {
-		const config = (this.state.globals as Record<string, any>)?.[name];
-		if (!config) return undefined;
+  /**
+   * Get default views configuration
+   */
+  getDefaultViews(): TState["defaultViews"] {
+    return this.state.defaultViews ?? ({} as TState["defaultViews"]);
+  }
 
-		// Extract state from builder, pass through plain config
-		return config && typeof config === "object" && "state" in config
-			? config.state
-			: config;
-	}
+  // ============================================================================
+  // Locale Methods
+  // ============================================================================
 
-	// ============================================================================
-	// Page Methods
-	// ============================================================================
+  /**
+   * Get locale configuration
+   */
+  getLocale(): TState["locale"] {
+    return this.state.locale ?? DEFAULT_LOCALE_CONFIG;
+  }
 
-	/**
-	 * Get all custom page configurations.
-	 * Automatically extracts `.state` from builders.
-	 */
-	getPages(): ExtractBuilderStates<TState["pages"]> {
-		const pages = this.state.pages ?? {};
-		const result: Record<string, any> = {};
+  /**
+   * Get available locales
+   */
+  getAvailableLocales(): string[] {
+    return this.getLocale().supported ?? [DEFAULT_LOCALE];
+  }
 
-		for (const [name, config] of Object.entries(pages)) {
-			// Extract state from builders, pass through plain configs
-			result[name] =
-				config && typeof config === "object" && "state" in config
-					? (config as any).state
-					: config;
-		}
+  /**
+   * Get default locale
+   */
+  getDefaultLocale(): string {
+    return this.getLocale().default ?? DEFAULT_LOCALE;
+  }
 
-		return result as ExtractBuilderStates<TState["pages"]>;
-	}
+  /**
+   * Get human-readable label for a locale
+   */
+  getLocaleLabel(locale: string): string {
+    // TODO: Support custom labels from locale config
+    const labels: Record<string, string> = {
+      en: "English",
+      sk: "Slovencina",
+      cs: "Cestina",
+      de: "Deutsch",
+      fr: "Francais",
+      es: "Espanol",
+      it: "Italiano",
+      pt: "Portugues",
+      pl: "Polski",
+      nl: "Nederlands",
+      ru: "Russkij",
+      uk: "Ukrainska",
+      ja: "Nihongo",
+      ko: "Hangugeo",
+      zh: "Zhongwen",
+    };
+    return labels[locale] ?? locale.toUpperCase();
+  }
 
-	/**
-	 * Get configuration for a specific page.
-	 * Automatically extracts `.state` from builder.
-	 */
-	getPageConfig(
-		name: string,
-	): ExtractBuilderState<TState["pages"][string]> | undefined {
-		const config = (this.state.pages as Record<string, any>)?.[name];
-		if (!config) return undefined;
+  // ============================================================================
+  // Translations Methods
+  // ============================================================================
 
-		// Extract state from builder, pass through plain config
-		return config && typeof config === "object" && "state" in config
-			? config.state
-			: config;
-	}
+  /**
+   * Get translations map from builder state
+   * Used by AdminProvider to initialize i18n
+   */
+  getTranslations(): TState["translations"] {
+    return this.state.translations ?? ({} as TState["translations"]);
+  }
 
-	// ============================================================================
-	// UI Configuration Methods
-	// ============================================================================
+  // ============================================================================
+  // Registry Methods (for field/view lookups)
+  // ============================================================================
 
-	/**
-	 * Get dashboard configuration
-	 */
-	getDashboard(): TState["dashboard"] {
-		return this.state.dashboard ?? ({} as TState["dashboard"]);
-	}
+  /**
+   * Get all registered field definitions
+   */
+  getFields(): TState["fields"] {
+    return this.state.fields ?? ({} as TState["fields"]);
+  }
 
-	/**
-	 * Get sidebar configuration
-	 */
-	getSidebar(): TState["sidebar"] & { groups?: any[] } {
-		return (this.state.sidebar ?? {}) as TState["sidebar"] & { groups?: any[] };
-	}
+  /**
+   * Get a specific field definition
+   */
+  getField(name: string): TState["fields"][string] | undefined {
+    return (this.state.fields as Record<string, any>)?.[name];
+  }
 
-	/**
-	 * Get branding configuration
-	 */
-	getBranding(): TState["branding"] {
-		return this.state.branding ?? ({} as TState["branding"]);
-	}
+  /**
+   * Get all registered list view definitions
+   */
+  getListViews(): TState["listViews"] {
+    return this.state.listViews ?? ({} as TState["listViews"]);
+  }
 
-	/**
-	 * Get default views configuration
-	 */
-	getDefaultViews(): TState["defaultViews"] {
-		return this.state.defaultViews ?? ({} as TState["defaultViews"]);
-	}
+  /**
+   * Get all registered edit view definitions
+   */
+  getEditViews(): TState["editViews"] {
+    return this.state.editViews ?? ({} as TState["editViews"]);
+  }
 
-	// ============================================================================
-	// Locale Methods
-	// ============================================================================
-
-	/**
-	 * Get locale configuration
-	 */
-	getLocale(): TState["locale"] {
-		return this.state.locale ?? DEFAULT_LOCALE_CONFIG;
-	}
-
-	/**
-	 * Get available locales
-	 */
-	getAvailableLocales(): string[] {
-		return this.getLocale().supported ?? [DEFAULT_LOCALE];
-	}
-
-	/**
-	 * Get default locale
-	 */
-	getDefaultLocale(): string {
-		return this.getLocale().default ?? DEFAULT_LOCALE;
-	}
-
-	/**
-	 * Get human-readable label for a locale
-	 */
-	getLocaleLabel(locale: string): string {
-		// TODO: Support custom labels from locale config
-		const labels: Record<string, string> = {
-			en: "English",
-			sk: "Slovencina",
-			cs: "Cestina",
-			de: "Deutsch",
-			fr: "Francais",
-			es: "Espanol",
-			it: "Italiano",
-			pt: "Portugues",
-			pl: "Polski",
-			nl: "Nederlands",
-			ru: "Russkij",
-			uk: "Ukrainska",
-			ja: "Nihongo",
-			ko: "Hangugeo",
-			zh: "Zhongwen",
-		};
-		return labels[locale] ?? locale.toUpperCase();
-	}
-
-	// ============================================================================
-	// Translations Methods
-	// ============================================================================
-
-	/**
-	 * Get translations map from builder state
-	 * Used by AdminProvider to initialize i18n
-	 */
-	getTranslations(): TState["translations"] {
-		return this.state.translations ?? ({} as TState["translations"]);
-	}
-
-	// ============================================================================
-	// Registry Methods (for field/view lookups)
-	// ============================================================================
-
-	/**
-	 * Get all registered field definitions
-	 */
-	getFields(): TState["fields"] {
-		return this.state.fields ?? ({} as TState["fields"]);
-	}
-
-	/**
-	 * Get a specific field definition
-	 */
-	getField(name: string): TState["fields"][string] | undefined {
-		return (this.state.fields as Record<string, any>)?.[name];
-	}
-
-	/**
-	 * Get all registered list view definitions
-	 */
-	getListViews(): TState["listViews"] {
-		return this.state.listViews ?? ({} as TState["listViews"]);
-	}
-
-	/**
-	 * Get all registered edit view definitions
-	 */
-	getEditViews(): TState["editViews"] {
-		return this.state.editViews ?? ({} as TState["editViews"]);
-	}
-
-	/**
-	 * Get all registered widget definitions
-	 */
-	getWidgets(): TState["widgets"] {
-		return this.state.widgets ?? ({} as TState["widgets"]);
-	}
+  /**
+   * Get all registered widget definitions
+   */
+  getWidgets(): TState["widgets"] {
+    return this.state.widgets ?? ({} as TState["widgets"]);
+  }
 }
 
 // ============================================================================
@@ -369,16 +269,16 @@ export class Admin<TState extends AdminBuilderState = AdminBuilderState> {
  * Infer the CMS type from an Admin instance
  */
 export type InferAdminCMS<TAdmin> =
-	TAdmin extends Admin<infer TState>
-		? TState extends { "~app": infer TApp }
-			? TApp
-			: unknown
-		: unknown;
+  TAdmin extends Admin<infer TState>
+    ? TState extends { "~app": infer TApp }
+      ? TApp
+      : unknown
+    : unknown;
 
 /**
  * Get the registered Admin type (from module augmentation)
  */
 export type AppAdmin =
-	RegisteredAdmin extends AdminBuilder<infer TState>
-		? Admin<TState>
-		: Admin<AdminBuilderState>;
+  RegisteredAdmin extends AdminBuilder<infer TState>
+    ? Admin<TState>
+    : Admin<AdminBuilderState>;

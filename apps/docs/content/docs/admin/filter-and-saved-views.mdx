@@ -1,0 +1,104 @@
+---
+title: Filters & Saved Views
+description: Filter builder, column configuration, and saved view presets
+---
+
+# Filters & Saved Views
+
+The admin table view includes a filter builder for constructing complex queries, column visibility controls, and saved views that persist filter/sort/column configurations as named presets.
+
+## Filter Builder
+
+The filter builder opens as a side sheet from the table view toolbar. It provides a visual interface for constructing filters with operators specific to each field type.
+
+### Adding Filters
+
+1. Open the filter sheet from the table toolbar
+2. Select a field to filter on
+3. Choose an operator (equals, contains, greater than, etc.)
+4. Set the filter value
+5. Add more filters as needed (combined with AND)
+
+### Available Operators
+
+Operators vary by field type:
+
+| Field Type | Operators |
+|---|---|
+| Text | equals, not equals, contains, starts with, ends with, is empty |
+| Number | equals, not equals, greater than, less than, between |
+| Date | equals, before, after, between, is empty |
+| Select | equals, not equals, in, not in |
+| Boolean | is true, is false |
+| Relation | equals (record ID), is empty |
+
+## Column Configuration
+
+The filter sheet includes a columns tab for managing visible columns:
+
+- **Show/hide columns** — Toggle column visibility
+- **Reorder columns** — Drag to rearrange column order
+- **Reset to defaults** — Restore the collection's default column configuration
+
+## Saved Views
+
+Save the current filter, sort, and column configuration as a named view:
+
+```text
+Current state: filters + sort + visible columns → Save as "Published Posts"
+```
+
+### Creating a Saved View
+
+1. Set up your desired filters, sort order, and column visibility
+2. Open the filter sheet
+3. Switch to the "Saved Views" tab
+4. Enter a name and save
+
+### Loading a Saved View
+
+Select a saved view from the dropdown to restore its complete configuration — filters, sort, and columns are all applied at once.
+
+### Managing Saved Views
+
+- **Save** — Persist current filter/sort/column config
+- **Load** — Restore a saved configuration
+- **Delete** — Remove a saved view
+
+Saved views are stored per collection via the admin preferences API.
+
+## View Configuration
+
+The saved view system stores:
+
+```ts
+interface ViewConfiguration {
+  filters: FilterItem[];           // Active filters
+  sortConfig: SortConfig | null;   // Sort column and direction
+  visibleColumns: string[];        // Visible column field names
+}
+```
+
+## Server-Side Integration
+
+The filter builder generates query parameters that map to the collection's CRUD API. Filters are translated to `where` clauses:
+
+```ts
+// Filter: status equals "published"
+// Generates:
+{ where: { status: "published" } }
+
+// Filter: createdAt after 2024-01-01
+// Generates:
+{ where: { createdAt: { $gt: "2024-01-01" } } }
+```
+
+## Common Mistakes
+
+- **Non-filterable fields** — Some field types (richText, blocks, json) may not support all filter operators. The filter builder only shows applicable operators per field type.
+- **Saved views not syncing** — Saved views are per-user, per-collection. They don't sync across users. For shared presets, define default filters in the collection's `.list()` configuration.
+
+## Related Pages
+
+- [View Registry](/docs/admin/view-registry-list-and-form) — Table view configuration
+- [Collections](/docs/server/collections) — Server-side `.list()` configuration

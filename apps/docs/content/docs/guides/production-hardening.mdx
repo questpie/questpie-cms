@@ -1,0 +1,119 @@
+---
+title: Production Hardening
+description: Security, observability, and deployment checklist for QUESTPIE apps
+---
+
+# Production Hardening
+
+This guide covers the checklist for deploying a QUESTPIE application to production — database configuration, security, monitoring, and infrastructure setup.
+
+## Database
+
+- **Use PostgreSQL** — PGlite is for development only. Use a managed PostgreSQL instance (AWS RDS, Supabase, Neon) for production.
+- **Run migrations** — Ensure all migrations run before the app starts. Use `cms.migrate()` in your startup script.
+- **Enable `pg_trgm`** — Required for fuzzy search. Add `CREATE EXTENSION IF NOT EXISTS pg_trgm` in your initial migration.
+- **Connection pooling** — Use PgBouncer or your provider's built-in pooler for high-traffic deployments.
+- **Backups** — Configure automated backups with your provider.
+
+## Authentication
+
+- **Set `APP_URL` correctly** — Better Auth uses this for OAuth callbacks and session cookies. It must match your production domain.
+- **Secure session cookies** — Ensure `secure: true` and `sameSite: "lax"` in production.
+- **Create initial admin** — Seed your first admin user via a migration or startup script.
+- **Rotate secrets** — Use strong, unique values for `BETTER_AUTH_SECRET` and rotate periodically.
+
+## Storage
+
+- **Use S3 or equivalent** — Local filesystem doesn't work with multiple server instances. Configure S3, GCS, or Azure Blob Storage.
+- **CDN for public assets** — Put a CDN (CloudFront, Cloudflare) in front of your storage for faster asset delivery.
+- **Signed URLs for private files** — Don't expose storage buckets directly. Use signed URLs with expiry.
+
+## Email
+
+- **Use SMTP in production** — Replace `ConsoleAdapter` with `SmtpAdapter` for actual email delivery.
+- **Send via background jobs** — Don't send emails synchronously in hooks. Publish to the job queue.
+- **Monitor delivery** — Use a transactional email service (Resend, Postmark, SES) with delivery tracking.
+
+## Queue
+
+- **Run the worker** — Jobs require a running worker process: `cms.queue.listen()`.
+- **Set retry configuration** — External API calls should have `retryLimit` and `retryBackoff`.
+- **Monitor job failures** — Check pg-boss's monitoring tables or add alerting on failed jobs.
+- **Consider separate worker process** — For heavy workloads, run the worker as a separate process from the web server.
+
+## Realtime
+
+- **Use pg_notify or Redis** — Without an adapter, realtime falls back to polling. Use `pgNotifyAdapter` for low traffic or `redisStreamsAdapter` for scale.
+- **SSE connection limits** — Browsers limit concurrent SSE connections per domain (~6). Use HTTP/2 to increase this limit.
+
+## Search
+
+- **Reindex after migration** — After schema changes or bulk imports, run `cms.search.reindex("collectionName")`.
+- **Monitor index size** — Large collections with rich content can produce large search indexes.
+
+## Logging
+
+- **Use structured logging** — The default Pino logger produces JSON logs. Configure your log aggregator (Datadog, Grafana, ELK) accordingly.
+- **Set log level to `info` or `warn`** — Debug logs are verbose. Use `debug` only when troubleshooting.
+- **Redact sensitive data** — Configure `redact` in the logger config for headers, passwords, and tokens.
+
+## Security Checklist
+
+- [ ] All environment variables set (DATABASE_URL, APP_URL, secrets)
+- [ ] CORS configured for your frontend domain
+- [ ] Rate limiting on auth endpoints
+- [ ] `defaultAccess` set to deny unauthenticated access
+- [ ] File upload size limits configured
+- [ ] HTTPS enabled (terminate at load balancer or reverse proxy)
+- [ ] Admin panel behind authentication (always — this is the default)
+- [ ] Sensitive fields use field-level access control
+- [ ] OAuth callback URLs match production domain
+
+## Deployment Patterns
+
+### Single Server
+
+```text
+Web Server (Hono/Elysia/Next.js)
+  ├─ CMS routes
+  ├─ Admin panel
+  └─ Queue worker (in-process)
+```
+
+Simplest setup. The queue worker runs in the same process. Suitable for low-to-medium traffic.
+
+### Separate Worker
+
+```text
+Web Server → CMS routes + Admin panel
+Queue Worker → cms.queue.listen()
+```
+
+Dedicate a process to job processing. The web server stays responsive under heavy job loads.
+
+### Multi-Server with Redis
+
+```text
+Load Balancer
+  ├─ Web Server 1
+  ├─ Web Server 2
+  └─ Web Server 3
+
+Redis → KV cache, Realtime streams
+PostgreSQL → Data, Queue (pg-boss)
+S3 → File storage
+```
+
+For horizontal scaling. Use Redis for KV cache and realtime streams. S3 for shared file storage.
+
+## Common Mistakes
+
+- **PGlite in production** — PGlite is for development. It lacks concurrent access, replication, and durability guarantees.
+- **No queue worker running** — Jobs pile up in the queue but nothing processes them. Always start `cms.queue.listen()`.
+- **Missing `pg_trgm` extension** — Search fails without it. Add it in your initial migration.
+
+## Related Pages
+
+- [Installation](/docs/getting-started/installation) — Prerequisites and setup
+- [Infrastructure Overview](/docs/infrastructure) — All integrated services
+- [Database & Migrations](/docs/infrastructure/database-and-migrations) — Database setup

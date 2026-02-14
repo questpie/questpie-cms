@@ -7,10 +7,50 @@
 import type { Questpie } from "../config/cms.js";
 import type { RequestContext } from "../config/context.js";
 import type { AccessMode, QuestpieConfig } from "../config/types.js";
+import type { RpcRouterTree } from "../rpc/types.js";
+
+export type ReindexAccessContext<
+	TConfig extends QuestpieConfig = QuestpieConfig,
+> = {
+	request: Request;
+	cms: Questpie<TConfig>;
+	session?: { user: any; session: any } | null;
+	db: unknown;
+	locale?: string;
+	collection: string;
+};
+
+export type ReindexAccessRule<TConfig extends QuestpieConfig = QuestpieConfig> =
+	| boolean
+	| ((ctx: ReindexAccessContext<TConfig>) => boolean | Promise<boolean>);
 
 export type AdapterConfig<TConfig extends QuestpieConfig = QuestpieConfig> = {
 	basePath?: string;
 	accessMode?: AccessMode;
+	rpc?: RpcRouterTree<any>;
+	/**
+	 * Search route options.
+	 */
+	search?: {
+		/**
+		 * Access policy for `POST /search/reindex/:collection`.
+		 *
+		 * When omitted, reindex access is derived from the target collection's
+		 * `update` access rule.
+		 */
+		reindexAccess?: ReindexAccessRule<TConfig>;
+	};
+
+	/**
+	 * Storage route options.
+	 */
+	storage?: {
+		/**
+		 * Collection used by the legacy `/storage/files/:key` alias route.
+		 * If omitted, the adapter derives it from registered upload collections.
+		 */
+		collection?: string;
+	};
 	extendContext?: (params: {
 		request: Request;
 		cms: Questpie<TConfig>;
@@ -69,7 +109,7 @@ export type AdapterRoutes = {
 	rpc: {
 		root: (
 			request: Request,
-			params: { name: string },
+			params: { path: string[] },
 			context?: AdapterContext,
 		) => Promise<Response>;
 		collection: (
@@ -111,6 +151,15 @@ export type AdapterRoutes = {
 			params: { collection: string },
 			context?: AdapterContext,
 		) => Promise<Response>;
+		/**
+		 * Get introspected collection schema with fields, access, validation.
+		 * Used by admin UI to auto-generate forms and tables.
+		 */
+		schema: (
+			request: Request,
+			params: { collection: string },
+			context?: AdapterContext,
+		) => Promise<Response>;
 		create: (
 			request: Request,
 			params: { collection: string },
@@ -138,9 +187,30 @@ export type AdapterRoutes = {
 			params: { collection: string; id: string },
 			context?: AdapterContext,
 		) => Promise<Response>;
+		updateMany: (
+			request: Request,
+			params: { collection: string },
+			context?: AdapterContext,
+			input?: unknown,
+		) => Promise<Response>;
+		deleteMany: (
+			request: Request,
+			params: { collection: string },
+			context?: AdapterContext,
+			input?: unknown,
+		) => Promise<Response>;
 	};
 	globals: {
 		get: (
+			request: Request,
+			params: { global: string },
+			context?: AdapterContext,
+		) => Promise<Response>;
+		/**
+		 * Get introspected global schema with fields, access, validation.
+		 * Used by admin UI to auto-generate forms.
+		 */
+		schema: (
 			request: Request,
 			params: { global: string },
 			context?: AdapterContext,

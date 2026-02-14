@@ -1,0 +1,79 @@
+---
+title: Actions System
+description: Custom actions with forms, bulk operations, and context-aware triggers
+---
+
+# Actions System
+
+Actions let you add custom operations to collection UIs (row, bulk, and header areas) with server handlers and optional forms.
+
+## Defining Actions
+
+Use `.actions(({ a, c, f }) => ...)` on a collection:
+
+```ts
+import { getContext } from "questpie";
+import type { AppCMS } from "../cms";
+
+const posts = q
+  .collection("posts")
+  .fields((f) => ({
+    title: f.text({ required: true }),
+    status: f.select({ options: ["draft", "published", "archived"] }),
+  }))
+  .actions(({ a, c, f }) => ({
+    builtin: [a.create(), a.delete(), a.deleteMany()],
+    custom: [
+      a.bulkAction({
+        id: "archive-selected",
+        label: { en: "Archive selected" },
+        icon: c.icon("ph:archive"),
+        form: {
+          title: { en: "Archive posts" },
+          fields: {
+            reason: f.text({ label: { en: "Reason" } }),
+          },
+        },
+        handler: async (ctx) => {
+          const { app, session } = getContext<AppCMS>(ctx);
+          if (!session?.user) {
+            return { type: "error", toast: { message: "Unauthorized" } };
+          }
+
+          await app.api.collections.posts.updateMany({
+            where: { id: { $in: ctx.itemIds ?? [] } },
+            data: { status: "archived" },
+          });
+
+          return { type: "success", toast: { message: "Archived" } };
+        },
+      }),
+    ],
+  }));
+```
+
+## Action Result Types
+
+Handlers return one of these server result shapes:
+
+- `success` with optional toast and side effects
+- `error` with optional toast and field errors
+- `redirect` with URL
+- `download` with file payload
+
+## Typed Context in Handlers
+
+Action handler context is `ServerActionContext` (`data`, `itemId`, `itemIds`, `app`, `db`, `session`, `locale`).
+
+Use `getContext<AppCMS>(ctx)` as the standard cast point for typed app/db/session.
+
+## Common Mistakes
+
+- Defining actions with `.functions()` instead of `.actions()`.
+- Using untyped `app` directly inside handlers and losing queue/API autocomplete.
+- Returning plain objects without `type` (`success`, `error`, `redirect`, `download`).
+
+## Related Pages
+
+- [Dashboard, Sidebar & Branding](/docs/admin/dashboard-sidebar-branding)
+- [Type-Safe Contexts](/docs/server/type-safe-contexts)

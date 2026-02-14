@@ -1,0 +1,95 @@
+---
+title: Infrastructure
+description: Batteries-included services — auth, storage, email, queue, search, realtime, KV, logging
+---
+
+# Infrastructure
+
+QUESTPIE includes a complete set of infrastructure services out of the box. Each service follows the same pattern: a built-in default that works with PostgreSQL, and a pluggable adapter interface for production backends.
+
+## Why This Exists
+
+Most CMS projects need auth, file storage, email, background jobs, and search — but wiring them together is tedious. QUESTPIE integrates these services directly into the CMS builder, so they're available through `app.auth`, `app.storage`, `app.email`, `app.queue`, `app.search`, `app.kv`, and `app.logger` with zero extra configuration.
+
+## Mental Model
+
+```text
+.build({
+  db: { url: "..." },                         ← required
+  app: { url: "..." },                        ← required
+  secret: "...",                               ← for signed URLs & tokens
+  email: { adapter: new SmtpAdapter(...) },    ← optional
+  queue: { adapter: pgBossAdapter(...) },      ← optional
+  search: { adapter: createPostgresSearch() }, ← optional (auto-detected)
+  kv: { adapter: new MemoryKVAdapter() },      ← optional (default: memory)
+  realtime: { adapter: pgNotifyAdapter(...) }, ← optional
+})
+```
+
+Each service has:
+- **A default** that works with PostgreSQL (or in-memory for development)
+- **An adapter interface** for production backends (Redis, S3, SMTP, etc.)
+- **Type-safe access** through the CMS instance (`app.email.send(...)`)
+
+## Services Overview
+
+| Service | Default | Production Adapters | Access |
+|---|---|---|---|
+| [Authentication](/docs/infrastructure/authentication) | Better Auth (built-in) | OAuth, API keys | `app.auth` |
+| [Database](/docs/infrastructure/database-and-migrations) | PostgreSQL + Drizzle | PGlite (dev) | `app.db` |
+| [Storage](/docs/infrastructure/storage) | Local filesystem | S3, Azure, GCS | `app.storage` |
+| [Email](/docs/infrastructure/email) | Console (dev) | SMTP, custom | `app.email` |
+| [Queue & Jobs](/docs/infrastructure/queue-and-jobs) | pg-boss (PostgreSQL) | Cloudflare Queues | `app.queue` |
+| [Realtime](/docs/infrastructure/realtime) | PostgreSQL NOTIFY | Redis Streams | `app.realtime` |
+| [Search](/docs/infrastructure/search) | PostgreSQL FTS | pgvector, external | `app.search` |
+| [KV Store](/docs/infrastructure/kv-store) | In-memory | Redis (ioredis) | `app.kv` |
+| [Logger](/docs/infrastructure/logger) | Pino | Custom adapters | `app.logger` |
+
+## Barbershop Configuration
+
+Here's how the Barbershop example configures infrastructure:
+
+```ts
+export const cms = q({ name: "barbershop" })
+  .use(baseInstance)
+  .build({
+    app: { url: process.env.APP_URL || "http://localhost:3000" },
+    db: { url: process.env.DATABASE_URL },
+    storage: { basePath: "/api/cms" },
+    secret: process.env.SECRET,
+    email: {
+      adapter: process.env.MAIL_ADAPTER === "console"
+        ? new ConsoleAdapter({ logHtml: false })
+        : new SmtpAdapter({
+            transport: {
+              host: process.env.SMTP_HOST || "localhost",
+              port: Number.parseInt(process.env.SMTP_PORT || "1025", 10),
+              secure: false,
+            },
+          }),
+    },
+    queue: {
+      adapter: pgBossAdapter({
+        connectionString: DATABASE_URL,
+      }),
+    },
+  });
+```
+
+## Common Mistakes
+
+- **Hardcoding secrets** — Always use environment variables for `secret`, `DATABASE_URL`, and adapter credentials.
+- **Skipping email in development** — Use `ConsoleAdapter` instead of leaving email unconfigured. It logs emails to the console so you can see them during development.
+- **Not configuring queue for production** — Without a queue adapter, background jobs (like email notifications) won't run. Use `pgBossAdapter` as a minimum.
+
+## Pages in This Section
+
+- [Authentication](/docs/infrastructure/authentication) — Better Auth: email/password, OAuth, API keys
+- [Database & Migrations](/docs/infrastructure/database-and-migrations) — PostgreSQL, Drizzle, schema management
+- [Storage](/docs/infrastructure/storage) — File storage with signed URLs
+- [Email](/docs/infrastructure/email) — Templates, SMTP, development console
+- [Queue & Jobs](/docs/infrastructure/queue-and-jobs) — Background jobs and workflows
+- [Realtime](/docs/infrastructure/realtime) — Live updates via SSE
+- [Search](/docs/infrastructure/search) — Full-text search with facets
+- [KV Store](/docs/infrastructure/kv-store) — Key-value caching
+- [Logger](/docs/infrastructure/logger) — Structured logging

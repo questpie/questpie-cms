@@ -1,0 +1,141 @@
+---
+title: View Registry (List and Form)
+description: Register and configure list and form views for collections
+---
+
+# View Registry (List and Form)
+
+The view registry maps view type IDs to React components that render collection list pages and edit/create forms. The server specifies which view type to use; the client resolves it from the registry.
+
+## Why This Exists
+
+Different collections may need different display formats. Most use the default table + form views, but a kanban board, calendar view, or custom dashboard might be better for specific data types. The view registry makes this extensible without hardcoding.
+
+## Default Views
+
+`coreAdminModule` registers two built-in views:
+
+| View ID | Kind | Component | Description |
+|---|---|---|---|
+| `table` | listView | TableView | Sortable, filterable table with columns |
+| `form` | editView | FormView | react-hook-form with auto-generated fields |
+
+## Server-Side Configuration
+
+The server specifies view type and configuration via `.list()` and `.form()`:
+
+```ts
+export const posts = qb
+  .collection("posts")
+  .fields((f) => ({
+    title: f.text({ required: true }),
+    status: f.select({ options: ["draft", "published"] }),
+    author: f.relation({ collection: "users" }),
+  }))
+  .list({
+    columns: ["title", "status", "author", "createdAt"],
+    search: ["title"],
+    sort: { field: "createdAt", direction: "desc" },
+    pageSize: 25,
+  })
+  .form({
+    layout: "sidebar",
+    sections: [
+      { label: "Content", fields: ["title", "content"] },
+      { label: "Settings", fields: ["status", "author"] },
+    ],
+    sidebarFields: ["status", "author", "createdAt"],
+  });
+```
+
+## Table View Features
+
+The built-in `TableView` component provides:
+
+- **Columns** — Auto-generated from field definitions with cell renderers from the field registry
+- **Sorting** — Click column headers to sort; multi-column support
+- **Filtering** — Filter builder with operators per field type
+- **Search** — Full-text search across configured fields
+- **Pagination** — Server-side pagination with configurable page size
+- **Column visibility** — Toggle columns on/off
+- **Bulk actions** — Multi-select rows for bulk operations
+- **Row actions** — Per-row action buttons
+- **Saved views** — Save filter/sort/column configurations as named views
+- **Realtime highlights** — Flash updated rows when data changes via SSE
+
+### List View Configuration
+
+| Option | Type | Description |
+|---|---|---|
+| `columns` | `string[]` | Fields to display as columns |
+| `search` | `string[]` | Fields to include in search |
+| `sort` | `{ field, direction }` | Default sort |
+| `pageSize` | `number` | Items per page |
+| `filters` | `FilterConfig[]` | Pre-defined filter options |
+
+## Form View Features
+
+The built-in `FormView` component provides:
+
+- **Auto-layout** — Fields rendered in order using field registry components
+- **Sections** — Organize fields into collapsible groups
+- **Tabs** — Group sections into tabs
+- **Sidebar layout** — Two-column layout with a sidebar for metadata fields
+- **Validation** — Client-side validation with server-side fallback
+- **Dirty tracking** — Track field changes and warn on navigation
+- **Actions** — Save, delete, and custom action buttons
+- **Reactive fields** — Conditional visibility, computed values, dynamic options
+- **Item locking** — Prevent concurrent edits via the lock system
+- **Preview panel** — Side-by-side live preview (when configured)
+
+### Form View Configuration
+
+| Option | Type | Description |
+|---|---|---|
+| `layout` | `"single" \| "sidebar"` | Form layout mode |
+| `sections` | `SectionConfig[]` | Organize fields into sections |
+| `tabs` | `TabConfig[]` | Organize sections into tabs |
+| `sidebarFields` | `string[]` | Fields in sidebar (sidebar layout) |
+| `showStatus` | `boolean` | Show item status badge |
+| `showMeta` | `boolean` | Show metadata (dates, ID) |
+
+## Custom Views
+
+Register a custom list or form view:
+
+```ts
+const admin = qa<AppCMS>()
+  .use(coreAdminModule)
+  .views({
+    kanban: {
+      name: "kanban",
+      kind: "listView",
+      component: KanbanView,
+    },
+    wizard: {
+      name: "wizard",
+      kind: "editView",
+      component: WizardFormView,
+    },
+  });
+```
+
+Then reference the custom view on the server:
+
+```ts
+.list({ view: "kanban" })
+.form({ view: "wizard" })
+```
+
+## Common Mistakes
+
+- **Not specifying `columns`** — Without explicit columns, the table auto-detects them. This works but may include unwanted fields. Be explicit.
+- **Too many sidebar fields** — The sidebar is for quick-access fields (status, dates, author). Don't put content fields there.
+- **Custom view without registry** — If the server references a view ID that isn't registered, the admin falls back to the default or renders nothing.
+
+## Related Pages
+
+- [Client Builder (qa)](/docs/admin/client-builder-qa) — Where views are registered
+- [Registries Overview](/docs/admin/registries-overview) — All four registries
+- [Collections](/docs/server/collections) — Server-side `.list()` and `.form()` configuration
+- [Filters & Saved Views](/docs/admin/filter-and-saved-views) — Filter builder in table views

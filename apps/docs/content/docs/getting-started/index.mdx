@@ -1,207 +1,113 @@
 ---
 title: Getting Started
-description: Quick start guide for QUESTPIE CMS
+description: Start building with QUESTPIE's server-first architecture
 ---
 
-# Getting Started with QUESTPIE CMS
+# Getting Started
 
-QUESTPIE CMS is a headless, extensible CMS framework for TypeScript. This guide will get you up and running in minutes.
+QUESTPIE is a server-first TypeScript CMS framework. You define your data schema, admin UI blueprint, access rules, and business logic on the server — the admin panel renders it automatically.
 
-## What is QUESTPIE CMS?
+## The Mental Model
 
-QUESTPIE provides:
+```text
+Server (q + admin server module)
+  → fields, collections, globals         — your data schema
+  → .admin(), .list(), .form()           — admin UI blueprint
+  → .sidebar(), .dashboard()             — navigation layout
+  → hooks, access, rpc, jobs             — behavior
+  → introspection contract               — bridge to admin
 
-- **Backend CMS** (`questpie`) - Type-safe data layer with Drizzle ORM
-- **Admin UI** (`@questpie/admin`) - Beautiful, config-driven admin interface
-- **Framework Adapters** - Hono, Elysia, Next.js, TanStack Start
-
-## Quick Start
-
-### 1. Create a New Project
-
-```bash
-# Clone the example project (recommended)
-git clone https://github.com/questpie/questpie-cms
-cd questpie-cms/examples/tanstack-barbershop
-bun install
+Client (qa + admin client module)
+  → field / view / component registries  — how things render
+  → widget/page registries               — client extensions
 ```
 
-### 2. Install Dependencies
+The server defines **WHAT** your CMS is. The client defines **HOW** it looks. If you keep this split clear, the framework stays simple at any scale.
+
+## Fast Path
+
+### 1. Install packages
 
 ```bash
-bun add questpie @questpie/admin @questpie/hono
-bun add @questpie/tanstack-query @tanstack/react-query
-bun add drizzle-orm postgres
-bun add -D drizzle-kit
+bun add questpie @questpie/admin zod
 ```
 
-### 3. Define Your CMS
+### 2. Create a server builder
 
-```typescript
-// src/questpie/server/cms.ts
-import { q, text, integer, boolean, datetime } from "questpie";
+```ts
+// src/questpie/server/builder.ts
 import { adminModule } from "@questpie/admin/server";
+import { q } from "questpie";
+
+export const qb = q.use(adminModule);
+```
+
+### 3. Define a collection
+
+```ts
+// src/questpie/server/collections/posts.ts
+import { qb } from "../builder";
+
+export const posts = qb
+  .collection("posts")
+  .fields((f) => ({
+    title: f.text({ label: { en: "Title" }, required: true }),
+    slug: f.text({ label: { en: "Slug" }, required: true, input: "optional" }),
+    content: f.richText({ label: { en: "Content" } }),
+    published: f.boolean({ label: { en: "Published" }, default: false, required: true }),
+  }))
+  .admin(({ c }) => ({
+    label: { en: "Posts" },
+    icon: c.icon("ph:article"),
+  }))
+  .list(({ v, f }) => v.table({ columns: [f.title, f.published] }))
+  .form(({ v, f }) =>
+    v.form({
+      fields: [f.title, f.content],
+      sidebar: { position: "right", fields: [f.slug, f.published] },
+    }),
+  );
+```
+
+### 4. Build and mount the CMS
+
+```ts
+// src/questpie/server/cms.ts
+import { q } from "questpie";
+import { adminModule } from "@questpie/admin/server";
+import { posts } from "./collections/posts";
 
 export const cms = q({ name: "my-cms" })
-  .use(adminModule)  // Adds auth and assets
-  .collections({
-    posts: q.collection("posts")
-      .fields({
-        title: text("title").notNull(),
-        content: text("content"),
-        published: boolean("published").default(false),
-        publishedAt: datetime("publishedAt"),
-      })
-      .validation({
-        exclude: { id: true, createdAt: true, updatedAt: true },
-        refine: {
-          title: (s) => s.min(1).max(200),
-        },
-      }),
-  })
-  .auth({
-    emailAndPassword: { enabled: true },
-    secret: process.env.AUTH_SECRET,
-  })
+  .use(adminModule)
+  .collections({ posts })
   .build({
     db: { url: process.env.DATABASE_URL },
+    app: { url: process.env.APP_URL || "http://localhost:3000" },
   });
 
 export type AppCMS = typeof cms;
 ```
 
-### 4. Configure Admin UI
+### 5. Configure the admin client
 
-```typescript
+```ts
 // src/questpie/admin/admin.ts
-import { qa, adminModule } from "@questpie/admin/client";
+import { adminModule, qa } from "@questpie/admin/client";
 import type { AppCMS } from "../server/cms";
 
 export const admin = qa<AppCMS>()
-  .use(adminModule)
-  .branding({ name: "My CMS" })
-  .collections({
-    posts: qa.collection("posts")
-      .meta({ label: "Posts" })
-      .fields(({ r }) => ({
-        title: r.text({ label: "Title", required: true }),
-        content: r.richText({ label: "Content" }),
-        published: r.switch({ label: "Published" }),
-        publishedAt: r.datetime({ label: "Published At" }),
-      }))
-      .list(({ v, f }) => v.table({
-        columns: [f.title, f.published, f.publishedAt],
-      }))
-      .form(({ v, f }) => v.form({
-        fields: [f.title, f.content, f.published, f.publishedAt],
-      })),
-  })
-  .sidebar(
-    qa.sidebar<AppCMS>()
-      .section("content", (s) =>
-        s.title("Content").items([
-          { type: "collection", collection: "posts" },
-        ])
-      )
-  );
+  .use(adminModule);
 ```
 
-### 5. Mount the API
+## Common Mistakes
 
-```typescript
-// src/server.ts (Hono)
-import { Hono } from "hono";
-import { createHonoAdapter } from "@questpie/hono";
-import { cms } from "./questpie/server/cms";
+- **Duplicating schema in the client** — The server is the single source of truth. The client admin config should only handle registries and rendering overrides.
+- **Forgetting the server module** — You need `q.use(adminModule)` on the server side, not just `qa.use(adminModule)` on the client.
+- **Hardcoding views** — Use the registry pattern instead of hardcoding component references.
 
-const app = new Hono();
-app.route("/api/cms", createHonoAdapter(cms));
+## Next Steps
 
-export default app;
-```
-
-### 6. Mount the Admin
-
-```tsx
-// src/routes/admin.tsx
-import { Admin, AdminLayoutProvider } from "@questpie/admin/client";
-import { admin } from "@/questpie/admin/admin";
-import { cmsClient } from "@/lib/cms-client";
-
-const adminInstance = Admin.from(admin);
-
-export default function AdminPage() {
-  return (
-    <AdminLayoutProvider
-      admin={adminInstance}
-      client={cmsClient}
-      basePath="/admin"
-    >
-      {/* Admin UI renders here */}
-    </AdminLayoutProvider>
-  );
-}
-```
-
-### 7. Run Migrations
-
-```bash
-# Generate migration
-bun run drizzle-kit generate
-
-# Apply migration
-bun run drizzle-kit migrate
-```
-
-### 8. Start the Dev Server
-
-```bash
-bun run dev
-```
-
-Visit `http://localhost:3000/admin` to access the admin UI.
-
-## Project Structure
-
-Recommended structure for QUESTPIE projects:
-
-```
-src/
-├── questpie/
-│   ├── server/           # Backend CMS
-│   │   ├── cms.ts        # Main CMS instance
-│   │   ├── collections/  # Collection definitions
-│   │   └── globals/      # Global definitions
-│   │
-│   └── admin/            # Admin UI
-│       ├── admin.ts      # Main admin config
-│       ├── builder.ts    # Shared builder
-│       ├── collections/  # Collection UI configs
-│       └── sidebar.ts    # Navigation
-│
-├── routes/
-│   ├── api/cms.ts        # CMS API routes
-│   └── admin.tsx         # Admin UI route
-│
-└── lib/
-    └── cms-client.ts     # CMS client instance
-```
-
-## What's Next?
-
-<Cards>
-  <Card href="/docs/getting-started/your-first-cms" title="Your First CMS" description="Build a complete CMS step-by-step" />
-  <Card href="/docs/core-concepts" title="Core Concepts" description="Understand the key patterns" />
-  <Card href="/docs/backend" title="Backend" description="Learn the q() builder" />
-  <Card href="/docs/admin" title="Admin UI" description="Configure the admin interface" />
-</Cards>
-
-## Examples
-
-Check out the [Barbershop Example](/docs/examples/barbershop) for a complete, production-ready implementation with:
-
-- 6 collections
-- 18 page builder blocks
-- Dashboard with analytics
-- i18n support (EN/SK)
-- Live preview
+- [Installation](/docs/getting-started/installation) — Prerequisites and package setup
+- [Quickstart](/docs/getting-started/quickstart) — Working CMS in 5 minutes
+- [Your First CMS](/docs/getting-started/your-first-cms) — Deeper walkthrough with multiple collections
+- [Project Structure](/docs/getting-started/project-structure) — Recommended file layout

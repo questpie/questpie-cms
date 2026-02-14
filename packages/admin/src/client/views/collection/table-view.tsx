@@ -5,7 +5,7 @@
  * This is the default list view registered in the admin view registry.
  */
 
-import { SlidersHorizontalIcon, SpinnerGap } from "@phosphor-icons/react";
+import { Icon } from "@iconify/react";
 import {
 	type ColumnDef,
 	flexRender,
@@ -17,11 +17,11 @@ import {
 } from "@tanstack/react-table";
 import * as React from "react";
 import { useMemo, useState } from "react";
-import type { ActionsConfig } from "../../builder/collection/action-types";
+import type { ActionsConfig } from "../../builder/types/action-types";
 import type {
 	CollectionBuilderState,
 	ListViewConfig,
-} from "../../builder/collection/types";
+} from "../../builder/types/collection-types";
 import { ActionDialog } from "../../components/actions/action-dialog";
 import { HeaderActions } from "../../components/actions/header-actions";
 import { FilterBuilderSheet } from "../../components/filter-builder/filter-builder-sheet";
@@ -53,7 +53,10 @@ import {
 	useCollectionDelete,
 	useCollectionList,
 } from "../../hooks/use-collection";
+import { useCollectionFields } from "../../hooks/use-collection-fields";
 import { useCollectionMeta } from "../../hooks/use-collection-meta";
+import { getLockUser, useLocks } from "../../hooks/use-locks";
+import { useRealtimeHighlight } from "../../hooks/use-realtime-highlight";
 import {
 	useDeleteSavedView,
 	useSavedViews,
@@ -62,7 +65,13 @@ import {
 import { useDebouncedValue, useSearch } from "../../hooks/use-search";
 import { useViewState } from "../../hooks/use-view-state";
 import { useResolveText, useTranslation } from "../../i18n/hooks";
-import { useSafeContentLocales, useScopedLocale } from "../../runtime";
+import { cn } from "../../lib/utils";
+import {
+	selectRealtime,
+	useAdminStore,
+	useSafeContentLocales,
+	useScopedLocale,
+} from "../../runtime";
 import {
 	autoExpandFields,
 	hasFieldsToExpand,
@@ -85,6 +94,27 @@ import {
  * Re-exports ListViewConfig for type consistency between builder and component.
  */
 export type TableViewConfig = ListViewConfig;
+
+function mapListSchemaToConfig(list?: {
+	view?: string;
+	columns?: string[];
+	defaultSort?: { field: string; direction: "asc" | "desc" };
+	searchable?: string[];
+	filterable?: string[];
+	actions?: unknown;
+}): ListViewConfig | undefined {
+	if (!list) return undefined;
+
+	const config: ListViewConfig = {};
+	if (list.columns?.length) config.columns = list.columns;
+	if (list.defaultSort) config.defaultSort = list.defaultSort as any;
+	if (list.searchable?.length) {
+		config.searchFields = list.searchable as any;
+		config.searchable = true;
+	}
+
+	return config;
+}
 
 /**
  * Props for TableView component
@@ -133,6 +163,12 @@ export interface TableViewProps {
 	 * @default true
 	 */
 	showToolbar?: boolean;
+
+	/**
+	 * Enable realtime invalidation for this table.
+	 * Falls back to AdminProvider realtime config when undefined.
+	 */
+	realtime?: boolean;
 
 	/**
 	 * Custom header actions (in addition to configured actions)
@@ -187,16 +223,31 @@ export default function TableView({
 	showSearch = true,
 	showFilters = true,
 	showToolbar = true,
+	realtime,
 	headerActions,
 	emptyState,
 	actionsConfig,
 }: TableViewProps): React.ReactElement {
+	const globalRealtimeConfig = useAdminStore(selectRealtime);
+	const { fields: resolvedFields, schema } = useCollectionFields(collection, {
+		fallbackFields: (config as any)?.fields,
+	});
+	const schemaListConfig = mapListSchemaToConfig(schema?.admin?.list as any);
+	const resolvedListConfig =
+		viewConfig ??
+		(config?.list as any)?.["~config"] ??
+		config?.list ??
+		schemaListConfig;
+	// Default to global realtime.enabled if not explicitly set
+	const resolvedRealtime =
+		realtime ??
+		((resolvedListConfig as any)?.realtime as boolean | undefined) ??
+		globalRealtimeConfig.enabled;
+
 	// Use actionsConfig from prop or from config.list view config
 	// Actions are now stored in the list view config, not at collection level
 	const resolvedActionsConfig =
-		actionsConfig ??
-		(config?.list as any)?.["~config"]?.actions ??
-		(config?.list as any)?.actions;
+		actionsConfig ?? (resolvedListConfig as any)?.actions;
 
 	// Fetch collection metadata from backend (for title field detection, timestamps, etc.)
 	const { data: collectionMeta } = useCollectionMeta(collection);
@@ -229,25 +280,25 @@ export default function TableView({
 		() =>
 			buildColumns({
 				config: {
-					fields: config?.fields,
-					list: config?.list,
+					fields: resolvedFields,
+					list: resolvedListConfig,
 				},
 				fallbackColumns: ["id"],
 				buildAllColumns: true, // Build all columns so user can toggle any field
 				meta: collectionMeta, // Use meta to determine title field
 			}),
-		[config?.fields, config?.list, collectionMeta],
+		[resolvedFields, resolvedListConfig, collectionMeta],
 	);
 
 	// Auto-detect fields to expand (uploads, relations)
 	const expandedFields = useMemo(
 		() =>
 			autoExpandFields({
-				fields: config?.fields,
-				list: config?.list,
+				fields: resolvedFields,
+				list: resolvedListConfig as any,
 				relations: collectionMeta?.relations,
 			}),
-		[config?.fields, config?.list, collectionMeta?.relations],
+		[resolvedFields, resolvedListConfig, collectionMeta?.relations],
 	);
 
 	// Filter builder sheet state
@@ -258,15 +309,20 @@ export default function TableView({
 	// When .list({ columns: [...] }) is defined, those become the defaults
 	const defaultColumns = useMemo(
 		() =>
-			computeDefaultColumns(config?.fields, {
+			computeDefaultColumns(resolvedFields, {
 				meta: collectionMeta,
-				configuredColumns: config?.list?.columns,
+				configuredColumns: resolvedListConfig?.columns as any,
 			}),
-		[config?.fields, config?.list?.columns, collectionMeta],
+		[resolvedFields, resolvedListConfig?.columns, collectionMeta],
 	);
 
-	// View state (filters, sort, visible columns) - with database persistence
-	const viewState = useViewState(defaultColumns, undefined, collection);
+	// View state (filters, sort, visible columns, realtime) - with database persistence
+	const viewState = useViewState(
+		defaultColumns,
+		{ realtime: resolvedRealtime },
+		collection,
+	);
+	const effectiveRealtime = viewState.config.realtime ?? resolvedRealtime;
 
 	// Build query options from view state (filters, sort)
 	const queryOptions = useMemo(() => {
@@ -373,7 +429,7 @@ export default function TableView({
 				const { field, operator, value } = filter;
 				if (!field || field === "_title") continue;
 
-				const fieldDef = config?.fields?.[field] as any;
+				const fieldDef = resolvedFields?.[field] as any;
 				const fieldType = fieldDef?.name ?? "text";
 				const fieldOptions = fieldDef?.["~options"] ?? {};
 				const relationName =
@@ -475,7 +531,7 @@ export default function TableView({
 		expandedFields,
 		viewState.config.filters,
 		viewState.config.sortConfig,
-		config?.fields,
+		resolvedFields,
 		collectionMeta?.relations,
 	]);
 
@@ -504,6 +560,7 @@ export default function TableView({
 		collection as any,
 		queryOptions,
 		{ enabled: !isSearching },
+		{ realtime: effectiveRealtime },
 	);
 
 	// Merge data sources - search returns full records directly now
@@ -522,8 +579,8 @@ export default function TableView({
 	// Build available fields from config for column picker
 	// All fields are available in Options, but defaults come from .list() config
 	const availableFields: AvailableField[] = useMemo(() => {
-		return getAllAvailableFields(config?.fields, { meta: collectionMeta });
-	}, [config?.fields, collectionMeta]);
+		return getAllAvailableFields(resolvedFields, { meta: collectionMeta });
+	}, [resolvedFields, collectionMeta]);
 
 	// Filter columns based on visibleColumns from view state
 	// Includes checkbox selection column as first column
@@ -653,6 +710,18 @@ export default function TableView({
 		return listData?.docs ?? [];
 	}, [isSearching, searchData?.docs, listData?.docs]);
 
+	// Track realtime changes and highlight affected rows
+	const { isHighlighted } = useRealtimeHighlight(items, {
+		enabled: effectiveRealtime && !isSearching,
+	});
+
+	// Track who is editing which documents
+	const { getLock, isLocked: isDocLocked } = useLocks({
+		resourceType: "collection",
+		resource: collection,
+		realtime: effectiveRealtime,
+	});
+
 	// Search results are already sorted by score, list results are server-sorted
 	const filteredItems = items;
 
@@ -722,7 +791,7 @@ export default function TableView({
 		return (
 			<div className="container">
 				<div className="flex h-64 items-center justify-center text-muted-foreground">
-					<SpinnerGap className="size-6 animate-spin" />
+					<Icon icon="ph:spinner-gap" className="size-6 animate-spin" />
 				</div>
 			</div>
 		);
@@ -736,7 +805,10 @@ export default function TableView({
 					<div className="min-w-0 flex-1">
 						<div className="flex items-center gap-3">
 							<h1 className="text-2xl md:text-3xl font-extrabold tracking-tight truncate">
-								{resolveText(config?.label, collection)}
+								{resolveText(
+									(config as any)?.label ?? schema?.admin?.config?.label,
+									collection,
+								)}
 							</h1>
 							{localeOptions.length > 0 && (
 								<LocaleSwitcher
@@ -746,11 +818,15 @@ export default function TableView({
 								/>
 							)}
 						</div>
-						{config?.description && (
+						{((config as any)?.description ??
+						schema?.admin?.config?.description) ? (
 							<p className="text-muted-foreground text-sm mt-1 line-clamp-2">
-								{resolveText(config.description)}
+								{resolveText(
+									(config as any)?.description ??
+										schema?.admin?.config?.description,
+								)}
 							</p>
-						)}
+						) : null}
 					</div>
 					<div className="flex items-center gap-2 shrink-0">
 						{headerActions}
@@ -794,7 +870,11 @@ export default function TableView({
 											onClick={() => setIsSheetOpen(true)}
 											className="gap-2"
 										>
-											<SlidersHorizontalIcon size={16} />
+											<Icon
+												icon="ph:sliders-horizontal"
+												width={16}
+												height={16}
+											/>
 											{t("viewOptions.title")}
 										</Button>
 									</ToolbarSection>
@@ -885,7 +965,10 @@ export default function TableView({
 									<TableRow
 										key={row.id}
 										data-state={row.getIsSelected() && "selected"}
-										className="group"
+										className={cn(
+											"group",
+											isHighlighted(row.id) && "animate-realtime-pulse",
+										)}
 									>
 										{row.getVisibleCells().map((cell, cellIndex) => {
 											// First column (checkbox) is sticky at left=0, width ~36px
@@ -910,16 +993,49 @@ export default function TableView({
 													}
 												>
 													{isTitleCol ? (
-														<button
-															type="button"
-															onClick={() => handleRowClick(row.original)}
-															className="text-left underline underline-offset-2 decoration-muted-foreground/50 hover:decoration-foreground transition-colors cursor-pointer"
-														>
-															{flexRender(
-																cell.column.columnDef.cell,
-																cell.getContext(),
-															)}
-														</button>
+														<div className="flex items-center gap-2">
+															<button
+																type="button"
+																onClick={() => handleRowClick(row.original)}
+																className="text-left underline underline-offset-2 decoration-muted-foreground/50 hover:decoration-foreground transition-colors cursor-pointer"
+															>
+																{flexRender(
+																	cell.column.columnDef.cell,
+																	cell.getContext(),
+																)}
+															</button>
+															{isDocLocked(row.id) &&
+																(() => {
+																	const lock = getLock(row.id);
+																	const user = lock ? getLockUser(lock) : null;
+																	return (
+																		<span
+																			className="inline-flex items-center gap-1 text-xs text-muted-foreground bg-muted/50 px-1.5 py-0.5 rounded-full"
+																			title={
+																				user?.name ??
+																				user?.email ??
+																				"Someone is editing"
+																			}
+																		>
+																			{user?.image ? (
+																				<img
+																					src={user.image}
+																					alt=""
+																					className="size-4 rounded-full"
+																				/>
+																			) : (
+																				<Icon
+																					icon="ph:pencil-simple"
+																					className="size-3"
+																				/>
+																			)}
+																			<span className="max-w-20 truncate">
+																				{user?.name?.split(" ")[0] ?? "Editing"}
+																			</span>
+																		</span>
+																	);
+																})()}
+														</div>
 													) : (
 														flexRender(
 															cell.column.columnDef.cell,
@@ -955,12 +1071,13 @@ export default function TableView({
 				{/* Footer - Item count */}
 				<div className="text-sm text-muted-foreground flex items-center gap-2">
 					{isSearchActive && (
-						<SpinnerGap className="size-3 animate-spin" />
+						<Icon icon="ph:spinner-gap" className="size-3 animate-spin" />
 					)}
 					{filteredItems.length} item{filteredItems.length !== 1 ? "s" : ""}
 					{isSearching && searchData?.total !== undefined && (
 						<span>
-							({searchData.total} match{searchData.total !== 1 ? "es" : ""} found)
+							({searchData.total} match{searchData.total !== 1 ? "es" : ""}{" "}
+							found)
 						</span>
 					)}
 				</div>
@@ -969,6 +1086,7 @@ export default function TableView({
 				<FilterBuilderSheet
 					collection={collection}
 					availableFields={availableFields}
+					defaultColumns={defaultColumns}
 					currentConfig={viewState.config}
 					onConfigChange={viewState.setConfig}
 					isOpen={isSheetOpen}

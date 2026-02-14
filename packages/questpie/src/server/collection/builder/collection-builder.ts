@@ -1,5 +1,6 @@
+import type { Prettify } from "better-auth";
 import type { SQL } from "drizzle-orm";
-import type { PgTableExtraConfigValue } from "drizzle-orm/pg-core";
+import type { AnyPgColumn, PgTableExtraConfigValue } from "drizzle-orm/pg-core";
 import type { z } from "zod";
 import type {
 	CollectionInsert,
@@ -7,13 +8,12 @@ import type {
 	CollectionUpdate,
 } from "#questpie/server/collection/builder/collection.js";
 import { Collection } from "#questpie/server/collection/builder/collection.js";
+import type { CollectionBuilderExtensions } from "#questpie/server/collection/builder/extensions.js";
 import type {
 	CollectionAccess,
 	CollectionBuilderIndexesFn,
-	CollectionBuilderRelationFn,
 	CollectionBuilderState,
 	CollectionBuilderTitleFn,
-	CollectionBuilderVirtualsFn,
 	CollectionFunctionsMap,
 	CollectionHooks,
 	CollectionOptions,
@@ -27,25 +27,75 @@ import {
 	type ValidationSchemas,
 } from "#questpie/server/collection/builder/validation-helpers.js";
 import type { StorageVisibility } from "#questpie/server/config/types.js";
+import {
+	createFieldBuilder,
+	type FieldBuilderProxy,
+} from "#questpie/server/fields/builder.js";
+import {
+	type BuiltinFields,
+	builtinFields,
+} from "#questpie/server/fields/builtin/defaults.js";
+import type {
+	FieldDefinition,
+	FieldDefinitionState,
+	RelationFieldMetadata,
+} from "#questpie/server/fields/types.js";
 import type { SearchableConfig } from "#questpie/server/integrated/search/index.js";
 import type {
-	TypeMerge,
 	SetProperty,
+	TypeMerge,
 	UnsetProperty,
 } from "#questpie/shared/type-utils.js";
-import type { Prettify } from "better-auth";
 
 /**
- * Main collection builder class
- * Uses Drizzle-style single generic pattern for better type performance
+ * Extract Drizzle column types from field definitions.
+ * Maps each field definition to its column type, excluding virtual fields.
  */
+type ExtractColumnsFromFieldDefinitions<
+	TFields extends Record<string, FieldDefinition<FieldDefinitionState>>,
+> = {
+	[K in keyof TFields]: TFields[K]["$types"]["column"] extends null
+		? never
+		: TFields[K]["$types"]["column"];
+};
+
+/**
+ * Extract field types from CollectionBuilderState.
+ * Falls back to DefaultFieldTypeMap if not available.
+ *
+ * Uses ~fieldTypes phantom property which is set by EmptyCollectionState
+ * based on the QuestpieBuilder's state.fields.
+ */
+type ExtractFieldTypes<TState extends CollectionBuilderState> =
+	TState["~fieldTypes"] extends infer TFields
+		? TFields extends Record<string, any>
+			? TFields
+			: {} // No fields registered — f will be empty
+		: {};
+
+type InferAppFromBuilder<TBuilder> = TBuilder extends {
+	build: (...args: any[]) => infer TApp;
+}
+	? TApp
+	: any;
+
+type CollectionAppOf<TState extends CollectionBuilderState> =
+	InferAppFromBuilder<TState["~questpieApp"]>;
+
+/**
+ * Main collection builder class.
+ * Uses field builder pattern for type-safe field definitions.
+ */
+// biome-ignore lint/suspicious/noUnsafeDeclarationMerging: Declaration merging is intentional for extension pattern
 export class CollectionBuilder<TState extends CollectionBuilderState> {
-	private state: TState;
+	/**
+	 * Internal state. Public for type extraction.
+	 * Use build() or property accessors instead of accessing this directly.
+	 */
+	readonly state: TState;
 	private _builtCollection?: Collection<TState>;
 
 	// Store callback functions for lazy evaluation
-	private _virtualsFn?: CollectionBuilderVirtualsFn<TState, TState["virtuals"]>;
-	private _relationsFn?: CollectionBuilderRelationFn<TState, any>;
 	private _indexesFn?: CollectionBuilderIndexesFn<TState, TState["indexes"]>;
 
 	constructor(state: TState) {
@@ -53,115 +103,293 @@ export class CollectionBuilder<TState extends CollectionBuilderState> {
 	}
 
 	/**
-	 * Define fields using Drizzle column definitions
-	 * This carries forward the exact Drizzle types for full type safety
-	 * Accepts column builders - Drizzle will convert them when creating the table
-	 */
-	fields<TNewFields extends Record<string, any>>(
-		fields: TNewFields,
-	): CollectionBuilder<
-		TypeMerge<
-			UnsetProperty<TState, "fields" | "localized">,
-			{
-				fields: TNewFields;
-				localized: []; // Reset localized when fields change
-			}
-		>
-	> {
-		const newState = {
-			...this.state,
-			fields,
-			localized: [] as any,
-		} as any;
-
-		const newBuilder = new CollectionBuilder(newState);
-
-		// Copy callback functions
-		newBuilder._virtualsFn = this._virtualsFn;
-		newBuilder._relationsFn = this._relationsFn;
-		newBuilder._indexesFn = this._indexesFn;
-
-		return newBuilder;
-	}
-
-	/**
-	 * Mark fields as localized (moved to i18n table)
-	 * Type safety: only allows keys that exist in fields
-	 *
-	 * For JSONB fields, you can specify localization mode:
-	 * - "fieldName" - whole replacement (entire JSONB per locale) - DEFAULT
-	 * - "fieldName:nested" - nested mode (JSONB with { $i18n: value } wrappers)
+	 * Define fields using Field Builder.
+	 * Provides type-safe field definitions with validation, metadata, and operators.
 	 *
 	 * @example
-	 * .localized(["title", "bio"]) // title and bio use whole replacement
-	 * .localized(["title", "content:nested"]) // content uses nested $i18n wrappers
+	 * ```ts
+	 * collection("posts").fields((f) => ({
+	 *   title: f.text({ required: true }),
+	 *   content: f.text({ localized: true }),
+	 *   views: f.number({ default: 0 }),
+	 * }))
+	 * ```
 	 */
-	localized<
-		TKeys extends ReadonlyArray<
-			keyof TState["fields"] | `${keyof TState["fields"] & string}:nested`
+	fields<
+		const TNewFields extends Record<
+			string,
+			FieldDefinition<FieldDefinitionState>
 		>,
-	>(keys: TKeys): CollectionBuilder<SetProperty<TState, "localized", TKeys>> {
+	>(
+		factory: (f: FieldBuilderProxy<ExtractFieldTypes<TState>>) => TNewFields,
+	): CollectionBuilder<
+		TypeMerge<
+			UnsetProperty<TState, "fields" | "localized" | "fieldDefinitions">,
+			{
+				fields: ExtractColumnsFromFieldDefinitions<TNewFields>;
+				localized: readonly string[];
+				fieldDefinitions: TNewFields;
+			}
+		>
+	>;
+	/**
+	 * Legacy overload: Define fields using raw Drizzle columns.
+	 * @deprecated Use the field builder pattern instead: `.fields((f) => ({ ... }))`
+	 *
+	 * This overload is kept for backwards compatibility with tests that need
+	 * raw Drizzle column features like `.references()` for FK constraints.
+	 */
+	fields<TNewFields extends Record<string, AnyPgColumn>>(
+		columns: TNewFields,
+	): CollectionBuilder<
+		TypeMerge<
+			UnsetProperty<TState, "fields" | "localized" | "fieldDefinitions">,
+			{
+				fields: TNewFields;
+				localized: readonly string[];
+				fieldDefinitions: {};
+			}
+		>
+	>;
+	fields<TNewFields>(
+		factoryOrColumns:
+			| ((f: FieldBuilderProxy<ExtractFieldTypes<TState>>) => TNewFields)
+			| TNewFields,
+	): CollectionBuilder<any> {
+		// Check if argument is a function (new pattern) or object (legacy pattern)
+		if (typeof factoryOrColumns === "function") {
+			// New field builder pattern
+			const factory = factoryOrColumns as (
+				f: FieldBuilderProxy<ExtractFieldTypes<TState>>,
+			) => Record<string, FieldDefinition<FieldDefinitionState>>;
+
+			// Use field defs from ~questpieApp, or fall back to builtinFields for standalone collection()
+			const questpieFields =
+				this.state["~questpieApp"]?.state?.fields ?? builtinFields;
+			const builderProxy = createFieldBuilder(questpieFields);
+
+			const fieldDefs = factory(builderProxy);
+
+			// Extract Drizzle columns and localized field names from field definitions
+			// Phase 1: Create all columns first
+			const columns: Record<string, any> = {};
+			const localizedFields: string[] = [];
+			const relationFields: Array<{
+				name: string;
+				metadata: RelationFieldMetadata;
+			}> = [];
+			const sqlVirtuals: Record<string, SQL> = {};
+
+			for (const [name, fieldDef] of Object.entries(fieldDefs)) {
+				// Check if field is localized (location === "i18n")
+				if (fieldDef.state?.location === "i18n") {
+					localizedFields.push(name);
+				}
+
+				if (fieldDef.state?.location === "virtual") {
+					const virtualValue = (fieldDef.state.config as { virtual?: unknown })
+						?.virtual;
+					if (virtualValue && virtualValue !== true) {
+						sqlVirtuals[name] = virtualValue as SQL;
+					}
+				}
+
+				// Collect relation fields for Phase 2
+				const metadata = fieldDef.getMetadata?.();
+				if (metadata?.type === "relation") {
+					relationFields.push({
+						name,
+						metadata: metadata as RelationFieldMetadata,
+					});
+				}
+
+				const column = fieldDef.toColumn(name);
+				if (column !== null) {
+					if (Array.isArray(column)) {
+						// Multiple columns (e.g., polymorphic relation with type + id)
+						for (const col of column) {
+							const colName =
+								(col as { name?: string }).name ?? `${name}_${columns.length}`;
+							columns[colName] = col;
+						}
+					} else {
+						// Store column under field name
+						// For belongsTo relations, the column is still the FK but key is field name
+						// Drizzle casing handles DB column naming (author → author or author_id)
+						columns[name] = column;
+					}
+				}
+			}
+
+			// Phase 2: Store relation field metadata for deferred resolution
+			// Don't resolve callbacks yet - they reference other collections that may not exist
+			// Actual RelationConfig creation happens in build() when all collections are defined
+			const pendingRelations: Array<{
+				name: string;
+				metadata: RelationFieldMetadata;
+			}> = relationFields;
+
+			const newState = {
+				...this.state,
+				fields: columns,
+				localized: localizedFields,
+				fieldDefinitions: fieldDefs,
+				virtuals:
+					Object.keys(sqlVirtuals).length > 0
+						? {
+								...(this.state.virtuals || {}),
+								...sqlVirtuals,
+							}
+						: this.state.virtuals,
+				// Store pending relations for deferred resolution in build()
+				_pendingRelations: pendingRelations,
+			} as any;
+
+			const newBuilder = new CollectionBuilder(newState);
+
+			// Copy callback functions
+			newBuilder._indexesFn = this._indexesFn;
+
+			return newBuilder;
+		}
+
+		// Legacy pattern: raw Drizzle columns object
+		const columns = factoryOrColumns as Record<string, AnyPgColumn>;
+
 		const newState = {
 			...this.state,
-			localized: keys,
+			fields: columns,
+			localized: [],
+			fieldDefinitions: {},
 		} as any;
 
 		const newBuilder = new CollectionBuilder(newState);
 
 		// Copy callback functions
-		newBuilder._virtualsFn = this._virtualsFn;
-		newBuilder._relationsFn = this._relationsFn;
 		newBuilder._indexesFn = this._indexesFn;
 
 		return newBuilder;
 	}
 
 	/**
-	 * Define virtual (computed) fields
-	 * Callback receives context object with table, i18n accessor, and context
+	 * Convert RelationFieldMetadata to RelationConfig for CRUD operations.
 	 */
-	virtuals<TNewVirtuals extends Record<string, SQL>>(
-		fn: CollectionBuilderVirtualsFn<TState, TNewVirtuals>,
-	): CollectionBuilder<SetProperty<TState, "virtuals", TNewVirtuals>> {
-		const newState = {
-			...this.state,
-			virtuals: {} as TNewVirtuals, // Populated during build()
-		} as any;
+	private convertRelationMetadataToConfig(
+		fieldName: string,
+		metadata: RelationFieldMetadata,
+		columns: Record<string, any>,
+	): RelationConfig | null {
+		const { relationType, foreignKey, _toConfig, _throughConfig } = metadata;
+		let { targetCollection, through } = metadata;
 
-		const newBuilder = new CollectionBuilder(newState);
+		// Resolve deferred callbacks now (all collections should be defined by build time)
+		if (targetCollection === "__unresolved__" && _toConfig) {
+			if (typeof _toConfig === "function") {
+				targetCollection = (_toConfig as () => { name: string })().name;
+			}
+		}
+		if (through === "__unresolved__" && _throughConfig) {
+			through = (_throughConfig as () => { name: string })().name;
+		}
 
-		// Copy existing callback functions and set new virtualsFn
-		newBuilder._virtualsFn = fn;
-		newBuilder._relationsFn = this._relationsFn;
-		newBuilder._indexesFn = this._indexesFn;
+		// Get target collection name (first one for polymorphic)
+		const targetName = Array.isArray(targetCollection)
+			? targetCollection[0]
+			: targetCollection;
 
-		return newBuilder;
+		switch (relationType) {
+			case "belongsTo": {
+				// FK column is stored under field name (e.g., "author")
+				// Drizzle casing config handles actual DB column naming
+				return {
+					type: "one",
+					collection: targetName,
+					fields: columns[fieldName] ? [columns[fieldName]] : undefined,
+					references: ["id"],
+					relationName: metadata.relationName,
+					onDelete: metadata.onDelete,
+					onUpdate: metadata.onUpdate,
+				};
+			}
+
+			case "hasMany": {
+				// FK column is on target table
+				return {
+					type: "many",
+					collection: targetName,
+					references: ["id"],
+					relationName: metadata.relationName,
+					onDelete: metadata.onDelete,
+					onUpdate: metadata.onUpdate,
+				};
+			}
+
+			case "manyToMany": {
+				// Uses junction table
+				return {
+					type: "manyToMany",
+					collection: targetName,
+					references: ["id"],
+					through: through,
+					sourceField: metadata.sourceField,
+					targetField: metadata.targetField,
+					onDelete: metadata.onDelete,
+					onUpdate: metadata.onUpdate,
+				};
+			}
+
+			case "multiple": {
+				// Inline array of FKs - treated like belongsTo for queries
+				// but stored as jsonb array
+				return {
+					type: "one", // Query-wise it's similar to belongsTo
+					collection: targetName,
+					references: ["id"],
+					relationName: metadata.relationName,
+				};
+			}
+
+			case "morphTo": {
+				// Polymorphic - multiple possible targets
+				// For now, use first target for basic relation resolution
+				return {
+					type: "one",
+					collection: targetName,
+					references: ["id"],
+					relationName: metadata.relationName,
+					onDelete: metadata.onDelete,
+					onUpdate: metadata.onUpdate,
+				};
+			}
+
+			case "morphMany": {
+				// Reverse polymorphic
+				return {
+					type: "many",
+					collection: targetName,
+					references: ["id"],
+					relationName: metadata.relationName,
+				};
+			}
+
+			default:
+				return null;
+		}
 	}
 
 	/**
-	 * Define relations to other collections
-	 */
-	relations<TNewRelations extends Record<string, RelationConfig>>(
-		fn: CollectionBuilderRelationFn<TState, TNewRelations>,
-	): CollectionBuilder<SetProperty<TState, "relations", TNewRelations>> {
-		const newState = {
-			...this.state,
-			relations: {} as TNewRelations,
-		} as any;
-
-		const newBuilder = new CollectionBuilder(newState);
-
-		// Copy existing callback functions and set new relationsFn
-		newBuilder._virtualsFn = this._virtualsFn;
-		newBuilder._relationsFn = fn;
-		newBuilder._indexesFn = this._indexesFn;
-
-		return newBuilder;
-	}
-
-	/**
-	 * Define indexes and constraints
-	 * Callback receives context object with table
+	 * Define indexes and constraints.
+	 * Callback receives context object with table.
+	 *
+	 * @example
+	 * ```ts
+	 * collection("posts")
+	 *   .fields((f) => ({ ... }))
+	 *   .indexes(({ table }) => [
+	 *     uniqueIndex().on(table.slug),
+	 *     index().on(table.createdAt),
+	 *   ])
+	 * ```
 	 */
 	indexes<TNewIndexes extends PgTableExtraConfigValue[]>(
 		fn: CollectionBuilderIndexesFn<TState, TNewIndexes>,
@@ -174,23 +402,21 @@ export class CollectionBuilder<TState extends CollectionBuilderState> {
 		const newBuilder = new CollectionBuilder(newState);
 
 		// Copy existing callback functions and set new indexesFn
-		newBuilder._virtualsFn = this._virtualsFn;
-		newBuilder._relationsFn = this._relationsFn;
 		newBuilder._indexesFn = fn;
 
 		return newBuilder;
 	}
 
 	/**
-	 * Define title field (used for _title computed column and display)
-	 * Callback receives a field proxy where accessing any field returns its name
+	 * Define title field (used for _title computed column and display).
+	 * Callback receives a field proxy where accessing any field returns its name.
 	 *
 	 * @example
-	 * // Use a field as title
-	 * .title(({ f }) => f.name)
-	 *
-	 * // Use a virtual as title
-	 * .title(({ f }) => f.fullName)
+	 * ```ts
+	 * collection("posts")
+	 *   .fields((f) => ({ title: f.text({ required: true }) }))
+	 *   .title(({ f }) => f.title)
+	 * ```
 	 */
 	title<TNewTitle extends TitleExpression>(
 		fn: CollectionBuilderTitleFn<TState, TNewTitle>,
@@ -210,16 +436,25 @@ export class CollectionBuilder<TState extends CollectionBuilderState> {
 
 		const newBuilder = new CollectionBuilder(newState);
 
-		// Copy existing callback functions (no need to store titleFn anymore)
-		newBuilder._virtualsFn = this._virtualsFn;
-		newBuilder._relationsFn = this._relationsFn;
+		// Copy existing callback functions
 		newBuilder._indexesFn = this._indexesFn;
 
 		return newBuilder;
 	}
 
 	/**
-	 * Set collection options (timestamps, softDelete, versioning)
+	 * Set collection options (timestamps, softDelete, versioning).
+	 *
+	 * @example
+	 * ```ts
+	 * collection("posts")
+	 *   .fields((f) => ({ ... }))
+	 *   .options({
+	 *     timestamps: true,
+	 *     softDelete: true,
+	 *     versioning: true,
+	 *   })
+	 * ```
 	 */
 	options<TNewOptions extends CollectionOptions>(
 		options: TNewOptions,
@@ -232,15 +467,26 @@ export class CollectionBuilder<TState extends CollectionBuilderState> {
 		const newBuilder = new CollectionBuilder(newState);
 
 		// Copy callback functions
-		newBuilder._virtualsFn = this._virtualsFn;
-		newBuilder._relationsFn = this._relationsFn;
 		newBuilder._indexesFn = this._indexesFn;
 
 		return newBuilder;
 	}
 
 	/**
-	 * Set lifecycle hooks
+	 * Set lifecycle hooks.
+	 *
+	 * @example
+	 * ```ts
+	 * collection("posts")
+	 *   .fields((f) => ({ ... }))
+	 *   .hooks({
+	 *     beforeChange: async ({ data, operation }) => {
+	 *       if (operation === "create") {
+	 *         data.slug = slugify(data.title);
+	 *       }
+	 *     },
+	 *   })
+	 * ```
 	 */
 	hooks<
 		TNewHooks extends CollectionHooks<
@@ -274,17 +520,27 @@ export class CollectionBuilder<TState extends CollectionBuilderState> {
 		const newBuilder = new CollectionBuilder(newState);
 
 		// Copy callback functions
-		newBuilder._virtualsFn = this._virtualsFn;
-		newBuilder._relationsFn = this._relationsFn;
 		newBuilder._indexesFn = this._indexesFn;
 
 		return newBuilder;
 	}
 
 	/**
-	 * Set access control rules
+	 * Set access control rules.
+	 *
+	 * @example
+	 * ```ts
+	 * collection("posts")
+	 *   .fields((f) => ({ ... }))
+	 *   .access({
+	 *     read: true,
+	 *     create: ({ user }) => user?.role === "admin",
+	 *     update: ({ user, id }) => user?.id === id,
+	 *     delete: ({ user }) => user?.role === "admin",
+	 *   })
+	 * ```
 	 */
-	access<TNewAccess extends CollectionAccess>(
+	access<TNewAccess extends CollectionAccess<CollectionSelect<TState>>>(
 		access: TNewAccess,
 	): CollectionBuilder<SetProperty<TState, "access", TNewAccess>> {
 		const newState = {
@@ -295,15 +551,30 @@ export class CollectionBuilder<TState extends CollectionBuilderState> {
 		const newBuilder = new CollectionBuilder(newState);
 
 		// Copy callback functions
-		newBuilder._virtualsFn = this._virtualsFn;
-		newBuilder._relationsFn = this._relationsFn;
 		newBuilder._indexesFn = this._indexesFn;
 
 		return newBuilder;
 	}
 
 	/**
-	 * Define RPC functions for this collection
+	 * Define RPC functions for this collection.
+	 *
+	 * @example
+	 * ```ts
+	 * collection("posts")
+	 *   .fields((f) => ({ ... }))
+	 *   .functions({
+	 *     publish: {
+	 *       input: z.object({ id: z.string() }),
+	 *       handler: async ({ input, app }) => {
+	 *         await app.api.collections.posts.updateById({
+	 *           id: input.id,
+	 *           data: { status: "published" },
+	 *         });
+	 *       },
+	 *     },
+	 *   })
+	 * ```
 	 */
 	functions<TNewFunctions extends CollectionFunctionsMap>(
 		functions: TNewFunctions,
@@ -328,23 +599,25 @@ export class CollectionBuilder<TState extends CollectionBuilderState> {
 		const newBuilder = new CollectionBuilder(newState);
 
 		// Copy callback functions
-		newBuilder._virtualsFn = this._virtualsFn;
-		newBuilder._relationsFn = this._relationsFn;
 		newBuilder._indexesFn = this._indexesFn;
 
 		return newBuilder;
 	}
 
 	/**
-	 * Configure search indexing for this collection
-	 * Enables full-text search with BM25 ranking, trigrams, and optional embeddings
+	 * Configure search indexing for this collection.
+	 * Enables full-text search with BM25 ranking, trigrams, and optional embeddings.
 	 *
 	 * @example
-	 * .searchable({
-	 *   content: (record) => extractTextFromJson(record.content),
-	 *   metadata: (record) => ({ status: record.status }),
-	 *   embeddings: async (record, ctx) => await ctx.cms.embeddings.generate(text)
-	 * })
+	 * ```ts
+	 * collection("posts")
+	 *   .fields((f) => ({ ... }))
+	 *   .searchable({
+	 *     content: (record) => extractTextFromJson(record.content),
+	 *     metadata: (record) => ({ status: record.status }),
+	 *     embeddings: async (record, ctx) => await ctx.cms.embeddings.generate(text),
+	 *   })
+	 * ```
 	 */
 	searchable<TNewSearchable extends SearchableConfig>(
 		searchable: TNewSearchable,
@@ -357,26 +630,27 @@ export class CollectionBuilder<TState extends CollectionBuilderState> {
 		const newBuilder = new CollectionBuilder(newState);
 
 		// Copy callback functions
-		newBuilder._virtualsFn = this._virtualsFn;
-		newBuilder._relationsFn = this._relationsFn;
 		newBuilder._indexesFn = this._indexesFn;
 
 		return newBuilder;
 	}
 
 	/**
-	 * Configure runtime validation schemas for create/update operations
-	 * Automatically merges main table fields with localized fields
-	 * Schemas are generated once and reused for all validations
+	 * Configure runtime validation schemas for create/update operations.
+	 * Schemas are generated from field definitions automatically.
 	 *
 	 * @example
-	 * .validation({
-	 *   exclude: { id: true, createdAt: true, updatedAt: true },
-	 *   refine: {
-	 *     email: (s) => s.email("Invalid email"),
-	 *     age: (s) => s.min(0, "Age must be positive")
-	 *   }
-	 * })
+	 * ```ts
+	 * collection("posts")
+	 *   .fields((f) => ({ ... }))
+	 *   .validation({
+	 *     exclude: { id: true, createdAt: true, updatedAt: true },
+	 *     refine: {
+	 *       email: (s) => s.email("Invalid email"),
+	 *       age: (s) => s.min(0, "Age must be positive"),
+	 *     },
+	 *   })
+	 * ```
 	 */
 	validation(options?: {
 		/** Fields to exclude from validation (e.g., id, timestamps) */
@@ -384,16 +658,22 @@ export class CollectionBuilder<TState extends CollectionBuilderState> {
 		/** Custom refinements per field */
 		refine?: Record<string, (schema: z.ZodTypeAny) => z.ZodTypeAny>;
 	}): CollectionBuilder<SetProperty<TState, "validation", ValidationSchemas>> {
-		// Extract localized and non-localized fields
-		const localizedFieldNames = new Set(this.state.localized);
+		// Extract main and localized fields from field definitions
 		const mainFields: Record<string, any> = {};
 		const localizedFields: Record<string, any> = {};
 
-		for (const [key, column] of Object.entries(this.state.fields)) {
-			if (localizedFieldNames.has(key)) {
-				localizedFields[key] = column;
-			} else {
-				mainFields[key] = column;
+		if (this.state.fieldDefinitions) {
+			for (const [key, fieldDef] of Object.entries(
+				this.state.fieldDefinitions,
+			)) {
+				const column = this.state.fields[key];
+				if (!column) continue;
+
+				if (fieldDef.state?.location === "i18n") {
+					localizedFields[key] = column;
+				} else {
+					mainFields[key] = column;
+				}
 			}
 		}
 
@@ -413,48 +693,6 @@ export class CollectionBuilder<TState extends CollectionBuilderState> {
 		const newBuilder = new CollectionBuilder(newState);
 
 		// Copy callback functions
-		newBuilder._virtualsFn = this._virtualsFn;
-		newBuilder._relationsFn = this._relationsFn;
-		newBuilder._indexesFn = this._indexesFn;
-
-		return newBuilder;
-	}
-
-	/**
-	 * Define output type extensions - fields that are computed/populated in hooks
-	 * but should appear in the select type.
-	 *
-	 * These are TYPE-ONLY and don't create database columns. Use this when you
-	 * populate fields in afterRead hooks that should be typed in the output.
-	 *
-	 * @example
-	 * ```ts
-	 * collection("assets")
-	 *   .fields({
-	 *     key: varchar("key", { length: 255 }).notNull(),
-	 *     filename: varchar("filename", { length: 255 }).notNull(),
-	 *   })
-	 *   .$outputType<{ url: string }>() // url is computed in afterRead hook
-	 *   .hooks({
-	 *     afterRead: ({ data }) => {
-	 *       data.url = `https://cdn.example.com/${data.key}`;
-	 *     }
-	 *   })
-	 * ```
-	 */
-	$outputType<TOutput extends Record<string, any>>(): CollectionBuilder<
-		SetProperty<TState, "output", TOutput>
-	> {
-		const newState = {
-			...this.state,
-			output: {} as TOutput,
-		} as any;
-
-		const newBuilder = new CollectionBuilder(newState);
-
-		// Copy callback functions
-		newBuilder._virtualsFn = this._virtualsFn;
-		newBuilder._relationsFn = this._relationsFn;
 		newBuilder._indexesFn = this._indexesFn;
 
 		return newBuilder;
@@ -464,7 +702,7 @@ export class CollectionBuilder<TState extends CollectionBuilderState> {
 	 * Configure this collection for file uploads.
 	 * Automatically:
 	 * - Adds upload fields (key, filename, mimeType, size, visibility)
-	 * - Adds $outputType<{ url: string }>() for typed URL access
+	 * - Extends output type with { url: string } for typed URL access
 	 * - Adds afterRead hook for URL generation based on visibility
 	 * - Enables upload() and uploadMany() CRUD methods
 	 * - Registers HTTP routes: POST /:collection/upload, GET /:collection/files/:key
@@ -472,13 +710,13 @@ export class CollectionBuilder<TState extends CollectionBuilderState> {
 	 * @example
 	 * ```ts
 	 * collection("media")
-	 *   .fields({
-	 *     alt: varchar("alt", { length: 500 }),
-	 *     folder: varchar("folder", { length: 255 }),
-	 *   })
+	 *   .fields((f) => ({
+	 *     alt: f.text(),
+	 *     folder: f.text(),
+	 *   }))
 	 *   .upload({
 	 *     visibility: "public",
-	 *     maxSize: 10_000_000,        // 10MB
+	 *     maxSize: 10_000_000,
 	 *     allowedTypes: ["image/*"],
 	 *   })
 	 * ```
@@ -570,20 +808,56 @@ export class CollectionBuilder<TState extends CollectionBuilderState> {
 	}
 
 	/**
-	 * Build the final collection
-	 * Generates Drizzle tables and sets up all type inference
-	 * Can be called explicitly or happens lazily on first property access
+	 * Build the final collection.
+	 * Generates Drizzle tables and sets up all type inference.
+	 * Can be called explicitly or happens lazily on first property access.
 	 */
 	build(): Collection<Prettify<TState>> {
 		if (!this._builtCollection) {
+			// Resolve pending relations now (all collections should be defined by build time)
+			const stateWithResolvedRelations = this.resolveePendingRelations();
+
 			this._builtCollection = new Collection(
-				this.state,
-				this._virtualsFn,
-				this._relationsFn,
+				stateWithResolvedRelations,
 				this._indexesFn,
 			);
 		}
 		return this._builtCollection;
+	}
+
+	/**
+	 * Resolve pending relation metadata to RelationConfig.
+	 * Called during build() when all collections are defined and callbacks can be safely invoked.
+	 */
+	private resolveePendingRelations(): TState {
+		const pendingRelations = (this.state as any)._pendingRelations as
+			| Array<{ name: string; metadata: RelationFieldMetadata }>
+			| undefined;
+
+		if (!pendingRelations || pendingRelations.length === 0) {
+			return this.state;
+		}
+
+		const columns = this.state.fields;
+		const resolvedRelations: Record<string, RelationConfig> = {
+			...this.state.relations,
+		};
+
+		for (const { name, metadata } of pendingRelations) {
+			const relationConfig = this.convertRelationMetadataToConfig(
+				name,
+				metadata,
+				columns,
+			);
+			if (relationConfig) {
+				resolvedRelations[name] = relationConfig;
+			}
+		}
+
+		return {
+			...this.state,
+			relations: resolvedRelations,
+		};
 	}
 
 	/**
@@ -604,6 +878,7 @@ export class CollectionBuilder<TState extends CollectionBuilderState> {
 	get i18nVersionsTable() {
 		return this.build().i18nVersionsTable;
 	}
+
 	get name(): TState["name"] {
 		return this.state.name as TState["name"];
 	}
@@ -613,9 +888,9 @@ export class CollectionBuilder<TState extends CollectionBuilderState> {
 	}
 
 	/**
-	 * Merge another collection builder into this one
+	 * Merge another collection builder into this one.
 	 * Combines fields, hooks, access control, etc.
-	 * Both builders must have the same collection name
+	 * Both builders must have the same collection name.
 	 */
 	merge<TOtherState extends CollectionBuilderState & { name: TState["name"] }>(
 		other: CollectionBuilder<TOtherState>,
@@ -624,9 +899,6 @@ export class CollectionBuilder<TState extends CollectionBuilderState> {
 			UnsetProperty<
 				TState,
 				| "fields"
-				| "localized"
-				| "virtuals"
-				| "relations"
 				| "indexes"
 				| "title"
 				| "options"
@@ -638,7 +910,6 @@ export class CollectionBuilder<TState extends CollectionBuilderState> {
 			{
 				name: TState["name"];
 				fields: TState["fields"] & TOtherState["fields"];
-				localized: TState["localized"] | TOtherState["localized"];
 				virtuals: TState["virtuals"] & TOtherState["virtuals"];
 				relations: TState["relations"] & TOtherState["relations"];
 				indexes: TState["indexes"] & TOtherState["indexes"];
@@ -667,18 +938,11 @@ export class CollectionBuilder<TState extends CollectionBuilderState> {
 		const mergedAccess = {
 			...this.state.access,
 			...other.state.access,
-			fields: {
-				...this.state.access?.fields,
-				...other.state.access?.fields,
-			},
 		};
 
 		const mergedState = {
 			name: this.state.name,
 			fields: { ...this.state.fields, ...other.state.fields },
-			localized: [...this.state.localized, ...other.state.localized] as any,
-			virtuals: { ...this.state.virtuals, ...other.state.virtuals },
-			relations: { ...this.state.relations, ...other.state.relations },
 			indexes: { ...this.state.indexes, ...other.state.indexes },
 			title:
 				other.state.title !== undefined ? other.state.title : this.state.title,
@@ -690,13 +954,15 @@ export class CollectionBuilder<TState extends CollectionBuilderState> {
 				...other.state.functions,
 			},
 			searchable: other.state.searchable ?? this.state.searchable,
+			fieldDefinitions: {
+				...(this.state.fieldDefinitions || {}),
+				...(other.state.fieldDefinitions || {}),
+			},
 		} as any;
 
 		const newBuilder = new CollectionBuilder(mergedState);
 
 		// Merge callback functions - prefer other's if exists, otherwise use this
-		newBuilder._virtualsFn = other._virtualsFn || this._virtualsFn;
-		newBuilder._relationsFn = other._relationsFn || this._relationsFn;
 		newBuilder._indexesFn = other._indexesFn || this._indexesFn;
 
 		return newBuilder;
@@ -711,7 +977,6 @@ export class CollectionBuilder<TState extends CollectionBuilderState> {
 	): CollectionHooks<TSelect, TInsert, TUpdate> {
 		const merged: CollectionHooks<TSelect, TInsert, TUpdate> = {};
 
-		// All possible hook keys
 		const hookKeys = Array.from(
 			new Set([...Object.keys(hooks1 || {}), ...Object.keys(hooks2 || {})]),
 		) as (keyof CollectionHooks)[];
@@ -740,44 +1005,52 @@ export class CollectionBuilder<TState extends CollectionBuilderState> {
 	}
 }
 
+// =============================================================================
+// Declaration Merging for Extensions
+// =============================================================================
+
+/**
+ * Declaration merging: CollectionBuilder implements CollectionBuilderExtensions.
+ *
+ * This allows packages to augment CollectionBuilderExtensions and have those
+ * methods appear on CollectionBuilder instances. The key benefit is that
+ * extension methods use `FieldsOf<this>` which is evaluated lazily, avoiding
+ * type explosion when combining many collections.
+ *
+ * @example
+ * ```typescript
+ * // In @questpie/admin augmentation:
+ * declare module "questpie" {
+ *   interface CollectionBuilderExtensions {
+ *     admin(config: AdminConfig): this;
+ *     list(fn: (ctx: { f: FieldsOf<this> }) => ListConfig): this;
+ *   }
+ * }
+ *
+ * // Now available on all CollectionBuilder instances:
+ * collection("posts")
+ *   .fields((f) => ({ title: f.text() }))
+ *   .admin({ label: "Posts" })
+ *   .list(({ f }) => ({ columns: [f.title] }))
+ * ```
+ */
+export interface CollectionBuilder<TState extends CollectionBuilderState>
+	extends CollectionBuilderExtensions {}
+
 /**
  * Factory function to create a new collection builder.
  *
- * @example Basic usage (uses QuestpieApp from module augmentation)
+ * @example
  * ```ts
- * const posts = collection("posts").fields({ ... });
- * ```
- *
- * @example With typed app (recommended for full type safety)
- * ```ts
- * import type { AppCMS } from './cms';
- *
- * const posts = collection<AppCMS>()("posts")
- *   .fields({ ... })
- *   .hooks({
- *     afterChange: ({ app }) => {
- *       app.queue.notify.publish(...); // fully typed!
- *     }
- *   });
+ * const posts = collection("posts").fields((f) => ({
+ *   title: f.text({ required: true }),
+ *   content: f.text({ localized: true }),
+ * }));
  * ```
  */
 export function collection<TName extends string>(
 	name: TName,
-): CollectionBuilder<EmptyCollectionState<TName>>;
-
-/**
- * Factory function with app type parameter for full type safety.
- * Call with no arguments to get a curried function that accepts the name.
- *
- * @example
- * ```ts
- * const posts = collection<AppCMS>()("posts");
- * ```
- */
-export function collection<TName extends string>(
-	name?: TName,
-): CollectionBuilder<EmptyCollectionState<TName>> {
-	// Overload 1: collection("posts") - simple name
+): CollectionBuilder<EmptyCollectionState<TName, undefined, BuiltinFields>> {
 	return new CollectionBuilder({
 		name: name as string,
 		fields: {},
@@ -794,5 +1067,7 @@ export function collection<TName extends string>(
 		validation: undefined,
 		output: undefined,
 		upload: undefined,
+		fieldDefinitions: {},
+		"~questpieApp": undefined,
 	}) as any;
 }

@@ -1,102 +1,55 @@
 ---
 title: Examples
-description: Example projects built with QUESTPIE CMS
+description: Reference implementations demonstrating QUESTPIE architecture patterns
 ---
 
-# Example Projects
+# Examples
 
-Learn from real-world QUESTPIE CMS implementations.
+Examples serve as executable architecture documentation. The TanStack Barbershop is the primary reference — a complete booking system built with QUESTPIE that demonstrates collections, relations, reactive fields, RPC, jobs, and admin configuration.
 
-## Official Examples
+## TanStack Barbershop
 
-### TanStack Barbershop
+A full-stack barbershop booking system built with TanStack Start, demonstrating real-world usage of every major QUESTPIE feature.
 
-A complete barbershop booking system demonstrating all major QUESTPIE features.
+**What it covers:**
+- 7 collections (barbers, services, appointments, pages, reviews, and more)
+- Many-to-many relations (barber ↔ services)
+- Reactive fields (cancellation UI)
+- RPC functions (slot availability, booking creation)
+- Background jobs (email confirmations)
+- Block-based pages with preview
+- Dashboard widgets and sidebar configuration
+- Full admin panel with filters, saved views, and bulk actions
 
-**Features:**
-- 6 collections (barbers, services, appointments, reviews, pages, assets)
-- 18 page builder blocks
-- Dashboard with analytics widgets
-- Live preview with click-to-focus
-- i18n support (English, Slovak)
-- Background jobs for email notifications
-- Custom functions for booking logic
+**Source:** `examples/tanstack-barbershop/`
 
-**Stack:**
-- TanStack Start (full-stack React)
-- PostgreSQL
-- Drizzle ORM
-- Tailwind CSS v4
+### Tour Pages
 
-[View Barbershop Example →](/docs/examples/barbershop)
+- [Architecture Tour](/docs/examples/tanstack-barbershop-architecture-tour) — High-level system map: how the app is assembled, packages used, and data flow
+- [Server Tour](/docs/examples/tanstack-barbershop-server-tour) — Detailed walkthrough of collections, globals, dashboard, and sidebar configuration
+- [Admin Tour](/docs/examples/tanstack-barbershop-admin-tour) — Admin builder, field registries, views, and branding setup
+- [RPC Tour](/docs/examples/tanstack-barbershop-rpc-tour) — Booking and analytics RPC procedures with typed client calls
 
-## Running Examples
+### Quick Start
 
-Clone the repository and run an example:
+To run the barbershop example locally:
 
 ```bash
-# Clone the repo
-git clone https://github.com/questpie/questpie-cms
+# Clone and install
+git clone https://github.com/AnotherQuestPie/questpie-cms
 cd questpie-cms
-
-# Install dependencies
 bun install
 
-# Navigate to example
+# Start the example
 cd examples/tanstack-barbershop
-
-# Set up environment
-cp .env.example .env
-# Edit .env with your database URL
-
-# Run migrations
-bun run db:migrate
-
-# Start development server
-bun run dev
+bun dev
 ```
 
-## Example Structure
+The admin panel is available at `http://localhost:3000/admin`.
 
-All examples follow the [recommended project structure](/docs/getting-started/project-structure):
+## Building Your Own
 
-```
-example/
-├── src/
-│   ├── questpie/
-│   │   ├── server/     # Backend CMS
-│   │   └── admin/      # Admin UI
-│   ├── routes/         # App routes
-│   └── components/     # UI components
-├── migrations/         # Database migrations
-└── drizzle.config.ts
-```
+Use the barbershop as a starting point for your own project. The guides section has step-by-step tutorials:
 
-## Creating Your Own
-
-Use an example as a starting point:
-
-```bash
-# Copy an example
-cp -r examples/tanstack-barbershop my-project
-cd my-project
-
-# Update package.json name
-# Update environment variables
-# Customize collections and admin config
-```
-
-## Contributing Examples
-
-We welcome community examples. To contribute:
-
-1. Fork the repository
-2. Create your example in `examples/`
-3. Add documentation in `apps/docs/content/docs/examples/`
-4. Submit a pull request
-
-Requirements:
-- Follow the recommended project structure
-- Include a README with setup instructions
-- Include example environment variables
-- Ensure all features work
+- [Build a Booking System](/docs/guides/build-a-booking-system) — Recreate the barbershop from scratch
+- [Build a Page Builder](/docs/guides/build-a-page-builder) — Blocks, preview, and localized content

@@ -1,7 +1,7 @@
 /**
  * Polish Backend Messages
  */
-export const backendMessagesPL = {
+export default {
 	// General errors
 	"error.notFound": "Zasób nie znaleziony",
 	"error.notFound.withId": "{{resource}} nie znaleziony: {{id}}",

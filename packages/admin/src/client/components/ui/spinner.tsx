@@ -1,9 +1,10 @@
+import { Icon } from "@iconify/react";
 import { cn } from "../../lib/utils";
-import { SpinnerIcon } from "@phosphor-icons/react";
 
-function Spinner({ className, ...props }: React.ComponentProps<"svg">) {
+function Spinner({ className, ...props }: { className?: string }) {
   return (
-    <SpinnerIcon
+    <Icon
+      icon="ph:spinner"
       role="status"
       aria-label="Loading"
       className={cn("size-4 animate-spin", className)}

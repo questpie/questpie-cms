@@ -1,152 +1,55 @@
-import { cn } from "@/lib/utils";
-import { CodeWindow } from "./CodeWindow";
+import { DatabaseZap, LayoutDashboard, Puzzle } from "lucide-react";
 
 const features = [
 	{
-		title: "Collections",
-		subtitle: "Drizzle schema + hooks + access control",
+		icon: DatabaseZap,
+		title: "Collections become APIs in seconds",
 		description:
-			"Define your schema with native Drizzle columns. Add hooks for business logic, access rules for permissions. That's it.",
-		file: "src/collections/posts.ts",
-		code: `const posts = q.collection('posts')
-  .fields({
-    title: varchar('title', { length: 255 }).notNull(),
-    status: varchar('status', { length: 20 }).default('draft'),
-    authorId: varchar('author_id', { length: 255 }).notNull(),
-  })
-  .access({
-    read: true,
-    create: ({ user }) => !!user,
-    update: ({ user, doc }) => user?.id === doc.authorId
-  })
-  .hooks({
-    beforeChange: async ({ data, operation }) => {
-      if (operation === 'create' && !data.slug) {
-        data.slug = slugify(data.title)
-      }
-    }
-  })`,
+			"Define your data model with typed fields. Get a REST API, type-safe SDK, and full CRUD automatically — no boilerplate.",
 	},
 	{
-		title: "Relations",
-		subtitle: "Drizzle relations, type-safe queries",
+		icon: LayoutDashboard,
+		title: "Admin that writes itself",
 		description:
-			"One-to-many, many-to-many—define them once, query with full type inference. Nested relations just work.",
-		file: "src/collections/comments.ts",
-		code: `const comments = q.collection('comments')
-  .fields({ postId: varchar('post_id').notNull() })
-  .relations(({ one, table }) => ({
-    post: one('posts', {
-      fields: [table.postId],
-      references: ['id']
-    })
-  }))
-
-// Query with relations
-const { docs } = await app.api.collections.posts.find({
-  with: { comments: { with: { author: true } } }
-})`,
+			"List views, form layouts, and sidebar config come from your collection definition. Customize everything, generate by default.",
 	},
 	{
-		title: "Background Jobs",
-		subtitle: "pg-boss queues, no Redis needed",
+		icon: Puzzle,
+		title: "Your framework, your rules",
 		description:
-			"Define jobs with Zod schemas. Publish with type checking. Retries, scheduling, priorities—all built on Postgres.",
-		file: "src/jobs/send-email.ts",
-		code: `const sendEmail = q.job({
-  name: 'send-email',
-  schema: z.object({
-    to: z.string().email(),
-    template: z.string()
-  }),
-  handler: async (payload) => {
-    await mailer.send(payload)
-  }
-})
-
-// Type-safe publish
-await app.queue.sendEmail.publish({
-  to: 'user@example.com',
-  template: 'welcome'
-})`,
-	},
-	{
-		title: "Type-Safe Client",
-		subtitle: "No codegen, types flow from schema",
-		description:
-			"Create a client, pass your app type. Collections, functions, globals—all typed. Works in React, Vue, Svelte, anywhere.",
-		file: "src/lib/api-client.ts",
-		code: `import { createClient } from 'questpie/client'
-import type { app } from './server'
-
-const client = createClient<typeof app>({
-  baseURL: 'http://localhost:3000'
-})
-
-// Fully typed
-const { docs } = await client.collections.posts.find({
-  where: { status: 'published' },
-  with: { author: true }
-})
-
-console.log(docs[0].title)       // string
-console.log(docs[0].author.name) // string`,
+			"Works with Hono, Elysia, Next.js, or any framework that handles HTTP. Bring your own design system and components.",
 	},
 ];
 
 export function Features() {
 	return (
-		<section
-			id="features"
-			className="py-24 relative overflow-hidden border-t border-border/30"
-		>
-			{/* Subtle background glow */}
-			<div className="absolute top-1/2 left-1/4 w-[400px] h-[400px] bg-primary/3 rounded-full blur-[150px] -translate-y-1/2" />
-
-			<div className="w-full max-w-7xl mx-auto px-4 space-y-20 relative z-10">
-				<div className="text-center max-w-2xl mx-auto space-y-4">
-					<h2 className="font-mono text-sm tracking-[0.2em] uppercase text-primary">
-						Backend
+		<section id="features" className="border-t border-border/40 py-20">
+			<div className="mx-auto w-full max-w-7xl px-4">
+				<div className="mx-auto mb-12 max-w-2xl space-y-3 text-center">
+					<h2 className="font-mono text-sm uppercase tracking-[0.2em] text-primary">
+						Why QUESTPIE
 					</h2>
-					<h3 className="text-3xl md:text-4xl font-bold">
-						How It Works
+					<h3 className="text-3xl font-bold tracking-tight md:text-4xl">
+						Everything you need to ship fast.
 					</h3>
-					<p className="text-muted-foreground">
-						Collections, relations, jobs—all wired together with TypeScript.
-						Each piece uses a library you can learn independently.
-					</p>
 				</div>
 
-				{features.map((feature, i) => (
-					<div
-						key={feature.title}
-						className={cn(
-							"grid md:grid-cols-2 gap-12 items-center",
-							i % 2 === 1 && "md:grid-flow-col-dense",
-						)}
-					>
-						<div
-							className={cn(
-								"space-y-4 min-w-0",
-								i % 2 === 1 && "md:col-start-2",
-							)}
+				<div className="grid gap-6 md:grid-cols-3">
+					{features.map((feature) => (
+						<article
+							key={feature.title}
+							className="border border-border bg-card/40 p-6 transition-colors hover:border-primary/40"
 						>
-							<div>
-								<h4 className="text-xl font-bold mb-1">{feature.title}</h4>
-								<p className="font-mono text-xs text-primary uppercase tracking-wider mb-3">
-									{feature.subtitle}
-								</p>
-								<p className="text-muted-foreground leading-relaxed">
-									{feature.description}
-								</p>
+							<div className="mb-4 inline-flex border border-primary/30 bg-primary/10 p-2">
+								<feature.icon className="h-5 w-5 text-primary" />
 							</div>
-						</div>
-
-						<div className={cn(i % 2 === 1 && "md:col-start-1", "min-w-0")}>
-							<CodeWindow title={feature.file}>{feature.code}</CodeWindow>
-						</div>
-					</div>
-				))}
+							<h4 className="mb-2 text-lg font-semibold">{feature.title}</h4>
+							<p className="text-sm leading-relaxed text-muted-foreground">
+								{feature.description}
+							</p>
+						</article>
+					))}
+				</div>
 			</div>
 		</section>
 	);

@@ -1,0 +1,188 @@
+---
+title: qa Builder API
+description: Client registry builder methods for fields, views, components, widgets, and pages
+---
+
+# qa Builder API
+
+`qa()` creates the client admin builder. It only registers client-side renderers for server-defined contracts.
+
+```ts
+import { qa, adminModule } from "@questpie/admin/client";
+import type { AppCMS } from "../server/cms";
+
+export const admin = qa<AppCMS>().use(adminModule);
+```
+
+The `AppCMS` type parameter gives autocomplete against your server schema.
+
+## Scope
+
+`qa()` owns registries and registry composition:
+
+- field renderers
+- list/edit views
+- component references
+- dashboard widgets
+- custom pages
+
+`qa()` intentionally does not own app-level admin chrome config.
+
+- no `.branding()` on `qa`
+- no `.locale()` on `qa`
+- no `.config()` on `qa`
+
+Branding and admin UI locales are configured on the server builder (`q`) via `@questpie/admin/server` methods like `.branding()` and `.adminLocale()`.
+
+## Methods
+
+### `.use(module)`
+
+Compose another admin builder's registrations. The core `adminModule` provides all built-in field renderers, views, and widgets.
+
+```ts
+import { adminModule } from "@questpie/admin/client";
+
+qa<AppCMS>().use(adminModule)
+```
+
+You must `.use(adminModule)` to get the default field renderers, table view, form view, and dashboard widgets. Without it, the admin panel has no renderers.
+
+**Parameter:** `AdminBuilder` — another admin builder or module.
+
+### `.fields(map)`
+
+Register field component renderers. Each entry maps a field type to its React component and configuration.
+
+```ts
+.fields({
+  color: {
+    type: "color",
+    component: ColorFieldRenderer,
+    config: { showPicker: true },
+  },
+})
+```
+
+The field type must match the `type` returned by the server field's `getMetadata()`. Built-in types (`text`, `number`, `boolean`, `date`, `select`, `relation`, `upload`, `richText`, `blocks`, etc.) are registered by `adminModule`.
+
+**Parameter:** `Record<string, FieldRegistryEntry>`
+
+### `.views(map)`
+
+Register view definitions. Views are either `list` (table) or `edit` (form).
+
+```ts
+.views({
+  kanbanView: {
+    kind: "list",
+    component: KanbanView,
+    label: "Kanban",
+    icon: "ph:kanban",
+  },
+  splitView: {
+    kind: "edit",
+    component: SplitFormView,
+    label: "Split View",
+  },
+})
+```
+
+Views are auto-sorted by `kind` — list views appear in table view options, edit views appear in form view options.
+
+**Parameter:** `Record<string, ViewRegistryEntry>`
+
+### `.components(map)`
+
+Register general-purpose components resolved by the admin panel at runtime. Used for custom badges, icons, and dynamic UI elements.
+
+```ts
+.components({
+  statusBadge: {
+    component: StatusBadge,
+  },
+})
+```
+
+Components are referenced in server admin config via `ComponentReference` objects: `{ component: "statusBadge", props: { ... } }`.
+
+**Parameter:** `Record<string, ComponentRegistryEntry>`
+
+### `.widgets(map)`
+
+Register dashboard widget components.
+
+```ts
+.widgets({
+  analytics: {
+    component: AnalyticsWidget,
+    label: "Analytics",
+    icon: "ph:chart-line",
+  },
+})
+```
+
+**Parameter:** `Record<string, WidgetRegistryEntry>`
+
+### `.pages(map)`
+
+Register custom pages accessible via the admin router.
+
+```ts
+.pages({
+  settings: {
+    path: "/settings",
+    component: SettingsPage,
+    label: "Settings",
+    icon: "ph:gear",
+  },
+})
+```
+
+**Parameter:** `Record<string, PageRegistryEntry>`
+
+## Helper Factories
+
+`qa` also exports primitive helper factories for advanced composition:
+
+- `qa.field(name, config)`
+- `qa.listView(name, config)`
+- `qa.editView(name, config)`
+- `qa.widget(name, config)`
+- `qa.page(name, config)`
+
+## Core Admin Module
+
+`adminModule` (from `@questpie/admin/client`) registers:
+
+**Field renderers:** `text`, `textarea`, `email`, `url`, `number`, `boolean`, `date`, `datetime`, `time`, `select`, `json`, `object`, `array`, `relation`, `upload`, `richText`, `blocks`
+
+**Views:** `defaultTableView` (list), `defaultFormView` (edit)
+
+**Widgets:** `stats`, `progress`, `timeline`
+
+**Components:** `IconifyIcon`, `ComponentRenderer`
+
+## Type Safety
+
+The `AppCMS` type parameter connects the admin builder to your server schema:
+
+```ts
+type AppCMS = typeof cms;
+
+const admin = qa<AppCMS>()
+  .use(adminModule);
+
+// admin now knows about all collections, globals, and their fields
+```
+
+This enables typed registry authoring against real server entities.
+
+## Related Pages
+
+- [Admin Overview](/docs/admin) — Architecture and setup
+- [Registries Overview](/docs/admin/registries-overview) — How registries work
+- [q Builder API](/docs/reference/q-builder-api) — Server methods (`.branding()`, `.adminLocale()`)
+- [Field Renderer Registry](/docs/admin/field-renderer-registry) — Built-in field renderers
+- [View Registry](/docs/admin/view-registry-list-and-form) — Table and form views
+- [Component Registry](/docs/admin/component-registry) — Custom components

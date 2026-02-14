@@ -21,9 +21,20 @@
  */
 
 import type * as React from "react";
-import type { BlockDefinition } from "../builder/block/types";
-import type { BlockContent, BlockNode } from "./types";
 import { BlockScopeProvider } from "../preview/block-scope-context.js";
+import type { BlockContent, BlockNode } from "./types";
+
+/**
+ * Block renderer function type.
+ * Consumers provide their own renderers mapped by block type.
+ */
+export type BlockRendererFn = (props: {
+	id: string;
+	type: string;
+	values: Record<string, unknown>;
+	data?: Record<string, unknown>;
+	children?: React.ReactNode;
+}) => React.ReactNode;
 
 /**
  * Props for BlockRenderer component.
@@ -31,8 +42,8 @@ import { BlockScopeProvider } from "../preview/block-scope-context.js";
 export type BlockRendererProps = {
 	/** Block content from API (tree + values) */
 	content: BlockContent;
-	/** Registered block definitions */
-	blocks: Record<string, BlockDefinition>;
+	/** Block renderers mapped by type */
+	renderers: Record<string, BlockRendererFn>;
 	/** Prefetched data by block ID (optional, for SSR) */
 	data?: Record<string, unknown>;
 	/** Currently selected block ID (for editor mode) */
@@ -52,7 +63,7 @@ export type BlockRendererProps = {
  */
 export function BlockRenderer({
 	content,
-	blocks,
+	renderers,
 	data = {},
 	selectedBlockId,
 	onBlockClick,
@@ -62,20 +73,19 @@ export function BlockRenderer({
 	 * Recursively render a block node.
 	 */
 	function renderBlock(node: BlockNode): React.ReactNode {
-		const blockDef = blocks[node.type];
+		const renderFn = renderers[node.type];
 
-		if (!blockDef?.renderer) {
+		if (!renderFn) {
 			if (process.env.NODE_ENV !== "production") {
 				console.warn(
-					`[BlockRenderer] Block type "${node.type}" not found or has no renderer`,
+					`[BlockRenderer] No renderer found for block type "${node.type}"`,
 				);
 			}
 			return null;
 		}
 
-		const Component = blockDef.renderer;
 		const values = content._values[node.id] || {};
-		const blockData = data[node.id];
+		const blockData = data[node.id] as Record<string, unknown> | undefined;
 		const isSelected = selectedBlockId === node.id;
 
 		// Render children for layout blocks
@@ -91,15 +101,13 @@ export function BlockRenderer({
 
 		const blockElement = (
 			<BlockScopeProvider blockId={node.id} basePath="content._values">
-				<Component
-					id={node.id}
-					values={values}
-					data={blockData}
-					isSelected={isSelected}
-					isPreview={false}
-				>
-					{renderedChildren}
-				</Component>
+				{renderFn({
+					id: node.id,
+					type: node.type,
+					values,
+					data: blockData,
+					children: renderedChildren,
+				})}
 			</BlockScopeProvider>
 		);
 

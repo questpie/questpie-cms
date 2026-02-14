@@ -1,0 +1,173 @@
+---
+title: Authentication Flows
+description: Implement login, signup, OAuth, API keys, and role-based access
+---
+
+# Authentication Flows
+
+This guide walks through setting up authentication in a QUESTPIE application — from basic email/password login to OAuth providers, API keys, and role-based access control.
+
+## Prerequisites
+
+- A QUESTPIE project with the admin module
+- Better Auth configured (see [Authentication](/docs/infrastructure/authentication))
+
+## Email/Password Login
+
+### 1. Enable the Auth Plugin
+
+```ts
+import { adminModule } from "@questpie/admin/server";
+
+const cms = q({ name: "app" })
+  .use(adminModule)
+  .auth({
+    emailAndPassword: { enabled: true },
+  })
+  .build({
+    db: { url: process.env.DATABASE_URL },
+    app: { url: process.env.APP_URL },
+  });
+```
+
+### 2. Admin Login
+
+The admin panel automatically shows a login form when `emailAndPassword` is enabled. Users are stored in the `users` and `sessions` tables managed by Better Auth.
+
+### 3. Creating the First User
+
+Use the CMS API to create an initial admin user:
+
+```ts
+await cms.auth.api.signUpEmail({
+  body: {
+    email: "admin@example.com",
+    password: "secure-password",
+    name: "Admin",
+  },
+});
+```
+
+Or use the admin panel's registration flow if enabled.
+
+## OAuth Providers
+
+### Google OAuth
+
+```ts
+.auth({
+  emailAndPassword: { enabled: true },
+  socialProviders: {
+    google: {
+      clientId: process.env.GOOGLE_CLIENT_ID!,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+    },
+  },
+})
+```
+
+### GitHub OAuth
+
+```ts
+.auth({
+  socialProviders: {
+    github: {
+      clientId: process.env.GITHUB_CLIENT_ID!,
+      clientSecret: process.env.GITHUB_CLIENT_SECRET!,
+    },
+  },
+})
+```
+
+The admin panel renders OAuth buttons automatically for configured providers.
+
+## API Key Authentication
+
+For machine-to-machine access (scripts, CI/CD, external integrations):
+
+```ts
+.auth({
+  emailAndPassword: { enabled: true },
+  plugins: {
+    apiKey: { enabled: true },
+  },
+})
+```
+
+Generate API keys via the admin panel or API. Pass them in requests via the `Authorization` header:
+
+```ts
+const response = await fetch("/api/cms/collections/posts", {
+  headers: { Authorization: `Bearer ${apiKey}` },
+});
+```
+
+## Role-Based Access Control
+
+### 1. Define Roles
+
+Store roles on the user model (Better Auth extends the user table):
+
+```ts
+// The admin module adds role support to the user
+// Default roles: "admin", "user"
+```
+
+### 2. Use Roles in Access Rules
+
+```ts
+export const posts = qb
+  .collection("posts")
+  .fields((f) => ({
+    title: f.text({ required: true }),
+    status: f.select({ options: ["draft", "published"] }),
+  }))
+  .access({
+    read: true,
+    create: ({ session }) => {
+      const role = (session?.user as any)?.role;
+      return role === "admin" || role === "editor";
+    },
+    update: ({ session }) => {
+      const role = (session?.user as any)?.role;
+      if (role === "admin") return true;
+      if (role === "editor") return { authorId: session.user.id };
+      return false;
+    },
+    delete: ({ session }) => (session?.user as any)?.role === "admin",
+  });
+```
+
+### 3. Field-Level Restrictions
+
+```ts
+.fields((f) => ({
+  title: f.text({ required: true }),
+  internalNotes: f.textarea({
+    access: {
+      read: (ctx) => (ctx.user as any)?.role === "admin",
+    },
+  }),
+}))
+```
+
+## Session Management
+
+Sessions are managed by Better Auth and stored in the database. The adapter automatically:
+
+1. Extracts the session cookie from requests
+2. Validates the session
+3. Passes the session to access control and hooks
+4. Handles session expiry and refresh
+
+## Common Mistakes
+
+- **No initial user** — After first deployment, create an admin user via the API or a seed script. The admin panel shows a login form but needs at least one user to exist.
+- **Hardcoded roles** — Use the session's role field dynamically. Don't hardcode specific user IDs in access rules.
+- **Missing OAuth redirect URLs** — Configure callback URLs in your OAuth provider to match your app URL (e.g., `https://yourapp.com/api/cms/auth/callback/google`).
+
+## Related Pages
+
+- [Authentication](/docs/infrastructure/authentication) — Better Auth setup
+- [Access Control](/docs/server/access-control) — Permission rules
+- [Hooks & Lifecycle](/docs/server/hooks-and-lifecycle) — Session in hook context

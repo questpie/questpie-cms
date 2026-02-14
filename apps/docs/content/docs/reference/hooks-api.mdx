@@ -1,0 +1,179 @@
+---
+title: Hooks API
+description: Hook types, context shape, execution order, and return values
+---
+
+# Hooks API
+
+Reference for all collection hook types, their context parameters, and execution order.
+
+## Hook Registration
+
+```ts
+.hooks({
+  beforeOperation?: HookFn | HookFn[];
+  beforeValidate?: HookFn | HookFn[];
+  beforeChange?: HookFn | HookFn[];
+  afterChange?: HookFn | HookFn[];
+  beforeRead?: HookFn | HookFn[];
+  afterRead?: HookFn | HookFn[];
+  beforeDelete?: HookFn | HookFn[];
+  afterDelete?: HookFn | HookFn[];
+})
+```
+
+Each property accepts a single function or an array of functions. Arrays execute sequentially.
+
+## Hook Context
+
+```ts
+interface HookContext<TData, TOriginal, TOperation, TApp> {
+  data: TData;
+  original?: TOriginal;
+  operation: TOperation;
+  app: TApp;
+  session?: Session | null;
+  locale?: string;
+  accessMode?: "system" | "user";
+  db: Database;
+}
+```
+
+| Property | Type | Description |
+|---|---|---|
+| `data` | `TData` | Current record or input data (mutable in before* hooks) |
+| `original` | `TOriginal \| undefined` | Previous record state (update/delete only) |
+| `operation` | `string` | `"create"`, `"update"`, `"delete"`, or `"read"` |
+| `app` | `TApp` | CMS instance — use `getApp<AppCMS>(app)` or `getContext<AppCMS>(ctx)` |
+| `session` | `Session \| null` | Authenticated user session |
+| `locale` | `string` | Current locale |
+| `accessMode` | `string` | `"system"` or `"user"` |
+| `db` | `Database` | Database client — use `getDb<AppCMS>(db)` or `getContext<AppCMS>(ctx)` |
+
+### Type-Safe Context Pattern
+
+```ts
+import { getContext } from "questpie";
+import type { AppCMS } from "../cms";
+
+afterChange: async (ctx) => {
+  const { app, db, session } = getContext<AppCMS>(ctx);
+  // app, db, session are strongly typed here
+}
+```
+
+## Execution Order
+
+### Create
+
+| Step | Hook | Transaction |
+|---|---|---|
+| 1 | `beforeOperation` | Outside |
+| 2 | `beforeValidate` | Outside |
+| 3 | Zod validation | — |
+| 4 | `beforeChange` | Inside |
+| 5 | DB INSERT | Inside |
+| 6 | `afterChange` | Inside |
+| 7 | `afterRead` | Outside |
+
+### Update
+
+| Step | Hook | Transaction |
+|---|---|---|
+| 1 | `beforeOperation` | Outside |
+| 2 | Load existing record | Inside |
+| 3 | `beforeValidate` | Outside |
+| 4 | Zod validation | — |
+| 5 | `beforeChange` (per record) | Inside |
+| 6 | DB UPDATE | Inside |
+| 7 | `afterChange` (per record) | Inside |
+| 8 | `afterRead` (per record) | Outside |
+
+### Delete
+
+| Step | Hook | Transaction |
+|---|---|---|
+| 1 | `beforeOperation` | Outside |
+| 2 | Load existing record | Inside |
+| 3 | `beforeDelete` | Inside |
+| 4 | DB DELETE | Inside |
+| 5 | `afterDelete` | Outside |
+| 6 | `afterRead` | Outside |
+
+### Read
+
+| Step | Hook | Transaction |
+|---|---|---|
+| 1 | `beforeOperation` | Outside |
+| 2 | `beforeRead` | Outside |
+| 3 | DB SELECT | — |
+| 4 | Resolve relations | — |
+| 5 | Field-level access filtering | — |
+| 6 | `afterRead` (per record) | Outside |
+
+## Hook Types
+
+### beforeOperation
+
+```ts
+(ctx: { operation: string; app: TApp; session?: Session }) => void | Promise<void>
+```
+
+### beforeValidate
+
+```ts
+(ctx: { data: TInsert | TUpdate; operation: "create" | "update"; ... }) => void | Promise<void>
+```
+
+Mutate `data` to transform input before validation.
+
+### beforeChange
+
+```ts
+(ctx: { data: TInsert | TUpdate; operation: "create" | "update"; db: Database; ... }) => void | Promise<void>
+```
+
+Runs after validation, inside transaction. Mutate `data` or throw to abort.
+
+### afterChange
+
+```ts
+(ctx: { data: TSelect; original?: TSelect; operation: "create" | "update"; ... }) => void | Promise<void>
+```
+
+Runs inside transaction. `original` is defined for updates.
+
+### beforeRead
+
+```ts
+(ctx: { data: any; operation: "read"; ... }) => void | Promise<void>
+```
+
+### afterRead
+
+```ts
+(ctx: { data: TSelect; operation: string; ... }) => void | Promise<void>
+```
+
+Runs for every returned record. Mutate `data` to add computed fields.
+
+### beforeDelete
+
+```ts
+(ctx: { data: TSelect; operation: "delete"; ... }) => void | Promise<void>
+```
+
+Throw to prevent deletion.
+
+### afterDelete
+
+```ts
+(ctx: { data: TSelect; operation: "delete"; ... }) => void | Promise<void>
+```
+
+## Related Pages
+
+- [Hooks & Lifecycle](/docs/server/hooks-and-lifecycle) — Detailed guide with examples
+- [CRUD API](/docs/reference/crud-api) — Operations that trigger hooks
+- [Context & Transactions](/docs/server/context-and-transactions) — Transaction behavior
+- [Type-Safe Contexts](/docs/server/type-safe-contexts) — Typed `app`, `db`, and `session` pattern

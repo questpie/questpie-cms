@@ -66,12 +66,6 @@ export class RedisStreamsAdapter implements RealtimeAdapter {
 
   async stop(): Promise<void> {
     this.running = false;
-    if (this.client.quit) {
-      await this.client.quit();
-    }
-    if (this.client.disconnect) {
-      this.client.disconnect();
-    }
   }
 
   subscribe(handler: (notice: RealtimeNotice) => void): () => void {
@@ -106,18 +100,25 @@ export class RedisStreamsAdapter implements RealtimeAdapter {
 
   private async readLoop(): Promise<void> {
     while (this.running) {
-      const response = await this.client.xReadGroup(
-        "GROUP",
-        this.group,
-        this.consumer,
-        "COUNT",
-        this.batchSize,
-        "BLOCK",
-        this.blockMs,
-        "STREAMS",
-        this.stream,
-        ">",
-      );
+      let response: unknown;
+      try {
+        response = await this.client.xReadGroup(
+          "GROUP",
+          this.group,
+          this.consumer,
+          "COUNT",
+          this.batchSize,
+          "BLOCK",
+          this.blockMs,
+          "STREAMS",
+          this.stream,
+          ">",
+        );
+      } catch {
+        if (!this.running) break;
+        await new Promise((resolve) => setTimeout(resolve, 500));
+        continue;
+      }
 
       const messages = this.normalizeResponse(response);
       if (messages.length === 0) continue;

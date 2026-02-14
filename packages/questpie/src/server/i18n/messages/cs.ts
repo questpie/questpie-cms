@@ -1,7 +1,7 @@
 /**
  * Czech Backend Messages
  */
-export const backendMessagesCS = {
+export default {
 	// General errors
 	"error.notFound": "Zdroj nenalezen",
 	"error.notFound.withId": "{{resource}} nenalezen: {{id}}",

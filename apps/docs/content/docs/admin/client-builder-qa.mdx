@@ -1,0 +1,124 @@
+---
+title: Client Builder (qa)
+description: Compose client registries for admin rendering
+---
+
+# Client Builder (`qa`)
+
+`qa()` creates the client admin builder. It exists to register client-side renderers for server-defined contracts.
+
+## What `qa` Owns
+
+- field registry (`.fields()`)
+- view registry (`.views()`)
+- component registry (`.components()`)
+- widget registry (`.widgets()`)
+- page registry (`.pages()`)
+- module composition (`.use()`)
+
+## What `qa` Does Not Own
+
+- schema definitions (`.collection()`, `.global()`)
+- admin contracts (`.admin()`, `.list()`, `.form()`, `.sidebar()`, `.dashboard()`)
+- branding (`.branding()`)
+- admin UI locales (`.adminLocale()`)
+
+Those live on the server `q()` builder via `@questpie/admin/server`.
+
+## Setup
+
+```ts
+import { qa, adminModule } from "@questpie/admin/client";
+import type { AppCMS } from "../server/cms";
+
+export const admin = qa<AppCMS>().use(adminModule);
+```
+
+`adminModule` provides built-in field/view/widget/component registries.
+
+## Methods
+
+### `.use(module)`
+
+Compose another admin builder module:
+
+```ts
+const admin = qa<AppCMS>()
+  .use(adminModule)
+  .use(myCustomModule);
+```
+
+### `.fields(map)`
+
+Register field renderers:
+
+```ts
+.fields({
+  color: qa.field("color", { component: ColorField }),
+})
+```
+
+### `.views(map)`
+
+Register list and edit view types:
+
+```ts
+.views({
+  kanban: qa.listView("kanban", { component: KanbanView }),
+  splitForm: qa.editView("splitForm", { component: SplitFormView }),
+})
+```
+
+### `.components(map)`
+
+Register components used by server component references:
+
+```ts
+.components({
+  icon: MyIcon,
+  badge: MyBadge,
+})
+```
+
+### `.widgets(map)`
+
+Register dashboard widget renderers:
+
+```ts
+.widgets({
+  analytics: qa.widget("analytics", { component: AnalyticsWidget }),
+})
+```
+
+### `.pages(map)`
+
+Register custom admin pages:
+
+```ts
+.pages({
+  analytics: qa.page("analytics", { component: AnalyticsPage }).path("/analytics"),
+})
+```
+
+## Primitive Helpers
+
+You can use helper factories directly:
+
+- `qa.field(name, config)`
+- `qa.listView(name, config)`
+- `qa.editView(name, config)`
+- `qa.widget(name, config)`
+- `qa.page(name, config)`
+
+## Common Mistakes
+
+- Forgetting `.use(adminModule)` and ending up with empty registries.
+- Putting branding/locale on `qa()` instead of configuring them on server `q()`.
+- Duplicating schema or access logic on the client.
+
+## Related Pages
+
+- [Admin Overview](/docs/admin) — Architecture split (server vs client)
+- [qa Builder API](/docs/reference/qa-builder-api) — Full API reference
+- [q Builder API](/docs/reference/q-builder-api) — Server methods (`.branding()`, `.adminLocale()`)
+- [Registries Overview](/docs/admin/registries-overview) — Registry concepts

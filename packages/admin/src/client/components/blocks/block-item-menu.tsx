@@ -7,14 +7,7 @@
 
 "use client";
 
-import {
-	ArrowDown,
-	ArrowUp,
-	Copy,
-	DotsThreeVertical,
-	Plus,
-	Trash,
-} from "@phosphor-icons/react";
+import { Icon } from "@iconify/react";
 import * as React from "react";
 import { useTranslation } from "../../i18n/hooks.js";
 import { Button } from "../ui/button.js";
@@ -117,7 +110,7 @@ function MenuItems({
 	const handleAddChild = (blockType: string) => {
 		// Find current block to get children count
 		const block = findBlockById(state.content._tree, blockId);
-		const childrenCount = block?.children?.length ?? 0;
+		const childrenCount = block?.children.length ?? 0;
 
 		actions.addBlock(blockType, {
 			parentId: blockId,
@@ -166,7 +159,7 @@ function MenuItems({
 				<>
 					<SubMenu>
 						<SubMenuTrigger>
-							<ArrowUp className="h-4 w-4" />
+							<Icon icon="ph:arrow-up" className="h-4 w-4" />
 							{t("blocks.addAbove")}
 						</SubMenuTrigger>
 						<SubMenuContent>
@@ -180,7 +173,7 @@ function MenuItems({
 					</SubMenu>
 					<SubMenu>
 						<SubMenuTrigger>
-							<ArrowDown className="h-4 w-4" />
+							<Icon icon="ph:arrow-down" className="h-4 w-4" />
 							{t("blocks.addBelow")}
 						</SubMenuTrigger>
 						<SubMenuContent>
@@ -195,7 +188,7 @@ function MenuItems({
 					{canHaveChildren && (
 						<SubMenu>
 							<SubMenuTrigger>
-								<Plus className="h-4 w-4" />
+								<Icon icon="ph:plus" className="h-4 w-4" />
 								{t("blocks.addChild")}
 							</SubMenuTrigger>
 							<SubMenuContent>
@@ -214,7 +207,7 @@ function MenuItems({
 
 			{/* Duplicate */}
 			<MenuItem onClick={handleDuplicate}>
-				<Copy className="h-4 w-4" />
+				<Icon icon="ph:copy" className="h-4 w-4" />
 				{t("common.duplicate")}
 			</MenuItem>
 
@@ -222,7 +215,7 @@ function MenuItems({
 
 			{/* Delete */}
 			<MenuItem variant="destructive" onClick={handleRemove}>
-				<Trash className="h-4 w-4" />
+				<Icon icon="ph:trash" className="h-4 w-4" />
 				{t("common.delete")}
 			</MenuItem>
 		</>
@@ -284,7 +277,7 @@ export function BlockItemDropdownMenu({
 					/>
 				}
 			>
-				<DotsThreeVertical className="h-4 w-4" />
+				<Icon icon="ph:dots-three-vertical" className="h-4 w-4" />
 				<span className="sr-only">Block actions</span>
 			</DropdownMenuTrigger>
 			<DropdownMenuContent align="end">
@@ -306,29 +299,23 @@ export function BlockItemDropdownMenu({
 // Helpers
 // ============================================================================
 
-import type { BlockDefinition } from "../../builder/block/types.js";
+import type { BlockSchema } from "#questpie/admin/server";
 
-function getBlockLabel(blockDef: BlockDefinition): string {
-	if (!blockDef.label) {
+function getBlockLabel(blockDef: BlockSchema): string {
+	const label = blockDef.admin?.label;
+
+	if (!label) {
 		return blockDef.name || "Block";
 	}
-
-	const label = blockDef.label;
 
 	if (typeof label === "string") {
 		return label;
-	}
-
-	if (typeof label === "function") {
-		return blockDef.name || "Block";
 	}
 
 	if ("key" in label) {
 		return label.fallback || blockDef.name || "Block";
 	}
 
-	const localeMap = label as Record<string, string>;
-	return (
-		localeMap.en || Object.values(localeMap)[0] || blockDef.name || "Block"
-	);
+	// I18nLocaleMap
+	return label.en || Object.values(label)[0] || blockDef.name || "Block";
 }

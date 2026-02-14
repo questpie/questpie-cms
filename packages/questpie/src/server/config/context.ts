@@ -1,6 +1,6 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import type { Session, User } from "better-auth/types";
-import type { AccessMode } from "./types.js";
+import type { AccessMode, QuestpieContextExtension } from "./types.js";
 
 // ============================================================================
 // Type Inference Utilities
@@ -314,11 +314,9 @@ export function getContext<TApp>(ctx?: {
 // ============================================================================
 
 /**
- * Minimal per-request context.
- * Contains session, locale, accessMode, and optional db override.
- * Services are accessed via app.* not context.*
+ * Base request context properties (always present).
  */
-export interface RequestContext {
+export interface BaseRequestContext {
 	/**
 	 * Auth session from Better Auth (contains user + session).
 	 * - undefined = session not resolved (e.g. system operation without request)
@@ -380,10 +378,33 @@ export interface RequestContext {
 	 * ```
 	 */
 	db?: any;
-
-	/**
-	 * Allow extensions for custom context properties.
-	 * Use `extendContext` in adapter config to add custom properties.
-	 */
-	[key: string]: unknown;
 }
+
+/**
+ * Full request context including user-defined extensions.
+ *
+ * Extend via module augmentation:
+ * ```ts
+ * declare module 'questpie' {
+ *   interface QuestpieContextExtension {
+ *     tenantId: string | null
+ *   }
+ * }
+ * ```
+ *
+ * Then in access functions:
+ * ```ts
+ * .access({
+ *   read: ({ ctx }) => {
+ *     ctx.tenantId // ✅ Typed as string | null
+ *   }
+ * })
+ * ```
+ */
+export type RequestContext = BaseRequestContext &
+	QuestpieContextExtension & {
+		/**
+		 * Allow additional properties for backwards compatibility.
+		 */
+		[key: string]: unknown;
+	};

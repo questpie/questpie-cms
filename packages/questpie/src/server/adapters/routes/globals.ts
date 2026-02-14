@@ -7,14 +7,15 @@
 import type { Questpie } from "../../config/cms.js";
 import type { QuestpieConfig } from "../../config/types.js";
 import { ApiError } from "../../errors/index.js";
+import { introspectGlobal } from "../../global/introspection.js";
 import type { AdapterConfig, AdapterContext } from "../types.js";
-import { handleError, smartResponse } from "../utils/response.js";
-import { parseRpcBody } from "../utils/request.js";
+import { resolveContext } from "../utils/context.js";
 import {
   parseGlobalGetOptions,
   parseGlobalUpdateOptions,
 } from "../utils/parsers.js";
-import { resolveContext } from "../utils/context.js";
+import { parseRpcBody } from "../utils/request.js";
+import { handleError, smartResponse } from "../utils/response.js";
 
 export const createGlobalRoutes = <
   TConfig extends QuestpieConfig = QuestpieConfig,
@@ -44,6 +45,38 @@ export const createGlobalRoutes = <
         const crud = globalInstance.generateCRUD(resolved.cmsContext.db, cms);
         const result = await crud.get(options, resolved.cmsContext);
         return smartResponse(result, request);
+      } catch (error) {
+        return errorResponse(error, request, resolved.cmsContext.locale);
+      }
+    },
+
+    schema: async (
+      request: Request,
+      params: { global: string },
+      context?: AdapterContext,
+    ): Promise<Response> => {
+      const resolved = await resolveContext(cms, request, config, context);
+      const globalInstance = cms.getGlobalConfig(params.global as any);
+
+      if (!globalInstance) {
+        return errorResponse(
+          ApiError.notFound("Global", params.global),
+          request,
+          resolved.cmsContext.locale,
+        );
+      }
+
+      try {
+        const schema = await introspectGlobal(
+          globalInstance,
+          {
+            session: resolved.cmsContext.session,
+            db: cms.db,
+            locale: resolved.cmsContext.locale,
+          },
+          cms,
+        );
+        return smartResponse(schema, request);
       } catch (error) {
         return errorResponse(error, request, resolved.cmsContext.locale);
       }

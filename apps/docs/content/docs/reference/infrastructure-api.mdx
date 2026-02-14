@@ -1,0 +1,235 @@
+---
+title: Infrastructure API
+description: Method signatures for queue, email, storage, search, KV, and realtime services
+---
+
+# Infrastructure API
+
+Reference for all infrastructure service methods available on the CMS instance.
+
+## Queue — `cms.queue`
+
+Queue methods are job-scoped. If you register `.jobs({ sendConfirmation })`, you call `cms.queue.sendConfirmation.*`.
+
+### `cms.queue.<job>.publish(payload, options?)`
+
+```ts
+await cms.queue.sendConfirmation.publish({
+  appointmentId: "...",
+  customerEmail: "...",
+});
+```
+
+### `cms.queue.<job>.schedule(payload, cron, options?)`
+
+```ts
+await cms.queue.dailyReport.schedule({}, "0 9 * * *");
+```
+
+### `cms.queue.<job>.unschedule()`
+
+```ts
+await cms.queue.dailyReport.unschedule();
+```
+
+### `listen(options?)`
+
+Start long-running worker to process jobs.
+
+### `runOnce(options?)`
+
+Process one batch of jobs (for serverless).
+
+### `registerSchedules(options?)`
+
+Registers cron schedules declared in job definitions.
+
+```ts
+await cms.queue.registerSchedules();
+```
+
+### `stop()`
+
+Stops running consumers and the queue adapter.
+
+### Typed Queue Context
+
+```ts
+import { getContext } from "questpie";
+import type { AppCMS } from "../cms";
+
+afterChange: async (ctx) => {
+  const { app } = getContext<AppCMS>(ctx);
+  await app.queue.sendConfirmation.publish({ appointmentId: ctx.data.id });
+}
+```
+
+## Email — `cms.email`
+
+### `sendTemplate(options)`
+
+```ts
+await cms.email.sendTemplate({
+  template: "appointmentConfirmation",
+  to: "customer@example.com",
+  context: { customerName: "Jane", date: "March 15" },
+});
+```
+
+### `send(options)`
+
+```ts
+await cms.email.send({
+  to: "user@example.com",
+  subject: "Hello",
+  html: "<h1>Hello World</h1>",
+});
+```
+
+## Storage — `cms.storage`
+
+### `disk(name?)`
+
+Get a storage disk instance. Omit `name` for the default disk.
+
+```ts
+const disk = cms.storage.disk();
+const disk = cms.storage.disk("private");
+```
+
+### `disk().put(key, content, options?)`
+
+```ts
+await disk.put("uploads/photo.jpg", fileBuffer, {
+  contentType: "image/jpeg",
+});
+```
+
+### `disk().get(key)`
+
+```ts
+const content = await disk.get("uploads/photo.jpg");
+```
+
+### `disk().delete(key)`
+
+```ts
+await disk.delete("uploads/photo.jpg");
+```
+
+### `disk().getSignedUrl(key, options?)`
+
+```ts
+const url = await disk.getSignedUrl("private/document.pdf", {
+  expiresIn: 3600,
+});
+```
+
+### `disk().getUrl(key)`
+
+```ts
+const url = await disk.getUrl("uploads/photo.jpg");
+```
+
+## Search — `cms.search`
+
+### `search(options)`
+
+```ts
+const results = await cms.search.search({
+  query: "haircut",
+  collections: ["posts", "services"],
+  limit: 10,
+  mode: "hybrid",
+  highlights: true,
+  facets: [{ field: "category" }],
+  filters: { category: "services" },
+});
+```
+
+**Response:**
+
+```ts
+{
+  hits: SearchResult[];
+  facets: Record<string, FacetValue[]>;
+  total: number;
+}
+```
+
+### `reindex(collection)`
+
+```ts
+await cms.search.reindex("posts");
+```
+
+### `initialize()`
+
+Called automatically on CMS start. Initializes the search adapter.
+
+## KV — `cms.kv`
+
+### `get<T>(key)`
+
+```ts
+const value = await cms.kv.get<UserProfile>("user:123");
+```
+
+### `set(key, value, ttl?)`
+
+```ts
+await cms.kv.set("cache:key", { data: "..." }, 300);
+```
+
+### `delete(key)`
+
+```ts
+await cms.kv.delete("cache:key");
+```
+
+### `has(key)`
+
+```ts
+const exists = await cms.kv.has("cache:key");
+```
+
+### `clear()`
+
+```ts
+await cms.kv.clear();
+```
+
+## Logger — `cms.logger`
+
+### `debug(msg, ...args)`
+### `info(msg, ...args)`
+### `warn(msg, ...args)`
+### `error(msg, ...args)`
+
+```ts
+cms.logger.info("Record created", { id: "...", collection: "posts" });
+```
+
+### `child(bindings)`
+
+```ts
+const moduleLogger = cms.logger.child({ module: "queue" });
+```
+
+## Realtime
+
+Realtime events are published automatically by CRUD operations. The SSE endpoints are handled by the adapter.
+
+### Manual Broadcast
+
+Realtime events are automatically published when data changes. There is no manual broadcast API — the outbox table and adapter handle delivery.
+
+## Related Pages
+
+- [Queue & Jobs](/docs/infrastructure/queue-and-jobs) — Job definition and configuration
+- [Email](/docs/infrastructure/email) — Template definition and setup
+- [Storage](/docs/infrastructure/storage) — Storage adapter configuration
+- [Search](/docs/infrastructure/search) — Search configuration
+- [KV Store](/docs/infrastructure/kv-store) — KV adapter configuration
+- [Logger](/docs/infrastructure/logger) — Logger configuration
+- [Type-Safe Contexts](/docs/server/type-safe-contexts) — Typed access pattern for infrastructure services

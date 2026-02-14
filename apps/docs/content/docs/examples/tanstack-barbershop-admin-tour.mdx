@@ -1,0 +1,24 @@
+---
+title: TanStack Barbershop Admin Tour
+description: Client-side admin builder and registry usage in the reference app
+---
+
+# TanStack Barbershop Admin Tour
+
+## Client builder
+
+- `examples/tanstack-barbershop/src/questpie/admin/builder.ts`
+
+`qa<AppCMS>().use(adminModule)` provides typed client registries.
+
+## Final admin config
+
+- `examples/tanstack-barbershop/src/questpie/admin/admin.ts`
+
+Shows minimal client responsibility:
+
+- registry usage from module
+
+## Key takeaway
+
+Most admin structure is server-defined. Client remains focused on rendering layer behavior.

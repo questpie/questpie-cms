@@ -7,9 +7,9 @@
 
 "use client";
 
-import { MagnifyingGlass, X } from "@phosphor-icons/react";
+import { Icon } from "@iconify/react";
 import * as React from "react";
-import type { BlockDefinition } from "../../builder/block/types.js";
+import type { BlockCategoryConfig, BlockSchema } from "#questpie/admin/server";
 import { cn } from "../../lib/utils.js";
 import { Button } from "../ui/button.js";
 import { Input } from "../ui/input.js";
@@ -20,7 +20,13 @@ import { BlockIcon } from "./block-type-icon.js";
 // Types
 // ============================================================================
 
-type BlockWithName = BlockDefinition & { name: string };
+type BlockWithName = BlockSchema & { name: string };
+
+type CategoryInfo = {
+	key: string;
+	config: BlockCategoryConfig;
+	blocks: BlockWithName[];
+};
 
 export type BlockLibraryContentProps = {
 	/** Callback when a block is selected */
@@ -44,12 +50,23 @@ export function BlockLibraryContent({
 	const [search, setSearch] = React.useState("");
 
 	// Group blocks by category
-	const blocksByCategory = React.useMemo(() => {
-		const result = new Map<string, BlockWithName[]>();
+	const categories = React.useMemo(() => {
+		const categoryMap = new Map<string, CategoryInfo>();
+
+		// Default uncategorized category
+		const uncategorizedConfig: BlockCategoryConfig = {
+			label: { en: "Other" },
+			order: 999,
+		};
 
 		for (const [name, def] of Object.entries(state.blocks)) {
 			// Filter by allowed blocks
 			if (state.allowedBlocks && !state.allowedBlocks.includes(name)) {
+				continue;
+			}
+
+			// Skip hidden blocks
+			if (def.admin?.hidden) {
 				continue;
 			}
 
@@ -61,11 +78,35 @@ export function BlockLibraryContent({
 				}
 			}
 
-			const category = def.category || "other";
-			if (!result.has(category)) {
-				result.set(category, []);
+			const categoryConfig = def.admin?.category;
+			let key: string;
+			let config: BlockCategoryConfig;
+
+			if (categoryConfig) {
+				key = getCategoryKey(categoryConfig);
+				config = categoryConfig;
+			} else {
+				key = "uncategorized";
+				config = uncategorizedConfig;
 			}
-			result.get(category)!.push({ ...def, name });
+
+			if (!categoryMap.has(key)) {
+				categoryMap.set(key, { key, config, blocks: [] });
+			}
+			categoryMap.get(key)!.blocks.push({ ...def, name });
+		}
+
+		// Convert to array and sort
+		const result = Array.from(categoryMap.values());
+
+		// Sort categories by order
+		result.sort((a, b) => (a.config.order ?? 999) - (b.config.order ?? 999));
+
+		// Sort blocks within each category by order
+		for (const category of result) {
+			category.blocks.sort(
+				(a, b) => (a.admin?.order ?? 999) - (b.admin?.order ?? 999),
+			);
 		}
 
 		return result;
@@ -91,7 +132,7 @@ export function BlockLibraryContent({
 							className="h-7 w-7"
 							onClick={onClose}
 						>
-							<X className="h-4 w-4" />
+							<Icon icon="ph:x" className="h-4 w-4" />
 						</Button>
 					)}
 				</div>
@@ -100,7 +141,10 @@ export function BlockLibraryContent({
 			{/* Search */}
 			<div className="p-3">
 				<div className="relative">
-					<MagnifyingGlass className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+					<Icon
+						icon="ph:magnifying-glass"
+						className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+					/>
 					<Input
 						ref={searchInputRef}
 						placeholder="Search blocks..."
@@ -113,44 +157,50 @@ export function BlockLibraryContent({
 
 			{/* Block list by category */}
 			<div className="max-h-64 overflow-auto px-3 pb-3">
-				{blocksByCategory.size === 0 ? (
+				{categories.length === 0 ? (
 					<div className="text-center text-sm text-muted-foreground py-4">
 						No blocks found
 					</div>
 				) : (
 					<div className="space-y-4">
-						{Array.from(blocksByCategory.entries()).map(
-							([category, blocks]) => (
-								<div key={category}>
-									<h4 className="mb-1.5 text-xs font-medium uppercase text-muted-foreground">
-										{getCategoryLabel(category)}
+						{categories.map((category) => (
+							<div key={category.key}>
+								<div className="mb-1.5 flex items-center gap-1.5">
+									{category.config.icon && (
+										<Icon
+											icon={category.config.icon.props.name as string}
+											className="h-3.5 w-3.5 text-muted-foreground"
+										/>
+									)}
+									<h4 className="text-xs font-medium uppercase text-muted-foreground">
+										{getCategoryDisplayLabel(category.config)}
 									</h4>
-									<div className="grid grid-cols-2 gap-1.5">
-										{blocks.map((block) => (
-											<button
-												type="button"
-												key={block.name}
-												className={cn(
-													"flex items-center gap-2 rounded-md border p-2 text-left",
-													"transition-colors hover:border-primary hover:bg-accent",
-													"focus:outline-none focus-visible:ring-2 focus-visible:ring-primary",
-												)}
-												onClick={() => onSelect(block.name)}
-											>
-												<BlockIcon
-													icon={block.icon || "Cube"}
-													size={16}
-													className="text-muted-foreground flex-shrink-0"
-												/>
-												<span className="text-xs truncate">
-													{getBlockDisplayLabel(block)}
-												</span>
-											</button>
-										))}
-									</div>
 								</div>
-							),
-						)}
+								<div className="grid grid-cols-2 gap-1.5">
+									{category.blocks.map((block) => (
+										<button
+											type="button"
+											key={block.name}
+											className={cn(
+												"flex items-center gap-2 rounded-md border p-2 text-left",
+												"transition-colors hover:border-primary hover:bg-accent",
+												"focus:outline-none focus-visible:ring-2 focus-visible:ring-primary",
+											)}
+											onClick={() => onSelect(block.name)}
+										>
+											<BlockIcon
+												icon={block.admin?.icon}
+												size={16}
+												className="text-muted-foreground flex-shrink-0"
+											/>
+											<span className="text-xs truncate">
+												{getBlockDisplayLabel(block)}
+											</span>
+										</button>
+									))}
+								</div>
+							</div>
+						))}
 					</div>
 				)}
 			</div>
@@ -186,19 +236,15 @@ export function BlockLibrary() {
 // Helpers
 // ============================================================================
 
-function getBlockDisplayLabel(block: BlockDefinition): string {
-	if (!block.label) {
+function getBlockDisplayLabel(block: BlockSchema): string {
+	const label = block.admin?.label;
+
+	if (!label) {
 		return block.name;
 	}
-
-	const label = block.label;
 
 	if (typeof label === "string") {
 		return label;
-	}
-
-	if (typeof label === "function") {
-		return block.name;
 	}
 
 	if ("key" in label) {
@@ -206,20 +252,36 @@ function getBlockDisplayLabel(block: BlockDefinition): string {
 	}
 
 	// I18nLocaleMap
-	const localeMap = label as Record<string, string>;
-	return localeMap.en || Object.values(localeMap)[0] || block.name;
+	return label.en || Object.values(label)[0] || block.name;
 }
 
-function getCategoryLabel(category: string): string {
-	const labels: Record<string, string> = {
-		layout: "Layout",
-		content: "Content",
-		media: "Media",
-		sections: "Sections",
-		interactive: "Interactive",
-		other: "Other",
-	};
-	return (
-		labels[category] || category.charAt(0).toUpperCase() + category.slice(1)
-	);
+function getCategoryKey(config: BlockCategoryConfig): string {
+	const { label } = config;
+
+	if (typeof label === "string") {
+		return label.toLowerCase().replace(/\s+/g, "-");
+	}
+
+	if ("key" in label) {
+		return label.key.toLowerCase().replace(/[.:]/g, "-");
+	}
+
+	// I18nLocaleMap
+	const text = label.en ?? Object.values(label)[0] ?? "";
+	return text.toLowerCase().replace(/\s+/g, "-");
+}
+
+function getCategoryDisplayLabel(config: BlockCategoryConfig): string {
+	const { label } = config;
+
+	if (typeof label === "string") {
+		return label;
+	}
+
+	if ("key" in label) {
+		return label.fallback || label.key;
+	}
+
+	// I18nLocaleMap
+	return label.en || Object.values(label)[0] || "Other";
 }

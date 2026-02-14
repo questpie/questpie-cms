@@ -3,11 +3,11 @@ import type { CollectionAccess } from "#questpie/server/collection/builder/types
 import type {
 	AnyCollectionOrBuilder,
 	AnyGlobalOrBuilder,
+	ContextResolver,
 	DbConfig,
 	LocaleConfig,
 	StorageConfig,
 } from "#questpie/server/config/types.js";
-import type { FunctionDefinition } from "#questpie/server/functions/types.js";
 import type { TranslationsConfig } from "#questpie/server/i18n/types.js";
 import type { KVConfig } from "#questpie/server/integrated/kv/index.js";
 import type { LoggerConfig } from "#questpie/server/integrated/logger/index.js";
@@ -30,7 +30,7 @@ export type BuilderEmailTemplatesMap = Record<
 	string,
 	EmailTemplateDefinition<any, any>
 >;
-export type BuilderFunctionsMap = Record<string, FunctionDefinition>;
+export type BuilderFieldsMap = Record<string, any>; // Field factory functions
 export type BuilderMapValues<TMap extends Record<PropertyKey, any>> =
 	TMap[keyof TMap];
 export type EmptyBuilderMap = Record<never, never>;
@@ -45,16 +45,21 @@ export interface QuestpieBuilderState<
 	TGlobals extends BuilderGlobalsMap = BuilderGlobalsMap,
 	TJobs extends BuilderJobsMap = BuilderJobsMap,
 	TEmailTemplates extends BuilderEmailTemplatesMap = BuilderEmailTemplatesMap,
-	TFunctions extends BuilderFunctionsMap = BuilderFunctionsMap,
 	TAuth extends BetterAuthOptions | Record<never, never> = Record<never, never>,
 	TMessageKeys extends string = never,
+	TBuilderFields extends BuilderFieldsMap = BuilderFieldsMap,
 > {
 	name: TName;
 	collections: TCollections;
 	globals: TGlobals;
 	jobs: TJobs;
 	emailTemplates: TEmailTemplates;
-	functions: TFunctions;
+
+	/**
+	 * Registered field types for the Field Builder system.
+	 * Used when defining collections with `.fields((f) => ({ ... }))`.
+	 */
+	fields: TBuilderFields;
 
 	// Type-inferrable configurations (affect types)
 	auth: TAuth;
@@ -65,6 +70,12 @@ export interface QuestpieBuilderState<
 
 	// I18n translations for backend messages
 	translations?: TranslationsConfig;
+
+	/**
+	 * Context resolver for extending request context.
+	 * Called on each request to add custom properties (e.g., tenantId, propertyId).
+	 */
+	contextResolver?: ContextResolver;
 
 	/**
 	 * Phantom type for tracking message keys through the builder chain.
@@ -150,14 +161,16 @@ export type EmptyNamedBuilderState<TName extends string> = QuestpieBuilderState<
 	EmptyBuilderMap,
 	EmptyBuilderMap,
 	EmptyBuilderMap,
-	EmptyBuilderMap,
 	Record<never, never>,
-	never // No message keys initially
+	never, // No message keys initially
+	EmptyBuilderMap // No fields initially
 > & {
 	auth: {};
 	locale: undefined;
 	migrations: undefined;
+	contextResolver: undefined;
 	"~messageKeys": never;
+	fields: {};
 };
 
 export type EmptyBuilderState = EmptyNamedBuilderState<"">;

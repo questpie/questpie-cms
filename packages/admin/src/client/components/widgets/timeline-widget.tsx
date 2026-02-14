@@ -5,13 +5,15 @@
  * Uses WidgetCard for consistent styling.
  */
 
-import { Circle } from "@phosphor-icons/react";
+import { Icon as IconifyIcon } from "@iconify/react";
 import { useQuery } from "@tanstack/react-query";
 import type * as React from "react";
 import type {
 	TimelineItem,
 	TimelineWidgetConfig,
 } from "../../builder/types/widget-types";
+import { resolveIconElement } from "../../components/component-renderer";
+import { useServerWidgetData } from "../../hooks/use-server-widget-data";
 import { useResolveText } from "../../i18n/hooks";
 import { cn } from "../../lib/utils";
 import { selectClient, useAdminStore } from "../../runtime";
@@ -30,10 +32,10 @@ export interface TimelineWidgetProps {
 // Variant styles for timeline items
 const variantStyles = {
 	default: "bg-muted-foreground",
-	success: "bg-green-500",
-	warning: "bg-yellow-500",
-	error: "bg-red-500",
-	info: "bg-blue-500",
+	success: "bg-success",
+	warning: "bg-warning",
+	error: "bg-destructive",
+	info: "bg-info",
 };
 
 /**
@@ -112,11 +114,20 @@ export default function TimelineWidget({
 		emptyMessage,
 	} = config;
 
-	const { data, isLoading, error, refetch } = useQuery<TimelineItem[]>({
+	const useServerData = !!config.hasFetchFn;
+	const serverQuery = useServerWidgetData<TimelineItem[]>(config.id, {
+		enabled: useServerData,
+		refreshInterval: config.refreshInterval,
+	});
+	const clientQuery = useQuery<TimelineItem[]>({
 		queryKey: ["widget", "timeline", config.id],
-		queryFn: () => config.fetchFn(client),
+		queryFn: () => config.fetchFn!(client),
+		enabled: !useServerData && !!config.fetchFn,
 		refetchInterval: config.refreshInterval,
 	});
+	const { data, isLoading, error, refetch } = useServerData
+		? serverQuery
+		: clientQuery;
 
 	const items = data?.slice(0, maxItems) ?? [];
 	const title = config.title ? resolveText(config.title) : undefined;
@@ -144,7 +155,9 @@ export default function TimelineWidget({
 		) : (
 			<div className="space-y-0">
 				{items.map((item, index) => {
-					const Icon = item.icon || Circle;
+					const iconElement = resolveIconElement(item.icon, {
+						className: "h-3 w-3 text-white",
+					});
 					const variant = item.variant || "default";
 					const isLast = index === items.length - 1;
 					const isClickable = !!(item.href && navigate);
@@ -163,7 +176,12 @@ export default function TimelineWidget({
 									variantStyles[variant],
 								)}
 							>
-								<Icon className="h-3 w-3 text-white" weight="bold" />
+								{iconElement ?? (
+									<IconifyIcon
+										icon="ph:circle-bold"
+										className="h-3 w-3 text-white"
+									/>
+								)}
 							</div>
 
 							{/* Content */}

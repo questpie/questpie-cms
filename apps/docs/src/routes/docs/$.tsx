@@ -1,89 +1,102 @@
 import { createFileRoute, notFound } from "@tanstack/react-router";
-import { DocsLayout } from "fumadocs-ui/layouts/docs";
 import { createServerFn } from "@tanstack/react-start";
-import { source } from "@/lib/source";
-import browserCollections from "fumadocs-mdx:collections/browser";
+import { lazy, Suspense } from "react";
 import {
-  DocsBody,
-  DocsDescription,
-  DocsPage,
-  DocsTitle,
-} from "fumadocs-ui/layouts/docs/page";
-import { components } from "@/components/mdx";
-import { baseOptions } from "@/lib/layout.shared";
-import { useFumadocsLoader } from "fumadocs-core/source/client";
-import { LLMCopyButton } from "@/components/llm-actions";
-import { createContext, useContext } from "react";
+	generateDocsJsonLd,
+	generateLinks,
+	generateMeta,
+	siteConfig,
+} from "@/lib/seo";
 
-const PageUrlContext = createContext<string>("");
+const LazyDocsRouteContent = lazy(() =>
+	import("@/components/docs/DocsRouteContent").then((module) => ({
+		default: module.DocsRouteContent,
+	})),
+);
 
 export const Route = createFileRoute("/docs/$")({
-  component: Page,
-  loader: async ({ params }) => {
-    const slugs = params._splat?.split("/") ?? [];
-    const data = await serverLoader({ data: slugs });
-    await clientLoader.preload(data.path);
-    return data;
-  },
-  // ISR: Cache docs pages for 1 hour, allow stale content for 7 days
-  headers: () => ({
-    "Cache-Control":
-      "public, max-age=3600, s-maxage=3600, stale-while-revalidate=604800",
-  }),
-  // Client-side: Consider data fresh for 5 minutes
-  staleTime: 5 * 60_000,
-  gcTime: 10 * 60_000,
+	component: Page,
+	loader: async ({ params }) => {
+		const slugs = params._splat?.split("/") ?? [];
+		return serverLoader({ data: slugs });
+	},
+	head: ({ loaderData }) => {
+		if (!loaderData) return {};
+
+		const { title, description, url, dateModified } = loaderData;
+
+		return {
+			links: generateLinks({
+				url,
+				includeIcons: false,
+				includePreconnect: false,
+			}),
+			meta: generateMeta({
+				title,
+				description,
+				url,
+				type: "article",
+			}),
+			scripts: [
+				{
+					type: "application/ld+json",
+					children: JSON.stringify(
+						generateDocsJsonLd({
+							title,
+							description,
+							url,
+							dateModified,
+						}),
+					),
+				},
+			],
+		};
+	},
+	headers: () => ({
+		"Cache-Control":
+			"public, max-age=3600, s-maxage=3600, stale-while-revalidate=604800",
+	}),
+	staleTime: 5 * 60_000,
+	gcTime: 10 * 60_000,
 });
 
-const serverLoader = createServerFn({
-  method: "GET",
-})
-  .inputValidator((slugs: string[]) => slugs)
-  .handler(async ({ data: slugs }) => {
-    const page = source.getPage(slugs);
-    if (!page) throw notFound();
+const serverLoader = createServerFn({ method: "GET" })
+	.inputValidator((slugs: string[]) => slugs)
+	.handler(async ({ data: slugs }) => {
+		const { source } = await import("@/lib/source");
+		const page = source.getPage(slugs);
+		if (!page) throw notFound();
 
-    return {
-      path: page.path,
-      url: page.url,
-      pageTree: await source.serializePageTree(source.getPageTree()),
-    };
-  });
+		const title = page.data.title ?? "Documentation";
+		const description = page.data.description ?? siteConfig.description;
+		const pageData = page.data as Record<string, unknown>;
+		const dateModified =
+			typeof pageData.lastModified === "string"
+				? pageData.lastModified
+				: undefined;
 
-function LLMActions() {
-  const url = useContext(PageUrlContext);
-  return (
-    <div className="flex items-center gap-2 border-b border-fd-border pb-4 mb-6">
-      <LLMCopyButton markdownUrl={`${url}.mdx`} />
-    </div>
-  );
-}
-
-const clientLoader = browserCollections.docs.createClientLoader({
-  component({ toc, frontmatter, default: MDX }) {
-    return (
-      <DocsPage toc={toc}>
-        <DocsTitle>{frontmatter.title}</DocsTitle>
-        <DocsDescription>{frontmatter.description}</DocsDescription>
-        <LLMActions />
-        <DocsBody className="animate-in fade-in slide-in-from-bottom-8 duration-700">
-          <MDX components={components} />
-        </DocsBody>
-      </DocsPage>
-    );
-  },
-});
+		return {
+			path: page.path,
+			url: page.url,
+			title,
+			description,
+			dateModified,
+			pageTree: await source.serializePageTree(source.getPageTree()),
+		};
+	});
 
 function Page() {
-  const data = Route.useLoaderData();
-  const { pageTree } = useFumadocsLoader(data);
-  const Content = clientLoader.getComponent(data.path);
+	const data = Route.useLoaderData();
 
-  return (
-    <PageUrlContext.Provider value={data.url}>
-      <DocsLayout {...baseOptions()} tree={pageTree}>
-        <Content />
-      </DocsLayout>
-    </PageUrlContext.Provider>
-  );
+	return (
+		<Suspense
+			fallback={
+				<div className="mx-auto w-full max-w-7xl px-4 py-10 text-sm text-muted-foreground">
+					Loading documentation...
+				</div>
+			}
+		>
+			<LazyDocsRouteContent data={data} />
+		</Suspense>
+	);
 }

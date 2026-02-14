@@ -1,0 +1,30 @@
+---
+title: TanStack Barbershop Server Tour
+description: Server-side modeling patterns from the reference app
+---
+
+# TanStack Barbershop Server Tour
+
+## Builder entry
+
+- `examples/tanstack-barbershop/src/questpie/server/builder.ts`
+
+This file creates shared `qb` by extending core with admin server module.
+
+## CMS composition
+
+- `examples/tanstack-barbershop/src/questpie/server/cms.ts`
+
+Shows:
+
+- collections/globals registration
+- dashboard/sidebar server config
+- locale/messages
+- jobs registration
+- runtime build config
+
+## Field builder patterns
+
+- reactive compute in `pages.ts`
+- conditional visibility in `appointments.ts`
+- nested object and array patterns in `barbers.ts`

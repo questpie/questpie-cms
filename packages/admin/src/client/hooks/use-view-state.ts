@@ -13,6 +13,7 @@ const EMPTY_CONFIG: ViewConfiguration = {
   filters: [],
   sortConfig: null,
   visibleColumns: [],
+  realtime: undefined,
 };
 
 /**
@@ -50,10 +51,10 @@ function mergeVisibleColumns(
 /**
  * Hook to manage view configuration state with database persistence
  *
- * Syncs view state (filters, sort, visible columns) to the admin_preferences
+ * Syncs view state (filters, sort, visible columns) to the adminPreferences
  * collection in the database. Falls back to local state when:
  * - User is not logged in
- * - admin_preferences collection is not available
+ * - adminPreferences collection is not available
  * - Data is still loading
  *
  * @param defaultColumns - Default columns to show when no config is set
@@ -103,6 +104,7 @@ export function useViewState(
       visibleColumns: initialConfig?.visibleColumns?.length
         ? initialConfig.visibleColumns
         : defaultColumns,
+      realtime: initialConfig?.realtime,
     };
   });
 
@@ -122,6 +124,10 @@ export function useViewState(
           storedConfig.visibleColumns,
           defaultColumns,
         ),
+        realtime:
+          storedConfig.realtime !== undefined
+            ? storedConfig.realtime
+            : initialConfig?.realtime,
       });
     } else if (!isLoadingPreference && !storedConfig && !hasInitialized) {
       // No stored config - use defaults
@@ -133,6 +139,7 @@ export function useViewState(
     preferenceKey,
     hasInitialized,
     defaultColumns,
+    initialConfig?.realtime,
   ]);
 
   // Debounced save to DB
@@ -299,10 +306,11 @@ export function useViewState(
     return (
       config.filters.length > 0 ||
       config.sortConfig !== null ||
+      config.realtime !== initialConfig?.realtime ||
       JSON.stringify([...config.visibleColumns].sort()) !==
         JSON.stringify([...defaultColumns].sort())
     );
-  }, [config, defaultColumns]);
+  }, [config, defaultColumns, initialConfig?.realtime]);
 
   return {
     config,

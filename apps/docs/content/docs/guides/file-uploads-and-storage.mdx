@@ -1,0 +1,143 @@
+---
+title: File Uploads & Storage
+description: Configure file storage, upload fields, S3, and signed URLs
+---
+
+# File Uploads & Storage
+
+This guide walks through setting up file uploads in a QUESTPIE application — from local development storage to production S3, upload fields on collections, and serving files with signed URLs.
+
+## Local Development Setup
+
+### 1. Configure Local Storage
+
+```ts
+.build({
+  // ...
+  storage: {
+    default: {
+      driver: "local",
+      root: "./uploads",
+      urlPrefix: "/api/cms/files",
+    },
+  },
+})
+```
+
+Files are stored in the `./uploads` directory and served via the CMS file endpoint.
+
+### 2. Add Upload Fields
+
+```ts
+export const barbers = qb
+  .collection("barbers")
+  .fields((f) => ({
+    name: f.text({ required: true }),
+    avatar: f.upload({}),                    // Single image
+    gallery: f.upload({ multiple: true }),   // Multiple images
+    resume: f.upload({
+      accept: "application/pdf",             // PDF only
+      maxSize: 5 * 1024 * 1024,             // 5MB max
+    }),
+  }));
+```
+
+### 3. Test in Admin
+
+The admin panel shows upload fields with drag-and-drop, preview, and the media picker dialog.
+
+## Production S3 Setup
+
+### 1. Install the S3 Driver
+
+```bash
+bun add @flydrive/s3
+```
+
+### 2. Configure S3 Storage
+
+```ts
+import { S3Driver } from "@flydrive/s3";
+
+.build({
+  // ...
+  storage: {
+    default: {
+      driver: "s3",
+      credentials: {
+        accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
+        secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
+      },
+      region: process.env.AWS_REGION!,
+      bucket: process.env.S3_BUCKET!,
+      urlPrefix: process.env.CDN_URL,
+    },
+  },
+})
+```
+
+### 3. Signed URLs
+
+For private files, use signed URLs that expire:
+
+```ts
+// In an RPC handler or hook
+const url = await cms.storage.disk().getSignedUrl("private/document.pdf", {
+  expiresIn: 3600, // 1 hour
+});
+```
+
+## Upload via API
+
+### Single File Upload
+
+```ts
+const formData = new FormData();
+formData.append("file", fileBlob, "photo.jpg");
+
+const response = await fetch("/api/cms/collections/barbers/upload", {
+  method: "POST",
+  body: formData,
+});
+
+const asset = await response.json();
+// { id: "...", url: "...", filename: "photo.jpg", mimeType: "image/jpeg", size: 12345 }
+```
+
+### Client SDK Upload
+
+```ts
+const asset = await client.collections.barbers.upload(file, {
+  filename: "photo.jpg",
+});
+```
+
+### Bulk Upload
+
+```ts
+const assets = await client.collections.barbers.uploadMany(files);
+```
+
+## Storage Adapters
+
+| Adapter | Use Case |
+|---|---|
+| Local (`local`) | Development, single-server deployments |
+| S3 (`s3`) | AWS S3, DigitalOcean Spaces, MinIO |
+| GCS (`gcs`) | Google Cloud Storage |
+| Azure Blob (`azure`) | Azure Blob Storage |
+
+All adapters use the [flydrive](https://flydrive.dev/) library and share the same API.
+
+## Common Mistakes
+
+- **No storage config** — Upload fields require a storage adapter. Without one, uploads fail at runtime.
+- **Local storage in production clusters** — Each server has its own filesystem. Use S3 or another shared storage for multi-server deployments.
+- **Missing CORS for direct uploads** — If uploading from a browser to S3 directly, configure CORS on the S3 bucket.
+- **Large file limits** — Check your reverse proxy (nginx, Cloudflare) upload size limits. They may be lower than your CMS `maxSize`.
+
+## Related Pages
+
+- [Storage](/docs/infrastructure/storage) — Storage adapter reference
+- [Media & Uploads](/docs/admin/media-and-uploads) — Admin upload components
+- [Field Types](/docs/server/field-types) — Upload field configuration

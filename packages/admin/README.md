@@ -103,20 +103,11 @@ export const postsAdmin = qab
 ### 3. Build Admin Configuration
 
 ```typescript
-// src/admin/admin.ts
+// src/admin/builder.ts
 import { qa, adminModule } from "@questpie/admin/client";
-import { postsAdmin } from "./collections/posts";
-import { sidebarConfig } from "./sidebar";
+import type { AppCMS } from "./server/cms";
 
-export const admin = qa()
-  .use(adminModule)
-  .branding({
-    name: "My Admin",
-  })
-  .collections({
-    posts: postsAdmin,
-  })
-  .sidebar(sidebarConfig);
+export const admin = qa<AppCMS>().use(adminModule);
 
 // Module augmentation for global type inference
 declare module "@questpie/admin/client" {
@@ -127,26 +118,46 @@ declare module "@questpie/admin/client" {
 }
 ```
 
-### 4. Configure Sidebar
+**Note:** Branding, sidebar, and dashboard are configured server-side via `q().use(adminModule)` from `@questpie/admin/server`.
+
+### 4. Server-Side Configuration
+
+Branding, sidebar, and dashboard are configured on the server:
 
 ```typescript
-// src/admin/sidebar.ts
-import { qa } from "@questpie/admin/client";
-import { HouseIcon, FileTextIcon } from "@phosphor-icons/react";
+// src/questpie/server/app.ts
+import { adminModule } from "@questpie/admin/server";
+import { q } from "questpie";
 
-export const sidebarConfig = qa
-  .sidebar()
-  .section("main", (s) =>
-    s.items([
-      { type: "link", label: "Dashboard", href: "/admin", icon: HouseIcon },
-    ]),
+export const cms = q({ name: "my-app" })
+  .use(adminModule)
+  .branding({ name: "My Admin" })
+  .sidebar(({ s, c }) =>
+    s.sidebar({
+      sections: [
+        {
+          id: "main",
+          items: [
+            { type: "link", label: "Dashboard", href: "/admin", icon: c.icon("ph:house") },
+          ],
+        },
+        {
+          id: "content",
+          label: "Content",
+          icon: c.icon("ph:file-text"),
+          items: [
+            { type: "collection", collection: "posts" },
+          ],
+        },
+      ],
+    }),
   )
-  .section("content", (s) =>
-    s
-      .title("Content")
-      .icon(FileTextIcon)
-      .items([{ type: "collection", collection: "posts", icon: FileTextIcon }]),
-  );
+  .dashboard(({ d, c }) =>
+    d.dashboard({
+      items: [],
+    }),
+  )
+  .build({ ... });
 ```
 
 ### 5. Setup Tailwind CSS
@@ -172,7 +183,7 @@ In your main CSS file, import admin styles and configure Tailwind to scan the ad
 // routes/admin.tsx (TanStack Router example)
 import { Admin, AdminLayoutProvider } from "@questpie/admin/client";
 import { Link, Outlet, useLocation } from "@tanstack/react-router";
-import { admin } from "~/admin/admin";
+import { admin } from "~/admin/builder";
 import { cmsClient } from "~/lib/cms-client";
 import { queryClient } from "~/lib/query-client";
 
@@ -203,16 +214,19 @@ function AdminLayout() {
 
 ```typescript
 import { qa, adminModule } from "@questpie/admin/client";
+import type { AppCMS } from "./server/cms";
 
 // Start from admin module (includes built-in fields/views + user management)
-const admin = qa()
-  .use(adminModule)
-  .branding({ name: "My Admin" })
-  .collections({ posts: postsAdmin })
-  .globals({ settings: settingsAdmin })
-  .sidebar(sidebarConfig)
-  .dashboard(dashboardConfig);
+const admin = qa<AppCMS>().use(adminModule);
+
+// Then use the builder to configure collections
+const postsAdmin = admin.collection("posts").fields(({ r }) => ({
+  title: r.text(),
+  // ...
+}));
 ```
+
+**Note:** Branding, sidebar, and dashboard are configured server-side via `q().use(adminModule)` from `@questpie/admin/server`.
 
 ### Collection Builder
 
@@ -252,25 +266,35 @@ const settingsAdmin = qa
   );
 ```
 
-### Sidebar Builder
+### Sidebar Configuration (Server-side)
 
 ```typescript
-const sidebarConfig = qa
-  .sidebar()
-  .section("main", (s) =>
-    s.items([
-      { type: "link", label: "Dashboard", href: "/admin", icon: HomeIcon },
-    ]),
-  )
-  .section("content", (s) =>
-    s
-      .title("Content")
-      .items([
-        { type: "collection", collection: "posts" },
-        { type: "collection", collection: "pages" },
-        { type: "divider" },
-        { type: "global", global: "settings" },
-      ]),
+import { adminModule } from "@questpie/admin/server";
+import { q } from "questpie";
+
+const cms = q({ name: "app" })
+  .use(adminModule)
+  .sidebar(({ s, c }) =>
+    s.sidebar({
+      sections: [
+        {
+          id: "main",
+          items: [
+            { type: "link", label: "Dashboard", href: "/admin", icon: c.icon("ph:house") },
+          ],
+        },
+        {
+          id: "content",
+          label: "Content",
+          items: [
+            { type: "collection", collection: "posts" },
+            { type: "collection", collection: "pages" },
+            { type: "divider" },
+            { type: "global", global: "settings" },
+          ],
+        },
+      ],
+    }),
   );
 ```
 
@@ -293,6 +317,52 @@ const items: SidebarItemForApp<AppCMS>[] = [
   { type: "global", global: "settings" },
 ];
 ```
+
+### Server Dashboard Actions (`a` proxy)
+
+When configuring dashboard on the server with `q().use(adminModule)`, use `a` helpers for header actions instead of hardcoded links.
+
+```typescript
+import { adminModule } from "@questpie/admin/server";
+import { q } from "questpie";
+
+const cms = q({ name: "app" })
+  .use(adminModule)
+  .dashboard(({ d, c, a }) =>
+    d.dashboard({
+      title: { en: "Control Panel" },
+      actions: [
+        a.create({
+          id: "new-post",
+          collection: "posts",
+          label: { en: "New Post" },
+          icon: c.icon("ph:plus"),
+          variant: "primary",
+        }),
+        a.global({
+          id: "site-settings",
+          global: "siteSettings",
+          label: { en: "Site Settings" },
+          icon: c.icon("ph:gear-six"),
+        }),
+        a.link({
+          id: "open-site",
+          label: { en: "Open Site" },
+          href: "/",
+          icon: c.icon("ph:arrow-square-out"),
+          variant: "outline",
+        }),
+      ],
+      items: [],
+    }),
+  );
+```
+
+Helpers:
+
+- `a.create({ collection })` -> `/admin/collections/:collection/create`
+- `a.global({ global })` -> `/admin/globals/:global`
+- `a.link({ href })` / `a.action({ href })` -> explicit URL
 
 ## Built-in Field Types
 
@@ -551,6 +621,54 @@ import { adminModule } from "@questpie/admin/server";
 // Styles
 import "@questpie/admin/client/styles/index.css";
 ```
+
+## Realtime Invalidation
+
+Admin data hooks now support SSE-driven live updates.
+
+- Realtime is enabled by default in `AdminProvider`.
+- You can disable it globally:
+
+```tsx
+<AdminProvider admin={admin} client={client} realtime={false}>
+  {children}
+</AdminProvider>
+```
+
+- Or configure it explicitly (useful if your API is mounted on a custom path):
+
+```tsx
+<AdminProvider
+  admin={admin}
+  client={client}
+  realtime={{ enabled: true, basePath: "/api/cms", debounceMs: 150 }}
+>
+  {children}
+</AdminProvider>
+```
+
+- Snapshot events are applied directly to query cache when possible. If snapshot mapping is not possible, hooks fall back to `invalidateQueries`.
+- `debounceMs` debounces cache apply/invalidation during bursts. Set `0` for strict immediate updates.
+
+- Per-table toggle via view config:
+
+```ts
+defaultViews: {
+	collectionList: {
+		realtime: false,
+	},
+}
+```
+
+- Per-widget toggle via dashboard widget config:
+
+```ts
+widgets: [
+  { type: "stats", id: "orders", collection: "orders", realtime: false },
+];
+```
+
+- Per-table UI toggle is available in the table "View Options" sheet (`Realtime Updates`). The preference is persisted per collection view.
 
 ## Styling
 

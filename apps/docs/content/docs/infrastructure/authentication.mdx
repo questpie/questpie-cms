@@ -1,0 +1,193 @@
+---
+title: Authentication
+description: Better Auth integration — email/password, OAuth, API keys, and sessions
+---
+
+# Authentication
+
+QUESTPIE uses [Better Auth](https://www.better-auth.com/) for authentication. It supports email/password, OAuth providers, API keys, and bearer tokens out of the box — all configured through the builder.
+
+## Why This Approach
+
+Instead of building auth from scratch, QUESTPIE integrates Better Auth with pre-configured plugins for admin access, API keys, and bearer tokens. You configure auth in the builder, and the framework handles session management, token validation, and admin panel login.
+
+## Mental Model
+
+```text
+.auth({
+  emailAndPassword: { enabled: true },     ← login method
+  socialProviders: { google: {...} },       ← OAuth
+  baseURL: "http://localhost:3000",         ← redirect URLs
+  basePath: "/api/cms/auth",               ← auth API path
+  secret: "...",                           ← token signing
+})
+```
+
+Auth runs as part of the CMS fetch handler. The admin panel uses it for login/signup, and your frontend can use it for user authentication.
+
+## Basic Setup
+
+```ts
+export const cms = q({ name: "my-app" })
+  .use(adminModule)
+  .collections({ ... })
+  .auth({
+    emailAndPassword: {
+      enabled: true,
+      requireEmailVerification: false,  // true in production
+    },
+    baseURL: process.env.APP_URL || "http://localhost:3000",
+    basePath: "/api/cms/auth",
+    secret: process.env.BETTER_AUTH_SECRET || "dev-secret",
+  })
+  .build({ ... });
+```
+
+This gives you:
+- Email/password registration and login
+- Session management with secure cookies
+- Admin panel login screen
+- API key authentication (via header)
+- Bearer token authentication
+
+## Auth Endpoints
+
+When auth is configured, these endpoints are available under your `basePath`:
+
+| Endpoint | Method | Description |
+|---|---|---|
+| `/auth/sign-up/email` | POST | Register with email/password |
+| `/auth/sign-in/email` | POST | Login with email/password |
+| `/auth/sign-out` | POST | Logout (clear session) |
+| `/auth/session` | GET | Get current session |
+| `/auth/api-key/create` | POST | Create API key |
+| `/auth/api-key/list` | GET | List API keys |
+
+## OAuth Providers
+
+Add social login by configuring providers:
+
+```ts
+.auth({
+  emailAndPassword: { enabled: true },
+  socialProviders: {
+    google: {
+      clientId: process.env.GOOGLE_CLIENT_ID!,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+    },
+    github: {
+      clientId: process.env.GITHUB_CLIENT_ID!,
+      clientSecret: process.env.GITHUB_CLIENT_SECRET!,
+    },
+    discord: {
+      clientId: process.env.DISCORD_CLIENT_ID!,
+      clientSecret: process.env.DISCORD_CLIENT_SECRET!,
+    },
+  },
+  baseURL: process.env.APP_URL!,
+  basePath: "/api/cms/auth",
+  secret: process.env.BETTER_AUTH_SECRET!,
+})
+```
+
+## Access Control Integration
+
+Auth sessions are available in hooks, access rules, and RPC handlers:
+
+```ts
+// In access rules
+.access({
+  read: true,
+  create: ({ session }) => !!session,               // any authenticated user
+  update: ({ session }) => session?.user.role === "admin",
+  delete: ({ session }) => session?.user.role === "admin",
+})
+
+// In hooks
+.hooks({
+  beforeChange: async ({ data, session }) => {
+    if (!session) throw new Error("Not authenticated");
+    data.lastEditedBy = session.user.id;
+  },
+})
+
+// In RPC handlers
+export const getMyProfile = r.fn({
+  schema: z.object({}),
+  handler: async ({ session }) => {
+    if (!session) throw ApiError.unauthorized();
+    return session.user;
+  },
+});
+```
+
+## Built-in Plugins
+
+QUESTPIE pre-configures these Better Auth plugins:
+
+| Plugin | Purpose |
+|---|---|
+| **Admin** | Admin role management, admin-only routes |
+| **API Key** | Generate and validate API keys for programmatic access |
+| **Bearer** | Bearer token authentication for API clients |
+
+## Collections Created by Auth
+
+Auth automatically creates these collections in your database:
+
+| Collection | Purpose |
+|---|---|
+| `user` | User accounts (email, name, role, etc.) |
+| `session` | Active sessions |
+| `account` | OAuth account links |
+| `verification` | Email verification tokens |
+| `apikey` | API keys for programmatic access |
+
+These are managed by Better Auth and accessible via `app.auth`.
+
+## Barbershop Example
+
+```ts
+.auth({
+  emailAndPassword: {
+    enabled: true,
+    requireEmailVerification: false,
+  },
+  baseURL: process.env.APP_URL || "http://localhost:3000",
+  basePath: "/api/cms/auth",
+  secret: process.env.BETTER_AUTH_SECRET || "demo-secret-change-in-production",
+})
+```
+
+## Advanced: Custom Auth Options
+
+You can pass additional Better Auth options using the `auth()` helper:
+
+```ts
+import { auth } from "questpie";
+
+.auth(auth({
+  emailAndPassword: { enabled: true },
+  baseURL: process.env.APP_URL!,
+  basePath: "/api/cms/auth",
+  secret: process.env.BETTER_AUTH_SECRET!,
+  plugins: [
+    // additional Better Auth plugins
+  ],
+  // any other Better Auth options
+}))
+```
+
+## Common Mistakes
+
+- **Using a weak secret in production** — The `secret` is used for signing tokens and sessions. Use a strong, random string in production.
+- **Forgetting `basePath`** — The auth endpoints need to match your CMS mount path. If your CMS is at `/api/cms`, use `/api/cms/auth`.
+- **Not setting `requireEmailVerification`** — In production, set this to `true` to prevent spam signups.
+- **Missing `baseURL`** — OAuth redirects and email links need the full URL. Always set `baseURL` to your app's public URL.
+
+## Related Pages
+
+- [Access Control](/docs/server/access-control) — How auth integrates with CRUD security
+- [Hooks & Lifecycle](/docs/server/hooks-and-lifecycle) — Using session in hooks
+- [RPC](/docs/server/rpc) — Using session in RPC handlers
+- [Authentication Flows Guide](/docs/guides/authentication-flows) — Login, signup, OAuth patterns

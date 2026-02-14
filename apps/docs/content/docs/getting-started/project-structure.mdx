@@ -1,261 +1,248 @@
 ---
 title: Project Structure
-description: Recommended organization for QUESTPIE CMS projects
+description: Recommended file layout for QUESTPIE projects
 ---
 
 # Project Structure
 
-A well-organized project structure makes your QUESTPIE CMS easier to maintain and scale.
+QUESTPIE doesn't enforce a specific file structure, but there's a recommended layout that makes the server-first ownership model clear. This structure scales from a single collection to hundreds.
 
-## Recommended Structure
+## Recommended Layout
 
-```
-my-project/
-├── src/
-│   ├── questpie/                # All QUESTPIE configuration
-│   │   ├── server/              # Backend CMS (q builder)
-│   │   │   ├── cms.ts           # Main CMS instance
-│   │   │   ├── collections/     # Collection definitions
-│   │   │   │   ├── posts.ts
-│   │   │   │   ├── users.ts
-│   │   │   │   └── index.ts
-│   │   │   ├── globals/         # Global definitions
-│   │   │   │   ├── settings.ts
-│   │   │   │   └── index.ts
-│   │   │   ├── jobs/            # Background jobs
-│   │   │   │   └── index.ts
-│   │   │   └── functions/       # Custom functions
-│   │   │       └── index.ts
-│   │   │
-│   │   └── admin/               # Admin UI (qa builder)
-│   │       ├── admin.ts         # Main admin config
-│   │       ├── builder.ts       # Shared builder instance
-│   │       ├── collections/     # Collection UI configs
-│   │       │   ├── posts.ts
-│   │       │   ├── users.ts
-│   │       │   └── index.ts
-│   │       ├── globals/         # Global UI configs
-│   │       │   └── settings.ts
-│   │       ├── blocks/          # Page builder blocks
-│   │       │   ├── hero.tsx
-│   │       │   ├── text.tsx
-│   │       │   └── index.ts
-│   │       ├── sidebar.ts       # Navigation config
-│   │       └── dashboard.ts     # Dashboard widgets
-│   │
-│   ├── routes/                  # App routes
-│   │   ├── api/
-│   │   │   └── cms.ts           # CMS API endpoint
-│   │   ├── admin.tsx            # Admin UI route
-│   │   └── index.tsx            # Home page
-│   │
-│   ├── lib/                     # Shared utilities
-│   │   ├── cms-client.ts        # CMS client instance
-│   │   └── utils.ts
-│   │
-│   └── components/              # React components
-│       └── ...
-│
-├── migrations/                  # Database migrations
-│   └── ...
-│
-├── drizzle.config.ts           # Drizzle configuration
-├── package.json
-├── tsconfig.json
-└── .env
+```text
+src/
+  questpie/
+    server/
+      builder.ts              ← shared qb with admin module
+      cms.ts                  ← compose everything + build()
+      rpc.ts                  ← rpc() root instance
+      collections/
+        index.ts              ← barrel export
+        barbers.ts            ← collection definitions
+        services.ts
+        appointments.ts
+        pages.ts
+      globals/
+        index.ts
+        site-settings.ts      ← global definitions
+      functions/
+        index.ts
+        booking.ts            ← RPC function implementations
+      jobs/
+        index.ts
+        email-notifications.ts ← background job definitions
+      blocks/
+        index.ts
+        hero.ts               ← block type definitions
+        cta.ts
+
+    admin/
+      admin.ts                ← qa() client builder
+      fields/                 ← custom field renderers (if any)
+      views/                  ← custom view components (if any)
+      components/             ← custom UI components (if any)
+
+  routes/
+    api/
+      cms.ts                  ← mount CMS fetch handler
+    admin.tsx                 ← admin panel route
+
+  migrations/
+    index.ts                  ← migration list
+    0001-initial.ts           ← Drizzle migration files
 ```
 
-## Why This Structure?
+## Why This Works
 
-### 1. Clear Separation
+The layout enforces the WHAT vs HOW split:
 
-Backend (`server/`) and admin (`admin/`) are separate:
-
-- **server/** - Runs on the server, handles data
-- **admin/** - Runs in browser, handles UI
-
-This makes it clear what code runs where.
-
-### 2. Mirrored Organization
-
-Collections are mirrored between server and admin:
-
-```
-server/collections/posts.ts  →  admin/collections/posts.ts
-```
-
-Easy to find the admin config for any collection.
-
-### 3. Scalable
-
-As your project grows, add more files:
-
-```
-server/collections/
-├── posts.ts
-├── users.ts
-├── orders.ts        # New collection
-├── products.ts      # New collection
-└── index.ts         # Re-exports all
-```
-
-### 4. Type Safety
-
-Types flow from server to admin:
-
-```typescript
-// server/cms.ts
-export type AppCMS = typeof cms;
-
-// admin/builder.ts
-export const builder = qa<AppCMS>().use(adminModule);
-// Now builder has autocomplete for all collections!
-```
+| Directory | Responsibility | Defines |
+|---|---|---|
+| `questpie/server/` | **WHAT** — contracts and behavior | Schema, access, hooks, RPC, jobs |
+| `questpie/admin/` | **HOW** — rendering concerns | Branding, locale, custom renderers |
+| `routes/` | **Mounting** — HTTP wiring | Route handlers, no business logic |
 
 ## File Responsibilities
 
+### `server/builder.ts`
+
+Creates the shared builder with server modules. Every collection and global imports from here:
+
+```ts
+import { adminModule } from "@questpie/admin/server";
+import { q } from "questpie";
+
+export const qb = q.use(adminModule);
+```
+
+If you have custom modules, compose them here:
+
+```ts
+export const qb = q.use(adminModule).use(myCustomModule);
+```
+
 ### `server/cms.ts`
 
-Main CMS instance. Imports and combines everything:
+The composition root. This file:
+1. Registers all collections and globals
+2. Configures sidebar, dashboard, branding
+3. Sets up auth, locale, jobs, messages
+4. Calls `.build()` with runtime config
+5. Exports `AppCMS` type for the client
 
-```typescript
-import { q } from "questpie";
-import { adminModule } from "@questpie/admin/server";
-import * as collections from "./collections";
-import * as globals from "./globals";
-import * as jobs from "./jobs";
-
-export const cms = q({ name: "my-cms" })
-  .use(adminModule)
-  .collections(collections)
-  .globals(globals)
-  .jobs(jobs)
-  .build({ db: { url: process.env.DATABASE_URL } });
+```ts
+export const cms = q({ name: "my-app" })
+  .use(baseInstance)  // or .use(adminModule) + individual configs
+  .collections({ ... })
+  .globals({ ... })
+  .sidebar(...)
+  .dashboard(...)
+  .build({ db: { url: ... }, app: { url: ... } });
 
 export type AppCMS = typeof cms;
 ```
 
-### `server/collections/index.ts`
+### `server/rpc.ts`
 
-Re-exports all collections:
+Keep the `rpc()` root separate. Functions import it to define typed procedures:
 
-```typescript
-export { posts } from "./posts";
-export { users } from "./users";
-export { orders } from "./orders";
+```ts
+import { rpc } from "questpie";
+export const r = rpc();
 ```
 
-### `admin/builder.ts`
+### `server/functions/`
 
-Shared builder with type context:
+Each file exports RPC functions. They import `r` from `rpc.ts`:
 
-```typescript
-import { qa, adminModule } from "@questpie/admin/client";
-import type { AppCMS } from "../server/cms";
+```ts
+import { r } from "../rpc";
+import z from "zod";
 
-export const builder = qa<AppCMS>().use(adminModule);
+export const getActiveBarbers = r.fn({
+  schema: z.object({}),
+  handler: async ({ app }) => {
+    return app.api.collections.barbers.find({ where: { isActive: true } });
+  },
+});
+```
+
+### `server/collections/`
+
+One file per collection. Each file exports a single collection builder:
+
+```ts
+import { qb } from "../builder";
+
+export const barbers = qb
+  .collection("barbers")
+  .fields(...)
+  .admin(...)
+  .list(...)
+  .form(...);
 ```
 
 ### `admin/admin.ts`
 
-Main admin config. Imports and combines everything:
+The client-side builder. It only handles registries and rendering concerns:
 
-```typescript
-import { qa, adminModule } from "@questpie/admin/client";
-import * as collections from "./collections";
-import * as globals from "./globals";
-import blocks from "./blocks";
-import { sidebarConfig } from "./sidebar";
-import { dashboard } from "./dashboard";
+```ts
+import { adminModule, qa } from "@questpie/admin/client";
+import type { AppCMS } from "../server/cms";
 
-export const admin = qa()
-  .use(adminModule)
-  .collections(collections)
-  .globals(globals)
-  .blocks(blocks)
-  .sidebar(sidebarConfig)
-  .dashboard(dashboard);
+export const admin = qa<AppCMS>()
+  .use(adminModule);
 ```
 
-### `admin/collections/index.ts`
+### `routes/api/cms.ts`
 
-Re-exports all collection configs:
+Thin route handler. No business logic here:
 
-```typescript
-export { postsAdmin as posts } from "./posts";
-export { usersAdmin as users } from "./users";
+```ts
+import { createFetchHandler } from "questpie";
+import { cms, appRpc } from "@/questpie/server/cms";
+
+export const handler = createFetchHandler(cms, {
+  basePath: "/api/cms",
+  rpc: appRpc,
+});
 ```
 
-## Alternative Structures
+## Scaling Patterns
 
-### Flat Structure (Small Projects)
+### Large Collection Files
 
-For small projects, you can use a flatter structure:
+If a collection definition gets long (100+ lines), extract helper functions into the same file rather than splitting the definition across files:
 
-```
-src/
-├── cms/
-│   ├── server.ts       # All backend in one file
-│   └── admin.ts        # All admin in one file
-├── routes/
-└── lib/
-```
+```ts
+// collections/barbers.ts
+function dayScheduleFields(f: FieldBuilder) {
+  return {
+    isOpen: f.boolean({ ... }),
+    start: f.time({ ... }),
+    end: f.time({ ... }),
+  };
+}
 
-### Feature-Based (Large Projects)
-
-For large projects, organize by feature:
-
-```
-src/
-├── features/
-│   ├── blog/
-│   │   ├── server/
-│   │   │   ├── posts.ts
-│   │   │   └── categories.ts
-│   │   └── admin/
-│   │       ├── posts.ts
-│   │       └── categories.ts
-│   │
-│   ├── ecommerce/
-│   │   ├── server/
-│   │   │   ├── products.ts
-│   │   │   └── orders.ts
-│   │   └── admin/
-│   │       ├── products.ts
-│   │       └── orders.ts
-│   │
-│   └── ...
-│
-├── questpie/
-│   ├── server/cms.ts    # Combines all features
-│   └── admin/admin.ts   # Combines all features
+export const barbers = qb
+  .collection("barbers")
+  .fields((f) => ({
+    name: f.text({ ... }),
+    workingHours: f.object({
+      fields: () => ({
+        monday: f.object({ fields: dayScheduleFields }),
+        tuesday: f.object({ fields: dayScheduleFields }),
+        // ...
+      }),
+    }),
+  }));
 ```
 
-## Import Aliases
+### Shared Field Patterns
 
-Use path aliases for cleaner imports:
+For field patterns used across multiple collections (e.g., SEO fields, slug fields), create utility functions:
 
-```json
-// tsconfig.json
-{
-  "compilerOptions": {
-    "paths": {
-      "@/*": ["./src/*"],
-      "@/questpie/*": ["./src/questpie/*"]
-    }
-  }
+```ts
+// server/utils/fields.ts
+export function seoFields(f: FieldBuilder) {
+  return {
+    metaTitle: f.text({ label: { en: "Meta Title" }, maxLength: 255, localized: true }),
+    metaDescription: f.textarea({ label: { en: "Meta Description" }, localized: true }),
+  };
 }
 ```
 
-Then import:
+### Module Composition
 
-```typescript
-import { cms } from "@/questpie/server/cms";
-import { admin } from "@/questpie/admin/admin";
+For reusable feature bundles, use the `.use()` pattern:
+
+```ts
+// modules/blog-module.ts
+export const blogModule = q({ name: "blog" })
+  .collections({ posts, categories, tags })
+  .sidebar(...)
+  .dashboard(...);
 ```
 
-## Related
+Then compose in your main builder:
 
-- [Backend](/docs/backend) - Learn the q() builder
-- [Admin UI](/docs/admin) - Configure the admin interface
-- [Example](/docs/examples/barbershop) - See a real project structure
+```ts
+export const cms = q({ name: "my-app" })
+  .use(adminModule)
+  .use(blogModule)
+  .build({ ... });
+```
+
+## Anti-Patterns
+
+- **Putting schema rules in client code** — Field validation, access control, and hooks belong on the server. The client should only define how things render.
+- **Splitting a collection across files** — Keep the entire `.collection().fields().admin().list().form()` chain in one file. It's the single source of truth for that entity.
+- **Business logic in route handlers** — Route files should only mount handlers. Business logic goes in RPC functions, hooks, or jobs.
+- **Hardcoding view components** — Use the registry pattern for custom views. Hardcoded component references break the introspection contract.
+
+## Related Pages
+
+- [Quickstart](/docs/getting-started/quickstart) — Build your first CMS
+- [Collections](/docs/server/collections) — Full collection builder API
+- [Modules & Extensions](/docs/server/modules-and-extensions) — Reusable builder composition
+- [Mentality](/docs/mentality) — Architecture principles behind this structure

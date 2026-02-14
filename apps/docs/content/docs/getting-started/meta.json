@@ -1,4 +1,10 @@
 {
 	"title": "Getting Started",
-	"pages": ["index", "installation", "your-first-cms", "project-structure"]
+	"pages": [
+		"index",
+		"installation",
+		"quickstart",
+		"your-first-cms",
+		"project-structure"
+	]
 }

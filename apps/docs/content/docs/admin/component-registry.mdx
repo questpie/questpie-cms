@@ -1,0 +1,107 @@
+---
+title: Component Registry
+description: Resolve serializable component references from server payloads
+---
+
+# Component Registry
+
+The server emits component references as serializable JSON objects (`{ type: "icon", props: { name: "ph:users" } }`). The component registry maps the `type` string to a concrete React component on the client. This keeps the server/client boundary clean — no React elements in JSON payloads.
+
+## Why This Exists
+
+Server-defined config (sidebar items, dashboard widgets, collection metadata) often needs visual elements like icons or badges. Instead of passing React components through JSON (impossible), the server sends a reference object, and the client resolves it.
+
+## How It Works
+
+```text
+Server config:
+  { icon: { type: "icon", props: { name: "ph:scissors" } } }
+
+Client resolution:
+  registry["icon"] → IconifyIcon component
+  → <IconifyIcon name="ph:scissors" />
+```
+
+## Built-In Components
+
+| Type | Component | Usage |
+|---|---|---|
+| `icon` | `IconifyIcon` | Renders Iconify icons (Phosphor set default: `ph:*`) |
+| `badge` | `Badge` | Renders status badges with color and label |
+
+## Component Reference Format
+
+```ts
+interface ComponentReference {
+  type: string;           // Registry key
+  props?: Record<string, any>;  // Props passed to the component
+}
+```
+
+### Icon References
+
+```ts
+// Sidebar item with icon
+{ icon: { type: "icon", props: { name: "ph:users" } } }
+
+// Collection metadata
+.admin({
+  icon: { type: "icon", props: { name: "ph:scissors-bold" } },
+  label: "Barbers",
+})
+```
+
+### Badge References
+
+```ts
+// Status badge
+{ type: "badge", props: { label: "Active", variant: "success" } }
+```
+
+## Custom Components
+
+Register custom components for server-driven UI:
+
+```ts
+const admin = qa<AppCMS>()
+  .use(coreAdminModule)
+  .components({
+    statusDot: StatusDotComponent,
+    userAvatar: UserAvatarComponent,
+    mapPreview: MapPreviewComponent,
+  });
+```
+
+Then reference them in server config:
+
+```ts
+// On the server
+.admin({
+  icon: { type: "statusDot", props: { status: "active", color: "green" } },
+})
+```
+
+## Resolution in JSX
+
+The admin uses `resolveIconElement` and `ComponentRenderer` to resolve references:
+
+```tsx
+import { ComponentRenderer } from "@questpie/admin/client";
+
+// In your custom view
+function MyView({ iconRef }) {
+  return <ComponentRenderer reference={iconRef} />;
+}
+```
+
+## Common Mistakes
+
+- **Putting React elements in server config** — Server config must be JSON-serializable. Use component references (`{ type, props }`) instead of JSX.
+- **Unregistered component type** — If the server references a type not in the registry, nothing renders. Register all custom types.
+- **Complex props in references** — Keep props simple and serializable. No functions, no class instances.
+
+## Related Pages
+
+- [Client Builder (qa)](/docs/admin/client-builder-qa) — Where components are registered
+- [Registries Overview](/docs/admin/registries-overview) — All four registries
+- [Dashboard, Sidebar & Branding](/docs/admin/dashboard-sidebar-branding) — Where icon refs are commonly used

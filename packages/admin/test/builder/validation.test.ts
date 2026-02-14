@@ -4,13 +4,19 @@
  * Tests for createZod, buildValidationSchema, and nested field validation.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { z } from "zod";
-import {
-  buildValidationSchema,
-  createFormSchema,
-} from "#questpie/admin/client/builder/validation";
 import { builtInFields } from "#questpie/admin/client/builder/defaults/fields";
+import {
+  buildValidationSchema as buildValidationSchemaBase,
+  createFormSchema as createFormSchemaBase,
+} from "#questpie/admin/client/builder/validation";
+
+const buildValidationSchema = (fields: Record<string, any>) =>
+  buildValidationSchemaBase(fields, builtInFields);
+
+const createFormSchema = (fields: Record<string, any>) =>
+  createFormSchemaBase(fields, builtInFields);
 
 describe("buildValidationSchema", () => {
   describe("simple fields", () => {
@@ -99,7 +105,7 @@ describe("buildValidationSchema", () => {
 
     it("should generate schema for boolean field", () => {
       const fields = {
-        active: builtInFields.switch.$options({ required: true }),
+        active: builtInFields.boolean.$options({ required: true }),
       };
 
       const schema = buildValidationSchema(fields);
@@ -451,9 +457,9 @@ describe("buildValidationSchema", () => {
 
     it("should generate schema for multiple uploads", () => {
       const fields = {
-        gallery: builtInFields.uploadMany.$options({
+        gallery: builtInFields.upload.$options({
           required: true,
-          maxItems: 10,
+          multiple: true,
         }),
       };
 
@@ -600,7 +606,7 @@ describe("buildValidationSchema", () => {
 
     it("should handle working hours configuration", () => {
       const daySchedule = ({ r }: any) => ({
-        isOpen: r.switch({ required: true }),
+        isOpen: r.boolean({ required: true }),
         openTime: r.text(),
         closeTime: r.text(),
         breaks: r.array({

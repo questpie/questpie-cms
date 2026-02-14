@@ -14,6 +14,7 @@ import { useResolveText } from "../../../i18n/hooks";
 import type { I18nText } from "../../../i18n/types";
 import type {
 	CollectionFieldsConfig,
+	IconType,
 	RelationDisplayFields,
 	RelationDisplayMode,
 	RelationDisplayProps,
@@ -42,9 +43,9 @@ export interface RelationItemsDisplayProps {
 	collection: string;
 
 	/**
-	 * Collection icon component
+	 * Collection icon (React component or server ComponentReference)
 	 */
-	collectionIcon?: React.ComponentType<{ className?: string }>;
+	collectionIcon?: IconType;
 
 	/**
 	 * Action handlers

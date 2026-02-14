@@ -18,7 +18,7 @@ import {
 	useSensors,
 } from "@dnd-kit/core";
 import { sortableKeyboardCoordinates } from "@dnd-kit/sortable";
-import { DotsSixVertical } from "@phosphor-icons/react";
+import { Icon } from "@iconify/react";
 import * as React from "react";
 import { useBlockEditor } from "./block-editor-context.js";
 import { BlockInsertButton } from "./block-insert-button.js";
@@ -127,7 +127,10 @@ export function BlockCanvas() {
 				<DragOverlay>
 					{activeBlock && (
 						<div className="flex items-center gap-2 rounded-md border bg-background p-2 shadow-lg">
-							<DotsSixVertical className="h-4 w-4 text-muted-foreground" />
+							<Icon
+								icon="ph:dots-six-vertical"
+								className="h-4 w-4 text-muted-foreground"
+							/>
 							<BlockTypeIcon
 								type={activeBlock.type}
 								className="text-muted-foreground"
@@ -152,14 +155,14 @@ export function BlockCanvas() {
 
 // Helper to get block label
 function getBlockLabel(
-	blockDef: { label?: unknown } | null | undefined,
+	blockDef: { admin?: { label?: unknown } } | null | undefined,
 	type: string,
 ): string {
-	if (!blockDef?.label) {
+	const label = blockDef?.admin?.label;
+
+	if (!label) {
 		return type.charAt(0).toUpperCase() + type.slice(1);
 	}
-
-	const label = blockDef.label;
 
 	if (typeof label === "string") return label;
 	if (typeof label === "object" && label !== null) {

@@ -1,0 +1,67 @@
+---
+title: Modules and Extensions
+description: Compose core QUESTPIE with package-level builder extensions
+---
+
+# Modules and Extensions
+
+QUESTPIE is designed so packages can extend builders cleanly.
+
+## Core principle
+
+`q` starts minimal. Modules extend behavior through `.use(...)`.
+
+## Example: `@questpie/admin/server`
+
+```ts
+import { q } from "questpie";
+import { adminModule } from "@questpie/admin/server";
+
+const cms = q({ name: "my-app" })
+  .use(adminModule)
+  .collections({
+    // your collections
+  })
+  .build({
+    db: { url: process.env.DATABASE_URL },
+  });
+```
+
+What the admin module adds:
+
+- server builder augmentation for admin configuration methods
+- admin-specific field registrations
+- default registry entries for list/edit views and components
+- admin runtime RPC functions
+
+## Composition pattern
+
+```ts
+const base = q({ name: "base" }).use(adminModule);
+
+export const cms = q({ name: "product" })
+  .use(base)
+  .collections({
+    /* ... */
+  })
+  .globals({
+    /* ... */
+  })
+  .build({
+    /* ... */
+  });
+```
+
+## Extension design goals
+
+- no hardcoded assumptions in core runtime
+- contracts flow via builder state
+- type inference survives composition across packages
+
+## For package authors
+
+If you are creating your own extension package, follow the same pattern:
+
+1. define a reusable builder module
+2. register fields/views/components through builder state
+3. expose typed composition through `.use(yourModule)`

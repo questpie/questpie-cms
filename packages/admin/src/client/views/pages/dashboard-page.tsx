@@ -6,8 +6,9 @@
  */
 
 import * as React from "react";
+import type { DashboardConfig } from "../../builder";
+import { useAdminConfig } from "../../hooks/use-admin-config";
 import {
-  selectAdmin,
   selectBasePath,
   selectNavigate,
   useAdminStore,
@@ -54,11 +55,11 @@ export function DashboardPage({
   description,
   className,
 }: DashboardPageProps) {
-  const admin = useAdminStore(selectAdmin);
   const basePath = useAdminStore(selectBasePath);
   const navigate = useAdminStore(selectNavigate);
+  const { data: serverConfig } = useAdminConfig();
 
-  const dashboardConfig = admin.getDashboard();
+  const dashboardConfig = (serverConfig?.dashboard ?? {}) as DashboardConfig;
 
   // Merge props with config
   const config = {

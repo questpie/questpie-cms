@@ -1,0 +1,162 @@
+---
+title: Logger
+description: Structured logging with Pino, log levels, and custom adapters
+---
+
+# Logger
+
+QUESTPIE includes a structured logger built on [Pino](https://getpino.io/). It provides leveled logging, pretty-printed development output, key redaction, and child loggers for scoped context.
+
+## Why This Exists
+
+Structured logging is essential for debugging and monitoring. The logger service gives you consistent, leveled output across all CMS operations — CRUD, hooks, jobs, search indexing — with a pluggable adapter interface for custom transports.
+
+## Setup
+
+### Default (Pino)
+
+Works out of the box with sensible defaults:
+
+```ts
+.build({
+  // logger not specified → Pino with level "info"
+  // pretty-prints automatically when NODE_ENV=development
+})
+```
+
+### Custom Configuration
+
+```ts
+.build({
+  // ...
+  logger: {
+    level: "debug",
+    pretty: true,
+    redact: ["req.headers.authorization", "password"],
+  },
+})
+```
+
+### Custom Adapter
+
+Replace Pino with any logger that implements `LoggerAdapter`:
+
+```ts
+import { createWinstonAdapter } from "./my-winston-adapter";
+
+.build({
+  // ...
+  logger: {
+    adapter: createWinstonAdapter({ /* ... */ }),
+  },
+})
+```
+
+## Usage
+
+The logger is available on the CMS instance as `cms.logger`:
+
+```ts
+cms.logger.debug("Processing batch", { batchSize: 100 });
+cms.logger.info("Record created", { collection: "posts", id: record.id });
+cms.logger.warn("Slow query detected", { duration: 2500 });
+cms.logger.error("Failed to send email", error);
+```
+
+### Child Loggers
+
+Create scoped loggers that automatically include context in every message:
+
+```ts
+const jobLogger = cms.logger.child({ module: "queue", jobName: "sendEmail" });
+
+jobLogger.info("Job started");       // { module: "queue", jobName: "sendEmail", msg: "Job started" }
+jobLogger.info("Job completed");     // { module: "queue", jobName: "sendEmail", msg: "Job completed" }
+```
+
+### In Hooks and RPC
+
+```ts
+import { getApp } from "questpie";
+
+.hooks({
+  afterChange: async ({ app, data, operation }) => {
+    const cms = getApp(app);
+    cms.logger.info("Record changed", {
+      collection: "appointments",
+      operation,
+      id: data.id,
+    });
+  },
+})
+```
+
+## Configuration
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `adapter` | `LoggerAdapter` | `PinoLoggerAdapter` | Logger backend |
+| `level` | `string` | `"info"` | Minimum log level: `debug`, `info`, `warn`, `error` |
+| `pretty` | `boolean` | `true` in development | Enable colorized, human-readable output |
+| `redact` | `string[]` | — | Dot-notation paths to redact from log output |
+
+## LoggerAdapter Interface
+
+```ts
+interface LoggerAdapter {
+  debug(msg: string, ...args: any[]): void;
+  info(msg: string, ...args: any[]): void;
+  warn(msg: string, ...args: any[]): void;
+  error(msg: string, ...args: any[]): void;
+  child(bindings: Record<string, any>): LoggerAdapter;
+}
+```
+
+Implement this interface to integrate with Winston, Bunyan, or any logging library.
+
+## Internal Usage
+
+The CMS uses the logger internally for:
+
+- **Search initialization** — Logs errors if the search adapter fails to start
+- **Queue processing** — Passes the logger to the queue client for job execution logging
+- **Error handling** — Logs unhandled errors in CRUD operations
+
+```ts
+// Internal: search adapter initialization
+this.search.initialize().catch((err) => {
+  this.logger.error("[CMS] Failed to initialize search adapter:", err);
+});
+```
+
+## Testing
+
+Use a mock logger in tests to capture and assert on log output:
+
+```ts
+import { MockLogger } from "questpie/test-utils";
+
+const mockLogger = new MockLogger();
+
+const cms = questpie(builder).build({
+  // ...
+  logger: { adapter: mockLogger },
+});
+
+// After running operations...
+expect(mockLogger.wasLogged("info", "Record created")).toBe(true);
+expect(mockLogger.hasErrors()).toBe(false);
+expect(mockLogger.getLogsByLevel("warn")).toHaveLength(0);
+```
+
+## Common Mistakes
+
+- **Logging sensitive data** — Use the `redact` option to strip passwords, tokens, and API keys from logs.
+- **Using `debug` level in production** — Debug logs are verbose. Use `info` or `warn` in production for manageable log volume.
+- **Not using child loggers** — Child loggers add automatic context (module, request ID) that makes log searching much easier.
+
+## Related Pages
+
+- [Infrastructure Overview](/docs/infrastructure) — All integrated services
+- [Queue & Jobs](/docs/infrastructure/queue-and-jobs) — Job execution logging
+- [Context & Transactions](/docs/server/context-and-transactions) — Request context flows

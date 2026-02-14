@@ -28,132 +28,314 @@ import {
 } from "drizzle-orm/pg-core";
 import type {
 	CollectionBuilderIndexesFn,
-	CollectionBuilderRelationFn,
 	CollectionBuilderState,
-	CollectionBuilderTitleFn,
-	CollectionBuilderVirtualsFn,
 	I18nFieldAccessor,
 	InferI18nTableWithColumns,
 	InferI18nVersionedTableWithColumns,
+	InferMainTableWithColumns,
 	InferSQLType,
 	InferTableWithColumns,
 	InferVersionedTableWithColumns,
-	LocalizedFields,
 	LocalizedTableName,
-	NonLocalizedFields,
-	RelationVariant,
+	RelationConfig,
+	RelationType,
 	TitleExpression,
 } from "#questpie/server/collection/builder/types.js";
 import { createCollectionValidationSchemas } from "#questpie/server/collection/builder/validation-helpers.js";
 import { CRUDGenerator } from "#questpie/server/collection/crud/index.js";
 import type { CRUD } from "#questpie/server/collection/crud/types.js";
+import type { FieldSelect } from "#questpie/server/fields/field-types.js";
 import { DEFAULT_LOCALE } from "#questpie/shared/constants.js";
 import type { Prettify } from "#questpie/shared/type-utils.js";
 
-// ... (Infer types skipped for brevity if not changing) ...
+// Re-export for convenience
+export type { CollectionBuilder } from "./collection-builder.js";
+
+// ============================================================================
+// Legacy Helper Types (for fields/localized arrays)
+// ============================================================================
+
 /**
- * Infer select type from Collection
- * Combines: Drizzle table $inferSelect + virtual fields + _title + localized fields + output extensions
+ * Extract non-localized fields from the fields record
+ */
+type NonLocalizedFields<
+	TFields extends Record<string, any>,
+	TLocalized extends ReadonlyArray<keyof TFields>,
+> = {
+	[K in keyof TFields as K extends TLocalized[number] ? never : K]: TFields[K];
+};
+
+/**
+ * Extract localized fields from the fields record
+ */
+type LocalizedFields<
+	TFields extends Record<string, any>,
+	TLocalized extends ReadonlyArray<keyof TFields>,
+> = {
+	[K in keyof TFields as K extends TLocalized[number] ? K : never]: TFields[K];
+};
+
+// ============================================================================
+// TState-based Type Inference (using fieldDefinitions)
+// ============================================================================
+
+import type {
+	ExtractI18nFields,
+	ExtractMainFields,
+	ExtractVirtualFields,
+	FieldDefinition,
+	FieldDefinitionState,
+} from "#questpie/server/fields/types.js";
+
+/**
+ * Extract input types from field definitions.
+ * Maps each field to its input type from $types.input.
+ */
+type ExtractInputTypes<
+	TFieldDefs extends Record<string, FieldDefinition<FieldDefinitionState>>,
+> = {
+	[K in keyof TFieldDefs]: TFieldDefs[K] extends FieldDefinition<infer TState>
+		? TState extends FieldDefinitionState
+			? TState["input"]
+			: never
+		: never;
+};
+
+type FieldInput<T> =
+	T extends FieldDefinition<infer TState>
+		? TState extends FieldDefinitionState
+			? TState["input"]
+			: never
+		: never;
+
+type RequiredInputKeys<
+	TFieldDefs extends Record<string, FieldDefinition<FieldDefinitionState>>,
+> = {
+	[K in keyof TFieldDefs]: FieldInput<TFieldDefs[K]> extends never
+		? never
+		: undefined extends FieldInput<TFieldDefs[K]>
+			? never
+			: K;
+}[keyof TFieldDefs];
+
+type OptionalInputKeys<
+	TFieldDefs extends Record<string, FieldDefinition<FieldDefinitionState>>,
+> = {
+	[K in keyof TFieldDefs]: FieldInput<TFieldDefs[K]> extends never
+		? never
+		: undefined extends FieldInput<TFieldDefs[K]>
+			? K
+			: never;
+}[keyof TFieldDefs];
+
+/**
+ * Extract input object type from field definitions, using optional properties
+ * when the field input type includes `undefined`.
+ */
+type ExtractInputObject<
+	TFieldDefs extends Record<string, FieldDefinition<FieldDefinitionState>>,
+> = Prettify<
+	{
+		[K in RequiredInputKeys<TFieldDefs>]: FieldInput<TFieldDefs[K]>;
+	} & {
+		[K in OptionalInputKeys<TFieldDefs>]?: Exclude<
+			FieldInput<TFieldDefs[K]>,
+			undefined
+		>;
+	}
+>;
+
+/**
+ * Extract output types from field definitions.
+ * Maps each field to its output type from $types.output.
+ * For object/array/upload/relation fields, dispatches through FieldSelect to resolve nested/narrowed types.
+ * Relation fields especially need FieldSelect because their TValue is a broad union (string | string[] | { type, id } | null)
+ * but FieldSelect narrows based on actual config (belongsTo -> string, multiple -> string[], etc.)
+ */
+type ExtractOutputTypes<
+	TFieldDefs extends Record<string, FieldDefinition<FieldDefinitionState>>,
+> = {
+	[K in keyof TFieldDefs]: TFieldDefs[K] extends FieldDefinition<infer TState>
+		? TState extends FieldDefinitionState
+			? TState["type"] extends "object" | "array" | "upload" | "relation"
+				? FieldSelect<TFieldDefs[K]>
+				: TState["output"]
+			: never
+		: never;
+};
+
+/**
+ * Infer select type from Collection using TState-based fieldDefinitions.
+ * Combines: Drizzle main table select + virtual fields output types + _title + i18n fields output types
  */
 type InferCollectionSelect<
+	TMainTable extends PgTable,
+	TFieldDefs extends Record<string, FieldDefinition<FieldDefinitionState>>,
+	TTitle extends TitleExpression | undefined,
+> = Prettify<
+	InferSelectModel<TMainTable> &
+		ExtractOutputTypes<ExtractMainFields<TFieldDefs>> &
+		ExtractOutputTypes<ExtractVirtualFields<TFieldDefs>> &
+		ExtractOutputTypes<ExtractI18nFields<TFieldDefs>> & {
+			_title: string;
+		} & (TTitle extends string ? {} : Record<never, never>)
+>;
+
+/**
+ * Infer insert type from Collection using TState-based fieldDefinitions.
+ * Uses Drizzle's $inferInsert for main fields + input types for i18n fields.
+ */
+type InferCollectionInsert<
+	TMainTable extends PgTable,
+	TFieldDefs extends Record<string, FieldDefinition<FieldDefinitionState>>,
+> = Prettify<
+	Omit<InferInsertModel<TMainTable>, keyof ExtractMainFields<TFieldDefs>> &
+		ExtractInputObject<ExtractMainFields<TFieldDefs>> &
+		Partial<ExtractInputObject<ExtractI18nFields<TFieldDefs>>>
+>;
+
+/**
+ * Infer update type from Collection using TState-based fieldDefinitions.
+ * Partial of insert type.
+ */
+type InferCollectionUpdate<
+	TMainTable extends PgTable,
+	TFieldDefs extends Record<string, FieldDefinition<FieldDefinitionState>>,
+> = Prettify<Partial<InferCollectionInsert<TMainTable, TFieldDefs>>>;
+
+/**
+ * Legacy select type for raw Drizzle columns (fieldDefinitions is undefined).
+ */
+type InferLegacySelect<
 	TTable extends PgTable,
 	TFields extends Record<string, any>,
 	TLocalized extends ReadonlyArray<keyof TFields>,
 	TVirtuals extends Record<string, SQL> | undefined,
 	TTitle extends TitleExpression | undefined,
-	TOutput extends Record<string, any> | undefined = undefined,
-> = Prettify<
-	InferSelectModel<TTable> &
-		(TVirtuals extends Record<string, SQL>
-			? {
-					[K in keyof TVirtuals]: InferSQLType<TVirtuals[K]>;
-				}
-			: Record<never, never>) &
-		(TLocalized[number] extends never
-			? Record<never, never>
-			: {
-					[K in TLocalized[number]]: GetColumnData<TFields[K]>;
-				}) & { _title: string } & (TOutput extends Record<string, any> // Always include _title (fallback to id when no title defined)
-			? TOutput
-			: Record<never, never>)
->;
+> = InferSelectModel<TTable> &
+	(TVirtuals extends Record<string, SQL>
+		? { [K in keyof TVirtuals]: InferSQLType<TVirtuals[K]> }
+		: {}) & {
+		[K in TLocalized[number]]?: GetColumnData<TFields[K]>;
+	} & {
+		_title: string;
+	} & (TTitle extends string ? {} : Record<never, never>);
 
 /**
- * Infer insert type from Collection
- * Uses Drizzle's $inferInsert + adds localized fields
+ * Legacy insert type for raw Drizzle columns (fieldDefinitions is undefined).
  */
-type InferCollectionInsert<
+type InferLegacyInsert<
 	TTable extends PgTable,
 	TFields extends Record<string, any>,
 	TLocalized extends ReadonlyArray<keyof TFields>,
-> = Prettify<
-	InferInsertModel<TTable> &
-		(TLocalized[number] extends never
-			? Record<never, never>
-			: {
-					// Localized fields are optional on insert (default locale)
-					[K in TLocalized[number]]?: GetColumnData<TFields[K]>;
-				})
->;
+> = InferInsertModel<TTable> & {
+	[K in TLocalized[number]]?: GetColumnData<TFields[K]>;
+};
 
 /**
- * Infer update type from Collection
- * Partial of $inferInsert + localized fields
+ * Legacy update type for raw Drizzle columns (fieldDefinitions is undefined).
  */
-type InferCollectionUpdate<
+type InferLegacyUpdate<
 	TTable extends PgTable,
 	TFields extends Record<string, any>,
 	TLocalized extends ReadonlyArray<keyof TFields>,
-> = Prettify<
-	Partial<InferInsertModel<TTable>> &
-		(TLocalized[number] extends never
-			? Record<never, never>
-			: {
-					[K in TLocalized[number]]?: GetColumnData<TFields[K]>;
-				})
->;
+> = Partial<InferInsertModel<TTable>> & {
+	[K in TLocalized[number]]?: GetColumnData<TFields[K]>;
+};
 
-// Re-export for convenience
-export type { CollectionBuilder } from "./collection-builder.js";
+/**
+ * CollectionSelect - works with both field builder and raw Drizzle columns.
+ */
+/** Extract output type extensions (for example, .upload() adds url) from state */
+type OutputExtensions<TState extends CollectionBuilderState> =
+	TState["output"] extends Record<string, any> ? TState["output"] : {};
 
 export type CollectionSelect<TState extends CollectionBuilderState> =
-	InferCollectionSelect<
-		InferTableWithColumns<
-			TState["name"],
-			NonLocalizedFields<TState["fields"], TState["localized"]>,
-			TState["title"],
-			TState["options"]
-		>,
-		TState["fields"],
-		TState["localized"],
-		TState["virtuals"],
-		TState["title"],
-		TState["output"]
-	>;
+	TState["fieldDefinitions"] extends Record<
+		string,
+		FieldDefinition<FieldDefinitionState>
+	>
+		? Prettify<
+				InferCollectionSelect<
+					InferMainTableWithColumns<
+						TState["name"],
+						TState["fieldDefinitions"],
+						TState["options"],
+						TState["upload"]
+					>,
+					TState["fieldDefinitions"],
+					TState["title"]
+				> &
+					OutputExtensions<TState>
+			>
+		: InferLegacySelect<
+				InferTableWithColumns<
+					TState["name"],
+					NonLocalizedFields<TState["fields"], TState["localized"]>,
+					TState["title"],
+					TState["options"]
+				>,
+				TState["fields"],
+				TState["localized"],
+				TState["virtuals"],
+				TState["title"]
+			>;
 
+/**
+ * CollectionInsert - works with both field builder and raw Drizzle columns.
+ */
 export type CollectionInsert<TState extends CollectionBuilderState> =
-	InferCollectionInsert<
-		InferTableWithColumns<
-			TState["name"],
-			NonLocalizedFields<TState["fields"], TState["localized"]>,
-			TState["title"],
-			TState["options"]
-		>,
-		TState["fields"],
-		TState["localized"]
-	>;
+	TState["fieldDefinitions"] extends Record<
+		string,
+		FieldDefinition<FieldDefinitionState>
+	>
+		? InferCollectionInsert<
+				InferMainTableWithColumns<
+					TState["name"],
+					TState["fieldDefinitions"],
+					TState["options"],
+					TState["upload"]
+				>,
+				TState["fieldDefinitions"]
+			>
+		: InferLegacyInsert<
+				InferTableWithColumns<
+					TState["name"],
+					NonLocalizedFields<TState["fields"], TState["localized"]>,
+					TState["title"],
+					TState["options"]
+				>,
+				TState["fields"],
+				TState["localized"]
+			>;
 
+/**
+ * CollectionUpdate - works with both field builder and raw Drizzle columns.
+ */
 export type CollectionUpdate<TState extends CollectionBuilderState> =
-	InferCollectionUpdate<
-		InferTableWithColumns<
-			TState["name"],
-			NonLocalizedFields<TState["fields"], TState["localized"]>,
-			TState["title"],
-			TState["options"]
-		>,
-		TState["fields"],
-		TState["localized"]
-	>;
+	TState["fieldDefinitions"] extends Record<
+		string,
+		FieldDefinition<FieldDefinitionState>
+	>
+		? InferCollectionUpdate<
+				InferMainTableWithColumns<
+					TState["name"],
+					TState["fieldDefinitions"],
+					TState["options"],
+					TState["upload"]
+				>,
+				TState["fieldDefinitions"]
+			>
+		: InferLegacyUpdate<
+				InferTableWithColumns<
+					TState["name"],
+					NonLocalizedFields<TState["fields"], TState["localized"]>,
+					TState["title"],
+					TState["options"]
+				>,
+				TState["fields"],
+				TState["localized"]
+			>;
 
 /**
  * Default ID column factory - creates a text column with gen_random_uuid() default
@@ -359,34 +541,57 @@ export class Collection<TState extends CollectionBuilderState> {
 	});
 
 	public readonly name: TState["name"];
-	public readonly table: InferTableWithColumns<
-		TState["name"],
-		NonLocalizedFields<TState["fields"], TState["localized"]>,
-		TState["title"],
-		TState["options"]
-	>;
-	public readonly i18nTable: TState["localized"][number] extends never
-		? null
-		: InferI18nTableWithColumns<
-				LocalizedTableName<TState["name"]>,
-				LocalizedFields<TState["fields"], TState["localized"]>,
-				TState["title"]
-			>;
-	public readonly versionsTable: TState["options"]["versioning"] extends true
-		? InferVersionedTableWithColumns<
+	public readonly table: TState["fieldDefinitions"] extends Record<
+		string,
+		FieldDefinition<FieldDefinitionState>
+	>
+		? InferMainTableWithColumns<
+				TState["name"],
+				TState["fieldDefinitions"],
+				TState["options"],
+				TState["upload"]
+			>
+		: InferTableWithColumns<
 				TState["name"],
 				NonLocalizedFields<TState["fields"], TState["localized"]>,
-				TState["title"]
-			>
+				TState["title"],
+				TState["options"]
+			>;
+	public readonly i18nTable: TState["localized"][number] extends never
+		? null
+		: TState["fieldDefinitions"] extends Record<string, any>
+			? InferI18nTableWithColumns<TState["name"], TState["fieldDefinitions"]>
+			: InferI18nTableWithColumns<
+					TState["name"],
+					LocalizedFields<TState["fields"], TState["localized"]>
+				>;
+	public readonly versionsTable: TState["options"]["versioning"] extends true
+		? TState["fieldDefinitions"] extends Record<string, any>
+			? InferVersionedTableWithColumns<
+					TState["name"],
+					TState["fieldDefinitions"],
+					TState["title"]
+				>
+			: InferVersionedTableWithColumns<
+					TState["name"],
+					NonLocalizedFields<TState["fields"], TState["localized"]>,
+					TState["title"]
+				>
 		: null;
 	public readonly i18nVersionsTable: TState["localized"][number] extends never
 		? null
 		: TState["options"]["versioning"] extends true
-			? InferI18nVersionedTableWithColumns<
-					TState["name"],
-					LocalizedFields<TState["fields"], TState["localized"]>,
-					TState["title"]
-				>
+			? TState["fieldDefinitions"] extends Record<string, any>
+				? InferI18nVersionedTableWithColumns<
+						TState["name"],
+						TState["fieldDefinitions"],
+						TState["title"]
+					>
+				: InferI18nVersionedTableWithColumns<
+						TState["name"],
+						LocalizedFields<TState["fields"], TState["localized"]>,
+						TState["title"]
+					>
 			: null;
 
 	public readonly state: TState;
@@ -403,11 +608,6 @@ export class Collection<TState extends CollectionBuilderState> {
 
 	constructor(
 		state: TState,
-		private readonly virtualsFn?: CollectionBuilderVirtualsFn<
-			TState,
-			TState["virtuals"]
-		>,
-		private readonly relationsFn?: CollectionBuilderRelationFn<TState, any>,
 		readonly indexesFn?: CollectionBuilderIndexesFn<TState, TState["indexes"]>,
 	) {
 		this.state = state;
@@ -422,6 +622,8 @@ export class Collection<TState extends CollectionBuilderState> {
 		// Build the versions table
 		this.versionsTable = this.generateVersionsTable() as any;
 		this.i18nVersionsTable = this.generateI18nVersionsTable() as any;
+
+		// Relations are defined in fields() using f.relation() and merged into state.relations
 
 		// Auto-generate validation schemas if not explicitly provided
 		// This ensures .notNull() fields are validated before database insert
@@ -458,50 +660,17 @@ export class Collection<TState extends CollectionBuilderState> {
 				state.name,
 				mainFields,
 				localizedFields,
+				{
+					// Pass field definitions for relation field name normalization
+					// This allows users to use `author` instead of `authorId` in input
+					fieldDefinitions: state.fieldDefinitions as any,
+				},
 			) as any;
 		}
 
 		// Ensure virtuals is always initialized
 		if (!state.virtuals) {
 			state.virtuals = {} as TState["virtuals"];
-		}
-
-		// Execute virtual fields function now that we have the table
-		if (virtualsFn) {
-			const context = {
-				defaultLocale:
-					(this.state.options as any).defaultLocale || DEFAULT_LOCALE,
-			};
-			const i18nAccessor = this.createI18nAccessor(context);
-			state.virtuals = virtualsFn({
-				table: this.table,
-				i18n: i18nAccessor,
-				context,
-			}) as TState["virtuals"];
-		}
-
-		// Execute relations function
-		if (relationsFn) {
-			const context = {
-				defaultLocale:
-					(this.state.options as any).defaultLocale || DEFAULT_LOCALE,
-			};
-			const i18nAccessor = this.createI18nAccessor(context);
-
-			const helpers: RelationVariant = {
-				one: (collection, config) =>
-					({ type: "one", collection, ...config }) as any,
-				many: (collection, config) =>
-					({ type: "many", collection, ...config }) as any,
-				manyToMany: (collection, config) =>
-					({ type: "manyToMany", collection, ...config }) as any,
-			};
-
-			state.relations = this.relationsFn?.({
-				table: this.table as any,
-				i18n: i18nAccessor,
-				...helpers,
-			}) as TState["relations"];
 		}
 
 		// Type inference helper (empty runtime object, types only)
@@ -512,89 +681,44 @@ export class Collection<TState extends CollectionBuilderState> {
 	 * Get virtual fields with specific context
 	 * This allows regenerating virtual field SQL with runtime context
 	 */
-	public getVirtuals(context: any): TState["virtuals"] {
-		if (!this.virtualsFn)
-			return this.state.virtuals || ({} as TState["virtuals"]);
-		const i18nAccessor = this.createI18nAccessor(context);
-		return this.virtualsFn({
-			table: this.table,
-			i18n: i18nAccessor,
-			context,
-		});
+	public getVirtuals(_context: any): TState["virtuals"] {
+		return this.state.virtuals || ({} as TState["virtuals"]);
 	}
 
 	/**
 	 * Get virtual fields with aliased i18n tables for use in queries.
 	 * This creates COALESCE expressions using the aliased tables instead of subqueries.
 	 *
-	 * @param context - CRUD context
-	 * @param i18nCurrentTable - Aliased i18n table for current locale
-	 * @param i18nFallbackTable - Aliased i18n table for fallback locale (null if no fallback)
+	 * @param _context - CRUD context
+	 * @param _i18nCurrentTable - Aliased i18n table for current locale
+	 * @param _i18nFallbackTable - Aliased i18n table for fallback locale (null if no fallback)
 	 */
 	public getVirtualsWithAliases(
-		context: any,
-		i18nCurrentTable: any | null,
-		i18nFallbackTable: any | null,
+		_context: any,
+		_i18nCurrentTable: any | null,
+		_i18nFallbackTable: any | null,
 	): TState["virtuals"] {
-		if (!this.virtualsFn)
-			return this.state.virtuals || ({} as TState["virtuals"]);
-		const i18nAccessor = this.createI18nAccessorWithAliases(
-			i18nCurrentTable,
-			i18nFallbackTable,
-			context,
-		);
-		return this.virtualsFn({
-			table: this.table,
-			i18n: i18nAccessor,
-			context,
-		});
+		return this.state.virtuals || ({} as TState["virtuals"]);
 	}
 
-	public getVirtualsForVersions(context: any): TState["virtuals"] {
-		if (!this.virtualsFn || !this.versionsTable)
-			return this.state.virtuals || ({} as TState["virtuals"]);
-		const i18nAccessor = this.createI18nAccessorForVersions(
-			this.versionsTable,
-			this.i18nVersionsTable,
-			context,
-		);
-		// TODO: fix typing, plus we should have profix that maps parentId to id
-
-		return this.virtualsFn({
-			table: this.versionsTable as any,
-			i18n: i18nAccessor,
-			context,
-		});
+	public getVirtualsForVersions(_context: any): TState["virtuals"] {
+		return this.state.virtuals || ({} as TState["virtuals"]);
 	}
 
 	/**
 	 * Get virtual fields for versions with aliased i18n tables.
 	 * Creates COALESCE expressions using the aliased tables instead of subqueries.
 	 *
-	 * @param context - CRUD context
-	 * @param i18nVersionsCurrentTable - Aliased i18n versions table for current locale
-	 * @param i18nVersionsFallbackTable - Aliased i18n versions table for fallback locale
+	 * @param _context - CRUD context
+	 * @param _i18nVersionsCurrentTable - Aliased i18n versions table for current locale
+	 * @param _i18nVersionsFallbackTable - Aliased i18n versions table for fallback locale
 	 */
 	public getVirtualsForVersionsWithAliases(
-		context: any,
-		i18nVersionsCurrentTable: any | null,
-		i18nVersionsFallbackTable: any | null,
+		_context: any,
+		_i18nVersionsCurrentTable: any | null,
+		_i18nVersionsFallbackTable: any | null,
 	): TState["virtuals"] {
-		if (!this.virtualsFn || !this.versionsTable)
-			return this.state.virtuals || ({} as TState["virtuals"]);
-
-		// Create i18n accessor using aliased tables
-		const i18nAccessor = this.createI18nAccessorWithAliasesForVersions(
-			i18nVersionsCurrentTable,
-			i18nVersionsFallbackTable,
-			context,
-		);
-
-		return this.virtualsFn({
-			table: this.versionsTable as any,
-			i18n: i18nAccessor,
-			context,
-		});
+		return this.state.virtuals || ({} as TState["virtuals"]);
 	}
 
 	/**

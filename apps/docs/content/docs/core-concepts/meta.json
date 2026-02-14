@@ -1,5 +1,0 @@
-{
-	"title": "Core Concepts",
-	"defaultOpen": true,
-	"pages": ["index", "builder-pattern", "collections", "fields", "authentication"]
-}

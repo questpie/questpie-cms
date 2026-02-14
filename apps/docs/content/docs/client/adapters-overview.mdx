@@ -1,0 +1,152 @@
+---
+title: Adapters Overview
+description: How framework adapters connect QUESTPIE to Hono, Elysia, Next.js, and custom servers
+---
+
+# Adapters Overview
+
+QUESTPIE is framework-agnostic. An adapter translates HTTP requests from your web framework into QUESTPIE CRUD operations and routes. Each adapter wraps the core `createFetchHandler` with framework-specific routing and middleware.
+
+## Why Adapters
+
+QUESTPIE's core operates on standard `Request` → `Response` semantics. Adapters bridge the gap between this interface and your framework's routing model (Hono middleware, Elysia plugins, Next.js route handlers). This lets you use QUESTPIE with any framework that handles HTTP.
+
+## Architecture
+
+```text
+HTTP Request → Framework Router → Adapter → createFetchHandler → QUESTPIE CRUD → Response
+```
+
+All adapters share the same core:
+
+1. **`createFetchHandler(cms, config)`** — The universal request handler
+2. **`createAdapterRoutes(cms, config)`** — Granular route handlers for each endpoint
+3. **Framework wrapper** — Maps framework routing to the core handlers
+
+## Core Fetch Handler
+
+Every adapter is built on `createFetchHandler`:
+
+```ts
+import { createFetchHandler } from "questpie";
+
+const handler = createFetchHandler(cms, {
+  basePath: "/api/cms",
+  rpc: appRpc,
+});
+
+// handler: (request: Request) => Promise<Response | null>
+```
+
+### Adapter Configuration
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `basePath` | `string` | `"/cms"` | URL prefix for all CMS routes |
+| `rpc` | `RpcRouterTree` | — | RPC router for custom procedures |
+| `accessMode` | `string` | `"user"` | Default access mode for requests |
+| `getLocale` | `(req, cms) => string` | — | Extract locale from request |
+| `getSession` | `(req, cms) => Session` | — | Extract session from request |
+| `extendContext` | `(params) => object` | — | Add custom context to requests |
+
+## Available Routes
+
+The adapter exposes these HTTP endpoints:
+
+### Collections
+
+| Method | Path | Operation |
+|---|---|---|
+| GET | `/collections/:name` | Find many |
+| GET | `/collections/:name/count` | Count |
+| GET | `/collections/:name/:id` | Find one |
+| POST | `/collections/:name` | Create |
+| PATCH | `/collections/:name/:id` | Update |
+| DELETE | `/collections/:name/:id` | Delete |
+| PATCH | `/collections/:name/bulk` | Update many |
+| DELETE | `/collections/:name/bulk` | Delete many |
+| GET | `/collections/:name/meta` | Collection metadata |
+| GET | `/collections/:name/schema` | Introspection (admin) |
+
+### Globals
+
+| Method | Path | Operation |
+|---|---|---|
+| GET | `/globals/:name` | Get value |
+| PATCH | `/globals/:name` | Update |
+| GET | `/globals/:name/schema` | Introspection (admin) |
+
+### RPC
+
+| Method | Path | Operation |
+|---|---|---|
+| POST | `/rpc/:path...` | Root RPC procedure |
+| POST | `/collections/:name/rpc/:func` | Collection RPC |
+| POST | `/globals/:name/rpc/:func` | Global RPC |
+
+### Realtime
+
+| Method | Path | Operation |
+|---|---|---|
+| GET | `/realtime/:name` | Collection SSE stream |
+| GET | `/realtime/globals/:name` | Global SSE stream |
+
+### Search
+
+| Method | Path | Operation |
+|---|---|---|
+| POST | `/search` | Search across collections |
+| POST | `/search/reindex/:name` | Reindex a collection |
+
+### Files
+
+| Method | Path | Operation |
+|---|---|---|
+| POST | `/collections/:name/upload` | Upload file |
+| GET | `/collections/:name/files/:key` | Serve file |
+
+## Available Adapters
+
+| Package | Framework | Server | Client |
+|---|---|---|---|
+| `@questpie/hono` | Hono | `questpieHono()` | `createClientFromHono()` |
+| `@questpie/elysia` | Elysia | `questpieElysia()` | `createClientFromEden()` |
+| `@questpie/next` | Next.js | `questpieNextRouteHandlers()` | — (use `createClient()`) |
+
+See the individual adapter pages for framework-specific setup.
+
+## Custom Adapter
+
+For frameworks not listed above, use `createFetchHandler` directly:
+
+```ts
+import { createFetchHandler } from "questpie";
+
+const handler = createFetchHandler(cms, {
+  basePath: "/api/cms",
+  rpc: appRpc,
+});
+
+// Express example
+app.all("/api/cms/*", async (req, res) => {
+  const response = await handler(toWebRequest(req));
+  if (response) {
+    sendWebResponse(res, response);
+  } else {
+    res.status(404).end();
+  }
+});
+```
+
+## Common Mistakes
+
+- **Wrong `basePath`** — The client and server must use the same base path. If the server uses `/api/cms`, the client must too.
+- **Missing RPC registration** — If you define RPC procedures but don't pass them to the adapter config, they won't be routable.
+- **Not handling `null` response** — `createFetchHandler` returns `null` for unmatched routes. Handle this in your framework.
+
+## Related Pages
+
+- [Hono Adapter](/docs/client/hono-adapter) — Hono integration
+- [Elysia Adapter](/docs/client/elysia-adapter) — Elysia integration
+- [Next.js Adapter](/docs/client/nextjs-adapter) — Next.js integration
+- [TanStack Query](/docs/client/tanstack-query) — Client-side query integration

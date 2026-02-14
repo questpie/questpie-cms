@@ -1,0 +1,36 @@
+---
+title: Old RPC -> New RPC
+description: Migrate custom function layers to rpc().fn + router contracts
+---
+
+# Old RPC -> New RPC
+
+## New recommended pattern
+
+```ts
+import { rpc } from "questpie";
+import z from "zod";
+
+const r = rpc();
+
+export const getStats = r.fn({
+  schema: z.object({}),
+  handler: async ({ app }) => ({
+    total: (await app.api.collections.posts.find({ limit: 1 })).totalDocs,
+  }),
+});
+
+export const appRpc = r.router({ getStats });
+```
+
+Mount:
+
+```ts
+createFetchHandler(cms, { basePath: "/api/cms", rpc: appRpc });
+```
+
+## Migration checklist
+
+1. replace ad-hoc endpoint wiring with rpc contract
+2. add Zod schemas to all handlers
+3. keep business orchestration in rpc handlers, not in thin client wrappers

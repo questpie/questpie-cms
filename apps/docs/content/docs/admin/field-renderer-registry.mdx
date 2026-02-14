@@ -1,0 +1,171 @@
+---
+title: Field Renderer Registry
+description: Map field type IDs to React form components and table cell renderers
+---
+
+# Field Renderer Registry
+
+The field registry maps server-defined field type IDs (like `"text"`, `"relation"`, `"blocks"`) to React components that render them in forms and table cells. Every field the admin displays comes from this registry.
+
+## Why This Exists
+
+The server defines fields with semantic types (`f.text()`, `f.relation()`). The admin needs to know which React component to use for each type. The field registry provides this mapping, making it possible to add custom field types or replace built-in ones.
+
+## Built-In Field Renderers
+
+`coreAdminModule` registers these field types:
+
+| Type ID | Form Component | Description |
+|---|---|---|
+| `text` | TextField | Single-line text input |
+| `email` | EmailField | Email input with validation |
+| `password` | PasswordField | Password input (masked) |
+| `url` | URLField | URL input with validation |
+| `tel` | TelField | Telephone number input |
+| `textarea` | TextareaField | Multi-line text input |
+| `number` | NumberField | Numeric input with min/max |
+| `checkbox` | BooleanField | Checkbox toggle |
+| `switch` | BooleanField | Switch toggle |
+| `select` | SelectField | Dropdown/multi-select |
+| `date` | DateField | Date picker |
+| `datetime` | DatetimeField | Date + time picker |
+| `time` | TimeField | Time picker |
+| `json` | JsonField | JSON editor |
+| `richText` | RichTextField | Rich text editor (Tiptap) |
+| `upload` | UploadField | Single file upload |
+| `uploadMany` | UploadField | Multi-file upload |
+| `relation` | RelationField | Related record picker |
+| `reverseRelation` | ReverseRelationField | Reverse relation display |
+| `array` | ArrayField | Repeatable items |
+| `object` | ObjectField | Nested field group |
+| `blocks` | BlocksField | Block content editor |
+| `embedded` | EmbeddedField | Embedded collection |
+| `assetPreview` | AssetPreviewField | Read-only asset display |
+
+Each field type also provides a **cell renderer** for display in table views.
+
+## Field Configuration Props
+
+Every field renderer receives a config object from the server introspection payload. Common config properties:
+
+```ts
+interface BaseFieldConfig {
+  name: string;           // Field name
+  label?: string;         // Display label
+  description?: string;   // Help text
+  required?: boolean;     // Whether field is required
+  disabled?: boolean;     // Whether field is disabled
+  readOnly?: boolean;     // Whether field is read-only
+  hidden?: boolean;       // Whether field is hidden
+  defaultValue?: any;     // Default value
+  localized?: boolean;    // Whether field has per-locale values
+}
+```
+
+Type-specific configs extend this base:
+
+```ts
+// TextFieldConfig
+{ maxLength?: number; minLength?: number; pattern?: string; autoComplete?: string }
+
+// NumberFieldConfig
+{ min?: number; max?: number; step?: number; showButtons?: boolean }
+
+// SelectFieldConfig
+{ options: Array<{ label: string; value: string }>; multiple?: boolean; clearable?: boolean }
+
+// RelationFieldConfig
+{ targetCollection: string; type: "single" | "multiple"; display?: "chips" | "list" | "grid" }
+
+// RichTextFieldConfig
+{ features?: { bold?: boolean; italic?: boolean; heading?: boolean; image?: boolean; ... } }
+
+// ArrayFieldConfig
+{ itemType?: string; mode?: "inline" | "modal" | "drawer"; orderable?: boolean }
+
+// ObjectFieldConfig
+{ wrapper?: "flat" | "collapsible"; layout?: "stack" | "inline" | "grid" }
+
+// UploadFieldConfig
+{ accept?: string; maxSize?: number; showPreview?: boolean; multiple?: boolean }
+```
+
+## Creating a Custom Field Renderer
+
+To add a custom field type:
+
+### 1. Define the server field
+
+```ts
+// On the server, use a json field with a custom admin type
+.fields((f) => ({
+  location: f.json({
+    admin: { fieldType: "mapPoint" },
+  }),
+}))
+```
+
+### 2. Create the React components
+
+```tsx
+// map-point-field.tsx
+function MapPointField({ value, onChange, config }) {
+  return (
+    <div className="map-container">
+      <MapPicker
+        value={value}
+        onChange={(coords) => onChange({ lat: coords.lat, lng: coords.lng })}
+      />
+    </div>
+  );
+}
+
+function MapPointCell({ value }) {
+  if (!value) return <span>—</span>;
+  return <span>{value.lat}, {value.lng}</span>;
+}
+```
+
+### 3. Register in the admin builder
+
+```ts
+const admin = qa<AppCMS>()
+  .use(coreAdminModule)
+  .fields({
+    mapPoint: {
+      name: "mapPoint",
+      kind: "field",
+      createField: (config) => MapPointField,
+      createCell: (config) => MapPointCell,
+    },
+  });
+```
+
+## Overriding Built-In Renderers
+
+Register a field with the same type ID to replace the default:
+
+```ts
+.fields({
+  // Replace the default text field renderer
+  text: {
+    name: "text",
+    kind: "field",
+    createField: (config) => MyCustomTextField,
+    createCell: (config) => MyCustomTextCell,
+  },
+})
+```
+
+## Common Mistakes
+
+- **Missing cell renderer** — If you provide `createField` but not `createCell`, the table view won't render anything for that column.
+- **Not handling `undefined` values** — Fields can receive `undefined` or `null` values. Always handle the empty state.
+- **Ignoring `config.readOnly` and `config.disabled`** — Custom fields should respect these props for consistent behavior in the admin.
+
+## Related Pages
+
+- [Client Builder (qa)](/docs/admin/client-builder-qa) — Where fields are registered
+- [Registries Overview](/docs/admin/registries-overview) — All four registries
+- [Field Types](/docs/server/field-types) — Server-side field type catalog
+- [Field Builder](/docs/server/field-builder) — How `.fields()` works on the server

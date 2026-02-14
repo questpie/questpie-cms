@@ -1,0 +1,288 @@
+---
+title: Globals
+description: Singleton configuration records with the GlobalBuilder API
+---
+
+# Globals
+
+Globals are singleton entities — they have exactly one record per locale. Use them for app-wide settings, feature flags, legal content, or any configuration that doesn't belong in a collection.
+
+## Why Globals Exist
+
+Some data doesn't fit the collection model. Your site settings, contact info, business hours, and booking configuration are all single records. Globals give you the same field builder, hooks, access control, and admin UI as collections — but for singletons.
+
+## Mental Model
+
+```text
+GlobalBuilder chain:
+  .global("name")
+  .fields(...)         → field definitions (same as collections)
+  .admin(...)          → metadata (label, icon)
+  .form(...)           → form view blueprint
+  .hooks(...)          → lifecycle callbacks (no create/delete)
+  .access(...)         → read/update rules
+  .options(...)        → timestamps, versioning
+  .functions(...)      → global-scoped RPC
+```
+
+## Basic Example
+
+```ts
+import { qb } from "../builder";
+
+export const siteSettings = qb
+  .global("siteSettings")
+  .fields((f) => ({
+    shopName: f.text({
+      label: { en: "Shop Name", sk: "Názov obchodu" },
+      required: true,
+      localized: true,
+    }),
+    tagline: f.text({
+      label: { en: "Tagline", sk: "Slogan" },
+      localized: true,
+    }),
+    logo: f.upload({
+      to: "assets",
+      label: { en: "Logo" },
+    }),
+    contactEmail: f.email({
+      label: { en: "Contact Email", sk: "Kontaktný email" },
+      required: true,
+    }),
+    contactPhone: f.text({
+      label: { en: "Phone Number", sk: "Telefón" },
+    }),
+  }))
+  .admin(({ c }) => ({
+    label: { en: "Site Settings", sk: "Nastavenia webu" },
+    icon: c.icon("ph:gear"),
+  }))
+  .form(({ v, f }) =>
+    v.form({
+      fields: [
+        {
+          type: "section",
+          label: { en: "Branding" },
+          layout: "grid",
+          columns: 2,
+          fields: [f.shopName, f.tagline, f.logo],
+        },
+        {
+          type: "section",
+          label: { en: "Contact" },
+          layout: "grid",
+          columns: 2,
+          fields: [f.contactEmail, f.contactPhone],
+        },
+      ],
+    }),
+  )
+  .access({
+    read: true,
+    update: ({ session }) => session?.user.role === "admin",
+  })
+  .options({ timestamps: true, versioning: true });
+```
+
+## Advanced Example: Barbershop Site Settings
+
+The Barbershop example has a comprehensive site settings global with nested objects and arrays:
+
+```ts
+export const siteSettings = qb
+  .global("siteSettings")
+  .fields((f) => ({
+    // Branding
+    shopName: f.text({ label: { en: "Shop Name" }, required: true, localized: true }),
+    tagline: f.text({ label: { en: "Tagline" }, localized: true }),
+    logo: f.upload({ to: "assets", label: { en: "Logo" } }),
+
+    // Navigation
+    navItems: f.array({
+      label: { en: "Navigation Items" },
+      of: f.object({
+        fields: () => ({
+          label: f.text({ label: { en: "Label" }, required: true }),
+          href: f.text({ label: { en: "URL" }, required: true }),
+          isExternal: f.boolean({ label: { en: "External Link" }, default: false }),
+        }),
+      }),
+    }),
+
+    // Business Hours
+    businessHours: f.object({
+      label: { en: "Business Hours" },
+      meta: { admin: { wrapper: "collapsible" } },
+      fields: () => ({
+        monday: f.object({
+          fields: () => ({
+            isOpen: f.boolean({ default: true }),
+            start: f.time({}),
+            end: f.time({}),
+          }),
+        }),
+        // ...more days
+      }),
+    }),
+
+    // Booking Settings
+    minAdvanceHours: f.number({ label: { en: "Min Advance (hours)" }, default: 1 }),
+    maxAdvanceDays: f.number({ label: { en: "Max Advance (days)" }, default: 30 }),
+    slotDurationMinutes: f.number({ label: { en: "Slot Duration (min)" }, default: 30 }),
+
+    // SEO
+    metaTitle: f.text({ label: { en: "Meta Title" }, localized: true }),
+    metaDescription: f.textarea({ label: { en: "Meta Description" }, localized: true }),
+  }))
+  .options({ timestamps: true, versioning: true })
+  .access({ read: true, update: ({ session }) => session?.user.role === "admin" });
+```
+
+## Builder Methods
+
+### `.fields((f) => ({ ... }))`
+
+Same field builder as collections. See [Field Builder](/docs/server/field-builder).
+
+### `.admin(({ c }) => ({ ... }))`
+
+Global metadata for the admin panel:
+
+```ts
+.admin(({ c }) => ({
+  label: { en: "Site Settings" },
+  icon: c.icon("ph:gear"),
+}))
+```
+
+### `.form(({ v, f }) => ...)`
+
+Form view configuration (globals don't have list views — they're singletons):
+
+```ts
+.form(({ v, f }) =>
+  v.form({
+    fields: [f.shopName, f.contactEmail],
+  }),
+)
+```
+
+### `.hooks({ ... })`
+
+Lifecycle callbacks. Globals only support update and read hooks (no create or delete):
+
+```ts
+.hooks({
+  beforeChange: async ({ data, app }) => {
+    // Validate before update
+  },
+  afterChange: async ({ data, app }) => {
+    // Clear cache after settings change
+    await app.kv.delete("site-settings-cache");
+  },
+  afterRead: async ({ data }) => {
+    // Transform data after reading
+  },
+})
+```
+
+### `.access({ ... })`
+
+```ts
+.access({
+  read: true,                              // Public read
+  update: ({ session }) =>
+    session?.user.role === "admin",         // Admin-only update
+})
+```
+
+### `.options({ ... })`
+
+```ts
+.options({
+  timestamps: true,    // createdAt/updatedAt
+  versioning: true,    // track change history
+})
+```
+
+### `.functions({ ... })`
+
+Global-scoped RPC functions:
+
+```ts
+.functions({
+  resetToDefaults: {
+    input: z.object({}),
+    handler: async ({ app }) => {
+      return app.api.globals.siteSettings.update({
+        shopName: "Default Shop",
+        contactEmail: "admin@example.com",
+      });
+    },
+  },
+})
+```
+
+## API Usage
+
+```ts
+// Read the global
+const settings = await cms.api.globals.siteSettings.get();
+console.log(settings.shopName); // "Barbershop"
+
+// Update the global
+await cms.api.globals.siteSettings.update({
+  shopName: "New Barbershop Name",
+});
+
+// Read with locale
+const settingsSk = await cms.api.globals.siteSettings.get({
+  locale: "sk",
+});
+```
+
+## Registering Globals
+
+Globals are registered the same way as collections:
+
+```ts
+export const cms = q({ name: "my-app" })
+  .use(adminModule)
+  .collections({ ... })
+  .globals({ siteSettings })
+  .build({ ... });
+```
+
+## Sidebar Integration
+
+Globals appear in the sidebar like collections:
+
+```ts
+.sidebar(({ s, c }) =>
+  s.sidebar({
+    sections: [
+      s.section({
+        id: "overview",
+        title: { en: "Overview" },
+        items: [
+          { type: "global", global: "siteSettings" },
+        ],
+      }),
+    ],
+  }),
+)
+```
+
+## Common Mistakes
+
+- **Trying to create or delete globals** — Globals have exactly one record. They only support `get` and `update` operations.
+- **Forgetting to register** — The global must be passed to `.globals({})` in your CMS builder.
+- **Over-nesting** — If your global has many unrelated sections, consider splitting into multiple globals (e.g., `siteSettings`, `seoSettings`, `bookingSettings`).
+
+## Related Pages
+
+- [Collections](/docs/server/collections) — Multi-record entities
+- [Field Builder](/docs/server/field-builder) — How fields work
+- [Access Control](/docs/server/access-control) — Security rules
+- [Dashboard & Sidebar](/docs/admin/dashboard-sidebar-branding) — Navigation config

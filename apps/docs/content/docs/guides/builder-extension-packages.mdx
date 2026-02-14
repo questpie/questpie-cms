@@ -1,0 +1,230 @@
+---
+title: Builder Extension Packages
+description: Create reusable modules that extend q and qa with collections, fields, and admin features
+---
+
+# Builder Extension Packages
+
+Extension packages add capabilities to QUESTPIE through the `.use()` composition pattern. This is how `@questpie/admin` works — it's just a module that adds admin-related collections, fields, and UI registrations.
+
+## How .use() Works
+
+The `.use()` method merges another builder's state into the current builder:
+
+```ts
+const cms = q({ name: "app" })
+  .use(moduleA)    // adds moduleA's collections, fields, jobs, etc.
+  .use(moduleB)    // adds moduleB's state on top
+  .build({ ... });
+```
+
+State is merged by name — if two modules define the same collection, the last one wins. Fields, jobs, email templates, and auth config are all merged the same way.
+
+## Anatomy of an Extension Package
+
+A typical extension has two parts:
+
+### Server Module
+
+Exports a builder with collections, fields, jobs, and any server-side state.
+
+```ts
+// packages/my-plugin/src/server.ts
+import { q } from "@questpie/questpie";
+
+// Define custom field types
+const currencyField = field<CurrencyFieldConfig, number>()({
+  type: "currency",
+  // ...
+});
+
+// Define collections
+const products = q.collection("products")
+  .fields((f) => ({
+    name: f.text({ required: true }),
+    price: f.currency({ currency: "USD", required: true }),
+    sku: f.text({ required: true }),
+  }))
+  .options({ timestamps: true });
+
+// Define jobs
+const syncInventory = q.job({
+  name: "syncInventory",
+  schema: z.object({ productId: z.string() }),
+  handler: async ({ payload, app }) => {
+    // Sync with external inventory system
+  },
+});
+
+// Export the module
+export const ecommerceModule = q({ name: "ecommerce" })
+  .fields({ currency: currencyField })
+  .collections({ products })
+  .jobs({ syncInventory });
+```
+
+### Client Module
+
+Exports an admin builder with field renderers, views, and widgets.
+
+```ts
+// packages/my-plugin/src/client.ts
+import { qa } from "@questpie/admin/client";
+import { CurrencyFieldRenderer } from "./fields/currency-field";
+import { ProductGalleryView } from "./views/product-gallery";
+
+export const ecommerceAdminModule = qa()
+  .fields({
+    currency: {
+      type: "currency",
+      component: CurrencyFieldRenderer,
+    },
+  })
+  .views({
+    productGallery: {
+      kind: "list",
+      component: ProductGalleryView,
+      label: "Gallery",
+      icon: "ph:grid-four",
+    },
+  });
+```
+
+## Using the Extension
+
+```ts
+// App server
+import { q } from "@questpie/questpie";
+import { adminModule } from "@questpie/admin/server";
+import { ecommerceModule } from "@my-org/ecommerce-plugin/server";
+
+export const cms = q({ name: "store" })
+  .use(adminModule)
+  .use(ecommerceModule)
+  .collections({
+    // You can add more collections alongside the plugin's
+    categories: categoriesCollection,
+    // Or extend the plugin's collection
+    products: ecommerceModule.state.collections.products.merge(
+      q.collection("products").fields((f) => ({
+        featured: f.boolean().default(false),
+      })),
+    ),
+  })
+  .build({ ... });
+
+// App client
+import { qa, adminModule } from "@questpie/admin/client";
+import { ecommerceAdminModule } from "@my-org/ecommerce-plugin/client";
+
+export const admin = qa<typeof cms>()
+  .use(adminModule)
+  .use(ecommerceAdminModule);
+```
+
+## Design Guidelines
+
+### Keep State Serializable
+
+Server modules should only contain serializable definitions — no React components, no runtime instances. The server module defines **what** exists, the client module defines **how** it renders.
+
+### Avoid Hardcoded Names in Core Paths
+
+Use the builder pattern instead of importing modules directly in your handler:
+
+```ts
+// Good — discoverable via builder state
+export const myModule = q({ name: "my-module" })
+  .collections({ myCollection });
+
+// Bad — hardcoded import that bypasses composition
+import { myCollection } from "./collections";
+cms.api.collections.myCollection.find(); // breaks if renamed
+```
+
+### Export Types
+
+Export TypeScript types so consumers can reference your schema:
+
+```ts
+// packages/my-plugin/src/types.ts
+export type { Product, ProductInsert, ProductUpdate } from "./collections/products";
+```
+
+### Use Merge for Extension Points
+
+If your module provides collections that users might extend, document the merge pattern:
+
+```ts
+// User extends your collection with extra fields
+const customProducts = ecommerceModule.state.collections.products.merge(
+  q.collection("products")
+    .fields((f) => ({ customField: f.text() }))
+    .hooks({ afterChange: myCustomHook }),
+);
+```
+
+Merge combines fields, hooks (appended), access rules (merged), and functions (merged by name).
+
+### Declaration Merging for Type Extensions
+
+For field config types that users should be able to extend:
+
+```ts
+// packages/my-plugin/src/augmentation.ts
+declare module "@questpie/questpie" {
+  interface FieldBuilderExtensions {
+    currency(config?: CurrencyFieldConfig): FieldBuilder;
+  }
+}
+```
+
+## Package Structure
+
+```
+packages/my-plugin/
+  src/
+    server.ts            — Server module export
+    client.ts            — Client admin module export
+    types.ts             — Type exports
+    augmentation.ts      — Declaration merging
+    fields/
+      currency-field.ts  — Server field definition
+    client/
+      fields/
+        currency-field.tsx  — Admin renderer
+      views/
+        product-gallery.tsx — Custom view
+  package.json
+  tsconfig.json
+```
+
+### package.json Exports
+
+```json
+{
+  "name": "@my-org/ecommerce-plugin",
+  "exports": {
+    "./server": "./src/server.ts",
+    "./client": "./src/client.ts"
+  },
+  "peerDependencies": {
+    "@questpie/questpie": "^1.0.0",
+    "@questpie/admin": "^1.0.0"
+  }
+}
+```
+
+Use `peerDependencies` for QUESTPIE packages — consumers provide their own version.
+
+## Common Mistakes
+
+- **Importing React in server module** — server modules must be framework-agnostic
+- **Building the CMS inside the module** — modules export builder state, the app calls `.build()`
+- **Not using peerDependencies** — bundling QUESTPIE in your package creates version conflicts
+
+## Related Pages
+
+- [q Builder API](/docs/reference/q-builder-api) — `.use()` method
+- [qa Builder API](/docs/reference/qa-builder-api) — Client `.use()` method
+- [Modules & Extensions](/docs/server/modules-and-extensions) — Composition pattern

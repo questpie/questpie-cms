@@ -15,7 +15,7 @@ import {
   InputGroup,
   InputGroupAddon,
 } from "#questpie/admin/client/components/ui/input-group";
-import { MagnifyingGlass, Check } from "@phosphor-icons/react";
+import { Icon } from "@iconify/react";
 
 function Command({
   className,
@@ -79,7 +79,10 @@ function CommandInput({
           {...props}
         />
         <InputGroupAddon>
-          <MagnifyingGlass className="size-3.5 shrink-0 opacity-50" />
+          <Icon
+            icon="ph:magnifying-glass"
+            className="size-3.5 shrink-0 opacity-50"
+          />
         </InputGroupAddon>
       </InputGroup>
     </div>
@@ -159,7 +162,10 @@ function CommandItem({
       {...props}
     >
       {children}
-      <Check className="ml-auto opacity-0 group-has-[[data-slot=command-shortcut]]/command-item:hidden group-data-[checked=true]/command-item:opacity-100" />
+      <Icon
+        icon="ph:check"
+        className="ml-auto opacity-0 group-has-[[data-slot=command-shortcut]]/command-item:hidden group-data-[checked=true]/command-item:opacity-100"
+      />
     </CommandPrimitive.Item>
   );
 }

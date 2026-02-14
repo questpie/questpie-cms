@@ -1,0 +1,224 @@
+---
+title: Validation
+description: Automatic Zod schema generation, custom validation, and error handling
+---
+
+# Validation
+
+QUESTPIE automatically generates Zod validation schemas from your field definitions. Every create and update operation validates input against these schemas before touching the database. You can also extend validation with custom rules via hooks.
+
+## Why This Exists
+
+Field definitions describe the shape and constraints of your data — `required`, `maxLength`, `min`, `max`, etc. QUESTPIE translates these into Zod schemas that run before every write operation. This means you get runtime validation for free, without writing separate schema files.
+
+## How It Works
+
+```text
+Input data → Relation field preprocessing → Zod schema validation → beforeChange hook → Database write
+```
+
+1. **Field definitions** produce Zod schemas via `buildFieldBasedSchema()`
+2. Each field type implements its own `toZodSchema()` method
+3. Two schemas are generated per collection: **insert** (all required fields) and **update** (all fields optional)
+4. Relation field names are normalized (e.g., `author` → `authorId`) before validation
+5. Schemas use `.passthrough()` to allow nested mutation fields
+
+## Automatic Validation
+
+Field constraints map directly to Zod rules:
+
+```ts
+.fields((f) => ({
+  // z.string().min(1) — required makes it non-optional
+  title: f.text({ required: true }),
+
+  // z.string().max(160).optional()
+  description: f.text({ maxLength: 160 }),
+
+  // z.number().min(0).max(100).optional()
+  rating: f.number({ min: 0, max: 100 }),
+
+  // z.enum(["draft", "published", "archived"]).optional()
+  status: f.select({ options: ["draft", "published", "archived"] }),
+
+  // z.string().email().optional() — email field adds email validation
+  email: f.email({}),
+
+  // z.string().url().optional() — url field adds URL validation
+  website: f.url({}),
+
+  // z.boolean().default(false)
+  featured: f.boolean({ defaultValue: false }),
+}))
+```
+
+### Insert vs Update Schemas
+
+- **Insert schema** — Required fields must be present. Optional fields can be omitted.
+- **Update schema** — All fields are optional (partial update). Only provided fields are validated and written.
+
+```ts
+// Create: title is required
+await cms.api.collections.posts.create({
+  title: "My Post",  // required
+  status: "draft",   // optional
+});
+
+// Update: everything is optional
+await cms.api.collections.posts.update({
+  where: { id: "..." },
+  data: { status: "published" },  // only update status
+});
+```
+
+## Validation Errors
+
+When validation fails, QUESTPIE throws an `ApiError` with status 400 and structured error details:
+
+```ts
+try {
+  await cms.api.collections.posts.create({
+    // missing required "title" field
+    status: "invalid-option",
+  });
+} catch (error) {
+  // ApiError {
+  //   status: 400,
+  //   message: "Validation failed",
+  //   errors: [
+  //     { path: ["title"], message: "Required" },
+  //     { path: ["status"], message: "Invalid enum value" },
+  //   ]
+  // }
+}
+```
+
+The HTTP API returns this as a JSON response:
+
+```json
+{
+  "error": "Validation failed",
+  "status": 400,
+  "errors": [
+    { "path": ["title"], "message": "Required" },
+    { "path": ["status"], "message": "Invalid enum value" }
+  ]
+}
+```
+
+## Custom Validation in Hooks
+
+For validation that goes beyond field constraints (cross-field checks, async lookups, business rules), use the `beforeValidate` or `beforeChange` hooks:
+
+### beforeValidate
+
+Runs before the Zod schema. Mutate data or throw errors:
+
+```ts
+.hooks({
+  beforeValidate: async ({ data, operation }) => {
+    const d = data as any;
+
+    // Cross-field validation
+    if (d.startDate && d.endDate && d.startDate > d.endDate) {
+      throw new ApiError("End date must be after start date", 400);
+    }
+
+    // Set computed defaults
+    if (d.name && !d.slug) {
+      d.slug = d.name.toLowerCase().replace(/\s+/g, "-");
+    }
+  },
+})
+```
+
+### beforeChange
+
+Runs after Zod validation. Use for async checks against the database:
+
+```ts
+.hooks({
+  beforeChange: async ({ data, operation, db }) => {
+    const d = data as any;
+    const typedDb = getDb(db);
+
+    // Uniqueness check
+    if (d.slug) {
+      const existing = await typedDb
+        .select()
+        .from(posts)
+        .where(eq(posts.slug, d.slug))
+        .limit(1);
+
+      if (existing.length > 0 && existing[0].id !== d.id) {
+        throw new ApiError("Slug already exists", 400);
+      }
+    }
+  },
+})
+```
+
+## Relation Field Preprocessing
+
+Relation fields are normalized before validation. This lets you pass either the relation name or the FK column name:
+
+```ts
+// Both of these work:
+await cms.api.collections.posts.create({
+  author: "user-123",      // relation field name
+});
+
+await cms.api.collections.posts.create({
+  authorId: "user-123",    // FK column name
+});
+```
+
+The preprocessor maps `author` → `authorId` before the Zod schema runs.
+
+## Nested Mutation Validation
+
+When creating or updating records with nested relations, the schemas use `.passthrough()` to allow additional keys for nested operations:
+
+```ts
+await cms.api.collections.barbers.create({
+  name: "John",
+  // Nested creation — passed through validation
+  services: [
+    { create: { name: "Haircut", price: 25 } },
+    { connect: { id: "service-123" } },
+  ],
+});
+```
+
+## Field Type to Zod Mapping
+
+| Field Type | Zod Schema |
+|---|---|
+| `text` | `z.string()` + `.max()` if maxLength |
+| `textarea` | `z.string()` + `.max()` if maxLength |
+| `email` | `z.string().email()` |
+| `url` | `z.string().url()` |
+| `number` | `z.number()` + `.min()` + `.max()` |
+| `boolean` | `z.boolean()` + `.default()` |
+| `date` / `datetime` | `z.string()` (ISO format) |
+| `select` | `z.enum([...options])` |
+| `json` | `z.any()` |
+| `object` | Nested `z.object({...})` from sub-fields |
+| `array` | `z.array(z.object({...}))` from sub-fields |
+| `relation` | `z.string()` (FK ID) |
+| `upload` | `z.string()` (asset ID) |
+| `richText` | `z.any()` (JSON content) |
+| `blocks` | `z.array(z.any())` |
+
+## Common Mistakes
+
+- **Validating in hooks what fields already handle** — If a field is `required` or has `maxLength`, the automatic schema handles it. Don't duplicate validation in hooks.
+- **Throwing raw errors in hooks** — Always throw `ApiError` for consistent error responses. Raw `Error` objects produce unhelpful 500 errors.
+- **Forgetting that update schemas are partial** — All fields are optional in update operations. A field being `required` only applies to creates.
+
+## Related Pages
+
+- [Field Types](/docs/server/field-types) — Field constraints that generate validation
+- [Field Builder](/docs/server/field-builder) — How `.fields()` works
+- [Hooks & Lifecycle](/docs/server/hooks-and-lifecycle) — Custom validation in hooks
+- [Collections](/docs/server/collections) — Collection builder overview

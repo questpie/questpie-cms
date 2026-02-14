@@ -1,0 +1,202 @@
+---
+title: Quickstart
+description: Build a working QUESTPIE CMS in 5 minutes
+---
+
+# Quickstart
+
+This is the shortest path to a working CMS: one collection, a REST API, an admin panel, and a typed RPC function. You'll understand the core pattern in 5 minutes.
+
+## Prerequisites
+
+- Bun 1.3+ (or Node 20+)
+- PostgreSQL running locally
+- TypeScript project initialized
+
+## Step 1: Install
+
+```bash
+bun add questpie @questpie/admin zod drizzle-orm
+bun add @questpie/hono hono  # or @questpie/elysia, @questpie/next
+```
+
+## Step 2: Create the Server Builder
+
+The server builder is a shared instance that includes the admin module. All your collections and globals will use it.
+
+```ts
+// src/questpie/server/builder.ts
+import { adminModule } from "@questpie/admin/server";
+import { q } from "questpie";
+
+export const qb = q.use(adminModule);
+```
+
+**Why?** The admin module augments the builder with `.admin()`, `.list()`, `.form()`, `.sidebar()`, `.dashboard()` and other methods. Without it, you can still build a headless CMS, but you won't get the admin panel.
+
+## Step 3: Define a Collection
+
+Collections are the core building block. Each collection becomes a database table, a CRUD API, and an admin UI view.
+
+```ts
+// src/questpie/server/collections/posts.ts
+import { qb } from "../builder";
+
+export const posts = qb
+  .collection("posts")
+  .fields((f) => ({
+    title: f.text({ label: { en: "Title" }, required: true }),
+    slug: f.text({
+      label: { en: "Slug" },
+      required: true,
+      input: "optional",
+    }),
+    content: f.richText({ label: { en: "Content" }, localized: true }),
+    published: f.boolean({
+      label: { en: "Published" },
+      default: false,
+      required: true,
+    }),
+  }))
+  .title(({ f }) => f.title)
+  .admin(({ c }) => ({
+    label: { en: "Posts" },
+    icon: c.icon("ph:article"),
+  }))
+  .list(({ v, f }) =>
+    v.table({
+      columns: [f.title, f.published],
+    }),
+  )
+  .form(({ v, f }) =>
+    v.form({
+      fields: [f.title, f.content],
+      sidebar: { position: "right", fields: [f.slug, f.published] },
+    }),
+  );
+```
+
+This single definition produces:
+- A `posts` PostgreSQL table with `id`, `title`, `slug`, `content`, `published`, `createdAt`, `updatedAt`
+- CRUD API endpoints: `GET/POST /collections/posts`, `GET/PATCH/DELETE /collections/posts/:id`
+- Admin list view with title and published columns
+- Admin form view with title and content in the main area, slug and published in a sidebar
+
+## Step 4: Compose the CMS
+
+Wire collections together, add RPC functions, and build the runtime instance:
+
+```ts
+// src/questpie/server/cms.ts
+import { q, rpc } from "questpie";
+import { adminModule } from "@questpie/admin/server";
+import z from "zod";
+import { posts } from "./collections/posts";
+
+const r = rpc();
+
+export const healthcheck = r.fn({
+  schema: z.object({}),
+  handler: async () => ({ ok: true, timestamp: new Date().toISOString() }),
+});
+
+export const appRpc = r.router({ healthcheck });
+
+export const cms = q({ name: "quickstart" })
+  .use(adminModule)
+  .collections({ posts })
+  .auth({
+    emailAndPassword: { enabled: true },
+    baseURL: process.env.APP_URL || "http://localhost:3000",
+    basePath: "/api/cms/auth",
+    secret: process.env.BETTER_AUTH_SECRET || "dev-secret",
+  })
+  .build({
+    db: { url: process.env.DATABASE_URL! },
+    app: { url: process.env.APP_URL || "http://localhost:3000" },
+  });
+
+export type AppCMS = typeof cms;
+export type AppRpc = typeof appRpc;
+```
+
+## Step 5: Configure the Admin Client
+
+The client builder handles registries and rendering concerns. It receives schema/admin contracts from the server via introspection.
+
+```ts
+// src/questpie/admin/admin.ts
+import { adminModule, qa } from "@questpie/admin/client";
+import type { AppCMS } from "../server/cms";
+
+export const admin = qa<AppCMS>()
+  .use(adminModule);
+```
+
+## Step 6: Mount the API
+
+Create a route handler that serves both the CMS API and admin panel:
+
+```ts
+// src/routes/api/cms.ts (Hono example)
+import { questpieHono } from "@questpie/hono";
+import { cms, appRpc } from "@/questpie/server/cms";
+
+export const cmsApp = questpieHono(cms, {
+  basePath: "/api/cms",
+  rpc: appRpc,
+});
+```
+
+Or with the generic fetch handler (works with any framework):
+
+```ts
+import { createFetchHandler } from "questpie";
+import { cms, appRpc } from "@/questpie/server/cms";
+
+export const handler = createFetchHandler(cms, {
+  basePath: "/api/cms",
+  rpc: appRpc,
+});
+```
+
+## Step 7: Verify
+
+Start your dev server and test these endpoints:
+
+```bash
+# List posts (empty at first)
+curl http://localhost:3000/api/cms/collections/posts
+
+# Create a post
+curl -X POST http://localhost:3000/api/cms/collections/posts \
+  -H "Content-Type: application/json" \
+  -d '{"title": "Hello World", "slug": "hello-world", "published": true}'
+
+# Call RPC function
+curl -X POST http://localhost:3000/api/cms/rpc/healthcheck \
+  -H "Content-Type: application/json" \
+  -d '{}'
+```
+
+Open `http://localhost:3000/admin` to see the admin panel with your Posts collection.
+
+## What This Proves
+
+1. **Field builder is the source of truth** — field definitions drive the database schema, API validation, and admin UI
+2. **Admin blueprint is server-defined** — `.admin()`, `.list()`, `.form()` tell the admin panel what to render
+3. **Client config is rendering-only** — `qa()` handles registries and rendering customization, not data structure
+4. **RPC is typed end-to-end** — Zod schema validates input, TypeScript infers the return type
+
+## Common Mistakes
+
+- **Missing `input: "optional"` on computed fields** — Fields like `slug` that auto-generate from other fields should use `input: "optional"` so they're not required in the create form but still stored in the database.
+- **Forgetting `.auth()`** — Without auth configuration, the admin panel won't have a login screen. Add at minimum `emailAndPassword: { enabled: true }`.
+- **Not building** — The `.build()` call is what creates the runtime CMS instance. Without it, you have a builder, not a CMS.
+
+## Next Steps
+
+- [Your First CMS](/docs/getting-started/your-first-cms) — Add multiple collections, relations, sidebar, and dashboard
+- [Collections](/docs/server/collections) — Full collection builder API
+- [Field Types](/docs/server/field-types) — Complete catalog of built-in field types
+- [Mentality](/docs/mentality) — Understand the architecture principles

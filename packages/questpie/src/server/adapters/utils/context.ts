@@ -85,13 +85,28 @@ export const createAdapterContext = async <
 		accessMode: config.accessMode ?? "user",
 	};
 
-	const extension = config.extendContext
+	// 1. Apply adapter-level extension (from adapter config)
+	const adapterExtension = config.extendContext
 		? await config.extendContext({ request, cms, context: baseContext })
 		: undefined;
 
+	// 2. Apply CMS-level context resolver (from .context() on builder)
+	// This is where custom headers like x-tenant-id are extracted
+	let cmsExtension: Record<string, any> | undefined;
+	const contextResolver = cms.config.contextResolver;
+	if (contextResolver) {
+		cmsExtension = await contextResolver({
+			request,
+			session: sessionData,
+			db: cms.db,
+		});
+	}
+
+	// Merge all extensions into context
 	const cmsContext = await cms.createContext({
 		...baseContext,
-		...(extension ?? {}),
+		...(adapterExtension ?? {}),
+		...(cmsExtension ?? {}),
 	});
 
 	return {

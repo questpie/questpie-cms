@@ -49,6 +49,11 @@ import {
 	validateFieldsWriteAccess,
 } from "#questpie/server/collection/crud/shared/access-control.js";
 import {
+	extractLocalizedFieldNames,
+	extractNestedLocalizationSchemas,
+	type NestedLocalizationSchema,
+} from "#questpie/server/collection/crud/shared/field-extraction.js";
+import {
 	appendRealtimeChange,
 	createHookContext,
 	executeHooks,
@@ -69,7 +74,7 @@ import type {
 	DeleteParams,
 	Extras,
 	FindManyOptions,
-	FindOneOptions,
+	FindOneOptionsBase,
 	FindVersionsOptions,
 	OrderBy,
 	PaginatedResult,
@@ -85,6 +90,11 @@ import type { Questpie } from "#questpie/server/config/cms.js";
 import { runWithContext } from "#questpie/server/config/context.js";
 import type { StorageVisibility } from "#questpie/server/config/types.js";
 import { ApiError, parseDatabaseError } from "#questpie/server/errors/index.js";
+import {
+	applyFieldInputHooks,
+	applyFieldOutputHooks,
+} from "#questpie/server/fields/runtime.js";
+import type { FieldDefinitionAccess } from "#questpie/server/fields/types.js";
 
 export class CRUDGenerator<TState extends CollectionBuilderState> {
 	// Public accessors for internal use by relation resolution
@@ -98,7 +108,8 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 		private i18nTable: PgTable | null,
 		private versionsTable: PgTable | null,
 		private i18nVersionsTable: PgTable | null,
-		private db: any,_getVirtuals?: (context: any) => TState["virtuals"],
+		private db: any,
+		_getVirtuals?: (context: any) => TState["virtuals"],
 		private getVirtualsWithAliases?: (
 			context: any,
 			i18nCurrentTable: PgTable | null,
@@ -117,6 +128,26 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 		_getRawTitleExpression?: (context: any) => TitleExpressionSQL,
 		private cms?: Questpie<any>,
 	) {}
+
+	/**
+	 * Get localized field names.
+	 * Uses field definitions (new API) or state.localized array (legacy API).
+	 */
+	private getLocalizedFieldNames(): string[] {
+		// New API: field definitions with TState location
+		if (this.state.fieldDefinitions) {
+			return extractLocalizedFieldNames(this.state.fieldDefinitions);
+		}
+		// Legacy API: explicit localized array
+		return (this.state.localized ?? []) as string[];
+	}
+
+	/**
+	 * Check if collection has any localized fields.
+	 */
+	private hasLocalizedFieldsInternal(): boolean {
+		return this.getLocalizedFieldNames().length > 0;
+	}
 
 	/**
 	 * Generate CRUD operations
@@ -176,6 +207,52 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 		return fn;
 	}
 
+	private getFieldAccessRules():
+		| Record<string, FieldDefinitionAccess>
+		| undefined {
+		// Source field access from collection-level .access({ fields: {...} })
+		const collectionAccess = this.state.access as
+			| { fields?: Record<string, FieldDefinitionAccess> }
+			| undefined;
+		return collectionAccess?.fields;
+	}
+
+	private async runFieldInputHooks(
+		data: Record<string, unknown>,
+		operation: "create" | "update",
+		context: CRUDContext,
+		db: any,
+		originalDocument?: Record<string, unknown>,
+	): Promise<Record<string, unknown>> {
+		return applyFieldInputHooks({
+			data,
+			fieldDefinitions: this.state.fieldDefinitions,
+			collectionName: this.state.name,
+			operation,
+			context,
+			db,
+			originalDocument,
+		});
+	}
+
+	private async runFieldOutputHooks(
+		data: Record<string, unknown>,
+		operation: "create" | "read" | "update",
+		context: CRUDContext,
+		db: any,
+		originalDocument?: Record<string, unknown>,
+	): Promise<void> {
+		await applyFieldOutputHooks({
+			data,
+			fieldDefinitions: this.state.fieldDefinitions,
+			collectionName: this.state.name,
+			operation,
+			context,
+			db,
+			originalDocument,
+		});
+	}
+
 	/**
 	 * Internal find execution - shared logic for find and findOne
 	 * Reduces code duplication between the two methods
@@ -185,7 +262,7 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 	 * @param mode - 'many' for paginated results, 'one' for single result
 	 */
 	private async _executeFind<T>(
-		options: FindManyOptions | FindOneOptions,
+		options: FindManyOptions | FindOneOptionsBase,
 		context: CRUDContext,
 		mode: "many" | "one",
 	): Promise<PaginatedResult<T> | T | null> {
@@ -330,8 +407,9 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 
 			if (this.state.title) {
 				// If title is a localized field, use buildLocalizedFieldRef
+				const localizedFieldNames = this.getLocalizedFieldNames();
 				if (
-					this.state.localized.includes(this.state.title as any) &&
+					localizedFieldNames.includes(this.state.title) &&
 					i18nCurrentTable
 				) {
 					titleExpr = buildLocalizedFieldRef(this.state.title, {
@@ -400,10 +478,10 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 
 		// Application-side i18n merge: replace prefixed columns with final values
 		// Handles both flat localized fields and nested localized JSONB fields (via _localized column)
-		const hasLocalizedFields = this.state.localized.length > 0;
-		if (useI18n && rows.length > 0 && hasLocalizedFields) {
+		const hasLocalized = this.hasLocalizedFieldsInternal();
+		if (useI18n && rows.length > 0 && hasLocalized) {
 			rows = mergeI18nRows(rows, {
-				localizedFields: this.state.localized,
+				localizedFields: this.getLocalizedFieldNames(),
 				hasFallback: needsFallback,
 			});
 		}
@@ -416,6 +494,7 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 		// Filter fields based on field-level read access
 		for (const row of rows) {
 			await this.filterFieldsForRead(row, normalized);
+			await this.runFieldOutputHooks(row, "read", normalized, db);
 		}
 
 		// Execute afterRead hooks
@@ -483,7 +562,7 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 	 */
 	private createFindOne() {
 		return async (
-			options: FindOneOptions = {},
+			options: FindOneOptionsBase = {},
 			context: CRUDContext = {},
 		): Promise<any | null> => {
 			return this._executeFind(options, context, "one") as Promise<any | null>;
@@ -518,7 +597,9 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 			const relation = this.state.relations?.[relationName];
 			if (!relation) continue;
 
-			const relatedCrud = this.cms.api.collections[relation.collection];
+			const relatedCrud = this.cms.api.collections[
+				relation.collection
+			] as unknown as CRUD;
 
 			// Parse nested options
 			let nestedOptions: Record<string, any> = {};
@@ -587,7 +668,9 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 			}
 			// ManyToMany relation (through junction table)
 			else if (relation.type === "manyToMany" && relation.through) {
-				const junctionCrud = this.cms.api.collections[relation.through];
+				const junctionCrud = this.cms.api.collections[
+					relation.through
+				] as unknown as CRUD;
 				await resolveManyToManyRelation({
 					rows: typedRows,
 					relationName,
@@ -838,7 +921,11 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 					));
 
 					// Validate field-level write access (on regular fields only)
-					await this.validateFieldWriteAccess(regularFields, normalized);
+					await this.validateFieldWriteAccess(
+						regularFields,
+						normalized,
+						"create",
+					);
 
 					// Runtime validation (if schemas are configured)
 					if (this.state.validation?.insertSchema) {
@@ -850,6 +937,13 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 							throw ApiError.fromZodError(error);
 						}
 					}
+
+					regularFields = await this.runFieldInputHooks(
+						regularFields,
+						"create",
+						normalized,
+						db,
+					);
 
 					// Execute beforeChange hooks (after validation)
 					await this.executeHooks(
@@ -968,10 +1062,10 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 
 							// Application-side i18n merge
 							// Handles both flat localized fields and nested localized JSONB fields (via _localized column)
-							const hasLocalizedFieldsCreate = this.state.localized.length > 0;
-							if (useI18n && createdRecord && hasLocalizedFieldsCreate) {
+							const hasLocalizedCreate = this.hasLocalizedFieldsInternal();
+							if (useI18n && createdRecord && hasLocalizedCreate) {
 								[createdRecord] = mergeI18nRows([createdRecord], {
-									localizedFields: this.state.localized,
+									localizedFields: this.getLocalizedFieldNames(),
 									hasFallback: needsFallback,
 								});
 							}
@@ -997,9 +1091,12 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 								tx,
 							);
 
-							// Queue search indexing to run after transaction commits
-							onAfterCommit(async () => {
-								await this.indexToSearch(createdRecord, context);
+							// Queue search indexing to run after transaction commits (fire-and-forget)
+							onAfterCommit(() => {
+								this.indexToSearch(createdRecord, context).catch((err) => {
+									console.error("[Search] Index failed:", err);
+								});
+								return Promise.resolve();
 							});
 
 							return createdRecord;
@@ -1015,6 +1112,8 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 					}
 
 					// Execute afterRead hook (transform output)
+					await this.runFieldOutputHooks(record, "create", normalized, db);
+
 					await this.executeHooks(
 						this.state.hooks?.afterRead,
 						this.createHookContext({
@@ -1141,7 +1240,20 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 
 		for (const existing of records) {
 			// Validate field-level write access
-			await this.validateFieldWriteAccess(regularFields, normalized, existing);
+			await this.validateFieldWriteAccess(
+				regularFields,
+				normalized,
+				"update",
+				existing,
+			);
+
+			regularFields = await this.runFieldInputHooks(
+				regularFields,
+				"update",
+				normalized,
+				db,
+				existing,
+			);
 
 			await this.executeHooks(
 				this.state.hooks?.beforeChange as any,
@@ -1269,10 +1381,13 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 					tx,
 				);
 
-				// Queue search indexing to run after transaction commits
+				// Queue search indexing to run after transaction commits (fire-and-forget)
 				for (const updated of refetchedRecords) {
-					onAfterCommit(async () => {
-						await this.indexToSearch(updated, normalized);
+					onAfterCommit(() => {
+						this.indexToSearch(updated, normalized).catch((err) => {
+							console.error("[Search] Index failed:", err);
+						});
+						return Promise.resolve();
 					});
 				}
 
@@ -1287,6 +1402,14 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 		// 6. afterRead hooks and notifications
 		for (const updated of updatedRecords) {
 			const original = records.find((r) => r.id === updated.id);
+
+			await this.runFieldOutputHooks(
+				updated,
+				"update",
+				normalized,
+				db,
+				original,
+			);
 
 			await this.executeHooks(
 				this.state.hooks?.afterRead,
@@ -1763,10 +1886,10 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 
 			// Application-side i18n merge for versions
 			// Handles both flat localized fields and nested localized JSONB fields (via _localized column)
-			const hasLocalizedFieldsVersions = this.state.localized.length > 0;
-			if (useI18n && rows.length > 0 && hasLocalizedFieldsVersions) {
+			const hasLocalizedVersions = this.hasLocalizedFieldsInternal();
+			if (useI18n && rows.length > 0 && hasLocalizedVersions) {
 				rows = mergeI18nRows(rows, {
-					localizedFields: this.state.localized,
+					localizedFields: this.getLocalizedFieldNames(),
 					hasFallback: needsFallback,
 				});
 			}
@@ -1824,9 +1947,12 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 				throw ApiError.notFound("Record", options.id);
 			}
 
+			const localizedFieldNames = this.getLocalizedFieldNames();
+			const localizedFieldSet = new Set(localizedFieldNames);
+
 			const nonLocalized: Record<string, any> = {};
 			for (const [name] of Object.entries(this.state.fields)) {
-				if (this.state.localized.includes(name as any)) continue;
+				if (localizedFieldSet.has(name)) continue;
 				nonLocalized[name] = version[name];
 			}
 			if (this.state.options.softDelete) {
@@ -1851,9 +1977,8 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 					.limit(1);
 				const localeRow = localeRows[0];
 				if (localeRow) {
-					for (const fieldName of this.state.localized) {
-						localizedForContext[fieldName as string] =
-							localeRow[fieldName as string];
+					for (const fieldName of localizedFieldNames) {
+						localizedForContext[fieldName] = localeRow[fieldName];
 					}
 				}
 			}
@@ -1969,10 +2094,13 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 					}),
 				);
 
-				// Queue search indexing to run after transaction commits
+				// Queue search indexing to run after transaction commits (fire-and-forget)
 				if (result) {
-					onAfterCommit(async () => {
-						await this.indexToSearch(result, normalized);
+					onAfterCommit(() => {
+						this.indexToSearch(result, normalized).catch((err) => {
+							console.error("[Search] Index failed:", err);
+						});
+						return Promise.resolve();
 					});
 				}
 
@@ -2078,7 +2206,7 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 	/**
 	 * Filter fields from result based on field-level read access
 	 * Delegates to extracted getRestrictedReadFields utility
-	 * Merges collection field access with CMS defaultAccess.fields
+	 * Uses field definition access rules
 	 */
 	private async filterFieldsForRead(
 		result: any,
@@ -2087,17 +2215,12 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 		if (!result) return;
 
 		const db = this.getDb(context);
-
-		// Merge collection field access with defaultAccess.fields (collection takes precedence)
-		const mergedFieldAccess = {
-			...this.cms?.defaultAccess?.fields,
-			...this.state.access?.fields,
-		};
+		const fieldAccess = this.getFieldAccessRules();
 
 		const fieldsToRemove = await getRestrictedReadFields(result, context, {
 			cms: this.cms,
 			db,
-			fieldAccess: mergedFieldAccess,
+			fieldAccess,
 		});
 
 		// Remove restricted fields
@@ -2109,27 +2232,24 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 	/**
 	 * Validate write access for all fields in input data
 	 * Delegates to extracted validateFieldsWriteAccess utility
-	 * Merges collection field access with CMS defaultAccess.fields
+	 * Uses field definition access rules
 	 */
 	private async validateFieldWriteAccess(
 		data: any,
 		context: CRUDContext,
+		operation: "create" | "update",
 		existing?: any,
 	): Promise<void> {
 		const db = this.getDb(context);
-
-		// Merge collection field access with defaultAccess.fields (collection takes precedence)
-		const mergedFieldAccess = {
-			...this.cms?.defaultAccess?.fields,
-			...this.state.access?.fields,
-		};
+		const fieldAccess = this.getFieldAccessRules();
 
 		await validateFieldsWriteAccess(
 			data,
-			mergedFieldAccess,
+			fieldAccess,
 			context,
 			{ cms: this.cms, db },
 			this.state.name,
+			operation,
 			existing,
 		);
 	}
@@ -2267,14 +2387,45 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 	}
 
 	/**
-	 * Split localized and non-localized fields
-	 * Delegates to shared splitLocalizedFields utility
-	 * Auto-detects { $i18n: value } wrappers in JSONB fields
+	 * Cached nested localization schemas (extracted from field definitions).
+	 */
+	private _nestedLocalizationSchemas:
+		| Record<string, NestedLocalizationSchema>
+		| undefined;
+
+	/**
+	 * Get nested localization schemas for JSONB fields.
+	 * Extracts schemas from field definitions (cached after first call).
+	 */
+	private getNestedLocalizationSchemas(): Record<
+		string,
+		NestedLocalizationSchema
+	> {
+		if (this._nestedLocalizationSchemas === undefined) {
+			if (this.state.fieldDefinitions) {
+				this._nestedLocalizationSchemas = extractNestedLocalizationSchemas(
+					this.state.fieldDefinitions,
+				);
+			} else {
+				this._nestedLocalizationSchemas = {};
+			}
+		}
+		return this._nestedLocalizationSchemas;
+	}
+
+	/**
+	 * Split localized and non-localized fields.
+	 *
+	 * Uses field definition schemas to automatically detect which nested fields
+	 * are localized. No $i18n wrappers needed from client.
 	 *
 	 * @param input - Input data
 	 */
 	private splitLocalizedFields(input: any) {
-		return splitLocalizedFields(input, this.state.localized);
+		const localizedFieldNames = this.getLocalizedFieldNames();
+		const nestedSchemas = this.getNestedLocalizationSchemas();
+
+		return splitLocalizedFields(input, localizedFieldNames, nestedSchemas);
 	}
 
 	/**
@@ -2383,6 +2534,9 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 				uploadOptions.visibility || "public";
 
 			// Upload file to storage using streaming when available
+			// Normalize MIME type (remove charset etc)
+			const mimeType = file.type.split(";")[0]?.trim() || file.type;
+
 			// Streaming is more memory-efficient for large files
 			if (file.stream) {
 				// Convert web ReadableStream to Node.js Readable for Flydrive
@@ -2403,9 +2557,6 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 					visibility,
 				});
 			}
-
-			// Normalize MIME type (remove charset etc)
-			const mimeType = file.type.split(";")[0]?.trim() || file.type;
 
 			// Create record using the existing create method
 			const createFn = this.createCreate();

@@ -5,7 +5,12 @@
 import type { CollectionInfer, Questpie } from "questpie";
 import type { QuestpieClient } from "questpie/client";
 
-export { Admin, type AdminInput, type AppAdmin, type InferAdminCMS } from "./admin";
+export {
+	Admin,
+	type AdminInput,
+	type AppAdmin,
+	type InferAdminCMS,
+} from "./admin";
 export { AdminBuilder } from "./admin-builder";
 export type { AdminBuilderState } from "./admin-types";
 export {
@@ -15,7 +20,7 @@ export {
 	getDefaultBulkActions,
 	getDefaultFormActions,
 	getDefaultHeaderActions,
-} from "./collection/action-registry";
+} from "./types/action-registry";
 // Action types and registry
 export type {
 	ActionContext,
@@ -33,17 +38,19 @@ export type {
 	FormHandler,
 	HeaderActionsConfig,
 	NavigateHandler,
-} from "./collection/action-types";
-export { collection } from "./collection/collection";
-export { CollectionBuilder } from "./collection/collection-builder";
+} from "./types/action-types";
+export type { AutoSaveConfig, PreviewConfig } from "./types/collection-types";
 export type {
 	CollectionBuilderState,
 	CollectionConfig,
 	ColumnConfig,
 	ColumnConfigObject,
 	ListViewConfig,
-} from "./collection/types";
-export { getColumnFieldName, normalizeColumnConfig } from "./collection/types";
+} from "./types/collection-types";
+export {
+	getColumnFieldName,
+	normalizeColumnConfig,
+} from "./types/collection-types";
 export type {
 	CreateZodFn,
 	FieldBuilderState,
@@ -54,23 +61,10 @@ export type {
 	ZodBuildContext,
 } from "./field/field";
 export { FieldBuilder, field } from "./field/field";
-export { global } from "./global/global";
-export { GlobalBuilder } from "./global/global-builder";
-export type { GlobalBuilderState, GlobalConfig } from "./global/types";
-export { type AdminHelpers, createAdminHelpers } from "./helpers";
+export type { GlobalBuilderState, GlobalConfig } from "./types/global-types";
 export type { PageBuilderState, PageDefinition } from "./page/page";
 export { PageBuilder, page } from "./page/page";
 export { qa } from "./qa";
-export type {
-	SectionBuilderState,
-	SidebarBuilderState,
-} from "./sidebar/sidebar-builder";
-export {
-	SectionBuilder,
-	SidebarBuilder,
-	section,
-	sidebar,
-} from "./sidebar/sidebar-builder";
 export type {
 	EditViewBuilderState,
 	EditViewDefinition,

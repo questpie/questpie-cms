@@ -8,16 +8,18 @@
  * - Responsive: Popover on desktop, Drawer on mobile
  */
 
-import { Pencil, Plus } from "@phosphor-icons/react";
+import { Icon } from "@iconify/react";
 import { createQuestpieQueryOptions } from "@questpie/tanstack-query";
 import { useQueryClient } from "@tanstack/react-query";
 import type { Questpie } from "questpie";
 import * as React from "react";
 import { toast } from "sonner";
+import { useAdminConfig } from "../../hooks/use-admin-config";
 import { useCollectionItem } from "../../hooks/use-collection";
 import { useResolveText, useTranslation } from "../../i18n/hooks";
 import { cn } from "../../lib/utils";
-import { selectAdmin, selectClient, useAdminStore } from "../../runtime";
+import { selectClient, useAdminStore } from "../../runtime";
+import { resolveIconElement } from "../component-renderer";
 import { SelectSingle } from "../primitives/select-single";
 import type { SelectOption } from "../primitives/types";
 import { ResourceSheet } from "../sheets/resource-sheet";
@@ -133,14 +135,11 @@ export function RelationSelect<T extends Questpie<any>>({
 		string | undefined
 	>();
 
-	// Get admin config for target collection
-	const admin = useAdminStore(selectAdmin);
+	// Get admin config for target collection from server
+	const { data: serverConfig } = useAdminConfig();
 	const client = useAdminStore(selectClient);
-	const collections = admin?.getCollections() ?? {};
-	const targetConfig = collections[targetCollection];
-	const CollectionIcon = (targetConfig as any)?.icon as
-		| React.ComponentType<{ className?: string }>
-		| undefined;
+	const targetConfig = serverConfig?.collections?.[targetCollection];
+	const collectionIconRef = (targetConfig as any)?.icon;
 
 	// Load options from server with search
 	const loadOptions = React.useCallback(
@@ -173,9 +172,9 @@ export function RelationSelect<T extends Questpie<any>>({
 					label: renderOption
 						? String(renderOption(item))
 						: item._title || item.id || "",
-					icon: CollectionIcon ? (
-						<CollectionIcon className="size-3.5 text-muted-foreground" />
-					) : undefined,
+					icon: resolveIconElement(collectionIconRef, {
+						className: "size-3.5 text-muted-foreground",
+					}),
 				}));
 			} catch (error) {
 				console.error("Failed to load relation options:", error);
@@ -183,7 +182,7 @@ export function RelationSelect<T extends Questpie<any>>({
 				return [];
 			}
 		},
-		[client, targetCollection, filter, renderOption, CollectionIcon, locale],
+		[client, targetCollection, filter, renderOption, collectionIconRef, locale],
 	);
 
 	const queryClient = useQueryClient();
@@ -229,12 +228,12 @@ export function RelationSelect<T extends Questpie<any>>({
 				label: renderValue
 					? String(renderValue(selectedItem))
 					: selectedItem._title || selectedItem.id || "",
-				icon: CollectionIcon ? (
-					<CollectionIcon className="size-3.5 text-muted-foreground" />
-				) : undefined,
+				icon: resolveIconElement(collectionIconRef, {
+					className: "size-3.5 text-muted-foreground",
+				}),
 			},
 		];
-	}, [selectedItem, renderValue, CollectionIcon]);
+	}, [selectedItem, renderValue, collectionIconRef]);
 
 	const handleOpenCreate = () => {
 		setEditingItemId(undefined);
@@ -271,9 +270,9 @@ export function RelationSelect<T extends Questpie<any>>({
 						htmlFor={name}
 						className="text-sm font-medium flex items-center gap-1.5"
 					>
-						{CollectionIcon && (
-							<CollectionIcon className="size-3.5 text-muted-foreground" />
-						)}
+						{resolveIconElement(collectionIconRef, {
+							className: "size-3.5 text-muted-foreground",
+						})}
 						{resolvedLabel}
 						{required && <span className="text-destructive">*</span>}
 					</label>
@@ -332,7 +331,7 @@ export function RelationSelect<T extends Questpie<any>>({
 								aria-label={t("collection.edit", { name: labelText })}
 								className="rounded-none border-l-0"
 							>
-								<Pencil className="h-4 w-4" />
+								<Icon icon="ph:pencil" className="h-4 w-4" />
 							</Button>
 						)}
 
@@ -347,7 +346,7 @@ export function RelationSelect<T extends Questpie<any>>({
 							aria-label={createLabel}
 							className="border-l-0 rounded-l-none"
 						>
-							<Plus className="h-4 w-4" />
+							<Icon icon="ph:plus" className="h-4 w-4" />
 						</Button>
 					</div>
 				)}

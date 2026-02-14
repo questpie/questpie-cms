@@ -1,0 +1,76 @@
+---
+title: Elysia Adapter
+description: Integrate QUESTPIE with Elysia for server and type-safe Eden client
+---
+
+# Elysia Adapter
+
+The Elysia adapter mounts QUESTPIE as an Elysia plugin. The client factory creates a merged client with CMS CRUD and full Eden Treaty type safety for custom routes.
+
+## Server Setup
+
+```ts
+import { Elysia } from "elysia";
+import { questpieElysia } from "@questpie/elysia";
+import { cms, appRpc } from "./cms";
+
+const app = new Elysia()
+  .use(questpieElysia(cms, {
+    basePath: "/api/cms",
+    rpc: appRpc,
+  }))
+  .get("/api/health", () => ({ ok: true }))
+  .listen(3000);
+
+export type AppType = typeof app;
+```
+
+### `questpieElysia(cms, config)`
+
+Returns an Elysia plugin with all CMS routes mounted. Configuration is the same as `createFetchHandler` — see [Adapters Overview](/docs/client/adapters-overview).
+
+## Client Setup
+
+```ts
+import { createClientFromEden } from "@questpie/elysia";
+import type { AppType } from "../server/app";
+import type { AppCMS } from "../server/cms";
+
+const client = createClientFromEden<AppType, AppCMS>({
+  server: "localhost:3000",  // No protocol for Eden
+  basePath: "/api/cms",
+});
+
+// CMS collections
+const posts = await client.collections.posts.find({ limit: 10 });
+
+// CMS globals
+const settings = await client.globals.siteSettings.get();
+
+// Custom Elysia routes (fully typed via Eden Treaty)
+const { data } = await client.api.health.get();
+```
+
+### `createClientFromEden<TApp, TCMS>(config)`
+
+Returns a merged client that combines:
+- **CMS client** — `client.collections.*`, `client.globals.*`, `client.rpc.*`
+- **Eden Treaty client** — Full type-safe access to custom Elysia routes
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `server` | `string` | — | Server address (no protocol, e.g., `"localhost:3000"`) |
+| `basePath` | `string` | `"/cms"` | CMS route prefix |
+| `fetch` | `typeof fetch` | — | Custom fetch implementation |
+| `headers` | `Record<string, string>` | — | Default headers |
+
+## Common Mistakes
+
+- **Including protocol in `server`** — Eden Treaty uses `server` without `http://`. Pass `"localhost:3000"` not `"http://localhost:3000"`.
+- **Missing type parameters** — Pass both `AppType` (Elysia app type) and `AppCMS` (CMS type) for full type safety.
+
+## Related Pages
+
+- [Adapters Overview](/docs/client/adapters-overview) — How adapters work
+- [TanStack Query](/docs/client/tanstack-query) — Using the client with TanStack Query
+- [Client Overview](/docs/client) — Client SDK overview

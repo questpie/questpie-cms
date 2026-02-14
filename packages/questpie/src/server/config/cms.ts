@@ -12,7 +12,10 @@ import {
 	type Collection,
 	CollectionBuilder,
 } from "#questpie/server/collection/builder/index.js";
-import type { AnyCollectionState } from "#questpie/server/collection/builder/types.js";
+import type {
+	AnyCollectionState,
+	RelationConfig,
+} from "#questpie/server/collection/builder/types.js";
 import type { RequestContext } from "#questpie/server/config/context.js";
 import {
 	QuestpieAPI,
@@ -35,8 +38,6 @@ import { MailerService } from "#questpie/server/integrated/mailer/index.js";
 import {
 	createQueueClient,
 	type QueueClient,
-	startJobWorkerForJobs,
-	type WorkerOptions,
 } from "#questpie/server/integrated/queue/index.js";
 import {
 	questpieRealtimeLogTable,
@@ -54,7 +55,7 @@ import type {
 	AnyGlobal,
 	AnyGlobalBuilder,
 } from "#questpie/shared/type-utils.js";
-import type { GetFunctions, GetMessageKeys, QuestpieConfig } from "./types.js";
+import type { GetMessageKeys, QuestpieConfig } from "./types.js";
 
 export class Questpie<TConfig extends QuestpieConfig = QuestpieConfig> {
 	static readonly __internal = {
@@ -63,7 +64,6 @@ export class Questpie<TConfig extends QuestpieConfig = QuestpieConfig> {
 
 	private _collections: Record<string, Collection<AnyCollectionState>> = {};
 	private _globals: Record<string, AnyGlobal> = {};
-	private _functions: GetFunctions<TConfig>;
 	public readonly config: TConfig;
 	private resolvedLocales: Locale[] | null = null;
 	private pgConnectionString?: string;
@@ -138,7 +138,8 @@ export class Questpie<TConfig extends QuestpieConfig = QuestpieConfig> {
 			this.registerGlobals(config.globals);
 		}
 
-		this._functions = (config.functions || {}) as GetFunctions<TConfig>;
+		// Validate all relations point to existing collections
+		this.validateRelations();
 
 		// Initialize database client from config
 		if ("url" in config.db) {
@@ -201,10 +202,11 @@ export class Questpie<TConfig extends QuestpieConfig = QuestpieConfig> {
 					"QUESTPIE: Queue adapter is required when jobs are defined. Provide adapter in .build({ queue: { adapter: ... } })",
 				);
 			}
-			this.queue = createQueueClient(
-				config.queue.jobs,
-				config.queue.adapter,
-			) as any;
+			this.queue = createQueueClient(config.queue.jobs, config.queue.adapter, {
+				createContext: async () => this.createContext({ accessMode: "system" }),
+				getApp: () => this,
+				logger: this.logger,
+			}) as any;
 		} else {
 			this.queue = {} as any; // Empty queue client if no jobs defined
 		}
@@ -219,6 +221,7 @@ export class Questpie<TConfig extends QuestpieConfig = QuestpieConfig> {
 			database: drizzleAdapter(this.db, {
 				provider: "pg",
 				schema: this.getSchema(),
+				transaction: true,
 			}),
 		}) as typeof this.auth;
 
@@ -286,6 +289,79 @@ export class Questpie<TConfig extends QuestpieConfig = QuestpieConfig> {
 				throw new Error(`Global "${key}" is already registered.`);
 			}
 			this._globals[key] = global;
+		}
+	}
+
+	/**
+	 * Validates that all relations reference existing collections.
+	 * This catches configuration errors early at build time rather than at runtime.
+	 */
+	private validateRelations() {
+		const collectionKeys = Object.keys(this._collections);
+		const globalKeys = Object.keys(this._globals);
+		const relationTargetKeys = [...collectionKeys, ...globalKeys];
+		const errors: string[] = [];
+
+		// Validate collection relations
+		for (const [collectionKey, collection] of Object.entries(
+			this._collections,
+		)) {
+			const relations = (collection.state.relations || {}) as Record<
+				string,
+				RelationConfig
+			>;
+			for (const [relationName, relation] of Object.entries(relations)) {
+				// Validate target collection
+				if (
+					relation.collection &&
+					!relationTargetKeys.includes(relation.collection)
+				) {
+					errors.push(
+						`Collection "${collectionKey}" has relation "${relationName}" pointing to unknown target "${relation.collection}". ` +
+							`Available collections/globals: ${relationTargetKeys.join(", ")}`,
+					);
+				}
+				// Validate through/junction collection for many-to-many
+				if (relation.through && !collectionKeys.includes(relation.through)) {
+					errors.push(
+						`Collection "${collectionKey}" has relation "${relationName}" with "through: ${relation.through}" pointing to unknown collection. ` +
+							`Did you mean one of: ${collectionKeys.join(", ")}?`,
+					);
+				}
+			}
+		}
+
+		// Validate global relations
+		for (const [globalKey, global] of Object.entries(this._globals)) {
+			const relations = (global.state.relations || {}) as Record<
+				string,
+				RelationConfig
+			>;
+			for (const [relationName, relation] of Object.entries(relations)) {
+				// Validate target collection
+				if (
+					relation.collection &&
+					!relationTargetKeys.includes(relation.collection)
+				) {
+					errors.push(
+						`Global "${globalKey}" has relation "${relationName}" pointing to unknown target "${relation.collection}". ` +
+							`Available collections/globals: ${relationTargetKeys.join(", ")}`,
+					);
+				}
+				// Validate through/junction collection for many-to-many
+				if (relation.through && !collectionKeys.includes(relation.through)) {
+					errors.push(
+						`Global "${globalKey}" has relation "${relationName}" with "through: ${relation.through}" pointing to unknown collection. ` +
+							`Did you mean one of: ${collectionKeys.join(", ")}?`,
+					);
+				}
+			}
+		}
+
+		if (errors.length > 0) {
+			throw new Error(
+				`QUESTPIE: Invalid relation configuration:\n\n${errors.map((e) => `  - ${e}`).join("\n\n")}`,
+			);
 		}
 	}
 
@@ -402,10 +478,6 @@ export class Questpie<TConfig extends QuestpieConfig = QuestpieConfig> {
 				: never;
 	} {
 		return this._globals as any;
-	}
-
-	public getFunctions(): GetFunctions<TConfig> {
-		return this._functions;
 	}
 
 	public getTables(): Record<string, PgTable> {
@@ -635,51 +707,5 @@ export class Questpie<TConfig extends QuestpieConfig = QuestpieConfig> {
 				);
 			}
 		}
-	}
-
-	/**
-	 * Start listening to jobs (worker mode)
-	 *
-	 * This method starts the queue workers and begins processing jobs.
-	 * Call this in your worker instances, not in your web server.
-	 *
-	 * @example
-	 * ```ts
-	 * // worker.ts
-	 * const cms = new Questpie({ ... });
-	 * await cms.listenToJobs();
-	 * ```
-	 *
-	 * @example
-	 * ```ts
-	 * // Listen to specific jobs only
-	 * await cms.listenToJobs(['send-email', 'process-image']);
-	 * ```
-	 *
-	 * @example
-	 * ```ts
-	 * // With custom options
-	 * await cms.listenToJobs({ teamSize: 20, batchSize: 10 });
-	 * ```
-	 */
-	public async listenToJobs(options?: WorkerOptions): Promise<void> {
-		if (!this.config.queue?.jobs) {
-			throw new Error(
-				"Cannot start job workers: No jobs configured. Add 'queue.jobs' to your Questpie config.",
-			);
-		}
-
-		// Create context factory for workers
-		const createContext = async (): Promise<RequestContext> => {
-			return this.createContext({ accessMode: "system" });
-		};
-
-		await startJobWorkerForJobs(
-			this.queue,
-			this.config.queue.jobs,
-			createContext,
-			options,
-			this,
-		);
 	}
 }

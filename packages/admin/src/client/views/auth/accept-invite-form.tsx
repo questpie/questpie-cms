@@ -2,7 +2,7 @@
  * Accept Invite Form - complete registration after receiving invitation
  */
 
-import { Lock, SpinnerGap, User, WarningCircle } from "@phosphor-icons/react";
+import { Icon } from "@iconify/react";
 import * as React from "react";
 import { useForm } from "react-hook-form";
 import { Alert, AlertDescription } from "../../components/ui/alert";
@@ -16,6 +16,7 @@ import {
   FieldLabel,
 } from "../../components/ui/field";
 import { Input } from "../../components/ui/input";
+import { useTranslation } from "../../i18n/hooks";
 import { cn } from "../../lib/utils";
 
 export type AcceptInviteFormValues = {
@@ -84,6 +85,7 @@ export function AcceptInviteForm({
   error,
   minPasswordLength = 8,
 }: AcceptInviteFormProps) {
+  const { t } = useTranslation();
   const {
     register,
     handleSubmit,
@@ -109,37 +111,34 @@ export function AcceptInviteForm({
         {/* Email Display (read-only) */}
         {email && (
           <Field>
-            <FieldLabel>Email</FieldLabel>
+            <FieldLabel>{t("auth.email")}</FieldLabel>
             <FieldContent>
               <Input type="email" value={email} disabled className="bg-muted" />
-              <FieldDescription>
-                This is the email address associated with your invitation
-              </FieldDescription>
             </FieldContent>
           </Field>
         )}
 
         {/* Name Field */}
         <Field data-invalid={!!errors.name}>
-          <FieldLabel htmlFor="accept-name">Your Name</FieldLabel>
+          <FieldLabel htmlFor="accept-name">{t("auth.name")}</FieldLabel>
           <FieldContent>
             <div className="relative">
-              <User
+              <Icon
+                icon="ph:user-duotone"
                 className="text-muted-foreground absolute left-2 top-1/2 size-4 -translate-y-1/2"
-                weight="duotone"
               />
               <Input
                 id="accept-name"
                 type="text"
-                placeholder="Enter your name"
+                placeholder={t("auth.namePlaceholder")}
                 className="pl-8"
                 autoComplete="name"
                 aria-invalid={!!errors.name}
                 {...register("name", {
-                  required: "Name is required",
+                  required: t("auth.nameRequired"),
                   minLength: {
                     value: 2,
-                    message: "Name must be at least 2 characters",
+                    message: t("auth.nameMinLength", { min: 2 }),
                   },
                 })}
               />
@@ -150,31 +149,35 @@ export function AcceptInviteForm({
 
         {/* Password Field */}
         <Field data-invalid={!!errors.password}>
-          <FieldLabel htmlFor="accept-password">Password</FieldLabel>
+          <FieldLabel htmlFor="accept-password">
+            {t("auth.password")}
+          </FieldLabel>
           <FieldContent>
             <div className="relative">
-              <Lock
+              <Icon
+                icon="ph:lock-duotone"
                 className="text-muted-foreground absolute left-2 top-1/2 size-4 -translate-y-1/2"
-                weight="duotone"
               />
               <Input
                 id="accept-password"
                 type="password"
-                placeholder="Create a password"
+                placeholder={t("auth.passwordPlaceholder")}
                 className="pl-8"
                 autoComplete="new-password"
                 aria-invalid={!!errors.password}
                 {...register("password", {
-                  required: "Password is required",
+                  required: t("auth.passwordRequired"),
                   minLength: {
                     value: minPasswordLength,
-                    message: `Password must be at least ${minPasswordLength} characters`,
+                    message: t("auth.passwordMinLength", {
+                      min: minPasswordLength,
+                    }),
                   },
                 })}
               />
             </div>
             <FieldDescription>
-              Must be at least {minPasswordLength} characters
+              {t("auth.passwordMinLength", { min: minPasswordLength })}
             </FieldDescription>
             <FieldError>{errors.password?.message}</FieldError>
           </FieldContent>
@@ -183,25 +186,25 @@ export function AcceptInviteForm({
         {/* Confirm Password Field */}
         <Field data-invalid={!!errors.confirmPassword}>
           <FieldLabel htmlFor="accept-confirm-password">
-            Confirm Password
+            {t("auth.confirmPassword")}
           </FieldLabel>
           <FieldContent>
             <div className="relative">
-              <Lock
+              <Icon
+                icon="ph:lock-duotone"
                 className="text-muted-foreground absolute left-2 top-1/2 size-4 -translate-y-1/2"
-                weight="duotone"
               />
               <Input
                 id="accept-confirm-password"
                 type="password"
-                placeholder="Confirm your password"
+                placeholder={t("auth.confirmPasswordPlaceholder")}
                 className="pl-8"
                 autoComplete="new-password"
                 aria-invalid={!!errors.confirmPassword}
                 {...register("confirmPassword", {
-                  required: "Please confirm your password",
+                  required: t("auth.passwordRequired"),
                   validate: (value) =>
-                    value === password || "Passwords do not match",
+                    value === password || t("auth.passwordMismatch"),
                 })}
               />
             </div>
@@ -213,7 +216,7 @@ export function AcceptInviteForm({
       {/* Error Message */}
       {error && (
         <Alert variant="destructive">
-          <WarningCircle />
+          <Icon icon="ph:warning-circle" />
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       )}
@@ -227,11 +230,11 @@ export function AcceptInviteForm({
       >
         {isSubmitting ? (
           <>
-            <SpinnerGap className="animate-spin" weight="bold" />
-            Creating account...
+            <Icon icon="ph:spinner-gap-bold" className="animate-spin" />
+            {t("auth.acceptingInvite")}
           </>
         ) : (
-          "Create Account"
+          t("auth.acceptInvite")
         )}
       </Button>
     </form>
