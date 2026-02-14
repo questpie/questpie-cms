@@ -36,6 +36,13 @@ import { Checkbox } from "../../components/ui/checkbox";
 import { EmptyState } from "../../components/ui/empty-state";
 import { SearchInput } from "../../components/ui/search-input";
 import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "../../components/ui/select";
+import {
 	Table,
 	TableBody,
 	TableCell,
@@ -550,11 +557,19 @@ function TableViewInner({
 			options.orderBy = { [field]: direction };
 		}
 
+		// Apply pagination from view state
+		const pageSize = viewState.config.pagination?.pageSize ?? 25;
+		const page = viewState.config.pagination?.page ?? 1;
+		options.limit = pageSize;
+		options.offset = (page - 1) * pageSize;
+
 		return options;
 	}, [
 		expandedFields,
 		viewState.config.filters,
 		viewState.config.sortConfig,
+		viewState.config.pagination?.page,
+		viewState.config.pagination?.pageSize,
 		resolvedFields,
 		collectionMeta?.relations,
 	]);
@@ -1101,19 +1116,124 @@ function TableViewInner({
 					</Table>
 				</div>
 
-				{/* Footer - Item count */}
-				<div className="text-sm text-muted-foreground flex items-center gap-2">
-					{isSearchActive && (
-						<Icon icon="ph:spinner-gap" className="size-3 animate-spin" />
-					)}
-					{filteredItems.length} item{filteredItems.length !== 1 ? "s" : ""}
-					{isSearching && searchData?.total !== undefined && (
-						<span>
-							({searchData.total} match{searchData.total !== 1 ? "es" : ""}{" "}
-							found)
-						</span>
-					)}
-				</div>
+				{/* Footer - Pagination */}
+				{!isSearching && (
+					<div className="flex items-center justify-between gap-4 py-2">
+						{/* Left side - item count and page size */}
+						<div className="flex items-center gap-4 text-sm text-muted-foreground">
+							<span>
+								{filteredItems.length > 0
+									? `${((viewState.config.pagination?.page ?? 1) - 1) * (viewState.config.pagination?.pageSize ?? 25) + 1}-${Math.min(((viewState.config.pagination?.page ?? 1) - 1) * (viewState.config.pagination?.pageSize ?? 25) + (viewState.config.pagination?.pageSize ?? 25), listData?.totalDocs ?? filteredItems.length)}`
+									: "0"}{" "}
+								of {listData?.totalDocs ?? 0}
+							</span>
+							<div className="flex items-center gap-2">
+								<span className="text-muted-foreground">Show</span>
+								<Select
+									value={String(viewState.config.pagination?.pageSize ?? 25)}
+									onValueChange={(value) =>
+										viewState.setPageSize(Number(value))
+									}
+								>
+									<SelectTrigger className="h-8 w-[70px]">
+										<SelectValue />
+									</SelectTrigger>
+									<SelectContent side="top">
+										{[10, 25, 50, 100].map((size) => (
+											<SelectItem key={size} value={String(size)}>
+												{size}
+											</SelectItem>
+										))}
+									</SelectContent>
+								</Select>
+							</div>
+						</div>
+
+						{/* Right side - pagination controls */}
+						<div className="flex items-center gap-1">
+							<Button
+								variant="ghost"
+								size="sm"
+								className="size-8 p-0"
+								disabled={(viewState.config.pagination?.page ?? 1) <= 1}
+								onClick={() =>
+									viewState.setPage(
+										(viewState.config.pagination?.page ?? 1) - 1,
+									)
+								}
+							>
+								<Icon icon="ph:caret-left" className="size-4" />
+							</Button>
+
+							{/* Page numbers */}
+							{Array.from(
+								{
+									length: Math.min(5, listData?.totalPages ?? 1),
+								},
+								(_, i) => {
+									const currentPage = viewState.config.pagination?.page ?? 1;
+									const totalPages = listData?.totalPages ?? 1;
+									let pageNum: number;
+
+									if (totalPages <= 5) {
+										pageNum = i + 1;
+									} else if (currentPage <= 3) {
+										pageNum = i + 1;
+									} else if (currentPage >= totalPages - 2) {
+										pageNum = totalPages - 4 + i;
+									} else {
+										pageNum = currentPage - 2 + i;
+									}
+
+									return (
+										<Button
+											key={pageNum}
+											variant={currentPage === pageNum ? "secondary" : "ghost"}
+											size="sm"
+											className="size-8 p-0 min-w-[32px]"
+											onClick={() => viewState.setPage(pageNum)}
+										>
+											{pageNum}
+										</Button>
+									);
+								},
+							)}
+
+							<Button
+								variant="ghost"
+								size="sm"
+								className="size-8 p-0"
+								disabled={
+									(viewState.config.pagination?.page ?? 1) >=
+									(listData?.totalPages ?? 1)
+								}
+								onClick={() =>
+									viewState.setPage(
+										(viewState.config.pagination?.page ?? 1) + 1,
+									)
+								}
+							>
+								<Icon icon="ph:caret-right" className="size-4" />
+							</Button>
+						</div>
+					</div>
+				)}
+
+				{/* Search mode footer */}
+				{isSearching && (
+					<div className="text-sm text-muted-foreground flex items-center gap-2 py-2">
+						{isSearchActive && (
+							<Icon icon="ph:spinner-gap" className="size-3 animate-spin" />
+						)}
+						{filteredItems.length} item{filteredItems.length !== 1 ? "s" : ""}
+						{searchData?.total !== undefined && (
+							<span>
+								({searchData.total} match{searchData.total !== 1 ? "es" : ""}{" "}
+								found)
+							</span>
+						)}
+					</div>
+				)}
 
 				{/* Filter Builder Sheet */}
 				<FilterBuilderSheet

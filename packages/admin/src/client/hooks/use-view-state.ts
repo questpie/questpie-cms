@@ -16,6 +16,7 @@ const EMPTY_CONFIG: ViewConfiguration = {
 	sortConfig: null,
 	visibleColumns: [],
 	realtime: undefined,
+	pagination: { page: 1, pageSize: 25 },
 };
 
 /**
@@ -135,6 +136,7 @@ export function useViewState(
 					storedConfig.realtime !== undefined
 						? storedConfig.realtime
 						: initialConfig?.realtime,
+				pagination: storedConfig.pagination ?? { page: 1, pageSize: 25 },
 			};
 		}
 
@@ -144,6 +146,7 @@ export function useViewState(
 			sortConfig: initialConfig?.sortConfig ?? null,
 			visibleColumns: defaultColumns,
 			realtime: initialConfig?.realtime,
+			pagination: initialConfig?.pagination ?? { page: 1, pageSize: 25 },
 		};
 	}, [storedConfig, defaultColumns, initialConfig]);
 
@@ -264,6 +267,28 @@ export function useViewState(
 		[setConfig],
 	);
 
+	// Set page number
+	const setPage = useCallback(
+		(page: number) => {
+			setConfig((prev) => ({
+				...prev,
+				pagination: { ...prev.pagination!, page },
+			}));
+		},
+		[setConfig],
+	);
+
+	// Set page size and reset to page 1
+	const setPageSize = useCallback(
+		(pageSize: number) => {
+			setConfig((prev) => ({
+				...prev,
+				pagination: { page: 1, pageSize },
+			}));
+		},
+		[setConfig],
+	);
+
 	// Toggle column visibility
 	const toggleColumn = useCallback(
 		(column: string) => {
@@ -305,6 +330,8 @@ export function useViewState(
 			config.filters.length > 0 ||
 			config.sortConfig !== null ||
 			config.realtime !== initialConfig?.realtime ||
+			config.pagination?.page !== 1 ||
+			config.pagination?.pageSize !== 25 ||
 			JSON.stringify([...config.visibleColumns].sort()) !==
 				JSON.stringify([...defaultColumns].sort())
 		);
@@ -321,6 +348,8 @@ export function useViewState(
 		toggleSort,
 		setVisibleColumns,
 		toggleColumn,
+		setPage,
+		setPageSize,
 		loadConfig,
 		resetConfig,
 		hasChanges,
