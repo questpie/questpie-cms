@@ -26,14 +26,14 @@
  * export const cms = baseCms.blocks(blocks).build({ ... });
  * ```
  *
- * For scoped typing in modules, use `getApp<T>()`:
+ * For scoped typing in modules, use `typedApp<T>()`:
  *
  * @example
  * ```ts
  * import type { AppCMS } from "./cms";
- * import { getApp } from "questpie";
+ * import { typedApp } from "questpie";
  *
- * const app = getApp<AppCMS>(ctx.app);
+ * const app = typedApp<AppCMS>(ctx.app);
  * ```
  */
 

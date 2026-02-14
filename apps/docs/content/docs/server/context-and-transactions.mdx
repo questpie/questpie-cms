@@ -66,25 +66,84 @@ The CMS normalizes context with defaults:
 
 ## Context Helpers
 
-Type-safe helpers for accessing CMS services from hooks and RPC handlers:
+QUESTPIE provides two categories of context utilities:
+
+### Type Helpers (compile-time only)
+
+These add TypeScript types without any runtime effect. Use them to get type-safe access to context values:
 
 ```ts
-import { getApp, getDb, getSession } from "questpie";
+import { typedApp, typedDb, typedSession, typedContext } from "questpie";
 import type { AppCMS } from "../cms";
 
 .hooks({
   afterChange: async ({ app, db, session }) => {
-    const cms = getApp<AppCMS>(app);
-    const typedDb = getDb<AppCMS>(db);
-    const typedSession = getSession<AppCMS>(session);
+    const cms = typedApp<AppCMS>(app);
+    const typedDatabase = typedDb<AppCMS>(db);
+    const typedSess = typedSession<AppCMS>(session);
 
     await cms.kv.set("cache:key", "value");
-    await typedDb.execute(sql`SELECT 1`);
+    await typedDatabase.execute(sql`SELECT 1`);
+  },
+})
+
+// Or type everything at once
+.access({
+  read: (ctx) => {
+    const { app, db, session } = typedContext<AppCMS>(ctx);
+    return !!session?.user;
   },
 })
 ```
 
-Or type everything at once with `getContext<AppCMS>(ctx)`.
+### Context Access (runtime)
+
+These actually retrieve context from AsyncLocalStorage at runtime:
+
+```ts
+import { getContext, tryGetContext, runWithContext } from "questpie";
+
+// Get context (throws if not in scope)
+const { db, session, locale } = getContext<AppCMS>();
+
+// Safe access (returns undefined if not in scope)
+const ctx = tryGetContext();
+if (ctx?.locale) {
+  // Use locale
+}
+
+// Run code within a context scope
+await runWithContext({ app: cms, session, db, locale: "sk" }, async () => {
+  // Inside here, getContext() works
+});
+```
+
+### Automatic Context Propagation
+
+Context automatically propagates through nested API calls via AsyncLocalStorage. This means locale and accessMode are inherited without explicit passing:
+
+```ts
+// Outer call sets locale
+await cms.api.collections.pages.find({}, { locale: "sk" });
+
+// Inside hooks or nested calls, locale is inherited automatically
+.hooks({
+  afterRead: async ({ app }) => {
+    const cms = typedApp<AppCMS>(app);
+    
+    // This automatically uses locale: "sk" from parent context
+    const related = await cms.api.collections.posts.find({
+      where: { featured: true },
+    });
+    // No need to pass { locale: "sk" } - it's inherited!
+  },
+})
+```
+
+This is especially useful for:
+- Block prefetch hooks fetching related data
+- Custom functions calling multiple collections
+- Hooks querying other entities
 
 ### createContext
 
@@ -116,10 +175,10 @@ BEGIN → access control → hooks → DB write → version → afterChange hook
 Use `withTransaction` for multi-step operations that must be atomic:
 
 ```ts
-import { withTransaction } from "questpie";
+import { withTransaction, typedApp } from "questpie";
 
 handler: async ({ input, app }) => {
-  const cms = getApp(app);
+  const cms = typedApp<AppCMS>(app);
 
   return withTransaction(cms.db, async (tx) => {
     // Create order — uses the transaction
@@ -170,11 +229,11 @@ if (isInTransaction()) {
 The most important pattern for side effects in transactional hooks. `onAfterCommit` queues a callback that runs only after the enclosing transaction successfully commits:
 
 ```ts
-import { onAfterCommit } from "questpie";
+import { onAfterCommit, typedApp } from "questpie";
 
 .hooks({
   afterChange: async ({ data, app }) => {
-    const cms = getApp(app);
+    const cms = typedApp<AppCMS>(app);
 
     // This runs INSIDE the transaction — data is consistent
     await cms.kv.delete(`cache:${data.id}`);
@@ -239,7 +298,7 @@ onAfterCommit(async () => {
 ## Real-World Example: Booking Checkout
 
 ```ts
-import { withTransaction, onAfterCommit, getApp } from "questpie";
+import { withTransaction, onAfterCommit, typedApp } from "questpie";
 
 const processBooking = rpc.fn({
   input: z.object({
@@ -249,7 +308,7 @@ const processBooking = rpc.fn({
     customerEmail: z.string(),
   }),
   handler: async ({ input, app }) => {
-    const cms = getApp(app);
+    const cms = typedApp<AppCMS>(app);
 
     return withTransaction(cms.db, async (tx) => {
       // 1. Verify barber availability
@@ -295,6 +354,7 @@ const processBooking = rpc.fn({
 
 ## Common Mistakes
 
+- **Confusing `typed*` with `get*`** — `typedApp()` only adds types, `getContext()` actually retrieves from storage.
 - **Sending emails/webhooks inside transactions** — If the transaction rolls back, the email is already sent. Always use `onAfterCommit` for external side effects.
 - **Assuming savepoint behavior** — Nested `withTransaction` calls reuse the parent transaction. There are no independent nested transactions.
 - **Forgetting `{ db: tx }` in nested CRUD calls** — When calling CRUD inside `withTransaction`, pass the transaction via context. Otherwise the operation creates its own transaction.
@@ -302,8 +362,8 @@ const processBooking = rpc.fn({
 
 ## Related Pages
 
+- [Type-Safe Contexts](/docs/server/type-safe-contexts) — Full type helper reference
 - [Hooks & Lifecycle](/docs/server/hooks-and-lifecycle) — Hook context includes `db` and transaction
 - [Access Control](/docs/server/access-control) — Access checks within context
 - [Database & Migrations](/docs/infrastructure/database-and-migrations) — Database connection setup
 - [Queue & Jobs](/docs/infrastructure/queue-and-jobs) — Deferring work with `onAfterCommit`
-- [Type-Safe Contexts](/docs/server/type-safe-contexts) — Canonical typed context examples

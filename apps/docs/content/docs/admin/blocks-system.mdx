@@ -80,6 +80,121 @@ Organize blocks into categories for the block picker:
 
 Blocks work with the preview system. When editing blocks in the admin panel, the preview panel shows a live-rendered version using your front-end components.
 
+## Block Prefetch (Server-Side Data Loading)
+
+Blocks can fetch additional data on the server before being sent to the client. This is useful for:
+- Expanding upload/relation fields to full objects with URLs
+- Fetching dynamic data (e.g., latest posts, featured products)
+- Computing derived values
+
+### Two Prefetch Approaches
+
+#### 1. Declarative Prefetch (for block fields)
+
+Use `{ with: { fieldName: true } }` to automatically expand relation/upload fields on the block. This approach **batches** requests - if multiple blocks need the same collection, only one query is made.
+
+```typescript
+const heroBlock = qb.block("hero")
+  .fields((f) => ({
+    title: f.text({ required: true }),
+    backgroundImage: f.upload(), // Stored as UUID
+  }))
+  // Expand backgroundImage to full asset object with URL
+  .prefetch({ with: { backgroundImage: true } });
+```
+
+**Result**: `_data.backgroundImage` contains the full asset object:
+```json
+{
+  "backgroundImage": {
+    "id": "uuid-here",
+    "url": "http://your-site.com/api/cms/storage/files/...",
+    "filename": "hero.jpg",
+    "mimeType": "image/jpeg"
+  }
+}
+```
+
+**Nested expansion** for relations with their own relations:
+```typescript
+.prefetch({
+  with: {
+    author: { with: { avatar: true } }
+  }
+})
+```
+
+#### 2. Functional Prefetch (for dynamic data)
+
+Use an async function when you need to fetch data that isn't a direct field on the block:
+
+```typescript
+const teamBlock = qb.block("team")
+  .fields((f) => ({
+    title: f.text(),
+    limit: f.number({ defaultValue: 4 }),
+  }))
+  .prefetch(async ({ values, ctx }) => {
+    // Fetch barbers with their avatars expanded
+    const res = await ctx.app.api.collections.barbers.find({
+      limit: values.limit || 4,
+      where: { isActive: true },
+      with: { avatar: true }, // Expand avatar relation
+    });
+    return { barbers: res.docs };
+  });
+```
+
+**Result**: `_data.barbers` contains the fetched records with expanded avatars.
+
+### Combined Approach (with + loader)
+
+Expand fields first, then run additional logic:
+
+```typescript
+.prefetch({
+  with: { backgroundImage: true },
+  loader: async ({ values, expanded, ctx }) => {
+    // expanded.backgroundImage is already fetched
+    const analytics = await getImageAnalytics(expanded.backgroundImage?.id);
+    return { analytics };
+  },
+})
+```
+
+### Accessing Prefetch Data in Renderers
+
+Prefetch data is available via `data` prop in your block renderer:
+
+```tsx
+export function TeamRenderer({ values, data }: BlockProps<"team">) {
+  const barbers = data?.barbers ?? [];
+  
+  return (
+    <div className="team-grid">
+      {barbers.map((barber) => (
+        <div key={barber.id}>
+          {barber.avatar?.url && (
+            <img src={barber.avatar.url} alt={barber.name} />
+          )}
+          <h3>{barber.name}</h3>
+        </div>
+      ))}
+    </div>
+  );
+}
+```
+
+### When to Use Which Approach
+
+| Scenario | Approach |
+|----------|----------|
+| Expand upload field (image, file) | Declarative: `{ with: { image: true } }` |
+| Expand relation field | Declarative: `{ with: { author: true } }` |
+| Fetch from different collection | Functional: `async ({ ctx }) => ...` |
+| Dynamic query based on block values | Functional: use `values.limit`, etc. |
+| Expand + compute derived data | Combined: `{ with, loader }` |
+
 ## Barbershop Example
 
 The TanStack Barbershop example includes 22 block types demonstrating the full blocks system. See `examples/tanstack-barbershop/src/questpie/admin/blocks/` for real implementations.

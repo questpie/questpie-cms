@@ -9,8 +9,8 @@ import type {
 import type { PgColumn, PgTableWithColumns } from "drizzle-orm/pg-core";
 import type { Collection } from "#questpie/server/collection/builder/collection.js";
 import type { ValidationSchemas } from "#questpie/server/collection/builder/validation-helpers.js";
-// Note: any and any are deprecated.
-// Users should use getApp<AppCMS>(), getDb<AppCMS>(), and getSession<AppCMS>() instead.
+// Note: any types are intentional for composition flexibility.
+// Users should use typedApp<AppCMS>(), typedDb<AppCMS>(), and typedSession<AppCMS>() for type-safe access.
 import type { AccessMode } from "#questpie/server/config/types.js";
 import type {
 	FieldDefinition,
@@ -280,18 +280,18 @@ export interface RelationVariant {
  *
  * @example
  * ```ts
- * import { getApp, getDb, getSession } from "questpie";
+ * import { typedApp, typedDb, typedSession } from "questpie";
  * import type { AppCMS } from "./cms";
  *
  * .hooks({
  *   afterChange: async ({ data, app, db, session }) => {
- *     const cms = getApp<AppCMS>(app);
- *     const typedDb = getDb<AppCMS>(db);
- *     const typedSession = getSession<AppCMS>(session);
+ *     const cms = typedApp<AppCMS>(app);
+ *     const database = typedDb<AppCMS>(db);
+ *     const sess = typedSession<AppCMS>(session);
  *
  *     // ✅ Fully typed access
  *     await cms.queue.notify.publish({ id: data.id });
- *     await typedDb.insert(auditLog).values({ ... });
+ *     await database.insert(auditLog).values({ ... });
  *   }
  * })
  * ```
@@ -317,11 +317,11 @@ export interface HookContext<
 	original: TOriginal extends never ? never : TOriginal | undefined;
 
 	/**
-	 * CMS instance - use getApp<AppCMS>(app) for type-safe access.
+	 * CMS instance - use typedApp<AppCMS>(app) for type-safe access.
 	 *
 	 * @example
 	 * ```ts
-	 * const cms = getApp<AppCMS>(app);
+	 * const cms = typedApp<AppCMS>(app);
 	 * cms.queue.jobName.publish(...);
 	 * cms.email.send(...);
 	 * ```
@@ -334,12 +334,12 @@ export interface HookContext<
 	 * - null = explicitly unauthenticated
 	 * - object = authenticated
 	 *
-	 * Use getSession<AppCMS>(session) for type-safe access.
+	 * Use typedSession<AppCMS>(session) for type-safe access.
 	 *
 	 * @example
 	 * ```ts
-	 * const typedSession = getSession<AppCMS>(session);
-	 * if (typedSession?.user.role === 'admin') { ... }
+	 * const sess = typedSession<AppCMS>(session);
+	 * if (sess?.user.role === 'admin') { ... }
 	 * ```
 	 */
 	session?: any | null;
@@ -361,12 +361,12 @@ export interface HookContext<
 
 	/**
 	 * Database client (may be transaction).
-	 * Use getDb<AppCMS>(db) for type-safe Drizzle operations.
+	 * Use typedDb<AppCMS>(db) for type-safe Drizzle operations.
 	 *
 	 * @example
 	 * ```ts
-	 * const typedDb = getDb<AppCMS>(db);
-	 * await typedDb.insert(table).values({ ... });
+	 * const database = typedDb<AppCMS>(db);
+	 * await database.insert(table).values({ ... });
 	 * ```
 	 */
 	db: any;
@@ -380,23 +380,23 @@ export interface HookContext<
  *
  * @example
  * ```ts
- * import { getSession } from "questpie";
+ * import { typedSession } from "questpie";
  * import type { AppCMS } from "./cms";
  *
  * .access({
  *   read: ({ session, data }) => {
- *     const typedSession = getSession<AppCMS>(session);
- *     return data.userId === typedSession?.user.id || typedSession?.user.role === 'admin'
+ *     const sess = typedSession<AppCMS>(session);
+ *     return data.userId === sess?.user.id || sess?.user.role === 'admin'
  *   }
  * })
  * ```
  */
 export interface AccessContext<TData = any, TApp = any> {
-	/** CMS instance - use getApp<AppCMS>(app) for type-safe access */
+	/** CMS instance - use typedApp<AppCMS>(app) for type-safe access */
 	app: TApp;
 	/**
 	 * Auth session (user + session) from Better Auth.
-	 * Use getSession<AppCMS>(session) for type-safe access.
+	 * Use typedSession<AppCMS>(session) for type-safe access.
 	 * - undefined = session not resolved
 	 * - null = explicitly unauthenticated
 	 * - object = authenticated
@@ -406,7 +406,7 @@ export interface AccessContext<TData = any, TApp = any> {
 	data?: TData;
 	/** Input data (for create/update) */
 	input?: any;
-	/** Database client - use getDb<AppCMS>(db) for type-safe access */
+	/** Database client - use typedDb<AppCMS>(db) for type-safe access */
 	db: any;
 	/** Current locale */
 	locale?: string;

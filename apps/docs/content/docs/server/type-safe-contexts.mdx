@@ -7,41 +7,60 @@ description: One pattern for strongly typed app, db, and session across hooks, a
 
 Most server callbacks in QUESTPIE intentionally expose `app`, `db`, and `session` as broad types. This keeps builder composition fast and avoids type explosions in large apps.
 
-The recommended pattern is to type these values at the edge with `AppCMS`:
+The recommended pattern is to type these values at the edge with your `AppCMS` type using the `typed*` helpers.
+
+## API Overview
+
+QUESTPIE provides two categories of context utilities:
+
+### Type Helpers (compile-time only)
+
+These functions **only add TypeScript types** — they perform no runtime logic. The `typed*` prefix clearly communicates they are type casts:
+
+| Function | Purpose |
+|----------|---------|
+| `typedApp<TApp>(app)` | Type cast `app` to your CMS type |
+| `typedDb<TApp>(db)` | Type cast `db` to your Drizzle client type |
+| `typedSession<TApp>(session)` | Type cast `session` to your auth session type |
+| `typedContext<TApp>(ctx)` | Type cast entire context object at once |
+
+### Context Access (runtime)
+
+These functions **actually retrieve values** from AsyncLocalStorage at runtime:
+
+| Function | Purpose |
+|----------|---------|
+| `getContext<TApp>()` | Get context from current scope (throws if not available) |
+| `tryGetContext()` | Safe version — returns `undefined` if not in scope |
+| `runWithContext(ctx, fn)` | Run code within a context scope |
+
+## Basic Usage
 
 ```ts
-import { getApp, getContext, getDb, getSession } from "questpie";
+import { typedApp, typedDb, typedSession, typedContext } from "questpie";
 import type { AppCMS } from "../cms";
 
-function useTypedContext(ctx: {
-  app?: unknown;
-  db?: unknown;
-  session?: unknown;
-  locale?: string;
-}) {
-  const cms = getApp<AppCMS>(ctx.app);
-  const db = getDb<AppCMS>(ctx.db);
-  const session = getSession<AppCMS>(ctx.session);
+// Type individual values
+const cms = typedApp<AppCMS>(app);
+const db = typedDb<AppCMS>(db);
+const session = typedSession<AppCMS>(session);
 
-  // Alternative one-liner
-  const typed = getContext<AppCMS>(ctx);
-
-  return { cms, db, session, typed };
-}
+// Or type everything at once
+const { app, db, session } = typedContext<AppCMS>(ctx);
 ```
 
 ## Type Safety Matrix
 
-| Surface | Callback shape | Recommended typing helper |
-|---|---|---|
-| Collection hooks | `({ app, db, session, data, operation })` | `getApp<AppCMS>()`, `getDb<AppCMS>()`, `getSession<AppCMS>()` |
-| Collection access | `({ app, db, session, data, input })` | `getContext<AppCMS>(ctx)` |
-| Global hooks/access | same as collection variants | `getContext<AppCMS>(ctx)` |
-| RPC `r.fn` / `q.fn` | `({ input, app, db, session })` | `rpc<AppCMS>()` or `fn.typed<AppCMS>()` |
-| Jobs | `({ payload, app, db, session })` | `job<AppCMS>()` (or `getApp<AppCMS>()`) |
+| Surface | Callback shape | Recommended helper |
+|---------|----------------|-------------------|
+| Collection hooks | `({ app, db, session, data, operation })` | `typedApp<AppCMS>()`, `typedDb<AppCMS>()` |
+| Collection access | `({ app, db, session, data, input })` | `typedContext<AppCMS>(ctx)` |
+| Global hooks/access | same as collection variants | `typedContext<AppCMS>(ctx)` |
+| RPC `r.fn` / `q.fn` | `({ input, app, db, session })` | `rpc<AppCMS>()` or `typedApp<AppCMS>()` |
+| Jobs | `({ payload, app, db, session })` | `job<AppCMS>()` or `typedApp<AppCMS>()` |
 | Workflows | `step(name, async ({ payload, app }))` | `workflow<AppCMS>()` |
-| Admin action handlers | `({ data, itemId, itemIds, app, db, session })` | `getContext<AppCMS>(ctx)` |
-| Dashboard widget `fetchFn` / `access` | `({ app, db, session, locale })` | `getContext<AppCMS>(ctx)` |
+| Admin action handlers | `({ data, itemId, itemIds, app, db, session })` | `typedContext<AppCMS>(ctx)` |
+| Dashboard widget `fetchFn` / `access` | `({ app, db, session, locale })` | `typedContext<AppCMS>(ctx)` |
 
 ## Canonical Setup
 
@@ -63,13 +82,13 @@ Then import `AppCMS` in server-only files where callbacks run.
 ## Hooks and Access
 
 ```ts
-import { getContext } from "questpie";
+import { typedContext } from "questpie";
 import type { AppCMS } from "../cms";
 
 q.collection("appointments")
   .hooks({
     afterChange: async (ctx) => {
-      const { app, session } = getContext<AppCMS>(ctx);
+      const { app, session } = typedContext<AppCMS>(ctx);
       if (ctx.operation === "create") {
         await app.queue.sendAppointmentConfirmation.publish({
           appointmentId: ctx.data.id,
@@ -81,10 +100,73 @@ q.collection("appointments")
   })
   .access({
     update: (ctx) => {
-      const { session } = getContext<AppCMS>(ctx);
+      const { session } = typedContext<AppCMS>(ctx);
       return !!session?.user;
     },
   });
+```
+
+## Implicit Context with getContext()
+
+All CRUD operations run within `runWithContext()` scope, which means you can use `getContext<TApp>()` without parameters in reusable functions:
+
+```ts
+import { getContext } from "questpie";
+import type { AppCMS } from "../cms";
+
+// Reusable function — no need to pass context explicitly
+async function logActivity(action: string) {
+  const { db, session, locale } = getContext<AppCMS>();
+
+  await db.insert(activityLog).values({
+    userId: session?.user.id,
+    action,
+    locale,
+  });
+}
+
+// Usage in hook — works because CRUD runs within runWithContext
+const posts = q.collection("posts").hooks({
+  afterChange: async () => {
+    await logActivity("post_updated"); // ✅ Context available automatically
+  },
+});
+```
+
+### Automatic Context Propagation
+
+Context (including `locale` and `accessMode`) automatically propagates to nested API calls:
+
+```ts
+// Parent operation sets locale
+await cms.api.collections.pages.find({ where: { slug: "home" } }, { locale: "sk" });
+
+// Inside the afterRead hook, nested calls inherit locale automatically
+.hooks({
+  afterRead: async ({ app }) => {
+    const cms = typedApp<AppCMS>(app);
+    
+    // This call automatically uses locale: "sk" from parent context
+    const relatedPosts = await cms.api.collections.posts.find({
+      where: { featured: true },
+    });
+  },
+});
+```
+
+### Safe Context Access
+
+Use `tryGetContext()` when context might not be available:
+
+```ts
+import { tryGetContext } from "questpie";
+
+function maybeLogUser() {
+  const ctx = tryGetContext();
+  if (ctx?.session) {
+    console.log("User:", ctx.session.user.id);
+  }
+}
 ```
 
 ## RPC
@@ -103,6 +185,7 @@ export const appRpc = r.router({
     create: r.fn({
       schema: z.object({ barber: z.string(), service: z.string() }),
       handler: async ({ input, app }) => {
+        // app is already typed as AppCMS
         return app.api.collections.appointments.create({
           barber: input.barber,
           service: input.service,
@@ -157,12 +240,12 @@ const processBooking = workflow<AppCMS>()<{
 ## Admin Action and Widget Contexts
 
 ```ts
-import { getContext } from "questpie";
+import { typedContext } from "questpie";
 import type { ServerActionContext, WidgetFetchContext } from "@questpie/admin/server";
 import type { AppCMS } from "../cms";
 
 const executeBulkArchive = async (ctx: ServerActionContext) => {
-  const { app, session } = getContext<AppCMS>(ctx);
+  const { app, session } = typedContext<AppCMS>(ctx);
   if (!session?.user) {
     return { type: "error", toast: { message: "Unauthorized" } } as const;
   }
@@ -176,7 +259,7 @@ const executeBulkArchive = async (ctx: ServerActionContext) => {
 };
 
 const dashboardCount = async (ctx: WidgetFetchContext) => {
-  const { app } = getContext<AppCMS>(ctx);
+  const { app } = typedContext<AppCMS>(ctx);
   const count = await app.api.collections.appointments.count({});
   return { count };
 };
@@ -184,6 +267,7 @@ const dashboardCount = async (ctx: WidgetFetchContext) => {
 
 ## Common Mistakes
 
+- **Confusing `typed*` with `get*`** — `typedApp()` only adds types, `getContext()` actually retrieves from storage.
 - Importing runtime `cms` in many files instead of importing only `type AppCMS`.
 - Using generic queue access instead of job-specific typed calls (`app.queue.jobName.publish(payload)`).
 - Using untyped `session` directly and losing user field autocomplete.

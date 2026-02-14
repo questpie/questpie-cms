@@ -270,277 +270,293 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 		const normalized = this.normalizeContext(context);
 		const db = this.getDb(normalized);
 
-		// Execute beforeOperation hook
-		await this.executeHooks(
-			this.state.hooks?.beforeOperation,
-			this.createHookContext({
-				data: options,
-				operation: "read",
-				context: normalized,
+		// Run entire read operation within request-scoped context
+		// This enables implicit getContext<TApp>() calls in hooks (e.g., afterRead prefetch)
+		return runWithContext(
+			{
+				app: this.cms,
+				session: normalized.session,
 				db,
-			}),
-		);
-
-		// Enforce access control
-		const accessWhere = await this.enforceAccessControl(
-			"read",
-			normalized,
-			null,
-			options,
-		);
-
-		// Access explicitly denied
-		if (accessWhere === false) {
-			throw ApiError.forbidden({
-				operation: "read",
-				resource: this.state.name,
-				reason: "User does not have permission to read records",
-			});
-		}
-
-		// Execute beforeRead hooks (read doesn't modify data)
-		if (this.state.hooks?.beforeRead) {
-			await this.executeHooks(
-				this.state.hooks.beforeRead as any,
-				this.createHookContext({
-					data: options,
-					operation: "read",
-					context: normalized,
-					db,
-				}),
-			);
-		}
-
-		const mergedWhere = this.mergeWhere(options.where, accessWhere);
-		const includeDeleted = options.includeDeleted === true;
-
-		// Get total count only for 'many' mode (pagination)
-		let totalDocs = 0;
-		if (mode === "many") {
-			const countFn = this.createCount();
-			totalDocs = await countFn(
-				{ where: mergedWhere, includeDeleted },
-				{ ...normalized, accessMode: "system" },
-			);
-		}
-
-		// Determine if we are using i18n (i18n table exists = collection has localized fields)
-		// If i18n table exists, we MUST use i18n queries to properly fetch localized fields
-		const useI18n = !!this.i18nTable;
-		const needsFallback =
-			useI18n &&
-			normalized.localeFallback !== false &&
-			normalized.locale !== normalized.defaultLocale;
-
-		// Create aliased i18n tables for current and fallback locales
-		const i18nCurrentTable = useI18n
-			? alias(this.i18nTable!, "i18n_current")
-			: null;
-		const i18nFallbackTable = needsFallback
-			? alias(this.i18nTable!, "i18n_fallback")
-			: null;
-
-		// Build SELECT object with aliased i18n tables
-		const selectObj = this.buildSelectObject(
-			options.columns || (options as any).select,
-			options.extras,
-			normalized,
-			i18nCurrentTable,
-			i18nFallbackTable,
-		);
-
-		// Start building query
-		let query = db.select(selectObj).from(this.table);
-
-		// Add i18n joins if locale provided and localized fields exist
-		if (useI18n && i18nCurrentTable) {
-			// LEFT JOIN for current locale
-			query = query.leftJoin(
-				i18nCurrentTable,
-				and(
-					eq((i18nCurrentTable as any).parentId, (this.table as any).id),
-					eq((i18nCurrentTable as any).locale, normalized.locale!),
-				),
-			);
-
-			// LEFT JOIN for fallback locale (only if different from current)
-			if (needsFallback && i18nFallbackTable) {
-				query = query.leftJoin(
-					i18nFallbackTable,
-					and(
-						eq((i18nFallbackTable as any).parentId, (this.table as any).id),
-						eq((i18nFallbackTable as any).locale, normalized.defaultLocale!),
-					),
-				);
-			}
-		}
-
-		// WHERE clause with soft delete filter
-		const whereClauses: SQL[] = [];
-
-		if (mergedWhere) {
-			const whereClause = this.buildWhereClause(
-				mergedWhere,
-				useI18n,
-				undefined,
-				normalized,
-				undefined,
-				i18nCurrentTable,
-				i18nFallbackTable,
-			);
-			if (whereClause) {
-				whereClauses.push(whereClause);
-			}
-		}
-
-		// Soft delete filter
-		if (this.state.options.softDelete && !includeDeleted) {
-			const softDeleteFilter = sql`${(this.table as any).deletedAt} IS NULL`;
-			whereClauses.push(softDeleteFilter);
-		}
-
-		// Search filter by _title (for relation pickers, etc.) - only for 'many' mode
-		if (mode === "many" && (options as any).search) {
-			const searchTerm = (options as any).search;
-			// Get the title expression using aliased tables
-			let titleExpr: unknown = null;
-
-			if (this.state.title) {
-				// If title is a localized field, use buildLocalizedFieldRef
-				const localizedFieldNames = this.getLocalizedFieldNames();
-				if (
-					localizedFieldNames.includes(this.state.title) &&
-					i18nCurrentTable
-				) {
-					titleExpr = buildLocalizedFieldRef(this.state.title, {
-						table: this.table,
-						state: this.state,
-						i18nCurrentTable,
-						i18nFallbackTable,
-						useI18n,
-					});
-				}
-				// If title is a regular field
-				else if (this.state.title in this.state.fields) {
-					titleExpr = (this.table as any)[this.state.title];
-				}
-				// If title is a virtual field, get from virtuals with aliased tables
-				else if (this.getVirtualsWithAliases) {
-					const virtuals = this.getVirtualsWithAliases(
-						normalized,
-						i18nCurrentTable,
-						i18nFallbackTable,
-					);
-					if (virtuals && this.state.title in virtuals) {
-						titleExpr = (virtuals as any)[this.state.title];
-					}
-				}
-			}
-
-			titleExpr = titleExpr || (this.table as any).id;
-			// Case-insensitive search using ILIKE
-			const searchFilter = sql`${titleExpr}::text ILIKE ${`%${searchTerm}%`}`;
-			whereClauses.push(searchFilter);
-		}
-
-		if (whereClauses.length > 0) {
-			query = query.where(and(...whereClauses));
-		}
-
-		// ORDER BY
-		if (options.orderBy) {
-			const orderClauses = this.buildOrderByClauses(
-				options.orderBy,
-				useI18n,
-				i18nCurrentTable,
-				i18nFallbackTable,
-			);
-			for (const clause of orderClauses) {
-				query = query.orderBy(clause);
-			}
-		}
-
-		// LIMIT - for 'one' mode always 1, for 'many' use options
-		if (mode === "one") {
-			query = query.limit(1);
-		} else {
-			const manyOptions = options as FindManyOptions;
-			if (manyOptions.limit !== undefined) {
-				query = query.limit(manyOptions.limit);
-			}
-			if (manyOptions.offset !== undefined) {
-				query = query.offset(manyOptions.offset);
-			}
-		}
-
-		// Execute query
-		let rows = await query;
-
-		// Application-side i18n merge: replace prefixed columns with final values
-		// Handles both flat localized fields and nested localized JSONB fields (via _localized column)
-		const hasLocalized = this.hasLocalizedFieldsInternal();
-		if (useI18n && rows.length > 0 && hasLocalized) {
-			rows = mergeI18nRows(rows, {
-				localizedFields: this.getLocalizedFieldNames(),
-				hasFallback: needsFallback,
-			});
-		}
-
-		// Handle relations
-		if (rows.length > 0 && options.with && this.cms) {
-			await this.resolveRelations(rows, options.with, normalized);
-		}
-
-		// Filter fields based on field-level read access
-		for (const row of rows) {
-			await this.filterFieldsForRead(row, normalized);
-			await this.runFieldOutputHooks(row, "read", normalized, db);
-		}
-
-		// Execute afterRead hooks
-		if (this.state.hooks?.afterRead) {
-			for (const row of rows) {
+				locale: normalized.locale,
+				accessMode: normalized.accessMode,
+			},
+			async () => {
+				// Execute beforeOperation hook
 				await this.executeHooks(
-					this.state.hooks.afterRead,
+					this.state.hooks?.beforeOperation,
 					this.createHookContext({
-						data: row,
+						data: options,
 						operation: "read",
 						context: normalized,
 						db,
 					}),
 				);
-			}
-		}
 
-		// Return based on mode
-		if (mode === "one") {
-			return (rows[0] as T) || null;
-		}
+				// Enforce access control
+				const accessWhere = await this.enforceAccessControl(
+					"read",
+					normalized,
+					null,
+					options,
+				);
 
-		// Construct paginated result for 'many' mode
-		const manyOptions = options as FindManyOptions;
-		const limit = manyOptions.limit ?? totalDocs;
-		const totalPages = limit > 0 ? Math.ceil(totalDocs / limit) : 1;
-		const offset = manyOptions.offset ?? 0;
-		const page = limit > 0 ? Math.floor(offset / limit) + 1 : 1;
-		const pagingCounter = (page - 1) * limit + 1;
-		const hasPrevPage = page > 1;
-		const hasNextPage = page < totalPages;
-		const prevPage = hasPrevPage ? page - 1 : null;
-		const nextPage = hasNextPage ? page + 1 : null;
+				// Access explicitly denied
+				if (accessWhere === false) {
+					throw ApiError.forbidden({
+						operation: "read",
+						resource: this.state.name,
+						reason: "User does not have permission to read records",
+					});
+				}
 
-		return {
-			docs: rows as T[],
-			totalDocs,
-			limit,
-			totalPages,
-			page,
-			pagingCounter,
-			hasPrevPage,
-			hasNextPage,
-			prevPage,
-			nextPage,
-		};
+				// Execute beforeRead hooks (read doesn't modify data)
+				if (this.state.hooks?.beforeRead) {
+					await this.executeHooks(
+						this.state.hooks.beforeRead as any,
+						this.createHookContext({
+							data: options,
+							operation: "read",
+							context: normalized,
+							db,
+						}),
+					);
+				}
+
+				const mergedWhere = this.mergeWhere(options.where, accessWhere);
+				const includeDeleted = options.includeDeleted === true;
+
+				// Get total count only for 'many' mode (pagination)
+				let totalDocs = 0;
+				if (mode === "many") {
+					const countFn = this.createCount();
+					totalDocs = await countFn(
+						{ where: mergedWhere, includeDeleted },
+						{ ...normalized, accessMode: "system" },
+					);
+				}
+
+				// Determine if we are using i18n (i18n table exists = collection has localized fields)
+				// If i18n table exists, we MUST use i18n queries to properly fetch localized fields
+				const useI18n = !!this.i18nTable;
+				const needsFallback =
+					useI18n &&
+					normalized.localeFallback !== false &&
+					normalized.locale !== normalized.defaultLocale;
+
+				// Create aliased i18n tables for current and fallback locales
+				const i18nCurrentTable = useI18n
+					? alias(this.i18nTable!, "i18n_current")
+					: null;
+				const i18nFallbackTable = needsFallback
+					? alias(this.i18nTable!, "i18n_fallback")
+					: null;
+
+				// Build SELECT object with aliased i18n tables
+				const selectObj = this.buildSelectObject(
+					options.columns || (options as any).select,
+					options.extras,
+					normalized,
+					i18nCurrentTable,
+					i18nFallbackTable,
+				);
+
+				// Start building query
+				let query = db.select(selectObj).from(this.table);
+
+				// Add i18n joins if locale provided and localized fields exist
+				if (useI18n && i18nCurrentTable) {
+					// LEFT JOIN for current locale
+					query = query.leftJoin(
+						i18nCurrentTable,
+						and(
+							eq((i18nCurrentTable as any).parentId, (this.table as any).id),
+							eq((i18nCurrentTable as any).locale, normalized.locale!),
+						),
+					);
+
+					// LEFT JOIN for fallback locale (only if different from current)
+					if (needsFallback && i18nFallbackTable) {
+						query = query.leftJoin(
+							i18nFallbackTable,
+							and(
+								eq((i18nFallbackTable as any).parentId, (this.table as any).id),
+								eq(
+									(i18nFallbackTable as any).locale,
+									normalized.defaultLocale!,
+								),
+							),
+						);
+					}
+				}
+
+				// WHERE clause with soft delete filter
+				const whereClauses: SQL[] = [];
+
+				if (mergedWhere) {
+					const whereClause = this.buildWhereClause(
+						mergedWhere,
+						useI18n,
+						undefined,
+						normalized,
+						undefined,
+						i18nCurrentTable,
+						i18nFallbackTable,
+					);
+					if (whereClause) {
+						whereClauses.push(whereClause);
+					}
+				}
+
+				// Soft delete filter
+				if (this.state.options.softDelete && !includeDeleted) {
+					const softDeleteFilter = sql`${(this.table as any).deletedAt} IS NULL`;
+					whereClauses.push(softDeleteFilter);
+				}
+
+				// Search filter by _title (for relation pickers, etc.) - only for 'many' mode
+				if (mode === "many" && (options as any).search) {
+					const searchTerm = (options as any).search;
+					// Get the title expression using aliased tables
+					let titleExpr: unknown = null;
+
+					if (this.state.title) {
+						// If title is a localized field, use buildLocalizedFieldRef
+						const localizedFieldNames = this.getLocalizedFieldNames();
+						if (
+							localizedFieldNames.includes(this.state.title) &&
+							i18nCurrentTable
+						) {
+							titleExpr = buildLocalizedFieldRef(this.state.title, {
+								table: this.table,
+								state: this.state,
+								i18nCurrentTable,
+								i18nFallbackTable,
+								useI18n,
+							});
+						}
+						// If title is a regular field
+						else if (this.state.title in this.state.fields) {
+							titleExpr = (this.table as any)[this.state.title];
+						}
+						// If title is a virtual field, get from virtuals with aliased tables
+						else if (this.getVirtualsWithAliases) {
+							const virtuals = this.getVirtualsWithAliases(
+								normalized,
+								i18nCurrentTable,
+								i18nFallbackTable,
+							);
+							if (virtuals && this.state.title in virtuals) {
+								titleExpr = (virtuals as any)[this.state.title];
+							}
+						}
+					}
+
+					titleExpr = titleExpr || (this.table as any).id;
+					// Case-insensitive search using ILIKE
+					const searchFilter = sql`${titleExpr}::text ILIKE ${`%${searchTerm}%`}`;
+					whereClauses.push(searchFilter);
+				}
+
+				if (whereClauses.length > 0) {
+					query = query.where(and(...whereClauses));
+				}
+
+				// ORDER BY
+				if (options.orderBy) {
+					const orderClauses = this.buildOrderByClauses(
+						options.orderBy,
+						useI18n,
+						i18nCurrentTable,
+						i18nFallbackTable,
+					);
+					for (const clause of orderClauses) {
+						query = query.orderBy(clause);
+					}
+				}
+
+				// LIMIT - for 'one' mode always 1, for 'many' use options
+				if (mode === "one") {
+					query = query.limit(1);
+				} else {
+					const manyOptions = options as FindManyOptions;
+					if (manyOptions.limit !== undefined) {
+						query = query.limit(manyOptions.limit);
+					}
+					if (manyOptions.offset !== undefined) {
+						query = query.offset(manyOptions.offset);
+					}
+				}
+
+				// Execute query
+				let rows = await query;
+
+				// Application-side i18n merge: replace prefixed columns with final values
+				// Handles both flat localized fields and nested localized JSONB fields (via _localized column)
+				const hasLocalized = this.hasLocalizedFieldsInternal();
+				if (useI18n && rows.length > 0 && hasLocalized) {
+					rows = mergeI18nRows(rows, {
+						localizedFields: this.getLocalizedFieldNames(),
+						hasFallback: needsFallback,
+					});
+				}
+
+				// Handle relations
+				if (rows.length > 0 && options.with && this.cms) {
+					await this.resolveRelations(rows, options.with, normalized);
+				}
+
+				// Filter fields based on field-level read access
+				for (const row of rows) {
+					await this.filterFieldsForRead(row, normalized);
+					await this.runFieldOutputHooks(row, "read", normalized, db);
+				}
+
+				// Execute afterRead hooks
+				if (this.state.hooks?.afterRead) {
+					for (const row of rows) {
+						await this.executeHooks(
+							this.state.hooks.afterRead,
+							this.createHookContext({
+								data: row,
+								operation: "read",
+								context: normalized,
+								db,
+							}),
+						);
+					}
+				}
+
+				// Return based on mode
+				if (mode === "one") {
+					return (rows[0] as T) || null;
+				}
+
+				// Construct paginated result for 'many' mode
+				const manyOptions = options as FindManyOptions;
+				const limit = manyOptions.limit ?? totalDocs;
+				const totalPages = limit > 0 ? Math.ceil(totalDocs / limit) : 1;
+				const offset = manyOptions.offset ?? 0;
+				const page = limit > 0 ? Math.floor(offset / limit) + 1 : 1;
+				const pagingCounter = (page - 1) * limit + 1;
+				const hasPrevPage = page > 1;
+				const hasNextPage = page < totalPages;
+				const prevPage = hasPrevPage ? page - 1 : null;
+				const nextPage = hasNextPage ? page + 1 : null;
+
+				return {
+					docs: rows as T[],
+					totalDocs,
+					limit,
+					totalPages,
+					page,
+					pagingCounter,
+					hasPrevPage,
+					hasNextPage,
+					prevPage,
+					nextPage,
+				};
+			},
+		);
 	}
 
 	/**

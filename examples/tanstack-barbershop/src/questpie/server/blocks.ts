@@ -85,7 +85,7 @@ export const heroBlock = qb
 export const servicesBlock = qb
 	.block("services")
 	.admin(({ c }) => ({
-		label: { en: "Services Grid", sk: "Prehľad služieb" },
+		label: { en: "Services", sk: "Služby" },
 		icon: c.icon("ph:scissors"),
 		category: sections(c),
 		order: 2,
@@ -95,6 +95,34 @@ export const servicesBlock = qb
 		subtitle: f.textarea({
 			label: { en: "Subtitle", sk: "Podnadpis" },
 			localized: true,
+		}),
+		mode: f.select({
+			label: { en: "Selection Mode", sk: "Režim výberu" },
+			options: [
+				{
+					value: "auto",
+					label: {
+						en: "Automatic (by limit)",
+						sk: "Automatický (podľa limitu)",
+					},
+				},
+				{
+					value: "manual",
+					label: { en: "Manual selection", sk: "Manuálny výber" },
+				},
+			],
+			defaultValue: "auto",
+		}),
+		services: f.relation({
+			to: "services",
+			hasMany: true,
+			label: { en: "Select Services", sk: "Vybrať služby" },
+			meta: {
+				admin: {
+					hidden: ({ data }: { data: Record<string, unknown> }) =>
+						data.mode !== "manual",
+				},
+			},
 		}),
 		showPrices: f.boolean({
 			label: { en: "Show Prices", sk: "Zobraziť ceny" },
@@ -113,21 +141,40 @@ export const servicesBlock = qb
 			],
 			defaultValue: "3",
 		}),
-		limit: f.number({ label: { en: "Limit", sk: "Limit" }, defaultValue: 6 }),
+		limit: f.number({
+			label: { en: "Limit", sk: "Limit" },
+			defaultValue: 6,
+			meta: {
+				admin: {
+					hidden: ({ data }: { data: Record<string, unknown> }) =>
+						data.mode === "manual",
+				},
+			},
+		}),
 	}))
 	.prefetch(async ({ values, ctx }) => {
+		if (values.mode === "manual") {
+			const ids = (values.services as string[]) || [];
+			if (ids.length === 0) return { services: [] };
+			const res = await ctx.app.api.collections.services.find({
+				where: { id: { in: ids } },
+				limit: ids.length,
+				with: { image: true },
+			});
+			return { services: res.docs };
+		}
+		// Auto mode
 		const res = await ctx.app.api.collections.services.find({
 			limit: values.limit || 6,
-			// orderBy: { order: "asc" },
+			with: { image: true },
 		});
-
 		return { services: res.docs };
 	});
 
 export const teamBlock = qb
 	.block("team")
 	.admin(({ c }) => ({
-		label: { en: "Team Grid", sk: "Náš tím" },
+		label: { en: "Team / Barbers", sk: "Tím / Holiči" },
 		icon: c.icon("ph:users"),
 		category: sections(c),
 		order: 3,
@@ -138,6 +185,34 @@ export const teamBlock = qb
 			label: { en: "Subtitle", sk: "Podnadpis" },
 			localized: true,
 		}),
+		mode: f.select({
+			label: { en: "Selection Mode", sk: "Režim výberu" },
+			options: [
+				{
+					value: "auto",
+					label: {
+						en: "Automatic (by limit)",
+						sk: "Automatický (podľa limitu)",
+					},
+				},
+				{
+					value: "manual",
+					label: { en: "Manual selection", sk: "Manuálny výber" },
+				},
+			],
+			defaultValue: "auto",
+		}),
+		barbers: f.relation({
+			to: "barbers",
+			hasMany: true,
+			label: { en: "Select Barbers", sk: "Vybrať holičov" },
+			meta: {
+				admin: {
+					hidden: ({ data }: { data: Record<string, unknown> }) =>
+						data.mode !== "manual",
+				},
+			},
+		}),
 		columns: f.select({
 			label: { en: "Columns", sk: "Stĺpce" },
 			options: [
@@ -147,12 +222,37 @@ export const teamBlock = qb
 			],
 			defaultValue: "3",
 		}),
-		limit: f.number({ label: { en: "Limit", sk: "Limit" }, defaultValue: 4 }),
+		limit: f.number({
+			label: { en: "Limit", sk: "Limit" },
+			defaultValue: 4,
+			meta: {
+				admin: {
+					hidden: ({ data }: { data: Record<string, unknown> }) =>
+						data.mode === "manual",
+				},
+			},
+		}),
+		showBio: f.boolean({
+			label: { en: "Show Bio", sk: "Zobraziť bio" },
+			defaultValue: false,
+		}),
 	}))
 	.prefetch(async ({ values, ctx }) => {
+		if (values.mode === "manual") {
+			const ids = (values.barbers as string[]) || [];
+			if (ids.length === 0) return { barbers: [] };
+			const res = await ctx.app.api.collections.barbers.find({
+				where: { id: { in: ids } },
+				limit: ids.length,
+				with: { avatar: true },
+			});
+			return { barbers: res.docs };
+		}
+		// Auto mode
 		const res = await ctx.app.api.collections.barbers.find({
 			limit: values.limit || 4,
 			where: { isActive: true },
+			with: { avatar: true },
 		});
 		return { barbers: res.docs };
 	});
@@ -171,12 +271,37 @@ export const reviewsBlock = qb
 			label: { en: "Subtitle", sk: "Podnadpis" },
 			localized: true,
 		}),
+		filter: f.select({
+			label: { en: "Filter", sk: "Filter" },
+			options: [
+				{
+					value: "featured",
+					label: { en: "Featured (4-5 stars)", sk: "Odporúčané (4-5 hviezd)" },
+				},
+				{ value: "recent", label: { en: "Recent", sk: "Najnovšie" } },
+				{ value: "all", label: { en: "All", sk: "Všetky" } },
+			],
+			defaultValue: "featured",
+		}),
 		limit: f.number({ label: { en: "Limit", sk: "Limit" }, defaultValue: 3 }),
+		columns: f.select({
+			label: { en: "Columns", sk: "Stĺpce" },
+			options: [
+				{ value: "2", label: "2" },
+				{ value: "3", label: "3" },
+				{ value: "4", label: "4" },
+			],
+			defaultValue: "3",
+		}),
 	}))
 	.prefetch(async ({ values, ctx }) => {
+		const where: Record<string, unknown> = {};
+		if (values.filter === "featured") {
+			where.rating = { in: ["4", "5"] };
+		}
 		const res = await ctx.app.api.collections.reviews.find({
 			limit: values.limit || 3,
-			where: { rating: { in: ["4", "5"] } },
+			where,
 			orderBy: { createdAt: "desc" },
 		});
 		return { reviews: res.docs };
@@ -268,131 +393,6 @@ export const bookingCtaBlock = qb
 		}),
 	}));
 
-export const barbersFeaturedBlock = qb
-	.block("barbers-featured")
-	.admin(({ c }) => ({
-		label: { en: "Featured Barbers", sk: "Vybraní holiči" },
-		icon: c.icon("ph:users-three"),
-		category: sections(c),
-		order: 7,
-	}))
-	.fields((f) => ({
-		title: f.text({ label: { en: "Title", sk: "Nadpis" }, localized: true }),
-		subtitle: f.textarea({
-			label: { en: "Subtitle", sk: "Podnadpis" },
-			localized: true,
-		}),
-		barbers: f.relation({
-			to: "barbers",
-			hasMany: true,
-			label: { en: "Barbers", sk: "Holiči" },
-		}),
-		columns: f.select({
-			label: { en: "Columns", sk: "Stĺpce" },
-			options: [
-				{ value: "2", label: "2" },
-				{ value: "3", label: "3" },
-				{ value: "4", label: "4" },
-			],
-			defaultValue: "3",
-		}),
-	}))
-	.prefetch(async ({ values, ctx }) => {
-		const ids = (values.barbers as string[]) || [];
-		if (ids.length === 0) return { barbers: [] };
-		const res = await ctx.app.api.collections.barbers.find({
-			where: { id: { in: ids } },
-			limit: ids.length,
-		});
-		return { barbers: res.docs };
-	});
-
-export const servicesFeaturedBlock = qb
-	.block("services-featured")
-	.admin(({ c }) => ({
-		label: { en: "Featured Services", sk: "Vybrané služby" },
-		icon: c.icon("ph:star"),
-		category: sections(c),
-		order: 8,
-	}))
-	.fields((f) => ({
-		title: f.text({ label: { en: "Title", sk: "Nadpis" }, localized: true }),
-		subtitle: f.textarea({
-			label: { en: "Subtitle", sk: "Podnadpis" },
-			localized: true,
-		}),
-		services: f.relation({
-			to: "services",
-			hasMany: true,
-			label: { en: "Services", sk: "Služby" },
-		}),
-		columns: f.select({
-			label: { en: "Columns", sk: "Stĺpce" },
-			options: [
-				{ value: "2", label: "2" },
-				{ value: "3", label: "3" },
-				{ value: "4", label: "4" },
-			],
-			defaultValue: "3",
-		}),
-	}))
-	.prefetch(async ({ values, ctx }) => {
-		const ids = (values.services as string[]) || [];
-		if (ids.length === 0) return { services: [] };
-		const res = await ctx.app.api.collections.services.find({
-			where: { id: { in: ids } },
-			limit: ids.length,
-		});
-		return { services: res.docs };
-	});
-
-export const reviewsGridBlock = qb
-	.block("reviews-grid")
-	.admin(({ c }) => ({
-		label: { en: "Reviews Grid", sk: "Mriežka recenzií" },
-		icon: c.icon("ph:star-half"),
-		category: sections(c),
-		order: 9,
-	}))
-	.fields((f) => ({
-		title: f.text({ label: { en: "Title", sk: "Nadpis" }, localized: true }),
-		subtitle: f.textarea({
-			label: { en: "Subtitle", sk: "Podnadpis" },
-			localized: true,
-		}),
-		filter: f.select({
-			label: { en: "Filter", sk: "Filter" },
-			options: [
-				{ value: "featured", label: "Featured" },
-				{ value: "recent", label: "Recent" },
-				{ value: "all", label: "All" },
-			],
-			defaultValue: "recent",
-		}),
-		limit: f.number({ label: { en: "Limit", sk: "Limit" }, defaultValue: 6 }),
-		columns: f.select({
-			label: { en: "Columns", sk: "Stĺpce" },
-			options: [
-				{ value: "2", label: "2" },
-				{ value: "3", label: "3" },
-				{ value: "4", label: "4" },
-			],
-			defaultValue: "3",
-		}),
-	}))
-	.prefetch(async ({ values, ctx }) => {
-		const where: Record<string, any> = {};
-		if (values.filter === "featured") {
-			where.rating = { in: ["4", "5"] };
-		}
-		const res = await ctx.app.api.collections.reviews.find({
-			limit: values.limit || 6,
-			where,
-			orderBy: { createdAt: "desc" },
-		});
-		return { reviews: res.docs };
-	});
-
 // ============================================================================
 // Content Blocks
 // ============================================================================
@@ -410,6 +410,15 @@ export const textBlock = qb
 			label: { en: "Content", sk: "Obsah" },
 			localized: true,
 			required: true,
+		}),
+		align: f.select({
+			label: { en: "Alignment", sk: "Zarovnanie" },
+			options: [
+				{ value: "left", label: { en: "Left", sk: "Vľavo" } },
+				{ value: "center", label: { en: "Center", sk: "Stred" } },
+				{ value: "right", label: { en: "Right", sk: "Vpravo" } },
+			],
+			defaultValue: "left",
 		}),
 		maxWidth: f.select({
 			label: { en: "Max Width", sk: "Max šírka" },
@@ -772,7 +781,4 @@ export const blocks = {
 	gallery: galleryBlock,
 	"image-text": imageTextBlock,
 	stats: statsBlock,
-	"barbers-featured": barbersFeaturedBlock,
-	"services-featured": servicesFeaturedBlock,
-	"reviews-grid": reviewsGridBlock,
 };

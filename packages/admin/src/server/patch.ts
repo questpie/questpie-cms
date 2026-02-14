@@ -1018,14 +1018,19 @@ function injectBlockDefinitions(
 function injectBlocksPrefetchHooks(state: any): void {
 	const prefetchHook = createBlocksPrefetchHook();
 
-	const injectIfHasBlocksField = (entity: any) => {
-		const fields = entity?.state?.fields;
-		if (!fields) return;
+	const injectIfHasBlocksField = (entity: any, name: string) => {
+		// Use fieldDefinitions which has the field type info (state.type, not state.config.type)
+		const fieldDefinitions = entity?.state?.fieldDefinitions;
+		if (!fieldDefinitions) {
+			return;
+		}
 
-		const hasBlocksField = Object.values(fields).some(
-			(fieldDef: any) => fieldDef?.state?.config?.type === "blocks",
+		const hasBlocksField = Object.values(fieldDefinitions).some(
+			(fieldDef: any) => fieldDef?.state?.type === "blocks",
 		);
-		if (!hasBlocksField) return;
+		if (!hasBlocksField) {
+			return;
+		}
 
 		// Append to existing afterRead hooks (don't overwrite)
 		if (!entity.state.hooks) {
@@ -1041,14 +1046,14 @@ function injectBlocksPrefetchHooks(state: any): void {
 	};
 
 	if (state.collections) {
-		for (const collection of Object.values(state.collections)) {
-			injectIfHasBlocksField(collection);
+		for (const [name, collection] of Object.entries(state.collections)) {
+			injectIfHasBlocksField(collection, name);
 		}
 	}
 
 	if (state.globals) {
-		for (const global of Object.values(state.globals)) {
-			injectIfHasBlocksField(global);
+		for (const [name, global] of Object.entries(state.globals)) {
+			injectIfHasBlocksField(global, name);
 		}
 	}
 }

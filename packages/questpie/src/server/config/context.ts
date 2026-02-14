@@ -49,7 +49,7 @@ export type InferDbFromApp<TApp> = TApp extends { db: infer D } ? D : any;
  *
  * export const getPosts = q.fn({
  *   handler: async ({ app }) => {
- *     const cms = getApp<BaseCMS>(app);
+ *     const cms = typedApp<BaseCMS>(app);
  *     return cms.api.collections.posts.find(); // ✅ Typed
  *   }
  * });
@@ -58,83 +58,6 @@ export type InferDbFromApp<TApp> = TApp extends { db: infer D } ? D : any;
 export type InferBaseCMS<T> = T extends { config: infer TConfig }
 	? { config: Omit<TConfig, "functions">; [key: string]: any }
 	: never;
-
-/**
- * Get typed CMS app instance from hook/job/function context.
- * Provides type-safe access to your CMS configuration and services.
- *
- * @example
- * ```ts
- * import { getApp } from "questpie";
- * import type { AppCMS } from "./cms";
- *
- * const posts = q.collection("posts").hooks({
- *   afterChange: async ({ app }) => {
- *     const cms = getApp<AppCMS>(app);
- *     // ✅ Fully typed access
- *     await cms.api.collections.posts.find();
- *     await cms.queue.sendEmail.publish({ to: "user@example.com" });
- *   }
- * });
- * ```
- */
-export function getApp<TApp>(app: unknown): TApp {
-	return app as TApp;
-}
-
-/**
- * Get typed database client from hook/job/function context.
- * The db client may be a transaction within the current operation scope.
- *
- * @example
- * ```ts
- * import { getDb } from "questpie";
- * import type { AppCMS } from "./cms";
- *
- * const posts = q.collection("posts").hooks({
- *   afterChange: async ({ app, db }) => {
- *     const cms = getApp<AppCMS>(app);
- *     const typedDb = getDb<AppCMS>(db);
- *
- *     // ✅ Fully typed Drizzle operations
- *     await typedDb.select().from(cms.config.collections.posts.table);
- *   }
- * });
- * ```
- */
-export function getDb<TApp>(db: unknown): InferDbFromApp<TApp> {
-	return db as InferDbFromApp<TApp>;
-}
-
-/**
- * Get typed session from hook/job/function context.
- * Returns null if unauthenticated, undefined if session not resolved.
- *
- * @example
- * ```ts
- * import { getSession } from "questpie";
- * import type { AppCMS } from "./cms";
- *
- * const posts = q.collection("posts").hooks({
- *   afterChange: async ({ session }) => {
- *     const typedSession = getSession<AppCMS>(session);
- *
- *     if (!typedSession) {
- *       throw new Error("Unauthorized");
- *     }
- *
- *     // ✅ Typed session access
- *     const userId = typedSession.user.id;
- *     const role = typedSession.user.role;
- *   }
- * });
- * ```
- */
-export function getSession<TApp>(
-	session: unknown,
-): InferSessionFromApp<TApp> | null | undefined {
-	return session as InferSessionFromApp<TApp> | null | undefined;
-}
 
 /**
  * Infer the app/CMS type from a CMS app instance.
@@ -146,8 +69,99 @@ export function getSession<TApp>(
  */
 export type InferAppFromApp<TApp> = TApp;
 
+// ============================================================================
+// TYPE HELPERS (compile-time only, no runtime effect)
+//
+// These functions only add TypeScript types - they perform no runtime logic.
+// Use them to get type-safe access to context properties in hooks/functions.
+//
+// Pattern: typed* prefix clearly indicates these are type casts
+// ============================================================================
+
 /**
- * Fully typed context helper - casts all context properties to their proper types.
+ * Add types to CMS app instance from hook/job/function context.
+ * This is a compile-time only type cast - no runtime effect.
+ *
+ * @example
+ * ```ts
+ * import { typedApp } from "questpie";
+ * import type { AppCMS } from "./cms";
+ *
+ * const posts = q.collection("posts").hooks({
+ *   afterChange: async ({ app }) => {
+ *     const cms = typedApp<AppCMS>(app);
+ *     // ✅ Fully typed access
+ *     await cms.api.collections.posts.find();
+ *     await cms.queue.sendEmail.publish({ to: "user@example.com" });
+ *   }
+ * });
+ * ```
+ */
+export function typedApp<TApp>(app: unknown): TApp {
+	return app as TApp;
+}
+
+/**
+ * Add types to database client from hook/job/function context.
+ * This is a compile-time only type cast - no runtime effect.
+ *
+ * The db client may be a transaction within the current operation scope.
+ *
+ * @example
+ * ```ts
+ * import { typedApp, typedDb } from "questpie";
+ * import type { AppCMS } from "./cms";
+ *
+ * const posts = q.collection("posts").hooks({
+ *   afterChange: async ({ app, db }) => {
+ *     const cms = typedApp<AppCMS>(app);
+ *     const database = typedDb<AppCMS>(db);
+ *
+ *     // ✅ Fully typed Drizzle operations
+ *     await database.select().from(cms.config.collections.posts.table);
+ *   }
+ * });
+ * ```
+ */
+export function typedDb<TApp>(db: unknown): InferDbFromApp<TApp> {
+	return db as InferDbFromApp<TApp>;
+}
+
+/**
+ * Add types to session from hook/job/function context.
+ * This is a compile-time only type cast - no runtime effect.
+ *
+ * Returns null if unauthenticated, undefined if session not resolved.
+ *
+ * @example
+ * ```ts
+ * import { typedSession } from "questpie";
+ * import type { AppCMS } from "./cms";
+ *
+ * const posts = q.collection("posts").hooks({
+ *   afterChange: async ({ session }) => {
+ *     const typedSess = typedSession<AppCMS>(session);
+ *
+ *     if (!typedSess) {
+ *       throw new Error("Unauthorized");
+ *     }
+ *
+ *     // ✅ Typed session access
+ *     const userId = typedSess.user.id;
+ *     const role = typedSess.user.role;
+ *   }
+ * });
+ * ```
+ */
+export function typedSession<TApp>(
+	session: unknown,
+): InferSessionFromApp<TApp> | null | undefined {
+	return session as InferSessionFromApp<TApp> | null | undefined;
+}
+
+/**
+ * Add types to entire context object.
+ * This is a compile-time only type cast - no runtime effect.
  *
  * Use this in hooks and access control functions to get fully typed access to:
  * - `ctx.app` - your specific CMS instance with queues, email, etc.
@@ -158,12 +172,12 @@ export type InferAppFromApp<TApp> = TApp;
  *
  * @example
  * ```ts
- * import { getContext } from "questpie";
+ * import { typedContext } from "questpie";
  * import type { AppCMS } from "./cms";
  *
  * .access({
  *   read: (ctx) => {
- *     const { session, app, db } = getContext<AppCMS>(ctx);
+ *     const { session, app, db } = typedContext<AppCMS>(ctx);
  *
  *     // ✅ session.user is fully typed
  *     if (session?.user.role !== "admin") return false;
@@ -180,13 +194,40 @@ export type InferAppFromApp<TApp> = TApp;
  * ```
  */
 
+// Type helpers for smart return type based on input
+type TypedContextReturn<TApp, TCtx> = {
+	app: TCtx extends { app: unknown } ? InferAppFromApp<TApp> : never;
+	session: TCtx extends { session: infer S }
+		? S
+		: InferSessionFromApp<TApp> | null | undefined;
+	db: TCtx extends { db: unknown } ? InferDbFromApp<TApp> : never;
+	locale: TCtx extends { locale: infer L } ? L : string | undefined;
+	accessMode: TCtx extends { accessMode: infer A } ? A : string | undefined;
+};
+
+export function typedContext<
+	TApp,
+	TCtx extends {
+		app?: unknown;
+		session?: unknown | null;
+		db?: unknown;
+		locale?: string;
+		accessMode?: string;
+	},
+>(ctx: TCtx): TypedContextReturn<TApp, TCtx> {
+	return ctx as TypedContextReturn<TApp, TCtx>;
+}
+
 // ============================================================================
-// AsyncLocalStorage for Implicit Context
+// CONTEXT ACCESS (runtime - AsyncLocalStorage)
+//
+// These functions actually retrieve context from AsyncLocalStorage at runtime.
+// Pattern: get* prefix indicates actual runtime retrieval
 // ============================================================================
 
 /**
  * Internal AsyncLocalStorage for request-scoped context.
- * Used when getContext() is called without explicit context parameter.
+ * Used when getContext() is called to retrieve implicit context.
  */
 const cmsContextStorage = new AsyncLocalStorage<{
 	app: unknown;
@@ -197,14 +238,49 @@ const cmsContextStorage = new AsyncLocalStorage<{
 }>();
 
 /**
+ * Stored context shape returned by tryGetContext.
+ */
+export interface StoredContext {
+	app: unknown;
+	session?: unknown | null;
+	db?: unknown;
+	locale?: string;
+	accessMode?: string;
+}
+
+/**
+ * Try to get stored context from AsyncLocalStorage.
+ * Returns undefined if not in runWithContext scope.
+ *
+ * This is the safe version of getContext() - it won't throw if called
+ * outside of a request scope. Useful for optional context access.
+ *
+ * @example
+ * ```ts
+ * import { tryGetContext } from "questpie";
+ *
+ * function maybeLogUser() {
+ *   const ctx = tryGetContext();
+ *   if (ctx?.session) {
+ *     console.log("User:", ctx.session.user.id);
+ *   }
+ * }
+ * ```
+ */
+export function tryGetContext(): StoredContext | undefined {
+	return cmsContextStorage.getStore();
+}
+
+/**
  * Run code within a request context scope.
  * Context set here can be retrieved via getContext<TApp>() without parameters.
  *
  * @example
  * ```ts
- * await runWithContext({ app: cms, session, db }, async () => {
- *   // Inside here, getContext<AppCMS>() works without parameters
- *   const { session } = getContext<AppCMS>();
+ * await runWithContext({ app: cms, session, db, locale: "sk" }, async () => {
+ *   // Inside here, getContext<TApp>() works without parameters
+ *   const { session, locale } = getContext<AppCMS>();
+ *   // locale === "sk"
  * });
  * ```
  */
@@ -222,95 +298,59 @@ export function runWithContext<T>(
 }
 
 /**
- * Get typed context - supports both explicit and implicit patterns.
+ * Get typed context from AsyncLocalStorage.
  *
- * **Explicit pattern** (recommended for hooks/access control):
- * Pass context object directly from handler parameters.
- * ```ts
- * .access({
- *   read: (ctx) => {
- *     const { session, app, db } = getContext<AppCMS>(ctx);
- *     return session?.user.role === "admin";
- *   }
- * })
- * ```
+ * Must be called within runWithContext() scope - throws if no context available.
+ * For safe access that returns undefined, use tryGetContext().
  *
- * **Implicit pattern** (useful in reusable functions):
- * Call without parameters to get context from AsyncLocalStorage.
- * Must be called within runWithContext() scope.
+ * All CRUD operations automatically run within runWithContext() scope,
+ * so this works in hooks, access control, and nested API calls.
+ *
+ * @example
  * ```ts
- * async function reusableHelper() {
- *   const { db, session } = getContext<AppCMS>();
- *   // db and session are typed
+ * import { getContext } from "questpie";
+ * import type { AppCMS } from "./cms";
+ *
+ * // In a reusable function called from hooks
+ * async function logActivity(action: string) {
+ *   const { db, session, locale } = getContext<AppCMS>();
+ *
+ *   await db.insert(activityLog).values({
+ *     userId: session?.user.id,
+ *     action,
+ *     locale,
+ *   });
  * }
  *
- * // Usage
- * await runWithContext({ app: cms, session, db }, async () => {
- *   await reusableHelper(); // Works without passing context
+ * // Usage in hook - works because CRUD runs within runWithContext
+ * const posts = q.collection("posts").hooks({
+ *   afterChange: async () => {
+ *     await logActivity("post_updated"); // ✅ Context available
+ *   }
  * });
  * ```
+ *
+ * @throws Error if called outside runWithContext scope
  */
-
-// Type helpers for smart return type based on input
-type GetContextReturn<TApp, TCtx> = {
-	app: TCtx extends { app: unknown } ? InferAppFromApp<TApp> : never;
-	session: TCtx extends { session: infer S }
-		? S
-		: InferSessionFromApp<TApp> | null | undefined;
-	db: TCtx extends { db: unknown } ? InferDbFromApp<TApp> : never;
-	locale: TCtx extends { locale: infer L } ? L : string | undefined;
-	accessMode: TCtx extends { accessMode: infer A } ? A : string | undefined;
-};
-
-// Overload: No context provided - gets everything from AsyncLocalStorage
 export function getContext<TApp>(): {
 	app: InferAppFromApp<TApp>;
 	session: InferSessionFromApp<TApp> | null | undefined;
 	db: InferDbFromApp<TApp>;
 	locale: string | undefined;
 	accessMode: string | undefined;
-};
-
-// Overload: With context object - smart return type based on what you pass
-export function getContext<
-	TApp,
-	TCtx extends {
-		app?: unknown;
-		session?: unknown | null;
-		db?: unknown;
-		locale?: string;
-		accessMode?: string;
-	},
->(ctx: TCtx): GetContextReturn<TApp, TCtx>;
-
-// Implementation
-export function getContext<TApp>(ctx?: {
-	app?: unknown;
-	session?: unknown | null;
-	db?: unknown;
-	locale?: string;
-	accessMode?: string;
-	[key: string]: any;
-}): any {
-	// If explicit context provided, use it
-	if (ctx) {
-		return ctx;
-	}
-
-	// Otherwise, try to get from AsyncLocalStorage
+} {
 	const stored = cmsContextStorage.getStore();
 	if (!stored) {
 		throw new Error(
-			"getContext() called without explicit context and no request scope available. " +
-				"Either pass context as parameter or call within runWithContext() scope.",
+			"getContext() called outside request scope. " +
+				"Either call within runWithContext() scope, or use tryGetContext() for safe access.",
 		);
 	}
-
-	return stored;
+	return stored as any;
 }
 
 // ============================================================================
-// Request Context
+// Request Context Types
 // ============================================================================
 
 /**

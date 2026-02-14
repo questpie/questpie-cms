@@ -4,7 +4,6 @@
  * Exports all block renderers for the barbershop.
  */
 
-import { BarbersFeaturedRenderer } from "./barbers-featured";
 import { BookingCtaRenderer } from "./booking-cta";
 import { ContactInfoRenderer } from "./contact-info";
 import { CTARenderer } from "./cta";
@@ -15,9 +14,7 @@ import { HoursRenderer } from "./hours";
 import { ImageTextRenderer } from "./image-text";
 import { ColumnsRenderer, DividerRenderer, SpacerRenderer } from "./layout";
 import { ReviewsRenderer } from "./reviews";
-import { ReviewsGridRenderer } from "./reviews-grid";
 import { ServicesRenderer } from "./services";
-import { ServicesFeaturedRenderer } from "./services-featured";
 import { StatsRenderer } from "./stats";
 import { TeamRenderer } from "./team";
 import { TextRenderer } from "./text";
@@ -26,11 +23,8 @@ export const renderers = {
 	// Sections
 	hero: HeroRenderer,
 	services: ServicesRenderer,
-	"services-featured": ServicesFeaturedRenderer,
 	team: TeamRenderer,
-	"barbers-featured": BarbersFeaturedRenderer,
 	reviews: ReviewsRenderer,
-	"reviews-grid": ReviewsGridRenderer,
 	cta: CTARenderer,
 	"booking-cta": BookingCtaRenderer,
 	// Content

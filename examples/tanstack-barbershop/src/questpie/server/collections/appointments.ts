@@ -1,4 +1,4 @@
-import { getApp, sql } from "questpie";
+import { sql, typedApp } from "questpie";
 import { qb } from "@/questpie/server/builder";
 import type { AppCMS } from "@/questpie/server/cms";
 
@@ -99,7 +99,7 @@ export const appointments = qb
 	)
 	.hooks({
 		afterChange: async ({ data, operation, original, app }) => {
-			const cms = getApp<AppCMS>(app);
+			const cms = typedApp<AppCMS>(app);
 
 			if (operation === "create") {
 				await cms.queue.sendAppointmentConfirmation.publish({

@@ -83,8 +83,7 @@ function richText(paragraphs: string[]) {
 
 function richTextFormatted(
 	blocks: Array<
-		| string
-		| { text: string; bold?: boolean; italic?: boolean; link?: string }[]
+		string | { text: string; bold?: boolean; italic?: boolean; link?: string }[]
 	>,
 ) {
 	return {
@@ -173,11 +172,26 @@ async function seed() {
 		console.log("Cleaning existing data...");
 		// Delete in FK-safe order: junction tables → dependents → parents → assets
 		const cleanupSteps: [string, () => Promise<unknown>][] = [
-			["appointments", () => cms.api.collections.appointments.delete({ where: {} }, ctxEn)],
-			["barberServices", () => cms.api.collections.barberServices.delete({ where: {} }, ctxEn)],
-			["reviews", () => cms.api.collections.reviews.delete({ where: {} }, ctxEn)],
-			["barbers", () => cms.api.collections.barbers.delete({ where: {} }, ctxEn)],
-			["services", () => cms.api.collections.services.delete({ where: {} }, ctxEn)],
+			[
+				"appointments",
+				() => cms.api.collections.appointments.delete({ where: {} }, ctxEn),
+			],
+			[
+				"barberServices",
+				() => cms.api.collections.barberServices.delete({ where: {} }, ctxEn),
+			],
+			[
+				"reviews",
+				() => cms.api.collections.reviews.delete({ where: {} }, ctxEn),
+			],
+			[
+				"barbers",
+				() => cms.api.collections.barbers.delete({ where: {} }, ctxEn),
+			],
+			[
+				"services",
+				() => cms.api.collections.services.delete({ where: {} }, ctxEn),
+			],
 			["pages", () => cms.api.collections.pages.delete({ where: {} }, ctxEn)],
 			["assets", () => cms.api.collections.assets.delete({ where: {} }, ctxEn)],
 		];
@@ -186,7 +200,9 @@ async function seed() {
 				await fn();
 				console.log(`  ✓ ${name}`);
 			} catch (e) {
-				console.log(`  ⚠ ${name} (skipped: ${e instanceof Error ? e.message : e})`);
+				console.log(
+					`  ⚠ ${name} (skipped: ${e instanceof Error ? e.message : e})`,
+				);
 			}
 		}
 		console.log("");
@@ -792,6 +808,7 @@ async function seed() {
 							title: "Our Services",
 							subtitle:
 								"From classic cuts to full grooming packages — we've got you covered.",
+							mode: "auto",
 							showPrices: true,
 							showDuration: true,
 							columns: "3",
@@ -822,6 +839,7 @@ async function seed() {
 							title: "Meet the Team",
 							subtitle:
 								"Four skilled barbers, each bringing their own style and expertise.",
+							mode: "auto",
 							columns: "4",
 							limit: 4,
 						},
@@ -855,7 +873,9 @@ async function seed() {
 							title: "What Our Clients Say",
 							subtitle:
 								"Don't take our word for it — hear from the people who sit in our chairs.",
+							filter: "featured",
 							limit: 3,
+							columns: "3",
 						},
 						"cta-1": {
 							title: "Ready for a Fresh Look?",
@@ -912,6 +932,7 @@ async function seed() {
 								title: "Naše služby",
 								subtitle:
 									"Od klasických strihov po kompletné balíčky — postaráme sa o vás.",
+								mode: "auto",
 								showPrices: true,
 								showDuration: true,
 								columns: "3",
@@ -942,6 +963,7 @@ async function seed() {
 								title: "Náš tím",
 								subtitle:
 									"Štyria skúsení holiči, každý s vlastným štýlom a špecializáciou.",
+								mode: "auto",
 								columns: "4",
 								limit: 4,
 							},
@@ -975,7 +997,9 @@ async function seed() {
 								title: "Čo hovoria klienti",
 								subtitle:
 									"Neverte len nám — počúvajte tých, čo sedia v našich kreslách.",
+								filter: "featured",
 								limit: 3,
+								columns: "3",
 							},
 							"cta-1": {
 								title: "Pripravený na zmenu?",
@@ -1012,8 +1036,8 @@ async function seed() {
 						{ id: "spacer-1", type: "spacer", children: [] },
 						{ id: "heading-1", type: "heading", children: [] },
 						{
-							id: "services-feat-1",
-							type: "services-featured",
+							id: "services-2",
+							type: "services",
 							children: [],
 						},
 						{ id: "spacer-2", type: "spacer", children: [] },
@@ -1032,7 +1056,9 @@ async function seed() {
 						},
 						"services-1": {
 							title: "Full Service Menu",
-							subtitle: "Choose from our range of professional grooming services.",
+							subtitle:
+								"Choose from our range of professional grooming services.",
+							mode: "auto",
 							showPrices: true,
 							showDuration: true,
 							columns: "3",
@@ -1045,11 +1071,14 @@ async function seed() {
 							align: "center",
 							padding: "small",
 						},
-						"services-feat-1": {
+						"services-2": {
 							title: "",
 							subtitle:
 								"Our clients' favorites — tried, tested, and always requested.",
+							mode: "manual",
 							services: [haircut.id, fade.id, grooming.id],
+							showPrices: true,
+							showDuration: true,
 							columns: "3",
 						},
 						"spacer-2": { size: "medium" },
@@ -1096,8 +1125,8 @@ async function seed() {
 							{ id: "spacer-1", type: "spacer", children: [] },
 							{ id: "heading-1", type: "heading", children: [] },
 							{
-								id: "services-feat-1",
-								type: "services-featured",
+								id: "services-2",
+								type: "services",
 								children: [],
 							},
 							{ id: "spacer-2", type: "spacer", children: [] },
@@ -1116,8 +1145,8 @@ async function seed() {
 							},
 							"services-1": {
 								title: "Kompletný cenník",
-								subtitle:
-									"Vyberte si z našej ponuky profesionálnych služieb.",
+								subtitle: "Vyberte si z našej ponuky profesionálnych služieb.",
+								mode: "auto",
 								showPrices: true,
 								showDuration: true,
 								columns: "3",
@@ -1130,11 +1159,13 @@ async function seed() {
 								align: "center",
 								padding: "small",
 							},
-							"services-feat-1": {
+							"services-2": {
 								title: "",
-								subtitle:
-									"Obľúbené u klientov — overené a vždy žiadané.",
+								subtitle: "Obľúbené u klientov — overené a vždy žiadané.",
+								mode: "manual",
 								services: [haircut.id, fade.id, grooming.id],
+								showPrices: true,
+								showDuration: true,
 								columns: "3",
 							},
 							"spacer-2": { size: "medium" },
@@ -1186,11 +1217,11 @@ async function seed() {
 						{ id: "stats-1", type: "stats", children: [] },
 						{ id: "spacer-1", type: "spacer", children: [] },
 						{
-							id: "barbers-feat-1",
-							type: "barbers-featured",
+							id: "team-1",
+							type: "team",
 							children: [],
 						},
-						{ id: "reviews-grid-1", type: "reviews-grid", children: [] },
+						{ id: "reviews-1", type: "reviews", children: [] },
 						{ id: "cta-1", type: "cta", children: [] },
 					],
 					_values: {
@@ -1262,19 +1293,16 @@ async function seed() {
 							columns: "4",
 						},
 						"spacer-1": { size: "medium" },
-						"barbers-feat-1": {
+						"team-1": {
 							title: "The Team Behind the Chairs",
 							subtitle:
 								"Four barbers, four different styles — but one shared commitment to quality.",
-							barbers: [
-								barber1.id,
-								barber2.id,
-								barber3.id,
-								barber4.id,
-							],
+							mode: "manual",
+							barbers: [barber1.id, barber2.id, barber3.id, barber4.id],
 							columns: "4",
+							showBio: true,
 						},
-						"reviews-grid-1": {
+						"reviews-1": {
 							title: "What People Are Saying",
 							subtitle: "",
 							filter: "featured",
@@ -1315,11 +1343,11 @@ async function seed() {
 							{ id: "stats-1", type: "stats", children: [] },
 							{ id: "spacer-1", type: "spacer", children: [] },
 							{
-								id: "barbers-feat-1",
-								type: "barbers-featured",
+								id: "team-1",
+								type: "team",
 								children: [],
 							},
-							{ id: "reviews-grid-1", type: "reviews-grid", children: [] },
+							{ id: "reviews-1", type: "reviews", children: [] },
 							{ id: "cta-1", type: "cta", children: [] },
 						],
 						_values: {
@@ -1380,19 +1408,16 @@ async function seed() {
 								columns: "4",
 							},
 							"spacer-1": { size: "medium" },
-							"barbers-feat-1": {
+							"team-1": {
 								title: "Tím za kreslami",
 								subtitle:
 									"Štyria holiči, štyri štýly — ale spoločný záväzok ku kvalite.",
-								barbers: [
-									barber1.id,
-									barber2.id,
-									barber3.id,
-									barber4.id,
-								],
+								mode: "manual",
+								barbers: [barber1.id, barber2.id, barber3.id, barber4.id],
 								columns: "4",
+								showBio: true,
 							},
-							"reviews-grid-1": {
+							"reviews-1": {
 								title: "Čo hovoria ľudia",
 								subtitle: "",
 								filter: "featured",
@@ -1739,13 +1764,297 @@ async function seed() {
 		);
 		console.log("  ✓ Contact page (EN + SK)");
 
+		// ── PRIVACY POLICY PAGE ─────────────────────────────────────────────────
+
+		const privacyPage = await cms.api.collections.pages.create(
+			{
+				title: "Privacy Policy",
+				slug: "privacy",
+				description: "Our privacy policy and data handling practices",
+				isPublished: true,
+				content: {
+					_tree: [
+						{ id: "heading-1", type: "heading", children: [] },
+						{ id: "text-1", type: "text", children: [] },
+						{ id: "spacer-1", type: "spacer", children: [] },
+						{ id: "heading-2", type: "heading", children: [] },
+						{ id: "text-2", type: "text", children: [] },
+						{ id: "spacer-2", type: "spacer", children: [] },
+						{ id: "heading-3", type: "heading", children: [] },
+						{ id: "text-3", type: "text", children: [] },
+						{ id: "spacer-3", type: "spacer", children: [] },
+						{ id: "heading-4", type: "heading", children: [] },
+						{ id: "text-4", type: "text", children: [] },
+						{ id: "spacer-4", type: "spacer", children: [] },
+						{ id: "heading-5", type: "heading", children: [] },
+						{ id: "text-5", type: "text", children: [] },
+						{ id: "spacer-5", type: "spacer", children: [] },
+						{ id: "heading-6", type: "heading", children: [] },
+						{ id: "text-6", type: "text", children: [] },
+					],
+					_values: {
+						"heading-1": {
+							text: "Privacy Policy",
+							level: "h1",
+							align: "center",
+							padding: "large",
+						},
+						"text-1": {
+							content: richText([
+								"Last updated: January 2025",
+								"At Sharp Cuts, we take your privacy seriously. This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you visit our barbershop or use our online booking system.",
+							]),
+							maxWidth: "medium",
+							padding: "small",
+						},
+						"spacer-1": { size: "medium" },
+						"heading-2": {
+							text: "Information We Collect",
+							level: "h2",
+							align: "left",
+							padding: "small",
+						},
+						"text-2": {
+							content: richText([
+								"We collect information that you provide directly to us, including:",
+								"• Name and contact information (email, phone number)",
+								"• Appointment preferences and history",
+								"• Payment information (processed securely through our payment provider)",
+								"• Communications you send to us",
+								"We do not sell, trade, or otherwise transfer your personal information to outside parties.",
+							]),
+							maxWidth: "medium",
+							padding: "small",
+						},
+						"spacer-2": { size: "medium" },
+						"heading-3": {
+							text: "How We Use Your Information",
+							level: "h2",
+							align: "left",
+							padding: "small",
+						},
+						"text-3": {
+							content: richText([
+								"We use the information we collect to:",
+								"• Process and manage your appointments",
+								"• Send appointment confirmations and reminders",
+								"• Respond to your inquiries and requests",
+								"• Improve our services and customer experience",
+								"• Send promotional communications (with your consent)",
+							]),
+							maxWidth: "medium",
+							padding: "small",
+						},
+						"spacer-3": { size: "medium" },
+						"heading-4": {
+							text: "Data Security",
+							level: "h2",
+							align: "left",
+							padding: "small",
+						},
+						"text-4": {
+							content: richText([
+								"We implement appropriate technical and organizational security measures to protect your personal information against unauthorized access, alteration, disclosure, or destruction.",
+								"However, no method of transmission over the Internet or electronic storage is 100% secure, and we cannot guarantee absolute security.",
+							]),
+							maxWidth: "medium",
+							padding: "small",
+						},
+						"spacer-4": { size: "medium" },
+						"heading-5": {
+							text: "Your Rights",
+							level: "h2",
+							align: "left",
+							padding: "small",
+						},
+						"text-5": {
+							content: richText([
+								"Under applicable data protection laws, you have the right to:",
+								"• Access, correct, or delete your personal data",
+								"• Object to or restrict processing of your data",
+								"• Withdraw consent at any time",
+								"• Lodge a complaint with a supervisory authority",
+								"To exercise these rights, please contact us at hello@sharpcuts.com.",
+							]),
+							maxWidth: "medium",
+							padding: "small",
+						},
+						"spacer-5": { size: "medium" },
+						"heading-6": {
+							text: "Contact Us",
+							level: "h2",
+							align: "left",
+							padding: "small",
+						},
+						"text-6": {
+							content: richText([
+								"If you have any questions about this Privacy Policy, please contact us:",
+								"Email: hello@sharpcuts.com",
+								"Phone: +421 900 000 000",
+								"Address: Lazaretská 12, 811 09 Bratislava, Slovakia",
+							]),
+							maxWidth: "medium",
+							padding: "small",
+						},
+					},
+				},
+				metaTitle: "Privacy Policy - Sharp Cuts Barbershop",
+				metaDescription:
+					"Read our privacy policy to understand how Sharp Cuts handles your personal data.",
+			},
+			ctxEn,
+		);
+
+		// Privacy page SK
+		await cms.api.collections.pages.update(
+			{
+				where: { id: privacyPage.id },
+				data: {
+					title: "Ochrana súkromia",
+					description: "Naše zásady ochrany súkromia a spracovania údajov",
+					content: {
+						_tree: [
+							{ id: "heading-1", type: "heading", children: [] },
+							{ id: "text-1", type: "text", children: [] },
+							{ id: "spacer-1", type: "spacer", children: [] },
+							{ id: "heading-2", type: "heading", children: [] },
+							{ id: "text-2", type: "text", children: [] },
+							{ id: "spacer-2", type: "spacer", children: [] },
+							{ id: "heading-3", type: "heading", children: [] },
+							{ id: "text-3", type: "text", children: [] },
+							{ id: "spacer-3", type: "spacer", children: [] },
+							{ id: "heading-4", type: "heading", children: [] },
+							{ id: "text-4", type: "text", children: [] },
+							{ id: "spacer-4", type: "spacer", children: [] },
+							{ id: "heading-5", type: "heading", children: [] },
+							{ id: "text-5", type: "text", children: [] },
+							{ id: "spacer-5", type: "spacer", children: [] },
+							{ id: "heading-6", type: "heading", children: [] },
+							{ id: "text-6", type: "text", children: [] },
+						],
+						_values: {
+							"heading-1": {
+								text: "Ochrana súkromia",
+								level: "h1",
+								align: "center",
+								padding: "large",
+							},
+							"text-1": {
+								content: richText([
+									"Posledná aktualizácia: Január 2025",
+									"V Sharp Cuts berieme vaše súkromie vážne. Tieto zásady ochrany súkromia vysvetľujú, ako zhromažďujeme, používame, zverejňujeme a chránime vaše údaje pri návšteve nášho barbershopu alebo pri používaní nášho online rezervačného systému.",
+								]),
+								maxWidth: "medium",
+								padding: "small",
+							},
+							"spacer-1": { size: "medium" },
+							"heading-2": {
+								text: "Údaje, ktoré zhromažďujeme",
+								level: "h2",
+								align: "left",
+								padding: "small",
+							},
+							"text-2": {
+								content: richText([
+									"Zhromažďujeme údaje, ktoré nám priamo poskytnete, vrátane:",
+									"• Meno a kontaktné údaje (e-mail, telefónne číslo)",
+									"• Preferencie a história rezervácií",
+									"• Platobné údaje (spracované bezpečne cez nášho platobného poskytovateľa)",
+									"• Komunikácia, ktorú nám posielate",
+									"Vaše osobné údaje nepredávame, neobchodujeme s nimi ani ich inak neprenášame tretím stranám.",
+								]),
+								maxWidth: "medium",
+								padding: "small",
+							},
+							"spacer-2": { size: "medium" },
+							"heading-3": {
+								text: "Ako používame vaše údaje",
+								level: "h2",
+								align: "left",
+								padding: "small",
+							},
+							"text-3": {
+								content: richText([
+									"Zhromaždené údaje používame na:",
+									"• Spracovanie a správu vašich rezervácií",
+									"• Zasielanie potvrdení a pripomienok termínov",
+									"• Odpovede na vaše otázky a požiadavky",
+									"• Zlepšovanie našich služieb a zákazníckej skúsenosti",
+									"• Zasielanie propagačných materiálov (s vaším súhlasom)",
+								]),
+								maxWidth: "medium",
+								padding: "small",
+							},
+							"spacer-3": { size: "medium" },
+							"heading-4": {
+								text: "Bezpečnosť údajov",
+								level: "h2",
+								align: "left",
+								padding: "small",
+							},
+							"text-4": {
+								content: richText([
+									"Implementujeme primerané technické a organizačné bezpečnostné opatrenia na ochranu vašich osobných údajov pred neoprávneným prístupom, zmenou, zverejnením alebo zničením.",
+									"Žiadna metóda prenosu cez internet alebo elektronického ukladania však nie je 100% bezpečná a nemôžeme zaručiť absolútnu bezpečnosť.",
+								]),
+								maxWidth: "medium",
+								padding: "small",
+							},
+							"spacer-4": { size: "medium" },
+							"heading-5": {
+								text: "Vaše práva",
+								level: "h2",
+								align: "left",
+								padding: "small",
+							},
+							"text-5": {
+								content: richText([
+									"Podľa platných zákonov o ochrane údajov máte právo:",
+									"• Získať prístup k svojim osobným údajom, opraviť ich alebo vymazať",
+									"• Namietať proti spracovaniu údajov alebo ho obmedziť",
+									"• Kedykoľvek odvolať súhlas",
+									"• Podať sťažnosť dozornému orgánu",
+									"Ak chcete uplatniť tieto práva, kontaktujte nás na hello@sharpcuts.com.",
+								]),
+								maxWidth: "medium",
+								padding: "small",
+							},
+							"spacer-5": { size: "medium" },
+							"heading-6": {
+								text: "Kontaktujte nás",
+								level: "h2",
+								align: "left",
+								padding: "small",
+							},
+							"text-6": {
+								content: richText([
+									"Ak máte akékoľvek otázky týkajúce sa týchto zásad ochrany súkromia, kontaktujte nás:",
+									"E-mail: hello@sharpcuts.com",
+									"Telefón: +421 900 000 000",
+									"Adresa: Lazaretská 12, 811 09 Bratislava, Slovensko",
+								]),
+								maxWidth: "medium",
+								padding: "small",
+							},
+						},
+					},
+					metaTitle: "Ochrana súkromia - Sharp Cuts Barbershop",
+					metaDescription:
+						"Prečítajte si naše zásady ochrany súkromia a zistite, ako Sharp Cuts nakladá s vašimi osobnými údajmi.",
+				},
+			},
+			ctxSk,
+		);
+		console.log("  ✓ Privacy Policy page (EN + SK)");
+
 		console.log("\n✅ Database seeded successfully!\n");
 		console.log("Pages created:");
-		console.log("  • Home     (/home)");
+		console.log("  • Home     (/)");
 		console.log("  • Services (/services)");
 		console.log("  • About    (/about)");
 		console.log("  • Gallery  (/gallery)");
-		console.log("  • Contact  (/contact)\n");
+		console.log("  • Contact  (/contact)");
+		console.log("  • Privacy  (/privacy)\n");
 		process.exit(0);
 	} catch (error) {
 		console.error("Seeding failed:", error);

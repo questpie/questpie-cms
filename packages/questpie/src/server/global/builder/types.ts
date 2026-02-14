@@ -12,8 +12,8 @@ import type {
 	RelationVariant,
 } from "#questpie/server/collection/builder/types.js";
 import type { BaseRequestContext } from "#questpie/server/config/context.js";
-// Note: any, any, and any are deprecated.
-// Users should use getApp<AppCMS>(), getDb<AppCMS>(), and getSession<AppCMS>() instead.
+// Note: any types are intentional for composition flexibility.
+// Users should use typedApp<AppCMS>(), typedDb<AppCMS>(), and typedSession<AppCMS>() for type-safe access.
 import type {
 	AccessMode,
 	QuestpieContextExtension,
@@ -85,12 +85,12 @@ export interface GlobalOptions {
  *
  * @example
  * ```ts
- * import { getApp } from "questpie";
+ * import { typedApp } from "questpie";
  * import type { AppCMS } from "./cms";
  *
  * .hooks({
  *   afterUpdate: async ({ app, data }) => {
- *     const cms = getApp<AppCMS>(app);
+ *     const cms = typedApp<AppCMS>(app);
  *     await cms.kv.set('settings-cache', data);
  *   }
  * })
@@ -101,11 +101,11 @@ export interface GlobalHookContext<TData = any, TApp = any> {
 	data: TData;
 	/** Input data for update operations */
 	input?: any;
-	/** CMS instance - use getApp<AppCMS>(app) for type-safe access */
+	/** CMS instance - use typedApp<AppCMS>(app) for type-safe access */
 	app: TApp;
 	/**
 	 * Auth session (user + session) from Better Auth.
-	 * Use getSession<AppCMS>(session) for type-safe access.
+	 * Use typedSession<AppCMS>(session) for type-safe access.
 	 * - undefined = session not resolved
 	 * - null = explicitly unauthenticated
 	 * - object = authenticated
@@ -115,7 +115,7 @@ export interface GlobalHookContext<TData = any, TApp = any> {
 	locale?: string;
 	/** Access mode */
 	accessMode?: AccessMode;
-	/** Database client - use getDb<AppCMS>(db) for type-safe access */
+	/** Database client - use typedDb<AppCMS>(db) for type-safe access */
 	db: any;
 }
 
@@ -126,11 +126,11 @@ export interface GlobalHookContext<TData = any, TApp = any> {
  * @template TApp - The CMS app type (defaults to any)
  */
 export interface GlobalAccessContext<TData = any, TApp = any> {
-	/** CMS instance - use getApp<AppCMS>(app) for type-safe access */
+	/** CMS instance - use typedApp<AppCMS>(app) for type-safe access */
 	app: TApp;
 	/**
 	 * Auth session (user + session) from Better Auth.
-	 * Use getSession<AppCMS>(session) for type-safe access.
+	 * Use typedSession<AppCMS>(session) for type-safe access.
 	 * - undefined = session not resolved
 	 * - null = explicitly unauthenticated
 	 * - object = authenticated
@@ -140,7 +140,7 @@ export interface GlobalAccessContext<TData = any, TApp = any> {
 	data?: TData;
 	/** Input data for update */
 	input?: any;
-	/** Database client - use getDb<AppCMS>(db) for type-safe access */
+	/** Database client - use typedDb<AppCMS>(db) for type-safe access */
 	db: any;
 	/** Current locale */
 	locale?: string;

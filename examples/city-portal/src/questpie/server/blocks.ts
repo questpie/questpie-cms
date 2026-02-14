@@ -8,7 +8,7 @@ import type {
 	AdminConfigContext,
 	BlockCategoryConfig,
 } from "@questpie/admin/server";
-import { getApp } from "questpie";
+import { typedApp } from "questpie";
 import { qb } from "./builder";
 import type { BaseCMS } from "./cms-base";
 

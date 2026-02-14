@@ -80,6 +80,8 @@ export const baseCms = qb
 	})
 	.migrations(migrations);
 
+// Register blocks and build the CMS
+// @ts-expect-error - blocks method is added by adminModule patch
 export const cms = baseCms.blocks(blocks).build({
 	app: {
 		url: process.env.APP_URL || "http://localhost:3000",
