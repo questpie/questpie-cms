@@ -4,6 +4,7 @@
  * Provides introspection of registered blocks for admin UI consumption.
  */
 
+import type { FieldSchema } from "questpie";
 import { type I18nText, isI18nLocaleMap } from "questpie/shared";
 import type {
 	AdminBlockConfig,
@@ -49,8 +50,14 @@ export interface BlockSchema {
 	/** Has prefetch function */
 	hasPrefetch: boolean;
 
-	/** Field schemas */
-	fields: Record<string, unknown>;
+	/** Field schemas - unified format using FieldSchema */
+	fields: Record<string, FieldSchema>;
+
+	/** Validation schemas */
+	validation?: {
+		insert?: unknown;
+		update?: unknown;
+	};
 }
 
 /**

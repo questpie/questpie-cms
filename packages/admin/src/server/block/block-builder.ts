@@ -36,6 +36,7 @@ import type {
 	FieldBuilderProxy,
 	FieldDefinition,
 	FieldDefinitionState,
+	FieldSchema,
 	RegisteredApp,
 } from "questpie";
 import type { AdminBlockConfig, AdminConfigContext } from "../augmentation.js";
@@ -188,7 +189,7 @@ export interface BlockDefinition<
 	/** Full state */
 	readonly state: TState;
 	/** Get field metadata for introspection */
-	getFieldMetadata(): Record<string, unknown>;
+	getFieldMetadata(): Record<string, FieldSchema>;
 	/** Execute prefetch if defined */
 	executePrefetch(
 		values: Record<string, unknown>,
@@ -493,11 +494,14 @@ export class BlockBuilder<
 			state,
 			getFieldMetadata() {
 				if (!state.fields) return {};
-				const metadata: Record<string, unknown> = {};
+				const fields: Record<string, FieldSchema> = {};
 				for (const [name, fieldDef] of Object.entries(state.fields)) {
-					metadata[name] = fieldDef.getMetadata();
+					fields[name] = {
+						name,
+						metadata: fieldDef.getMetadata(),
+					};
 				}
-				return metadata;
+				return fields;
 			},
 			async executePrefetch(values, ctx) {
 				if (!state.prefetch) return {};

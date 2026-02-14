@@ -370,7 +370,7 @@ export interface FieldSchema {
 	metadata: FieldMetadata;
 
 	/** Field location */
-	location: FieldLocation;
+	location?: FieldLocation;
 
 	/** Field-level access */
 	access?: FieldAccessInfo;

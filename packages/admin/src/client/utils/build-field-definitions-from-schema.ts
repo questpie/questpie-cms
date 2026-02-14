@@ -81,6 +81,54 @@ export type FieldDefinitionsResult = Record<string, FieldDefinition>;
  * );
  * ```
  */
+
+/**
+ * Build field definitions from raw field metadata.
+ * Works with metadata from any source (collection schema, global schema, block fields).
+ *
+ * @param fields - Record of field name to field metadata
+ * @param registry - Field registry from admin config
+ *
+ * @example
+ * ```tsx
+ * const admin = useAdminStore(selectAdmin);
+ * const fields = buildFieldDefinitionsFromMetadata(
+ *   blockDef.fields,
+ *   admin.getFields(),
+ * );
+ * ```
+ */
+export function buildFieldDefinitionsFromMetadata(
+	fields: Record<string, { metadata?: unknown; name?: string }> | undefined,
+	registry: FieldRegistry,
+): FieldDefinitionsResult {
+	if (!fields) return {};
+
+	const result: FieldDefinitionsResult = {};
+
+	for (const [fieldName, fieldSchema] of Object.entries(fields)) {
+		const metadata = (fieldSchema.metadata ?? fieldSchema) as FieldMetadata;
+		const fieldType = resolveFieldType(metadata);
+
+		const fieldBuilder = registry[fieldType];
+		if (!fieldBuilder) {
+			continue;
+		}
+
+		const config = buildFieldConfig(
+			fieldSchema.name ?? fieldName,
+			metadata,
+			{},
+			registry,
+			fieldType,
+		);
+
+		result[fieldName] = fieldBuilder.$options(config);
+	}
+
+	return result;
+}
+
 export function buildFieldDefinitionsFromSchema(
 	schema: CollectionSchema | GlobalSchema | null | undefined,
 	registry: FieldRegistry,

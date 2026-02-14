@@ -11,6 +11,8 @@ import * as React from "react";
 import type { BlockNode } from "../../blocks/types.js";
 import type { FieldDefinition } from "../../builder/field/field.js";
 import { useResolveText } from "../../i18n/hooks.js";
+import { selectAdmin, useAdminStore } from "../../runtime/index.js";
+import { buildFieldDefinitionsFromMetadata } from "../../utils/build-field-definitions-from-schema.js";
 import { Button } from "../ui/button.js";
 import {
 	useBlockEditor,
@@ -26,6 +28,16 @@ import { findBlockById } from "./utils/tree-utils.js";
 export function BlockForm() {
 	const { state, actions } = useBlockEditor();
 	const blockDef = useSelectedBlockDefinition();
+	const admin = useAdminStore(selectAdmin);
+
+	// Convert block field metadata to field definitions with component references
+	const blockFields = React.useMemo(() => {
+		if (!blockDef?.fields || !admin) return {};
+		return buildFieldDefinitionsFromMetadata(
+			blockDef.fields as Record<string, { metadata?: unknown; name?: string }>,
+			admin.getFields() as any,
+		);
+	}, [blockDef?.fields, admin]);
 
 	// Find block node
 	const block = React.useMemo(() => {
@@ -71,13 +83,13 @@ export function BlockForm() {
 
 			{/* Fields */}
 			<div className="flex-1 overflow-auto p-4">
-				{blockDef.fields ? (
+				{Object.keys(blockFields).length > 0 ? (
 					// Key by blockId to force remount when switching blocks
 					// This prevents React from reusing Controller instances
 					// which would cause values to leak between blocks with same field names
 					<BlockFormFields
 						key={state.selectedBlockId}
-						fields={blockDef.fields as Record<string, FieldDefinition>}
+						fields={blockFields}
 						blockId={state.selectedBlockId!}
 					/>
 				) : (
