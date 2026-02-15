@@ -12,8 +12,8 @@ const outputs = [
 	{
 		id: "api",
 		label: "REST API",
-		sublabel: "5 endpoints auto-generated",
-		items: ["GET /posts", "POST /posts", "PATCH /posts/:id", "DELETE /posts/:id"],
+		sublabel: "Full CRUD auto-generated",
+		items: ["GET /posts", "POST /posts", "GET /posts/:id", "PATCH /posts/:id", "DELETE /posts/:id"],
 	},
 	{
 		id: "admin",

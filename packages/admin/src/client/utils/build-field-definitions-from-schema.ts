@@ -388,6 +388,19 @@ function applyNestedConfig(
 			}
 		}
 	}
+
+	if (metadata.type === "blocks") {
+		const blocksMetadata = metadata as unknown as Record<string, unknown>;
+		if (blocksMetadata.allowedBlocks) {
+			config.allowedBlocks = blocksMetadata.allowedBlocks;
+		}
+		if (blocksMetadata.minBlocks !== undefined) {
+			config.minBlocks = blocksMetadata.minBlocks;
+		}
+		if (blocksMetadata.maxBlocks !== undefined) {
+			config.maxBlocks = blocksMetadata.maxBlocks;
+		}
+	}
 }
 
 function applyExtraMetadata(

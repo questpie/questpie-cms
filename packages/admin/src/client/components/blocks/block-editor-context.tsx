@@ -53,7 +53,12 @@ export type BlockEditorActions = {
 	duplicateBlock: (id: string) => void;
 
 	// Reorder
-	moveBlock: (id: string, toPosition: InsertPosition) => void;
+	moveBlock: (
+		id: string,
+		parentId: string | null,
+		fromIndex: number,
+		toIndex: number,
+	) => void;
 
 	// Values
 	updateBlockValues: (id: string, values: Record<string, unknown>) => void;

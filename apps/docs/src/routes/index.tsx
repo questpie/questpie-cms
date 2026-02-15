@@ -3,6 +3,7 @@ import { HomeLayout } from "fumadocs-ui/layouts/home";
 import { AdminShowcase } from "@/components/landing/AdminShowcase";
 import { CallToAction } from "@/components/landing/CallToAction";
 import { Composability } from "@/components/landing/Composability";
+import { Features } from "@/components/landing/Features";
 import { Footer } from "@/components/landing/Footer";
 import { Frameworks } from "@/components/landing/Frameworks";
 import { Hero } from "@/components/landing/Hero";
@@ -74,6 +75,7 @@ function Home() {
 					<NumbersStrip />
 					<SchemaToEverything />
 					<AdminShowcase />
+					<Features />
 					<RealtimeDemo />
 					<Composability />
 					<Frameworks />

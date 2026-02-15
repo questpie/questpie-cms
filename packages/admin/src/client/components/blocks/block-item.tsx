@@ -132,7 +132,7 @@ export function BlockItem({
 					role="button"
 					tabIndex={0}
 					className={cn(
-						"flex flex-row items-center gap-2 px-3 p-2 pb-2 cursor-pointer select-none",
+						"group flex flex-row items-center gap-2 px-3 py-2 cursor-pointer select-none",
 						"hover:bg-muted/50 transition-colors",
 						"focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset",
 					)}
@@ -227,10 +227,10 @@ export function BlockItem({
 
 			{/* Add child button - only for blocks that can have children */}
 			{canHaveChildren && isExpanded && (
-				<div className="pl-6 relative mt-2">
-				<div className="absolute left-3 -top-2 w-px h-[calc(50%+8px)] bg-border" />
-					{/* Horizontal rail connector - starts at rail line and goes to button */}
-			<div className="absolute left-3 top-1/2 w-3 h-px h-[calc(50%+8px)] bg-border" />
+				<div className="pl-8 relative mt-2">
+					<div className="absolute left-3 -top-2 w-px h-[calc(50%+8px)] bg-border" />
+					{/* Horizontal rail connector */}
+					<div className="absolute left-3 top-1/2 w-5 h-px bg-border" />
 					<BlockInsertButton
 						position={{ parentId: block.id, index: block.children.length }}
 						variant="rail"

@@ -88,7 +88,7 @@ export function Frameworks() {
 				<div className="mt-4 text-center">
 					<Link
 						to="/docs/$"
-						params={{ _splat: "server/adapter-standard" }}
+						params={{ _splat: "client/adapters-overview" }}
 						className="inline-flex items-center gap-2 font-mono text-xs text-primary transition-colors hover:text-primary/80"
 					>
 						Read the adapter docs →

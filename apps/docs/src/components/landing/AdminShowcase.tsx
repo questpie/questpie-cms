@@ -35,20 +35,42 @@ const tabs: { id: TabId; label: string; description: string }[] = [
 ];
 
 const snippets: Record<TabId, string> = {
-	dashboard: `.dashboard(({ w }) => ({
-  stats: [w.stat("Posts"), w.stat("Users")],
+	dashboard: `.dashboard(({ d }) => d.dashboard({
+  items: [
+    d.stats({ collection: "posts" }),
+    d.stats({ collection: "users" }),
+    d.chart({ collection: "posts", chartType: "line" }),
+    d.recentItems({ collection: "posts" }),
+  ],
 }))`,
 	table: `.list(({ v, f }) => v.table({
   columns: [f.title, f.author, f.status],
 }))`,
 	form: `.form(({ v, f }) => v.form({
   fields: [f.title, f.content],
-  sidebar: [f.author, f.status],
+  sidebar: {
+    fields: [f.author, f.status],
+  },
 }))`,
-	sidebar: `.sidebar(({ s }) => [
-  s.group("Content", ["posts", "pages"]),
-  s.group("System", ["settings"]),
-])`,
+	sidebar: `.sidebar(({ s, c }) => s.sidebar({
+  sections: [
+    s.section({
+      id: "content",
+      title: { en: "Content" },
+      items: [
+        { type: "collection", collection: "posts" },
+        { type: "collection", collection: "pages" },
+      ],
+    }),
+    s.section({
+      id: "system",
+      title: { en: "System" },
+      items: [
+        { type: "global", global: "settings" },
+      ],
+    }),
+  ],
+}))`,
 };
 
 const AUTO_INTERVAL = 5000;

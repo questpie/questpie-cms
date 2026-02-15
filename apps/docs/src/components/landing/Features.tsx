@@ -1,23 +1,72 @@
-import { DatabaseZap, LayoutDashboard, Puzzle } from "lucide-react";
+import { Link } from "@tanstack/react-router";
+import {
+	Blocks,
+	FileText,
+	Globe,
+	KeyRound,
+	Languages,
+	ListTodo,
+	Search,
+	Shield,
+} from "lucide-react";
+import { motion } from "motion/react";
 
 const features = [
 	{
-		icon: DatabaseZap,
-		title: "Collections become APIs in seconds",
+		icon: Blocks,
+		title: "Block Editor",
 		description:
-			"Define your data model with typed fields. Get a REST API, type-safe SDK, and full CRUD automatically — no boilerplate.",
+			"Visual page builder with drag-and-drop blocks. Define block types server-side, render them however you want.",
+		link: "admin/blocks-system",
 	},
 	{
-		icon: LayoutDashboard,
-		title: "Admin that writes itself",
+		icon: Search,
+		title: "Search & Semantic",
 		description:
-			"List views, form layouts, and sidebar config come from your collection definition. Customize everything, generate by default.",
+			"Full-text search via PostgreSQL FTS, semantic search via pgVector embeddings, faceted filtering — all built-in.",
+		link: "infrastructure/search",
 	},
 	{
-		icon: Puzzle,
-		title: "Your framework, your rules",
+		icon: FileText,
+		title: "OpenAPI & Scalar",
 		description:
-			"Works with Hono, Elysia, Next.js, or any framework that handles HTTP. Bring your own design system and components.",
+			"Auto-generated OpenAPI spec from your collections, globals, and RPC. Ships with Scalar UI for interactive docs.",
+		link: "client/openapi",
+	},
+	{
+		icon: Languages,
+		title: "i18n / Localization",
+		description:
+			"Multi-locale content at the field level. Localized fields, locale switching in the admin, and typed locale keys.",
+		link: "server/localization",
+	},
+	{
+		icon: ListTodo,
+		title: "Jobs & Queues",
+		description:
+			"Background jobs powered by pg-boss. Cron scheduling, workflows, retries, priority queues — no external worker needed.",
+		link: "infrastructure/queue-and-jobs",
+	},
+	{
+		icon: Shield,
+		title: "Access Control",
+		description:
+			"Field-level and collection-level access rules. Context-aware evaluation with full access to the current user and session.",
+		link: "server/access-control",
+	},
+	{
+		icon: Globe,
+		title: "Versioning & Soft Delete",
+		description:
+			"Content versioning with restore support. Soft-deleted items can be recovered from the admin panel.",
+		link: "server/versioning",
+	},
+	{
+		icon: KeyRound,
+		title: "Auth (Better Auth)",
+		description:
+			"Email/password, OAuth, 2FA, sessions, API keys — all integrated via Better Auth. No external auth service required.",
+		link: "infrastructure/authentication",
 	},
 ];
 
@@ -25,30 +74,58 @@ export function Features() {
 	return (
 		<section id="features" className="border-t border-border/40 py-20">
 			<div className="mx-auto w-full max-w-7xl px-4">
-				<div className="mx-auto mb-12 max-w-2xl space-y-3 text-center">
+				<motion.div
+					className="mx-auto mb-12 max-w-2xl space-y-3 text-center"
+					initial={{ opacity: 0, y: 20 }}
+					whileInView={{ opacity: 1, y: 0 }}
+					viewport={{ once: true, margin: "-80px" }}
+					transition={{ duration: 0.6 }}
+				>
 					<h2 className="font-mono text-sm uppercase tracking-[0.2em] text-primary">
-						Why QUESTPIE
+						Batteries Included
 					</h2>
-					<h3 className="text-3xl font-bold tracking-tight md:text-4xl">
-						Everything you need to ship fast.
+					<h3 className="text-3xl font-bold tracking-[-0.02em] text-balance md:text-4xl">
+						Everything ships in the box
 					</h3>
-				</div>
+					<p className="text-muted-foreground text-balance">
+						Search, i18n, jobs, auth, versioning, block editor — all server-defined, all optional, all type-safe.
+					</p>
+				</motion.div>
 
-				<div className="grid gap-6 md:grid-cols-3">
-					{features.map((feature) => (
-						<article
+				<div className="mx-auto max-w-6xl grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+					{features.map((feature, i) => (
+						<motion.div
 							key={feature.title}
-							className="border border-border bg-card/40 p-6 transition-colors hover:border-primary/40"
+							className="group border border-border bg-card/20 backdrop-blur-sm p-4 transition-colors hover:border-primary/30"
+							initial={{ opacity: 0, y: 16 }}
+							whileInView={{ opacity: 1, y: 0 }}
+							viewport={{ once: true }}
+							transition={{
+								duration: 0.4,
+								delay: i * 0.06,
+							}}
 						>
-							<div className="mb-4 inline-flex border border-primary/30 bg-primary/10 p-2">
-								<feature.icon className="h-5 w-5 text-primary" />
+							<div className="mb-3 flex h-9 w-9 items-center justify-center border border-primary/20 bg-primary/10 text-primary transition-colors group-hover:bg-primary/20">
+								<feature.icon className="h-4 w-4" />
 							</div>
-							<h4 className="mb-2 text-lg font-semibold">{feature.title}</h4>
-							<p className="text-sm leading-relaxed text-muted-foreground">
+							<h4 className="text-sm font-semibold mb-1">
+								{feature.title}
+							</h4>
+							<p className="text-xs text-muted-foreground leading-relaxed">
 								{feature.description}
 							</p>
-						</article>
+						</motion.div>
 					))}
+				</div>
+
+				<div className="mt-8 text-center">
+					<Link
+						to="/docs/$"
+						params={{ _splat: "infrastructure" }}
+						className="inline-flex items-center gap-2 font-mono text-xs text-primary transition-colors hover:text-primary/80"
+					>
+						Explore all infrastructure →
+					</Link>
 				</div>
 			</div>
 		</section>

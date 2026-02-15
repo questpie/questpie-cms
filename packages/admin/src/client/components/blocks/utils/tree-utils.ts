@@ -5,6 +5,7 @@
  * All functions are pure and return new objects.
  */
 
+import { arrayMove } from "@dnd-kit/sortable";
 import type { BlockNode } from "../../../blocks/types.js";
 
 /**
@@ -111,7 +112,8 @@ export function removeBlockFromTree(
 }
 
 /**
- * Move a block to a new position in the tree.
+ * Move a block to a new position in the tree (remove + insert).
+ * Used for cross-parent moves (e.g., from context menu).
  */
 export function moveBlockInTree(
   tree: BlockNode[],
@@ -126,6 +128,34 @@ export function moveBlockInTree(
 
   // Insert at new position
   return insertBlockInTree(newTree, block, toPosition);
+}
+
+/**
+ * Reorder a block within the same parent using arrayMove.
+ * Used for DnD reordering — avoids remove+insert index shifting issues.
+ */
+export function reorderBlockInTree(
+  tree: BlockNode[],
+  parentId: string | null,
+  fromIndex: number,
+  toIndex: number,
+): BlockNode[] {
+  if (parentId === null) {
+    return arrayMove(tree, fromIndex, toIndex);
+  }
+
+  return tree.map((node) => {
+    if (node.id === parentId) {
+      return {
+        ...node,
+        children: arrayMove(node.children, fromIndex, toIndex),
+      };
+    }
+    return {
+      ...node,
+      children: reorderBlockInTree(node.children, parentId, fromIndex, toIndex),
+    };
+  });
 }
 
 /**

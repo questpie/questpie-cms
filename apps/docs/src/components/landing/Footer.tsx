@@ -55,10 +55,42 @@ export function Footer() {
 							Ecosystem
 						</h4>
 						<ul className="space-y-2 text-sm text-muted-foreground">
-							<li>Hono</li>
-							<li>Elysia</li>
-							<li>Next</li>
-							<li>TanStack</li>
+							<li>
+								<Link
+									to="/docs/$"
+									params={{ _splat: "client/hono-adapter" }}
+									className="transition-colors hover:text-primary"
+								>
+									Hono
+								</Link>
+							</li>
+							<li>
+								<Link
+									to="/docs/$"
+									params={{ _splat: "client/elysia-adapter" }}
+									className="transition-colors hover:text-primary"
+								>
+									Elysia
+								</Link>
+							</li>
+							<li>
+								<Link
+									to="/docs/$"
+									params={{ _splat: "client/nextjs-adapter" }}
+									className="transition-colors hover:text-primary"
+								>
+									Next.js
+								</Link>
+							</li>
+							<li>
+								<Link
+									to="/docs/$"
+									params={{ _splat: "client/tanstack-query" }}
+									className="transition-colors hover:text-primary"
+								>
+									TanStack
+								</Link>
+							</li>
 						</ul>
 					</div>
 

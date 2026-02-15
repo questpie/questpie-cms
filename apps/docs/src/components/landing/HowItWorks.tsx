@@ -3,27 +3,21 @@ import { CodeWindow } from "./CodeWindow";
 const steps = [
 	{
 		number: "01",
-		title: "Reactive fields with computed values",
+		title: "Type-safe collections with relations",
 		description:
-			"Fields can compute values from other fields, hide conditionally, and query the database — all server-side.",
+			"Define collections with typed fields, relations, and validation. One definition generates the database schema, REST API, and admin forms.",
 		file: "server/collections/appointments.ts",
 		code: `const appointments = qb.collection("appointments")
   .fields((f) => ({
     customer: f.text({ required: true }),
-    barber: f.relation("barbers"),
-    service: f.relation("services"),
+    barber: f.relation({ to: "barbers" }),
+    service: f.relation({ to: "services" }),
     date: f.date({ required: true }),
     status: f.select({
       options: ["pending", "confirmed", "completed"],
       default: "pending",
     }),
-    // Auto-computed from the selected service
-    price: f.number({
-      compute: async ({ values, ctx }) => {
-        const svc = await ctx.db.services.findById(values.service);
-        return svc?.price ?? 0;
-      },
-    }),
+    price: f.number(),
   }))`,
 	},
 	{
@@ -32,8 +26,8 @@ const steps = [
 		description:
 			"Define typed procedures for business logic. Input validation, database access, and return types — all inferred.",
 		file: "server/rpc/scheduling.ts",
-		code: `const getAvailableSlots = rpc.fn({
-  input: z.object({
+		code: `const getAvailableSlots = r.fn({
+  schema: z.object({
     barberId: z.string(),
     date: z.string(),
   }),
@@ -55,13 +49,13 @@ const steps = [
 		description:
 			"Query collections and call RPC procedures with complete type safety. No codegen step required.",
 		file: "app/dashboard.tsx",
-		code: `// Collections — fully typed filters, sort, populate
+		code: `// Collections — fully typed filters, sort, relations
 const { docs: upcoming } = await client.collections.appointments.find({
   where: {
     date: { gte: new Date() },
     status: { in: ["pending", "confirmed"] },
   },
-  populate: { barber: true, service: true },
+  with: { barber: true, service: true },
   sort: { date: "asc" },
   limit: 10,
 });
