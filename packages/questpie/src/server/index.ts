@@ -75,6 +75,7 @@ export * from "./integrated/realtime/index.js";
 export * from "./integrated/search/index.js";
 export * from "./integrated/storage/signed-url.js";
 export * from "./migration/index.js";
+export * from "./seed/index.js";
 export * from "./modules/core/core.module.js";
 export * from "./modules/starter/index.js";
 export * from "./rpc/index.js";

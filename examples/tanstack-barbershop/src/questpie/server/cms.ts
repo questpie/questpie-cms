@@ -77,8 +77,7 @@ export const baseCms = qb
 		basePath: "/api/cms/auth",
 		secret:
 			process.env.BETTER_AUTH_SECRET || "demo-secret-change-in-production",
-	})
-	.migrations(migrations);
+	});
 
 // Register blocks and build the CMS
 // @ts-expect-error - blocks method is added by adminModule patch
@@ -93,6 +92,7 @@ export const cms = baseCms.blocks(blocks).build({
 		basePath: "/api/cms",
 	},
 	secret: process.env.SECRET,
+	migrations,
 	email: {
 		adapter:
 			process.env.MAIL_ADAPTER === "console"

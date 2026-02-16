@@ -42,7 +42,6 @@ import {
 } from "#questpie/server/integrated/auth/merge.js";
 import type { EmailTemplateDefinition } from "#questpie/server/integrated/mailer/template.js";
 import type { JobDefinition } from "#questpie/server/integrated/queue/types.js";
-import type { Migration } from "#questpie/server/migration/types.js";
 import type {
 	PrettifiedAnyCollectionOrBuilder,
 	PrettifiedAnyGlobalOrBuilder,
@@ -395,24 +394,6 @@ export class QuestpieBuilder<
 	}
 
 	/**
-	 * Add migrations
-	 * Merges with existing migrations
-	 *
-	 * @example
-	 * ```ts
-	 * .migrations([customMigration1, customMigration2])
-	 * ```
-	 */
-	migrations(
-		migrations: Migration[],
-	): QuestpieBuilder<SetProperty<TState, "migrations", Migration[]>> {
-		return new QuestpieBuilder({
-			...this.state,
-			migrations: [...(this.state.migrations || []), ...migrations],
-		} as any);
-	}
-
-	/**
 	 * Configure custom context extension for all requests.
 	 *
 	 * The resolver function receives request, session, and db, and returns
@@ -576,6 +557,7 @@ export class QuestpieBuilder<
 			auth: BetterAuthOptions | Record<never, never>;
 			locale?: any;
 			migrations?: any;
+			seeds?: any;
 			translations?: any;
 			"~messageKeys"?: any;
 		},
@@ -651,6 +633,7 @@ export class QuestpieBuilder<
 				...(this.state.migrations || []),
 				...(otherState.migrations || []),
 			],
+			seeds: [...(this.state.seeds || []), ...(otherState.seeds || [])],
 			translations: mergeTranslationsConfig(
 				this.state.translations,
 				otherState.translations,
@@ -881,8 +864,13 @@ export class QuestpieBuilder<
 			logger: runtimeConfig.logger,
 			kv: runtimeConfig.kv,
 			migrations: {
-				migrations: this.state.migrations,
+				migrations: runtimeConfig.migrations || [],
 			},
+			seeds: {
+				seeds: runtimeConfig.seeds || [],
+			},
+			autoMigrate: runtimeConfig.autoMigrate,
+			autoSeed: runtimeConfig.autoSeed,
 			translations: this.state.translations,
 			contextResolver: this.state.contextResolver,
 			defaultAccess: runtimeConfig.defaultAccess,

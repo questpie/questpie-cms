@@ -356,6 +356,80 @@ describe("collection query operations", () => {
 			expect(posts[0].title).toBe("Popular Post"); // 500 views
 			expect(posts[1].title).toBe("First Post"); // 100 views
 		});
+
+		it("sorts by multiple fields using object syntax", async () => {
+			const ctx = createTestContext();
+
+			const result = await setup.cms.api.collections.posts.find(
+				{ orderBy: { status: "desc", viewCount: "desc" } },
+				ctx,
+			);
+			const posts = result.docs;
+
+			// Should be sorted by status first (published > draft), then by viewCount
+			const publishedPosts = posts.filter((p: any) => p.status === "published");
+			const drafts = posts.filter((p: any) => p.status === "draft");
+			expect(drafts[0]!.viewCount).toBeLessThanOrEqual(
+				publishedPosts[0]!.viewCount!,
+			);
+		});
+
+		it("sorts by multiple fields using array syntax", async () => {
+			const ctx = createTestContext();
+
+			const result = await setup.cms.api.collections.posts.find(
+				{ orderBy: [{ status: "desc" }, { viewCount: "desc" }] },
+				ctx,
+			);
+			const posts = result.docs;
+
+			// Should be sorted by status first (published > draft), then by viewCount
+			const publishedPosts = posts.filter((p: any) => p.status === "published");
+			const drafts = posts.filter((p: any) => p.status === "draft");
+			expect(drafts[0]!.viewCount).toBeLessThanOrEqual(
+				publishedPosts[0]!.viewCount!,
+			);
+		});
+
+		it("sorts conditionally using array syntax", async () => {
+			const ctx = createTestContext();
+			const showFeatured = true;
+
+			const result = await setup.cms.api.collections.posts.find(
+				{
+					orderBy: showFeatured
+						? [{ status: "desc" }, { viewCount: "desc" }]
+						: { viewCount: "desc" },
+				},
+				ctx,
+			);
+			const posts = result.docs;
+
+			// Should respect the conditional array syntax
+			expect(posts.length).toBeGreaterThan(0);
+		});
+
+		it("sorts using function syntax", async () => {
+			const ctx = createTestContext();
+
+			const result = await setup.cms.api.collections.posts.find(
+				{
+					orderBy: (table: any, { desc }: any) => [
+						desc(table.status),
+						desc(table.viewCount),
+					],
+				},
+				ctx,
+			);
+			const posts = result.docs;
+
+			// Should be sorted by status first (published > draft), then by viewCount
+			const publishedPosts = posts.filter((p: any) => p.status === "published");
+			const drafts = posts.filter((p: any) => p.status === "draft");
+			expect(drafts[0]!.viewCount).toBeLessThanOrEqual(
+				publishedPosts[0]!.viewCount!,
+			);
+		});
 	});
 
 	describe("counting", () => {

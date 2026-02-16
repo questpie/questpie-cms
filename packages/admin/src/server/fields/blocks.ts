@@ -46,7 +46,7 @@ export interface BlockNode {
  * Block field values.
  * Maps field names to their values for a single block.
  */
-export type BlockValues = Record<string, unknown>;
+export type BlockValues = Record<string, {}>;
 
 /**
  * Blocks document structure.
@@ -58,7 +58,7 @@ export interface BlocksDocument {
 	/** Map of block id to field values */
 	_values: Record<string, BlockValues>;
 	/** Prefetched data for blocks (populated by afterRead hook) */
-	_data?: Record<string, Record<string, unknown>>;
+	_data?: Record<string, Record<string, {}>>;
 }
 
 // ============================================================================

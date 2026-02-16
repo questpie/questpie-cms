@@ -20,13 +20,15 @@ import type {
   InferFunctionOutput,
   JsonFunctionDefinition,
 } from "#questpie/server/functions/types.js";
-import type { GlobalCRUD } from "#questpie/server/global/crud/index.js";
+import type {
+  GlobalCRUD,
+  GlobalSelectFromApp,
+} from "#questpie/server/global/crud/index.js";
 import type {
   AnyCollectionOrBuilder,
   CollectionFunctions,
   CollectionInsert,
   CollectionRelations,
-  CollectionSelect,
   CollectionState,
   CollectionUpdate,
   GetCollection,
@@ -34,7 +36,6 @@ import type {
   GlobalFunctions,
   GlobalInsert,
   GlobalRelations,
-  GlobalSelect,
   GlobalUpdate,
   ResolveRelationsDeep,
 } from "#questpie/shared/type-utils.js";
@@ -133,7 +134,7 @@ type CollectionAPI<
 > = Omit<CollectionCRUD<TCollection, TCollections>, "upload" | "uploadMany"> &
   (CollectionHasUpload<TCollection> extends true
     ? UploadMethods<
-        CollectionSelect<TCollection>,
+        CollectionSelectFromApp<TCollection, AppFromCollections<TCollections>>,
         CollectionInsert<TCollection>
       >
     : {}) &
@@ -142,8 +143,9 @@ type CollectionAPI<
 type GlobalAPI<
   TGlobal,
   TCollections extends Record<string, AnyCollectionOrBuilder>,
+  TApp = AppFromCollections<TCollections>,
 > = GlobalCRUD<
-  GlobalSelect<TGlobal>,
+  GlobalSelectFromApp<TGlobal, TApp>,
   GlobalInsert<TGlobal>,
   GlobalUpdate<TGlobal>,
   ResolveRelationsDeep<GlobalRelations<TGlobal>, TCollections>

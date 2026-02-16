@@ -10,16 +10,16 @@ import type { AppCMS } from "@/questpie/server/cms";
 export function CTARenderer({ values }: BlockComponentProps<AppCMS, "cta">) {
 	const variantStyles = {
 		highlight: {
-			section: "bg-blue-700 text-white",
-			button: "bg-white text-blue-700 hover:bg-gray-100",
+			section: "bg-primary text-primary-foreground",
+			button: "bg-white text-primary hover:bg-gray-100",
 		},
 		dark: {
 			section: "bg-gray-900 text-white",
-			button: "bg-blue-600 text-white hover:bg-blue-700",
+			button: "bg-primary text-primary-foreground hover:bg-primary/90",
 		},
 		light: {
 			section: "bg-gray-100 text-gray-900",
-			button: "bg-blue-700 text-white hover:bg-blue-800",
+			button: "bg-primary text-primary-foreground hover:bg-primary/90",
 		},
 	}[values.variant || "highlight"];
 

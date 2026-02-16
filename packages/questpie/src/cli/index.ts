@@ -4,6 +4,8 @@ import { Command } from "commander";
 import { generateMigrationCommand } from "./commands/generate.js";
 import { pushCommand } from "./commands/push.js";
 import { runMigrationCommand } from "./commands/run.js";
+import { runSeedCommand } from "./commands/seed.js";
+import { generateSeedCommand } from "./commands/seed-generate.js";
 
 const program = new Command();
 
@@ -178,6 +180,140 @@ program
       });
     } catch (error) {
       console.error("❌ Failed to push schema:", error);
+      process.exit(1);
+    }
+  });
+
+// Run seeds
+program
+  .command("seed")
+  .description("Run pending seeds")
+  .option(
+    "-c, --config <path>",
+    "Path to CMS config file",
+    "questpie.config.ts",
+  )
+  .option(
+    "--category <categories>",
+    "Filter by category (comma-separated: required,dev,test)",
+  )
+  .option("--only <ids>", "Run specific seeds by ID (comma-separated)")
+  .option("-f, --force", "Force re-run even if already executed")
+  .option("--validate", "Dry-run: validate seeds without persisting data")
+  .action(async (options) => {
+    try {
+      await runSeedCommand({
+        action: "run",
+        configPath: options.config,
+        category: options.category,
+        only: options.only,
+        force: options.force,
+        validate: options.validate,
+      });
+    } catch (error) {
+      console.error("❌ Failed to run seeds:", error);
+      process.exit(1);
+    }
+  });
+
+// Generate seed
+program
+  .command("seed:generate")
+  .description("Generate a new seed file")
+  .option(
+    "-c, --config <path>",
+    "Path to CMS config file",
+    "questpie.config.ts",
+  )
+  .requiredOption("-n, --name <name>", "Seed name (e.g., adminUser, demoData)")
+  .option(
+    "--category <category>",
+    "Seed category (required, dev, test)",
+    "dev",
+  )
+  .option("--dry-run", "Show what would be generated without creating files")
+  .action(async (options) => {
+    try {
+      await generateSeedCommand({
+        configPath: options.config,
+        name: options.name,
+        category: options.category,
+        dryRun: options.dryRun,
+      });
+    } catch (error) {
+      console.error("❌ Failed to generate seed:", error);
+      process.exit(1);
+    }
+  });
+
+// Undo seeds
+program
+  .command("seed:undo")
+  .description("Undo executed seeds")
+  .option(
+    "-c, --config <path>",
+    "Path to CMS config file",
+    "questpie.config.ts",
+  )
+  .option(
+    "--category <categories>",
+    "Filter by category (comma-separated: required,dev,test)",
+  )
+  .option("--only <ids>", "Undo specific seeds by ID (comma-separated)")
+  .action(async (options) => {
+    try {
+      await runSeedCommand({
+        action: "undo",
+        configPath: options.config,
+        category: options.category,
+        only: options.only,
+      });
+    } catch (error) {
+      console.error("❌ Failed to undo seeds:", error);
+      process.exit(1);
+    }
+  });
+
+// Seed status
+program
+  .command("seed:status")
+  .description("Show seed status")
+  .option(
+    "-c, --config <path>",
+    "Path to CMS config file",
+    "questpie.config.ts",
+  )
+  .action(async (options) => {
+    try {
+      await runSeedCommand({
+        action: "status",
+        configPath: options.config,
+      });
+    } catch (error) {
+      console.error("❌ Failed to get seed status:", error);
+      process.exit(1);
+    }
+  });
+
+// Reset seed tracking
+program
+  .command("seed:reset")
+  .description("Reset seed tracking (does NOT undo data)")
+  .option(
+    "-c, --config <path>",
+    "Path to CMS config file",
+    "questpie.config.ts",
+  )
+  .option("--only <ids>", "Reset tracking for specific seeds (comma-separated)")
+  .action(async (options) => {
+    try {
+      await runSeedCommand({
+        action: "reset",
+        configPath: options.config,
+        only: options.only,
+      });
+    } catch (error) {
+      console.error("❌ Failed to reset seed tracking:", error);
       process.exit(1);
     }
   });

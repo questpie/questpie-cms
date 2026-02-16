@@ -62,6 +62,7 @@ import type {
 	SearchConfig,
 } from "../integrated/search/index.js";
 import type { Migration } from "../migration/types.js";
+import type { Seed, SeedCategory, SeedsConfig } from "../seed/types.js";
 
 export type DrizzleSchemaFromCollections<
 	TCollections extends Record<string, AnyCollectionOrBuilder>,
@@ -416,6 +417,33 @@ export interface QuestpieConfig {
 		 */
 		migrations?: Migration[];
 	};
+
+	/**
+	 * Seeds configuration
+	 */
+	seeds?: SeedsConfig;
+
+	/**
+	 * Automatically run migrations on startup.
+	 * Use `await cms.waitForInit()` to wait for completion.
+	 * @default false
+	 */
+	autoMigrate?: boolean;
+
+	/**
+	 * Automatically run seeds on startup (after migrations if autoMigrate is also enabled).
+	 * Use `await cms.waitForInit()` to wait for completion.
+	 *
+	 * - `false`: Never auto-seed (default)
+	 * - `"required"`: Only required seeds
+	 * - `"dev"`: required + dev seeds
+	 * - `"test"`: required + test seeds
+	 * - `true`: All seed categories
+	 * - `SeedCategory[]`: Custom combination
+	 *
+	 * @default false
+	 */
+	autoSeed?: boolean | SeedCategory | SeedCategory[];
 
 	/**
 	 * Default access control for all collections and globals.

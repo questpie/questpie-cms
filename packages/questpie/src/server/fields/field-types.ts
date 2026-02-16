@@ -112,12 +112,12 @@ type ObjectFieldShape<TConfig, TApp> = TConfig extends { fields: infer TFields }
 				TApp
 			>;
 		}
-	: Record<string, unknown>;
+	: Record<string, {}>;
 
 /** Extract element type from an array field's config.of */
 type ArrayFieldElement<TConfig, TApp> = TConfig extends { of: infer TOf }
 	? FieldSelect<ResolveFieldConfig<TOf>, TApp>
-	: unknown;
+	: {};
 
 /**
  * Upload FK select type narrowed from config.
@@ -348,3 +348,38 @@ export type FieldDefinitionsWithSystem<
 	TOptions extends CollectionOptions,
 	TUpload extends UploadOptions | undefined,
 > = AutoInsertedFields<TUserFields, TOptions, TUpload> & TUserFields;
+
+// ============================================================================
+// Global Auto-Inserted Fields
+// ============================================================================
+
+/**
+ * System fields auto-inserted into global fieldDefinitions.
+ * Simpler than collections — no _title, softDelete, or upload fields.
+ *
+ * - id:        always (unless user defines their own)
+ * - createdAt: unless options.timestamps === false
+ * - updatedAt: unless options.timestamps === false
+ */
+type GlobalAutoInsertedFields<
+	TUserFields extends Record<string, any>,
+	TOptions extends { timestamps?: boolean },
+> = ("id" extends keyof TUserFields
+	? {}
+	: { readonly id: IdField }) &
+	(TOptions extends { timestamps: false }
+		? {}
+		: ("createdAt" extends keyof TUserFields
+				? {}
+				: { readonly createdAt: TimestampField }) &
+			("updatedAt" extends keyof TUserFields
+				? {}
+				: { readonly updatedAt: TimestampField }));
+
+/**
+ * Merges user-defined global field definitions with auto-inserted system fields.
+ */
+export type GlobalFieldDefinitionsWithSystem<
+	TUserFields extends Record<string, FieldDefinition<FieldDefinitionState>>,
+	TOptions extends { timestamps?: boolean },
+> = GlobalAutoInsertedFields<TUserFields, TOptions> & TUserFields;

@@ -10,7 +10,7 @@ import type {
 } from "@questpie/admin/server";
 import { typedApp } from "questpie";
 import { qb } from "./builder";
-import type { BaseCMS } from "./cms-base";
+import type { BaseCMS } from "./cms";
 
 // ============================================================================
 // Category Helpers
@@ -151,7 +151,7 @@ export const announcementBannerBlock = qb
 		}),
 	}))
 	.prefetch(async ({ values, ctx }) => {
-		const cms = getApp<BaseCMS>(ctx.app);
+		const cms = typedApp<BaseCMS>(ctx.app);
 		const where: any = {};
 		if (!values.showExpired) {
 			where.validTo = { gte: new Date() };
@@ -447,7 +447,7 @@ export const latestNewsBlock = qb
 		}),
 	}))
 	.prefetch(async ({ values, ctx }) => {
-		const cms = getApp<BaseCMS>(ctx.app);
+		const cms = typedApp<BaseCMS>(ctx.app);
 		const where: any = {};
 		if (values.category && values.category !== "all") {
 			where.category = values.category;
@@ -486,7 +486,7 @@ export const contactsListBlock = qb
 		}),
 	}))
 	.prefetch(async ({ values, ctx }) => {
-		const cms = getApp<BaseCMS>(ctx.app);
+		const cms = typedApp<BaseCMS>(ctx.app);
 		const findOptions: any = {
 			orderBy: { order: "asc" },
 		};
@@ -535,7 +535,7 @@ export const documentsListBlock = qb
 		}),
 	}))
 	.prefetch(async ({ values, ctx }) => {
-		const cms = getApp<BaseCMS>(ctx.app);
+		const cms = typedApp<BaseCMS>(ctx.app);
 		const where: any = { isPublished: true };
 		if (values.category && values.category !== "all") {
 			where.category = values.category;

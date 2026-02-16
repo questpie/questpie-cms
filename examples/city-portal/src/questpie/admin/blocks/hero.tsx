@@ -33,7 +33,7 @@ export function HeroRenderer({
 			className={`relative flex items-center bg-cover bg-center ${heightClass}`}
 			style={{
 				backgroundImage: bgImageUrl ? `url(${bgImageUrl})` : undefined,
-				backgroundColor: bgImageUrl ? undefined : "#1e40af",
+				backgroundColor: bgImageUrl ? undefined : "var(--primary, #1e40af)",
 			}}
 		>
 			{/* Overlay */}
@@ -89,7 +89,7 @@ export function HeroRenderer({
 							/>
 							<button
 								type="button"
-								className="px-6 py-3 bg-blue-700 text-white rounded-r-md hover:bg-blue-800 font-medium"
+								className="px-6 py-3 bg-primary text-primary-foreground rounded-r-md hover:bg-primary/90 font-medium"
 							>
 								Search
 							</button>

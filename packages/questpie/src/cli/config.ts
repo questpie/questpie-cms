@@ -5,16 +5,27 @@ import type { Questpie } from "../server/config/cms.js";
  * These are only used by the CLI tooling, not at runtime
  */
 export interface QuestpieCliConfig {
-  /**
-   * Migration settings for CLI
-   */
-  migrations?: {
-    /**
-     * Directory where generated migrations should be saved
-     * @default "./src/migrations"
-     */
-    directory?: string;
-  };
+	/**
+	 * Migration settings for CLI
+	 */
+	migrations?: {
+		/**
+		 * Directory where generated migrations should be saved
+		 * @default "./src/migrations"
+		 */
+		directory?: string;
+	};
+
+	/**
+	 * Seed settings for CLI
+	 */
+	seeds?: {
+		/**
+		 * Directory where generated seeds should be saved
+		 * @default "./src/seeds"
+		 */
+		directory?: string;
+	};
 }
 
 /**
@@ -28,7 +39,7 @@ export interface QuestpieCliConfig {
  * ## Architecture
  *
  * The config separates concerns between runtime and CLI:
- * - **Runtime (Questpie instance)**: Knows about migrations via `.migrations([...])`
+ * - **Runtime (Questpie instance)**: Knows about migrations via `.build({ migrations: [...] })`
  * - **CLI config**: Knows where to save generated migrations
  *
  * ## Workflow
@@ -42,8 +53,7 @@ export interface QuestpieCliConfig {
  *    ```ts
  *    import { migrations } from "./src/migrations.js"
  *    const app = questpie({ name: 'app' })
- *      .migrations(migrations)
- *      .build({ ... })
+ *      .build({ ..., migrations })
  *    ```
  *
  * 3. Run migrations: `bun questpie migrate:up`
@@ -67,19 +77,19 @@ export interface QuestpieCliConfig {
  * ```
  */
 export interface QuestpieConfigFile<
-  TCMS extends Questpie<any> = Questpie<any>,
+	TCMS extends Questpie<any> = Questpie<any>,
 > {
-  /**
-   * The Questpie instance
-   * Must have migrations loaded via `.migrations([...])` for migrate:up to work
-   */
-  app: TCMS;
+	/**
+	 * The Questpie instance
+	 * Must have migrations loaded via `.migrations([...])` for migrate:up to work
+	 */
+	app: TCMS;
 
-  /**
-   * CLI-specific configuration
-   * Used only by CLI commands, not at runtime
-   */
-  cli?: QuestpieCliConfig;
+	/**
+	 * CLI-specific configuration
+	 * Used only by CLI commands, not at runtime
+	 */
+	cli?: QuestpieCliConfig;
 }
 
 /**
@@ -102,42 +112,42 @@ export interface QuestpieConfigFile<
  * ```
  */
 export function config<TCMS extends Questpie<any>>(
-  config: QuestpieConfigFile<TCMS>,
+	config: QuestpieConfigFile<TCMS>,
 ): QuestpieConfigFile<TCMS> {
-  return config;
+	return config;
 }
 
 /**
  * Load and validate config file
  */
 export async function loadQuestpieConfig(
-  configPath: string,
+	configPath: string,
 ): Promise<QuestpieConfigFile> {
-  const configModule = await import(/* @vite-ignore */ configPath);
-  const config = configModule.config || configModule.default || configModule;
+	const configModule = await import(/* @vite-ignore */ configPath);
+	const config = configModule.config || configModule.default || configModule;
 
-  // Support both old format (direct app export) and new format (config object)
-  if (config.app) {
-    return config as QuestpieConfigFile;
-  }
+	// Support both old format (direct app export) and new format (config object)
+	if (config.app) {
+		return config as QuestpieConfigFile;
+	}
 
-  // Legacy format: { qcms } or just qcms - for backwards compatibility
-  if (config.qcms) {
-    console.warn(
-      '⚠️  Deprecation warning: "qcms" property is deprecated, use "app" instead',
-    );
-    return { app: config.qcms, cli: config.cli };
-  }
+	// Legacy format: { qcms } or just qcms - for backwards compatibility
+	if (config.qcms) {
+		console.warn(
+			'⚠️  Deprecation warning: "qcms" property is deprecated, use "app" instead',
+		);
+		return { app: config.qcms, cli: config.cli };
+	}
 
-  // Legacy format: direct Questpie instance
-  if (typeof config === "object" && "db" in config) {
-    // This looks like a Questpie instance directly
-    return { app: config };
-  }
+	// Legacy format: direct Questpie instance
+	if (typeof config === "object" && "db" in config) {
+		// This looks like a Questpie instance directly
+		return { app: config };
+	}
 
-  throw new Error(
-    "Config must export a QuestpieConfigFile object with 'app' property, or a Questpie instance directly",
-  );
+	throw new Error(
+		"Config must export a QuestpieConfigFile object with 'app' property, or a Questpie instance directly",
+	);
 }
 
 /**
@@ -145,5 +155,13 @@ export async function loadQuestpieConfig(
  * Priority: cli.migrations.directory > default
  */
 export function getMigrationDirectory(config: QuestpieConfigFile): string {
-  return config.cli?.migrations?.directory || "./src/migrations";
+	return config.cli?.migrations?.directory || "./src/migrations";
+}
+
+/**
+ * Get seed directory from config
+ * Priority: cli.seeds.directory > default
+ */
+export function getSeedDirectory(config: QuestpieConfigFile): string {
+	return config.cli?.seeds?.directory || "./src/seeds";
 }

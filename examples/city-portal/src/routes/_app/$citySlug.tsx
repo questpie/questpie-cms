@@ -15,7 +15,7 @@ import {
 } from "@tanstack/react-router";
 import { Footer } from "@/components/layout/Footer";
 import { Header } from "@/components/layout/Header";
-import { getCityBySlug, getSiteSettings } from "@/lib/cms-functions";
+import { getCityBySlug, getSiteSettings } from "@/lib/server-functions";
 import { queryClient } from "@/lib/query-client";
 import stylesCss from "@/styles.css?url";
 
@@ -25,13 +25,9 @@ export const Route = createFileRoute("/_app/$citySlug")({
 
 		// Fetch city data and site settings in parallel
 		const [cityResult, settings] = await Promise.all([
-			getCityBySlug({ slug: citySlug }),
-			getSiteSettings({ citySlug }),
+			getCityBySlug({ data: { slug: citySlug } }),
+			getSiteSettings({ data: { citySlug } }),
 		]);
-
-		if (!cityResult.city) {
-			throw new Error("City not found");
-		}
 
 		return {
 			city: cityResult.city,
@@ -61,14 +57,21 @@ function CityLayout() {
 			<head>
 				<HeadContent />
 			</head>
-			<body className="min-h-screen bg-background text-foreground antialiased">
+			<body
+				className="min-h-screen bg-background text-foreground antialiased"
+				style={
+					settings?.primaryColour
+						? ({ "--primary": settings.primaryColour } as React.CSSProperties)
+						: undefined
+				}
+			>
 				<QueryClientProvider client={queryClient}>
 					<div className="flex min-h-screen flex-col">
 						<Header
 							cityName={city.name}
+							citySlug={city.slug}
 							logo={settings?.logo || undefined}
 							navigation={settings?.navigation ?? []}
-							primaryColour={settings?.primaryColour}
 							alertEnabled={settings?.alertEnabled}
 							alertMessage={settings?.alertMessage}
 							alertType={settings?.alertType}

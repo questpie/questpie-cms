@@ -1,10 +1,29 @@
 /**
  * City Portal Seed Script
  *
- * Seeds the database with sample British cities and content.
+ * Seeds the database with sample British cities, varied branding, and content.
+ * Usage: bun run seed.ts [--force]
  */
 
-import { cmsClient } from "./src/lib/cms-functions";
+import { cms } from "./src/questpie/server/cms";
+
+// ============================================================================
+// Helper: TipTap Rich Text
+// ============================================================================
+
+function richText(paragraphs: string[]) {
+	return {
+		type: "doc",
+		content: paragraphs.map((text) => ({
+			type: "paragraph",
+			content: [{ type: "text", text }],
+		})),
+	};
+}
+
+// ============================================================================
+// City data
+// ============================================================================
 
 const britishCities = [
 	{
@@ -14,7 +33,10 @@ const britishCities = [
 		email: "contact@london.gov.uk",
 		phone: "+44 20 7983 4000",
 		address: "City Hall, The Queen's Walk, London SE1 2AA",
+		website: "https://www.london.gov.uk",
 		isActive: true,
+		primaryColour: "#1e40af", // Blue
+		tagline: "The heart of the nation",
 	},
 	{
 		name: "Manchester",
@@ -23,7 +45,10 @@ const britishCities = [
 		email: "info@manchester.gov.uk",
 		phone: "+44 161 234 5000",
 		address: "Town Hall, Albert Square, Manchester M60 2LA",
+		website: "https://www.manchester.gov.uk",
 		isActive: true,
+		primaryColour: "#dc2626", // Red
+		tagline: "Original modern city",
 	},
 	{
 		name: "Birmingham",
@@ -32,7 +57,10 @@ const britishCities = [
 		email: "contact@birmingham.gov.uk",
 		phone: "+44 121 303 1111",
 		address: "Council House, Victoria Square, Birmingham B1 1BB",
+		website: "https://www.birmingham.gov.uk",
 		isActive: true,
+		primaryColour: "#16a34a", // Green
+		tagline: "City of a thousand trades",
 	},
 	{
 		name: "Bristol",
@@ -41,7 +69,10 @@ const britishCities = [
 		email: "contact@bristol.gov.uk",
 		phone: "+44 117 922 2000",
 		address: "City Hall, College Green, Bristol BS1 5TR",
+		website: "https://www.bristol.gov.uk",
 		isActive: true,
+		primaryColour: "#9333ea", // Purple
+		tagline: "Where innovation meets heritage",
 	},
 	{
 		name: "Leeds",
@@ -50,79 +81,178 @@ const britishCities = [
 		email: "info@leeds.gov.uk",
 		phone: "+44 113 222 4444",
 		address: "Leeds Civic Hall, Calverley Street, Leeds LS1 1UR",
+		website: "https://www.leeds.gov.uk",
 		isActive: true,
+		primaryColour: "#ea580c", // Orange
+		tagline: "The northern powerhouse",
 	},
 ];
 
-async function seedCities() {
-	console.log("🏙️  Seeding cities...");
+// ============================================================================
+// Main Seed
+// ============================================================================
 
+async function seed() {
+	const force = process.argv.includes("--force");
+
+	console.log("🌱 Starting City Portal seed...\n");
+
+	const ctx = await cms.createContext({
+		accessMode: "system",
+	});
+
+	// ========================================
+	// Idempotency check
+	// ========================================
+	const existing = await cms.api.collections.cities.find(
+		{ where: { slug: "london" }, limit: 1 },
+		ctx,
+	);
+	if (existing.totalDocs > 0 && !force) {
+		console.log("Database already seeded. Use --force to re-seed.");
+		process.exit(0);
+	}
+
+	// ========================================
+	// Clean existing data (if re-seeding)
+	// ========================================
+	if (force) {
+		console.log("Cleaning existing data...");
+		const cleanupSteps: [string, () => Promise<unknown>][] = [
+			[
+				"submissions",
+				() => cms.api.collections.submissions.delete({ where: {} }, ctx),
+			],
+			[
+				"documents",
+				() => cms.api.collections.documents.delete({ where: {} }, ctx),
+			],
+			[
+				"announcements",
+				() => cms.api.collections.announcements.delete({ where: {} }, ctx),
+			],
+			["news", () => cms.api.collections.news.delete({ where: {} }, ctx)],
+			[
+				"contacts",
+				() => cms.api.collections.contacts.delete({ where: {} }, ctx),
+			],
+			["pages", () => cms.api.collections.pages.delete({ where: {} }, ctx)],
+			[
+				"cityMembers",
+				() => cms.api.collections.cityMembers.delete({ where: {} }, ctx),
+			],
+			["cities", () => cms.api.collections.cities.delete({ where: {} }, ctx)],
+		];
+		for (const [name, fn] of cleanupSteps) {
+			try {
+				await fn();
+				console.log(`  ✓ ${name}`);
+			} catch (e) {
+				console.log(
+					`  ⚠ ${name} (skipped: ${e instanceof Error ? e.message : e})`,
+				);
+			}
+		}
+		console.log("");
+	}
+
+	// ========================================
+	// Cities
+	// ========================================
+	console.log("Creating cities...");
 	const cityIds: Record<string, string> = {};
 
 	for (const city of britishCities) {
-		// Check if city already exists
-		const existing = await cmsClient.api.collections.cities.find({
-			where: { slug: city.slug },
-			limit: 1,
-		});
-
-		if (existing.docs.length > 0) {
-			console.log(`  ✓ ${city.name} already exists`);
-			cityIds[city.slug] = existing.docs[0].id;
-			continue;
-		}
-
-		// Create city
-		const result = await cmsClient.api.collections.cities.create({
-			...city,
-		});
+		const result = await cms.api.collections.cities.create(
+			{
+				name: city.name,
+				slug: city.slug,
+				population: city.population,
+				email: city.email,
+				phone: city.phone,
+				address: city.address,
+				website: city.website,
+				isActive: city.isActive,
+			},
+			ctx,
+		);
 		cityIds[city.slug] = result.id;
-		console.log(`  ✓ Created ${city.name}`);
+		console.log(`  ✓ ${city.name}`);
 	}
+	console.log("");
 
-	return cityIds;
-}
-
-async function seedSiteSettings(cityIds: Record<string, string>) {
-	console.log("⚙️  Seeding site settings...");
+	// ========================================
+	// Site Settings (scoped per city)
+	// ========================================
+	console.log("Updating site settings...");
 
 	for (const city of britishCities) {
 		const cityId = cityIds[city.slug];
+		const cityCtx = await cms.createContext({
+			accessMode: "system",
+			cityId,
+		});
 
-		// Update site settings for this city
-		await cmsClient.api.globals.siteSettings.update({
-			scope: cityId,
-			data: {
+		await cms.api.globals.siteSettings.update(
+			{
 				siteName: `${city.name} Council`,
-				tagline: "Working for our community",
-				primaryColour: "#1e40af",
+				tagline: city.tagline,
+				primaryColour: city.primaryColour,
 				secondaryColour: "#64748b",
 				navigation: [
 					{ label: "Home", href: "/", isExternal: false },
 					{ label: "News", href: "/news", isExternal: false },
-					{ label: "Services", href: "/services", isExternal: false },
+					{
+						label: "Announcements",
+						href: "/announcements",
+						isExternal: false,
+					},
+					{ label: "Documents", href: "/documents", isExternal: false },
 					{ label: "Contact", href: "/contact", isExternal: false },
 				],
-				footerText: `Your ${city.name} council, working for you.`,
+				footerText: `Your ${city.name} council, ${city.tagline.toLowerCase()}.`,
 				footerLinks: [
-					{ label: "Privacy Policy", href: "/privacy", isExternal: false },
-					{ label: "Accessibility", href: "/accessibility", isExternal: false },
+					{
+						label: "Privacy Policy",
+						href: "/pages/privacy",
+						isExternal: false,
+					},
+					{
+						label: "Accessibility",
+						href: "/pages/accessibility",
+						isExternal: false,
+					},
 					{ label: "Contact Us", href: "/contact", isExternal: false },
 				],
 				copyrightText: `${city.name} Council. All rights reserved.`,
 				contactEmail: city.email,
 				contactPhone: city.phone,
 				address: city.address,
+				openingHours:
+					"Monday - Friday: 9:00 - 17:00\nSaturday - Sunday: Closed",
 				metaTitle: `${city.name} Council - Official Website`,
 				metaDescription: `Official website of ${city.name} Council. Find information about local services, news, and how to contact us.`,
+				socialLinks: [
+					{
+						platform: "facebook",
+						url: `https://facebook.com/${city.slug}council`,
+					},
+					{
+						platform: "twitter",
+						url: `https://twitter.com/${city.slug}council`,
+					},
+				],
 			},
-		});
-		console.log(`  ✓ Site settings for ${city.name}`);
+			cityCtx,
+		);
+		console.log(`  ✓ ${city.name} (${city.primaryColour})`);
 	}
-}
+	console.log("");
 
-async function seedContacts(cityIds: Record<string, string>) {
-	console.log("📞 Seeding contacts...");
+	// ========================================
+	// Contacts
+	// ========================================
+	console.log("Creating contacts...");
 
 	const departments = [
 		{
@@ -151,30 +281,36 @@ async function seedContacts(cityIds: Record<string, string>) {
 		for (let i = 0; i < departments.length; i++) {
 			const { dept, desc } = departments[i];
 
-			await cmsClient.api.collections.contacts.create({
-				city: cityId,
-				department: dept,
-				description: desc,
-				email: `${dept.toLowerCase().replace(/\s+/g, ".")}@${city.slug}.gov.uk`,
-				phone: city.phone,
-				officeHours: "Monday - Friday: 9:00 - 17:00",
-				order: i,
-			});
+			await cms.api.collections.contacts.create(
+				{
+					city: cityId,
+					department: dept,
+					description: desc,
+					email: `${dept.toLowerCase().replace(/\s+/g, ".")}@${city.slug}.gov.uk`,
+					phone: city.phone,
+					officeHours: "Monday - Friday: 9:00 - 17:00",
+					order: i,
+				},
+				ctx,
+			);
 		}
-		console.log(`  ✓ Contacts for ${city.name}`);
+		console.log(`  ✓ ${city.name} (${departments.length} departments)`);
 	}
-}
+	console.log("");
 
-async function seedNews(cityIds: Record<string, string>) {
-	console.log("📰 Seeding news articles...");
+	// ========================================
+	// News
+	// ========================================
+	console.log("Creating news articles...");
 
 	const newsArticles = [
 		{
 			title: "New recycling scheme launches next month",
-			category: "environment",
+			category: "community",
 			excerpt:
 				"Residents will be able to recycle more items as part of our expanded service.",
 			isFeatured: true,
+			daysAgo: 1,
 		},
 		{
 			title: "Council approves new housing development",
@@ -182,6 +318,7 @@ async function seedNews(cityIds: Record<string, string>) {
 			excerpt:
 				"A major new housing development has been approved following community consultation.",
 			isFeatured: false,
+			daysAgo: 3,
 		},
 		{
 			title: "Summer events programme announced",
@@ -189,12 +326,46 @@ async function seedNews(cityIds: Record<string, string>) {
 			excerpt:
 				"Check out the exciting events happening in your area this summer.",
 			isFeatured: true,
+			daysAgo: 5,
 		},
 		{
 			title: "Transport improvements underway",
 			category: "transport",
 			excerpt: "Work begins on major road and public transport improvements.",
 			isFeatured: false,
+			daysAgo: 7,
+		},
+		{
+			title: "Budget consultation opens for 2025/26",
+			category: "council",
+			excerpt:
+				"Have your say on how the council allocates its budget for the coming year.",
+			isFeatured: false,
+			daysAgo: 10,
+		},
+		{
+			title: "Free swimming sessions for under 16s",
+			category: "community",
+			excerpt:
+				"New programme offers free swimming at all council-run leisure centres during school holidays.",
+			isFeatured: true,
+			daysAgo: 14,
+		},
+		{
+			title: "New cycle lanes approved for city centre",
+			category: "transport",
+			excerpt:
+				"Protected cycle infrastructure to be installed along major routes following successful trial.",
+			isFeatured: false,
+			daysAgo: 18,
+		},
+		{
+			title: "Council tax support scheme extended",
+			category: "general",
+			excerpt:
+				"Additional support available for residents struggling with council tax payments.",
+			isFeatured: false,
+			daysAgo: 21,
 		},
 	];
 
@@ -202,173 +373,246 @@ async function seedNews(cityIds: Record<string, string>) {
 		const cityId = cityIds[city.slug];
 
 		for (const article of newsArticles) {
-			await cmsClient.api.collections.news.create({
-				city: cityId,
-				...article,
-				slug: article.title.toLowerCase().replace(/\s+/g, "-"),
-				content: `<p>${article.excerpt}</p><p>More details coming soon...</p>`,
-				isPublished: true,
-				publishedAt: new Date().toISOString(),
-				author: "City Council",
-			});
-		}
-		console.log(`  ✓ News articles for ${city.name}`);
-	}
-}
+			const publishedAt = new Date();
+			publishedAt.setDate(publishedAt.getDate() - article.daysAgo);
 
-async function seedAnnouncements(cityIds: Record<string, string>) {
-	console.log("📢 Seeding announcements...");
+			await cms.api.collections.news.create(
+				{
+					city: cityId,
+					title: article.title,
+					slug: article.title
+						.toLowerCase()
+						.replace(/[^a-z0-9]+/g, "-")
+						.replace(/^-|-$/g, ""),
+					category: article.category as any,
+					excerpt: article.excerpt,
+					content: richText([
+						article.excerpt,
+						`This is an example news article for ${city.name} Council. In a real deployment, this would contain the full article content with images, links, and detailed information.`,
+					]),
+					isPublished: true,
+					isFeatured: article.isFeatured,
+					publishedAt: publishedAt.toISOString(),
+					author: `${city.name} Council`,
+				},
+				ctx,
+			);
+		}
+		console.log(`  ✓ ${city.name} (${newsArticles.length} articles)`);
+	}
+	console.log("");
+
+	// ========================================
+	// Announcements
+	// ========================================
+	console.log("Creating announcements...");
 
 	const announcements = [
 		{
 			title: "Road closure on Main Street",
 			category: "notice",
-			content:
-				"Main Street will be closed for essential maintenance works from Monday to Friday.",
+			body: "Main Street will be closed for essential maintenance works from Monday to Friday. Alternative routes are available via Park Road.",
 			isPinned: true,
 		},
 		{
-			title: "Planning application: New community center",
+			title: "Planning application: New community centre",
 			category: "planning",
-			content:
-				"We are seeking public feedback on plans for a new community center.",
+			body: "We are seeking public feedback on plans for a new community centre on the former library site.",
 			isPinned: false,
 		},
 		{
 			title: "Public consultation: Parks strategy",
 			category: "consultation",
-			content: "Share your views on our future parks and open spaces strategy.",
+			body: "Share your views on our future parks and open spaces strategy. The consultation runs until the end of the month.",
+			isPinned: false,
+		},
+		{
+			title: "Graduate trainee programme 2025",
+			category: "job",
+			body: "Applications are now open for our graduate trainee programme. We offer placements across multiple departments.",
+			isPinned: false,
+		},
+		{
+			title: "Summer festival volunteer registration",
+			category: "event",
+			body: "Register as a volunteer for this year's summer festival. Help us make it the best one yet!",
 			isPinned: false,
 		},
 	];
 
 	const validFrom = new Date();
 	const validTo = new Date();
-	validTo.setMonth(validTo.getMonth() + 1);
+	validTo.setMonth(validTo.getMonth() + 2);
+
+	// Date-only strings for f.date() fields
+	const validFromStr = validFrom.toISOString().split("T")[0];
+	const validToStr = validTo.toISOString().split("T")[0];
 
 	for (const city of britishCities) {
 		const cityId = cityIds[city.slug];
 
 		for (const announcement of announcements) {
-			await cmsClient.api.collections.announcements.create({
-				city: cityId,
-				...announcement,
-				validFrom: validFrom.toISOString(),
-				validTo: validTo.toISOString(),
-			});
+			await cms.api.collections.announcements.create(
+				{
+					city: cityId,
+					title: announcement.title,
+					category: announcement.category as any,
+					content: richText([announcement.body]),
+					isPinned: announcement.isPinned,
+					validFrom: validFromStr,
+					validTo: validToStr,
+				},
+				ctx,
+			);
 		}
-		console.log(`  ✓ Announcements for ${city.name}`);
+		console.log(`  ✓ ${city.name} (${announcements.length} announcements)`);
 	}
-}
+	console.log("");
 
-async function seedDocuments(cityIds: Record<string, string>) {
-	console.log("📄 Seeding documents...");
+	// ========================================
+	// Documents (skip — file field is required and we have no files to upload)
+	// ========================================
+	console.log(
+		"Skipping documents (file upload required — seed via admin UI).\n",
+	);
 
-	const documents = [
-		{ title: "Annual Report 2024", category: "report" },
-		{ title: "Budget Summary", category: "budget" },
-		{ title: "Planning Policy Framework", category: "policy" },
-		{ title: "Community Strategy", category: "strategy" },
-	];
+	// ========================================
+	// Pages (with block content)
+	// ========================================
+	console.log("Creating pages...");
 
 	for (const city of britishCities) {
 		const cityId = cityIds[city.slug];
 
-		for (const doc of documents) {
-			await cmsClient.api.collections.documents.create({
+		// Homepage
+		await cms.api.collections.pages.create(
+			{
 				city: cityId,
-				...doc,
-				description: `Official ${doc.title} for ${city.name}`,
-				publishedDate: new Date().toISOString(),
+				title: `Welcome to ${city.name}`,
+				slug: "home",
+				excerpt: `Welcome to the official ${city.name} Council website.`,
+				content: {
+					_tree: [
+						{ id: "hero-1", type: "hero", children: [] },
+						{ id: "news-1", type: "latest-news", children: [] },
+						{ id: "cta-1", type: "cta", children: [] },
+					],
+					_values: {
+						"hero-1": {
+							title: `Welcome to ${city.name}`,
+							subtitle: `${city.tagline}. Your council, working for you.`,
+							alignment: "center",
+							height: "large",
+							ctaText: "View News",
+							ctaLink: `/${city.slug}/news`,
+							overlayOpacity: 60,
+							showSearch: false,
+						},
+						"news-1": {
+							title: "Latest News",
+							count: 3,
+							showFeatured: true,
+							category: "all",
+							layout: "grid",
+						},
+						"cta-1": {
+							title: "Get in Touch",
+							description:
+								"Have a question or need help with council services? We are here to help.",
+							buttonText: "Contact Us",
+							buttonLink: `/${city.slug}/contact`,
+							variant: "highlight",
+						},
+					},
+				} as any,
 				isPublished: true,
-			});
-		}
-		console.log(`  ✓ Documents for ${city.name}`);
+				showInNav: false,
+				order: 0,
+			},
+			ctx,
+		);
+
+		// About page
+		await cms.api.collections.pages.create(
+			{
+				city: cityId,
+				title: "About Us",
+				slug: "about",
+				excerpt: `Learn about ${city.name} Council and our services.`,
+				content: {
+					_tree: [{ id: "text-1", type: "text", children: [] }],
+					_values: {
+						"text-1": {
+							content: richText([
+								`About ${city.name} Council`,
+								`${city.name} Council is committed to providing high-quality services to our residents. With a population of ${city.population?.toLocaleString()}, we serve one of the most vibrant communities in the country.`,
+								`Our mission is to make ${city.name} a great place to live, work, and visit.`,
+							]),
+							maxWidth: "medium",
+							padding: "large",
+						},
+					},
+				} as any,
+				isPublished: true,
+				showInNav: true,
+				order: 1,
+			},
+			ctx,
+		);
+
+		// Services page
+		await cms.api.collections.pages.create(
+			{
+				city: cityId,
+				title: "Services",
+				slug: "services",
+				excerpt: "Discover the services we offer to residents.",
+				content: {
+					_tree: [
+						{ id: "heading-1", type: "heading", children: [] },
+						{ id: "contacts-1", type: "contacts-list", children: [] },
+					],
+					_values: {
+						"heading-1": {
+							text: "Our Services",
+							level: "h2",
+							align: "left",
+						},
+						"contacts-1": {
+							title: "Council Departments",
+							showAll: true,
+						},
+					},
+				} as any,
+				isPublished: true,
+				showInNav: true,
+				order: 2,
+			},
+			ctx,
+		);
+
+		console.log(`  ✓ ${city.name} (3 pages with block content)`);
 	}
-}
+	console.log("");
 
-async function seedPages(cityIds: Record<string, string>) {
-	console.log("📄 Seeding pages...");
-
+	// ========================================
+	// Done
+	// ========================================
+	console.log("✅ Seed completed successfully!");
+	console.log("\nYou can now:");
+	console.log("  Visit http://localhost:3001/ for the city landing page");
+	console.log("  Visit the admin at http://localhost:3001/admin");
+	console.log("  View cities at:");
 	for (const city of britishCities) {
-		const cityId = cityIds[city.slug];
-
-		// Create homepage
-		await cmsClient.api.collections.pages.create({
-			city: cityId,
-			title: `Welcome to ${city.name}`,
-			slug: "home",
-			excerpt: `Welcome to the official ${city.name} Council website.`,
-			content: [],
-			isPublished: true,
-			showInNav: false,
-			order: 0,
-		});
-
-		// Create about page
-		await cmsClient.api.collections.pages.create({
-			city: cityId,
-			title: "About Us",
-			slug: "about",
-			excerpt: `Learn about ${city.name} Council and our services.`,
-			content: [],
-			isPublished: true,
-			showInNav: true,
-			order: 1,
-		});
-
-		// Create services page
-		await cmsClient.api.collections.pages.create({
-			city: cityId,
-			title: "Services",
-			slug: "services",
-			excerpt: "Discover the services we offer to residents.",
-			content: [],
-			isPublished: true,
-			showInNav: true,
-			order: 2,
-		});
-
-		console.log(`  ✓ Pages for ${city.name}`);
+		console.log(
+			`    - http://localhost:3001/${city.slug} (${city.primaryColour})`,
+		);
 	}
+
+	process.exit(0);
 }
 
-async function main() {
-	console.log("🌱 Starting City Portal seed...\n");
-
-	try {
-		// Seed cities first
-		const cityIds = await seedCities();
-
-		// Seed site settings for each city
-		await seedSiteSettings(cityIds);
-
-		// Seed contacts
-		await seedContacts(cityIds);
-
-		// Seed news articles
-		await seedNews(cityIds);
-
-		// Seed announcements
-		await seedAnnouncements(cityIds);
-
-		// Seed documents
-		await seedDocuments(cityIds);
-
-		// Seed pages
-		await seedPages(cityIds);
-
-		console.log("\n✅ Seed completed successfully!");
-		console.log("\nYou can now:");
-		console.log("  • Visit the admin at http://localhost:3001/admin");
-		console.log("  • View cities at:");
-		for (const city of britishCities) {
-			console.log(`    - http://localhost:3001/${city.slug}`);
-		}
-	} catch (error) {
-		console.error("\n❌ Seed failed:", error);
-		process.exit(1);
-	}
-}
-
-main();
+seed().catch((error) => {
+	console.error("\n❌ Seed failed:", error);
+	process.exit(1);
+});

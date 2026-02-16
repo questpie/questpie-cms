@@ -1,8 +1,8 @@
 import { Link } from "@tanstack/react-router";
 import {
 	Blocks,
+	Building2,
 	FileText,
-	Globe,
 	KeyRound,
 	Languages,
 	ListTodo,
@@ -55,11 +55,11 @@ const features = [
 		link: "server/access-control",
 	},
 	{
-		icon: Globe,
-		title: "Versioning & Soft Delete",
+		icon: Building2,
+		title: "Multitenancy & Scopes",
 		description:
-			"Content versioning with restore support. Soft-deleted items can be recovered from the admin panel.",
-		link: "server/versioning",
+			"Built-in scope system with ScopeProvider, header-based tenant isolation, row-level access filtering, and admin scope picker.",
+		link: "server/access-control",
 	},
 	{
 		icon: KeyRound,

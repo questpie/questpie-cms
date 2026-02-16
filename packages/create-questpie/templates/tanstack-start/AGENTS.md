@@ -91,8 +91,7 @@ export const cms = q({ name: "my-app" })
   .sidebar(configureSidebar)     // from ./sidebar.ts
   .dashboard(configureDashboard) // from ./dashboard.ts
   .auth({ ... })
-  .migrations(migrations)
-  .build({ db: { url }, app: { url }, ... });
+  .build({ db: { url }, app: { url }, migrations: [...], seeds: [...] });
 ```
 
 ## RPC — Type-Safe Server Functions

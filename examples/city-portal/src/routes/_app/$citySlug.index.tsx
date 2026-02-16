@@ -11,13 +11,13 @@ import {
 	useCollectionPreview,
 } from "@questpie/admin/client";
 import { createFileRoute, useRouter } from "@tanstack/react-router";
-import { getHomepage } from "@/lib/cms-functions";
+import { getHomepage } from "@/lib/server-functions";
 import renderers from "@/questpie/admin/blocks";
 
 export const Route = createFileRoute("/_app/$citySlug/")({
 	loader: async ({ params }) => {
 		const { citySlug } = params;
-		return getHomepage({ citySlug });
+		return getHomepage({ data: { citySlug } });
 	},
 
 	component: CityHomepage,
@@ -91,7 +91,7 @@ function HomepageWithPreview({ page }: { page: any }) {
 				)}
 
 				{isPreviewMode && (
-					<div className="fixed bottom-4 right-4 bg-blue-700 text-white px-4 py-2 rounded-full shadow-lg text-sm font-medium z-50">
+					<div className="fixed bottom-4 right-4 bg-primary text-primary-foreground px-4 py-2 rounded-full shadow-lg text-sm font-medium z-50">
 						Preview Mode - Click blocks to edit
 					</div>
 				)}

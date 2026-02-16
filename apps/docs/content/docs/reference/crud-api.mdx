@@ -26,12 +26,54 @@ const result = await cms.api.collections.posts.find({
 | Option | Type | Description |
 |---|---|---|
 | `where` | `WhereClause` | Filter conditions (see [Query Operators](/docs/reference/query-operators)) |
-| `orderBy` | `Record<string, "asc" \| "desc">` | Sort order |
+| `orderBy` | `OrderBy` | Sort order (see [Sorting](#sorting)) |
 | `limit` | `number` | Max records to return |
 | `offset` | `number` | Records to skip |
 | `with` | `Record<string, boolean \| object>` | Relations to include |
 | `select` | `string[]` | Fields to include (projection) |
 | `includeDeleted` | `boolean` | Include soft-deleted records |
+
+### Sorting
+
+The `orderBy` option supports multiple syntaxes for sorting records:
+
+#### Object Syntax
+
+```ts
+// Single field
+orderBy: { createdAt: "desc" }
+
+// Multiple fields - first field is primary sort, second is secondary
+orderBy: { isFeatured: "desc", publishedAt: "desc" }
+```
+
+The order of keys in the object determines sort priority. `isFeatured` is sorted first, then `publishedAt`.
+
+#### Array Syntax
+
+```ts
+// Explicit multi-field sorting with priority
+orderBy: [{ isFeatured: "desc" }, { publishedAt: "desc" }]
+```
+
+Array syntax makes the priority explicit and is useful when conditional sorting is needed:
+
+```ts
+orderBy: values.showFeatured
+  ? [{ isFeatured: "desc" }, { publishedAt: "desc" }]
+  : { publishedAt: "desc" },
+```
+
+#### Function Syntax
+
+For complex sorting, use a function:
+
+```ts
+orderBy: (table, { asc, desc }) => [
+  desc(table.isFeatured),
+  desc(table.publishedAt),
+]
+```
 
 ### Response
 

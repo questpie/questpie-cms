@@ -22,6 +22,8 @@ import {
 	type QuestpieApi,
 } from "#questpie/server/config/integrated/cms-api.js";
 import { QuestpieMigrationsAPI } from "#questpie/server/config/integrated/migrations-api.js";
+import { QuestpieSeedsAPI } from "#questpie/server/config/integrated/seeds-api.js";
+import { resolveAutoSeedCategories } from "#questpie/server/seed/types.js";
 import type {
 	AccessMode,
 	DrizzleClientFromQuestpieConfig,
@@ -120,9 +122,12 @@ export class Questpie<TConfig extends QuestpieConfig = QuestpieConfig> {
 	public realtime: RealtimeService;
 
 	public migrations: QuestpieMigrationsAPI<TConfig>;
+	public seeds: QuestpieSeedsAPI<TConfig>;
 	public api: QuestpieApi<TConfig>;
 
 	public db: DrizzleClientFromQuestpieConfig<TConfig>;
+
+	private _initPromise: Promise<void> | null = null;
 
 	constructor(config: TConfig) {
 		this.config = config;
@@ -258,7 +263,44 @@ export class Questpie<TConfig extends QuestpieConfig = QuestpieConfig> {
 		}
 
 		this.migrations = new QuestpieMigrationsAPI(this);
+		this.seeds = new QuestpieSeedsAPI(this);
 		this.api = new QuestpieAPI(this) as QuestpieApi<TConfig>;
+
+		// Auto-init if configured (autoMigrate / autoSeed)
+		if (config.autoMigrate || config.autoSeed) {
+			this._initPromise = this._autoInit();
+		}
+	}
+
+	/**
+	 * Wait for auto-initialization (migrations + seeds) to complete.
+	 * No-op if autoMigrate/autoSeed are not configured.
+	 * Safe to call multiple times.
+	 *
+	 * @example
+	 * ```ts
+	 * const cms = q.build({ autoMigrate: true, autoSeed: "required" });
+	 * await cms.waitForInit(); // Wait for migrations + seeds
+	 * // Now safe to serve requests
+	 * ```
+	 */
+	async waitForInit(): Promise<void> {
+		if (this._initPromise) await this._initPromise;
+	}
+
+	private async _autoInit(): Promise<void> {
+		try {
+			if (this.config.autoMigrate) {
+				await this.migrations.up();
+			}
+			if (this.config.autoSeed) {
+				const categories = resolveAutoSeedCategories(this.config.autoSeed);
+				await this.seeds.run(categories ? { category: categories } : {});
+			}
+		} catch (err) {
+			this.logger.error("[CMS] Auto-initialization failed:", err);
+			throw err;
+		}
 	}
 
 	private registerCollections(

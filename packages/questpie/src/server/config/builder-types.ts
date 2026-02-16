@@ -22,6 +22,7 @@ import type {
 import type { RealtimeConfig } from "#questpie/server/integrated/realtime/index.js";
 import type { SearchAdapter } from "#questpie/server/integrated/search/index.js";
 import type { Migration } from "#questpie/server/migration/types.js";
+import type { Seed, SeedCategory } from "#questpie/server/seed/types.js";
 
 export type BuilderCollectionsMap = Record<string, AnyCollectionOrBuilder>;
 export type BuilderGlobalsMap = Record<string, AnyGlobalOrBuilder>;
@@ -67,6 +68,9 @@ export interface QuestpieBuilderState<
 
 	// Migrations from modules
 	migrations?: Migration[];
+
+	// Seeds from modules
+	seeds?: Seed[];
 
 	// I18n translations for backend messages
 	translations?: TranslationsConfig;
@@ -149,6 +153,38 @@ export interface QuestpieRuntimeConfig<TDbConfig extends DbConfig = DbConfig> {
 	 * Applied when collection/global doesn't define its own access rules
 	 */
 	defaultAccess?: CollectionAccess;
+
+	/**
+	 * Automatically run migrations on startup.
+	 * Use `await cms.waitForInit()` to wait for completion.
+	 * @default false
+	 */
+	autoMigrate?: boolean;
+
+	/**
+	 * Automatically run seeds on startup (after migrations if autoMigrate is also enabled).
+	 * Use `await cms.waitForInit()` to wait for completion.
+	 *
+	 * - `false`: Never auto-seed (default)
+	 * - `"required"`: Only required seeds
+	 * - `"dev"`: required + dev seeds
+	 * - `"test"`: required + test seeds
+	 * - `true`: All seed categories
+	 * - `SeedCategory[]`: Custom combination (e.g., `["required", "dev"]`)
+	 *
+	 * @default false
+	 */
+	autoSeed?: boolean | SeedCategory | SeedCategory[];
+
+	/**
+	 * Database migrations
+	 */
+	migrations?: Migration[];
+
+	/**
+	 * Database seeds
+	 */
+	seeds?: Seed[];
 }
 
 /**
@@ -168,6 +204,7 @@ export type EmptyNamedBuilderState<TName extends string> = QuestpieBuilderState<
 	auth: {};
 	locale: undefined;
 	migrations: undefined;
+	seeds: undefined;
 	contextResolver: undefined;
 	"~messageKeys": never;
 	fields: {};

@@ -6,7 +6,18 @@ import type {
   With,
 } from "#questpie/server/collection/crud/types.js";
 import type {
+  FieldSelect,
+  GlobalFieldDefinitionsWithSystem,
+} from "#questpie/server/fields/field-types.js";
+import type {
+  FieldDefinition,
+  FieldDefinitionState,
+} from "#questpie/server/fields/types.js";
+import type { GlobalOptions } from "#questpie/server/global/builder/types.js";
+import type {
   ExtractRelationInsert,
+  GlobalSelect as GlobalSelectFromInfer,
+  GlobalState,
   Prettify,
 } from "#questpie/shared/type-utils.js";
 
@@ -114,8 +125,64 @@ export interface GlobalVersionRecord {
   versionOperation: string;
   versionUserId: string | null;
   versionCreatedAt: Date;
-  [key: string]: any;
 }
+
+// ============================================================================
+// Field-definition-based Global Select (no Drizzle InferSelectModel)
+// ============================================================================
+
+/**
+ * Extract field definitions from a global, with system fields auto-inserted.
+ * Analogous to CollectionFieldDefinitions in collection/crud/types.ts.
+ */
+type GlobalFieldDefinitions<TGlobal> =
+  GlobalState<TGlobal> extends {
+    fieldDefinitions: infer TDefs;
+    options: infer TOptions;
+  }
+    ? TDefs extends Record<string, FieldDefinition<FieldDefinitionState>>
+      ? TOptions extends GlobalOptions
+        ? GlobalFieldDefinitionsWithSystem<TDefs, TOptions>
+        : GlobalFieldDefinitionsWithSystem<TDefs, {}>
+      : TDefs
+    : GlobalState<TGlobal> extends { fieldDefinitions: infer TDefs }
+      ? TDefs
+      : Record<string, never>;
+
+type HasGlobalFieldDefinitions<TDefs> =
+  TDefs extends Record<string, FieldDefinition<FieldDefinitionState>>
+    ? keyof TDefs extends never
+      ? false
+      : true
+    : false;
+
+/**
+ * Build GlobalSelect purely from field definitions — no Drizzle dependency.
+ * Maps each field through FieldSelect to get its output type.
+ * Analogous to CollectionSelectFromFieldDefinitions.
+ */
+type GlobalSelectFromFieldDefinitions<TGlobal, TApp> =
+  GlobalFieldDefinitions<TGlobal> extends infer TAllFields
+    ? TAllFields extends Record<string, FieldDefinition<FieldDefinitionState>>
+      ? Prettify<{
+          [K in keyof TAllFields as FieldSelect<
+            TAllFields[K],
+            TApp
+          > extends never
+            ? never
+            : K]: FieldSelect<TAllFields[K], TApp>;
+        }>
+      : GlobalSelectFromInfer<TGlobal>
+    : GlobalSelectFromInfer<TGlobal>;
+
+/**
+ * App-aware GlobalSelect. Prefers field definitions over $infer.select.
+ * Avoids Drizzle's InferSelectModel index signature pollution.
+ */
+export type GlobalSelectFromApp<TGlobal, TApp> =
+  HasGlobalFieldDefinitions<GlobalFieldDefinitions<TGlobal>> extends true
+    ? GlobalSelectFromFieldDefinitions<TGlobal, TApp>
+    : GlobalSelectFromInfer<TGlobal>;
 
 /**
  * Type-safe Global CRUD interface

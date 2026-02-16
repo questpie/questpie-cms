@@ -21,5 +21,5 @@ export const getSiteSettings = createServerFn({ method: "GET" })
 			ctx,
 		);
 
-		return settings as any;
+		return settings;
 	});
