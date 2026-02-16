@@ -8,9 +8,14 @@ import type {
 	AdminConfigContext,
 	BlockCategoryConfig,
 } from "@questpie/admin/server";
-import { typedApp } from "questpie";
+import { typedApp, type Where } from "questpie";
 import { qb } from "./builder";
-import type { BaseCMS } from "./cms";
+import type { BaseCMS } from "@/questpie/server/cms";
+import type {
+	announcements,
+	documents,
+	news,
+} from "@/questpie/server/collections";
 
 // ============================================================================
 // Category Helpers
@@ -152,9 +157,11 @@ export const announcementBannerBlock = qb
 	}))
 	.prefetch(async ({ values, ctx }) => {
 		const cms = typedApp<BaseCMS>(ctx.app);
-		const where: any = {};
+		let where: Where<typeof announcements, BaseCMS> = {};
 		if (!values.showExpired) {
-			where.validTo = { gte: new Date() };
+			where = {
+				validTo: { gte: new Date().toISOString() },
+			};
 		}
 
 		const res = await cms.api.collections.announcements.find({
@@ -448,9 +455,11 @@ export const latestNewsBlock = qb
 	}))
 	.prefetch(async ({ values, ctx }) => {
 		const cms = typedApp<BaseCMS>(ctx.app);
-		const where: any = {};
+		let where: Where<typeof news, BaseCMS> = {};
 		if (values.category && values.category !== "all") {
-			where.category = values.category;
+			where = {
+				category: values.category,
+			};
 		}
 
 		const res = await cms.api.collections.news.find({
@@ -536,9 +545,9 @@ export const documentsListBlock = qb
 	}))
 	.prefetch(async ({ values, ctx }) => {
 		const cms = typedApp<BaseCMS>(ctx.app);
-		const where: any = { isPublished: true };
+		let where: Where<typeof documents, BaseCMS> = { isPublished: true };
 		if (values.category && values.category !== "all") {
-			where.category = values.category;
+			where = { ...where, category: values.category };
 		}
 
 		const res = await cms.api.collections.documents.find({
