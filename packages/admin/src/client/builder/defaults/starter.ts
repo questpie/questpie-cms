@@ -17,7 +17,7 @@
 import { coreAdminModule } from "./core";
 
 /**
- * Admin Module - the complete frontend config for QuestPie admin panel.
+ * Admin Module - the complete frontend config for QUESTPIE admin panel.
  *
  * All collection admin configs and sidebar come from server adminModule.
  */

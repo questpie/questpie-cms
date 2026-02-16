@@ -21,7 +21,7 @@ const handler = withOpenApi(
 		info: {
 			title: "City Portal API",
 			version: "1.0.0",
-			description: "QuestPie CMS API for the City Portal example",
+			description: "QUESTPIE CMS API for the City Portal example",
 		},
 		scalar: { theme: "blue" },
 	},

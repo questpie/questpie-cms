@@ -1,6 +1,6 @@
 # @questpie/openapi
 
-Auto-generate OpenAPI 3.1 spec from QuestPie CMS runtime metadata and serve interactive docs via Scalar UI.
+Auto-generate OpenAPI 3.1 spec from QUESTPIE CMS runtime metadata and serve interactive docs via Scalar UI.
 
 ## Usage
 

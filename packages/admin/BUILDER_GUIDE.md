@@ -1,6 +1,6 @@
 # Admin Builder Guide
 
-Complete guide to the QuestPie Admin Builder v3.
+Complete guide to the QUESTPIE Admin Builder v3.
 
 ## Table of Contents
 

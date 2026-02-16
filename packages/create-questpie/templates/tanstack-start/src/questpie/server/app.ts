@@ -1,6 +1,6 @@
 import { adminModule, adminRpc } from "@questpie/admin/server";
 import { ConsoleAdapter, q } from "questpie";
-import { env } from "@/lib/env";
+import { env } from "@/lib/env.js";
 import { migrations } from "../../migrations/index.js";
 import { posts } from "./collections/index.js";
 import { configureDashboard } from "./dashboard.js";

@@ -1,7 +1,7 @@
 /**
  * @questpie/openapi
  *
- * Auto-generate OpenAPI 3.1 spec from QuestPie CMS runtime metadata
+ * Auto-generate OpenAPI 3.1 spec from QUESTPIE CMS runtime metadata
  * and serve interactive docs via Scalar UI.
  *
  * @example
@@ -27,50 +27,50 @@ import type { Questpie, RpcRouterTree } from "questpie";
 import { generateOpenApiSpec as generate } from "./generator/index.js";
 import { serveScalarUI } from "./scalar.js";
 import type {
-  OpenApiConfig,
-  OpenApiSpec,
-  ScalarConfig,
-  WithOpenApiConfig,
+	OpenApiConfig,
+	OpenApiSpec,
+	ScalarConfig,
+	WithOpenApiConfig,
 } from "./types.js";
 
 export type {
-  OpenApiConfig,
-  OpenApiSpec,
-  ScalarConfig,
-  WithOpenApiConfig,
+	OpenApiConfig,
+	OpenApiSpec,
+	ScalarConfig,
+	WithOpenApiConfig,
 } from "./types.js";
 
 /**
  * Generate a complete OpenAPI 3.1 spec from a CMS instance and optional RPC router.
  */
 export function generateOpenApiSpec(
-  cms: Questpie<any>,
-  rpc?: RpcRouterTree<any>,
-  config?: OpenApiConfig,
+	cms: Questpie<any>,
+	rpc?: RpcRouterTree<any>,
+	config?: OpenApiConfig,
 ): OpenApiSpec {
-  return generate(cms, rpc, config);
+	return generate(cms, rpc, config);
 }
 
 /**
  * Create request handlers for serving the OpenAPI spec and Scalar UI.
  */
 export function createOpenApiHandlers(
-  spec: OpenApiSpec,
-  options?: { scalar?: ScalarConfig },
+	spec: OpenApiSpec,
+	options?: { scalar?: ScalarConfig },
 ) {
-  return {
-    /** Returns the OpenAPI spec as JSON */
-    specHandler: () =>
-      new Response(JSON.stringify(spec), {
-        headers: {
-          "Content-Type": "application/json",
-          "Access-Control-Allow-Origin": "*",
-        },
-      }),
+	return {
+		/** Returns the OpenAPI spec as JSON */
+		specHandler: () =>
+			new Response(JSON.stringify(spec), {
+				headers: {
+					"Content-Type": "application/json",
+					"Access-Control-Allow-Origin": "*",
+				},
+			}),
 
-    /** Returns the Scalar UI HTML page */
-    scalarHandler: () => serveScalarUI(spec, options?.scalar),
-  };
+		/** Returns the Scalar UI HTML page */
+		scalarHandler: () => serveScalarUI(spec, options?.scalar),
+	};
 }
 
 /**
@@ -97,47 +97,47 @@ export function createOpenApiHandlers(
  * ```
  */
 export function withOpenApi(
-  handler: (
-    request: Request,
-    context?: any,
-  ) => Promise<Response | null> | Response | null,
-  config: WithOpenApiConfig,
+	handler: (
+		request: Request,
+		context?: any,
+	) => Promise<Response | null> | Response | null,
+	config: WithOpenApiConfig,
 ): (
-  request: Request,
-  context?: any,
+	request: Request,
+	context?: any,
 ) => Promise<Response | null> | Response | null {
-  const {
-    cms,
-    rpc,
-    scalar,
-    specPath = "openapi.json",
-    docsPath = "docs",
-    ...openApiConfig
-  } = config;
+	const {
+		cms,
+		rpc,
+		scalar,
+		specPath = "openapi.json",
+		docsPath = "docs",
+		...openApiConfig
+	} = config;
 
-  const spec = generate(cms, rpc, openApiConfig);
-  const { specHandler, scalarHandler } = createOpenApiHandlers(spec, {
-    scalar,
-  });
+	const spec = generate(cms, rpc, openApiConfig);
+	const { specHandler, scalarHandler } = createOpenApiHandlers(spec, {
+		scalar,
+	});
 
-  const basePath = normalizeBasePath(openApiConfig.basePath ?? "/cms");
-  const specRoute = `${basePath}/${specPath}`;
-  const docsRoute = `${basePath}/${docsPath}`;
+	const basePath = normalizeBasePath(openApiConfig.basePath ?? "/cms");
+	const specRoute = `${basePath}/${specPath}`;
+	const docsRoute = `${basePath}/${docsPath}`;
 
-  return (request: Request, context?: any) => {
-    const url = new URL(request.url);
-    const pathname = url.pathname;
+	return (request: Request, context?: any) => {
+		const url = new URL(request.url);
+		const pathname = url.pathname;
 
-    if (request.method === "GET") {
-      if (pathname === specRoute) return specHandler();
-      if (pathname === docsRoute) return scalarHandler();
-    }
+		if (request.method === "GET") {
+			if (pathname === specRoute) return specHandler();
+			if (pathname === docsRoute) return scalarHandler();
+		}
 
-    return handler(request, context);
-  };
+		return handler(request, context);
+	};
 }
 
 function normalizeBasePath(path: string): string {
-  // Remove trailing slash but keep leading slash
-  return path.endsWith("/") ? path.slice(0, -1) : path;
+	// Remove trailing slash but keep leading slash
+	return path.endsWith("/") ? path.slice(0, -1) : path;
 }

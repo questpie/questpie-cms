@@ -1,6 +1,6 @@
 # {{projectName}}
 
-A [QuestPie CMS](https://questpie.com) project built with TanStack Start.
+A [QUESTPIE CMS](https://questpie.com) project built with TanStack Start.
 
 ## Getting Started
 
@@ -56,13 +56,13 @@ src/
 
 ## Scripts
 
-| Command | Description |
-|---------|-------------|
-| `bun dev` | Start development server |
-| `bun build` | Build for production |
-| `bun start` | Start production server |
-| `bun questpie migrate` | Run database migrations |
-| `bun questpie migrate:create` | Create a new migration |
+| Command                       | Description              |
+| ----------------------------- | ------------------------ |
+| `bun dev`                     | Start development server |
+| `bun build`                   | Build for production     |
+| `bun start`                   | Start production server  |
+| `bun questpie migrate`        | Run database migrations  |
+| `bun questpie migrate:create` | Create a new migration   |
 
 ## Adding Collections
 

@@ -1,7 +1,7 @@
 /**
  * Admin Module
  *
- * Complete backend module for running the QuestPie admin panel.
+ * Complete backend module for running the QUESTPIE admin panel.
  * This is the main entry point for setting up the admin backend.
  *
  * Includes:
@@ -155,7 +155,7 @@ const adminBaseBuilder = q({ name: "questpie-admin" })
 	});
 
 /**
- * Admin Module - the complete backend for QuestPie admin panel.
+ * Admin Module - the complete backend for QUESTPIE admin panel.
  *
  * This module provides everything needed to run the admin panel:
  * - User authentication (Better Auth) - from starterModule

@@ -1,21 +1,21 @@
 # CLAUDE.md
 
-This is a [QuestPie CMS](https://questpie.com) project scaffolded with `create-questpie`.
+This is a [QUESTPIE CMS](https://questpie.com) project scaffolded with `create-questpie`.
 
 ## Quick Reference
 
-| Command | Purpose |
-|---------|---------|
-| `bun dev` | Start dev server (port 3000) |
-| `bun build` | Build for production |
-| `bun start` | Start production server |
-| `bun questpie migrate` | Run database migrations |
-| `bun questpie migrate:create` | Generate a new migration |
-| `docker compose up -d` | Start PostgreSQL |
+| Command                       | Purpose                      |
+| ----------------------------- | ---------------------------- |
+| `bun dev`                     | Start dev server (port 3000) |
+| `bun build`                   | Build for production         |
+| `bun start`                   | Start production server      |
+| `bun questpie migrate`        | Run database migrations      |
+| `bun questpie migrate:create` | Generate a new migration     |
+| `docker compose up -d`        | Start PostgreSQL             |
 
 ## Project Architecture
 
-This project follows QuestPie's **server-first** philosophy:
+This project follows QUESTPIE's **server-first** philosophy:
 - **Server** defines WHAT (schema, validation, access, hooks, jobs)
 - **Client** defines HOW (rendering, themes, custom components)
 
@@ -100,6 +100,6 @@ See AGENTS.md for detailed RPC type flow, access control, and TanStack Query int
 
 ## Documentation
 
-- **QuestPie Docs**: https://questpie.com/docs
+- **QUESTPIE Docs**: https://questpie.com/docs
 - **Getting Started**: https://questpie.com/docs/getting-started
 - **API Reference (local)**: http://localhost:3000/api/cms/docs (Scalar UI, available when dev server is running)

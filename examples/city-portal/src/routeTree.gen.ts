@@ -9,14 +9,25 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as IndexRouteImport } from './routes/index'
 import { Route as AdminIndexRouteImport } from './routes/admin/index'
 import { Route as ApiPreviewRouteImport } from './routes/api/preview'
 import { Route as AdminSplatRouteImport } from './routes/admin/$'
 import { Route as AppCitySlugRouteImport } from './routes/_app/$citySlug'
 import { Route as AppCitySlugIndexRouteImport } from './routes/_app/$citySlug.index'
 import { Route as ApiCmsSplatRouteImport } from './routes/api/cms/$'
+import { Route as AppCitySlugDocumentsRouteImport } from './routes/_app/$citySlug.documents'
+import { Route as AppCitySlugContactRouteImport } from './routes/_app/$citySlug.contact'
+import { Route as AppCitySlugAnnouncementsRouteImport } from './routes/_app/$citySlug.announcements'
+import { Route as AppCitySlugNewsIndexRouteImport } from './routes/_app/$citySlug.news.index'
 import { Route as AppCitySlugPagesSlugRouteImport } from './routes/_app/$citySlug.pages.$slug'
+import { Route as AppCitySlugNewsSlugRouteImport } from './routes/_app/$citySlug.news.$slug'
 
+const IndexRoute = IndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AdminIndexRoute = AdminIndexRouteImport.update({
   id: '/admin/',
   path: '/admin/',
@@ -47,69 +58,132 @@ const ApiCmsSplatRoute = ApiCmsSplatRouteImport.update({
   path: '/api/cms/$',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AppCitySlugDocumentsRoute = AppCitySlugDocumentsRouteImport.update({
+  id: '/documents',
+  path: '/documents',
+  getParentRoute: () => AppCitySlugRoute,
+} as any)
+const AppCitySlugContactRoute = AppCitySlugContactRouteImport.update({
+  id: '/contact',
+  path: '/contact',
+  getParentRoute: () => AppCitySlugRoute,
+} as any)
+const AppCitySlugAnnouncementsRoute =
+  AppCitySlugAnnouncementsRouteImport.update({
+    id: '/announcements',
+    path: '/announcements',
+    getParentRoute: () => AppCitySlugRoute,
+  } as any)
+const AppCitySlugNewsIndexRoute = AppCitySlugNewsIndexRouteImport.update({
+  id: '/news/',
+  path: '/news/',
+  getParentRoute: () => AppCitySlugRoute,
+} as any)
 const AppCitySlugPagesSlugRoute = AppCitySlugPagesSlugRouteImport.update({
   id: '/pages/$slug',
   path: '/pages/$slug',
   getParentRoute: () => AppCitySlugRoute,
 } as any)
+const AppCitySlugNewsSlugRoute = AppCitySlugNewsSlugRouteImport.update({
+  id: '/news/$slug',
+  path: '/news/$slug',
+  getParentRoute: () => AppCitySlugRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
+  '/': typeof IndexRoute
   '/$citySlug': typeof AppCitySlugRouteWithChildren
   '/admin/$': typeof AdminSplatRoute
   '/api/preview': typeof ApiPreviewRoute
   '/admin': typeof AdminIndexRoute
+  '/$citySlug/announcements': typeof AppCitySlugAnnouncementsRoute
+  '/$citySlug/contact': typeof AppCitySlugContactRoute
+  '/$citySlug/documents': typeof AppCitySlugDocumentsRoute
   '/api/cms/$': typeof ApiCmsSplatRoute
   '/$citySlug/': typeof AppCitySlugIndexRoute
+  '/$citySlug/news/$slug': typeof AppCitySlugNewsSlugRoute
   '/$citySlug/pages/$slug': typeof AppCitySlugPagesSlugRoute
+  '/$citySlug/news': typeof AppCitySlugNewsIndexRoute
 }
 export interface FileRoutesByTo {
+  '/': typeof IndexRoute
   '/admin/$': typeof AdminSplatRoute
   '/api/preview': typeof ApiPreviewRoute
   '/admin': typeof AdminIndexRoute
+  '/$citySlug/announcements': typeof AppCitySlugAnnouncementsRoute
+  '/$citySlug/contact': typeof AppCitySlugContactRoute
+  '/$citySlug/documents': typeof AppCitySlugDocumentsRoute
   '/api/cms/$': typeof ApiCmsSplatRoute
   '/$citySlug': typeof AppCitySlugIndexRoute
+  '/$citySlug/news/$slug': typeof AppCitySlugNewsSlugRoute
   '/$citySlug/pages/$slug': typeof AppCitySlugPagesSlugRoute
+  '/$citySlug/news': typeof AppCitySlugNewsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
+  '/': typeof IndexRoute
   '/_app/$citySlug': typeof AppCitySlugRouteWithChildren
   '/admin/$': typeof AdminSplatRoute
   '/api/preview': typeof ApiPreviewRoute
   '/admin/': typeof AdminIndexRoute
+  '/_app/$citySlug/announcements': typeof AppCitySlugAnnouncementsRoute
+  '/_app/$citySlug/contact': typeof AppCitySlugContactRoute
+  '/_app/$citySlug/documents': typeof AppCitySlugDocumentsRoute
   '/api/cms/$': typeof ApiCmsSplatRoute
   '/_app/$citySlug/': typeof AppCitySlugIndexRoute
+  '/_app/$citySlug/news/$slug': typeof AppCitySlugNewsSlugRoute
   '/_app/$citySlug/pages/$slug': typeof AppCitySlugPagesSlugRoute
+  '/_app/$citySlug/news/': typeof AppCitySlugNewsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
+    | '/'
     | '/$citySlug'
     | '/admin/$'
     | '/api/preview'
     | '/admin'
+    | '/$citySlug/announcements'
+    | '/$citySlug/contact'
+    | '/$citySlug/documents'
     | '/api/cms/$'
     | '/$citySlug/'
+    | '/$citySlug/news/$slug'
     | '/$citySlug/pages/$slug'
+    | '/$citySlug/news'
   fileRoutesByTo: FileRoutesByTo
   to:
+    | '/'
     | '/admin/$'
     | '/api/preview'
     | '/admin'
+    | '/$citySlug/announcements'
+    | '/$citySlug/contact'
+    | '/$citySlug/documents'
     | '/api/cms/$'
     | '/$citySlug'
+    | '/$citySlug/news/$slug'
     | '/$citySlug/pages/$slug'
+    | '/$citySlug/news'
   id:
     | '__root__'
+    | '/'
     | '/_app/$citySlug'
     | '/admin/$'
     | '/api/preview'
     | '/admin/'
+    | '/_app/$citySlug/announcements'
+    | '/_app/$citySlug/contact'
+    | '/_app/$citySlug/documents'
     | '/api/cms/$'
     | '/_app/$citySlug/'
+    | '/_app/$citySlug/news/$slug'
     | '/_app/$citySlug/pages/$slug'
+    | '/_app/$citySlug/news/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
+  IndexRoute: typeof IndexRoute
   AppCitySlugRoute: typeof AppCitySlugRouteWithChildren
   AdminSplatRoute: typeof AdminSplatRoute
   ApiPreviewRoute: typeof ApiPreviewRoute
@@ -119,6 +193,13 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/': {
+      id: '/'
+      path: '/'
+      fullPath: '/'
+      preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/admin/': {
       id: '/admin/'
       path: '/admin'
@@ -161,6 +242,34 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiCmsSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_app/$citySlug/documents': {
+      id: '/_app/$citySlug/documents'
+      path: '/documents'
+      fullPath: '/$citySlug/documents'
+      preLoaderRoute: typeof AppCitySlugDocumentsRouteImport
+      parentRoute: typeof AppCitySlugRoute
+    }
+    '/_app/$citySlug/contact': {
+      id: '/_app/$citySlug/contact'
+      path: '/contact'
+      fullPath: '/$citySlug/contact'
+      preLoaderRoute: typeof AppCitySlugContactRouteImport
+      parentRoute: typeof AppCitySlugRoute
+    }
+    '/_app/$citySlug/announcements': {
+      id: '/_app/$citySlug/announcements'
+      path: '/announcements'
+      fullPath: '/$citySlug/announcements'
+      preLoaderRoute: typeof AppCitySlugAnnouncementsRouteImport
+      parentRoute: typeof AppCitySlugRoute
+    }
+    '/_app/$citySlug/news/': {
+      id: '/_app/$citySlug/news/'
+      path: '/news'
+      fullPath: '/$citySlug/news'
+      preLoaderRoute: typeof AppCitySlugNewsIndexRouteImport
+      parentRoute: typeof AppCitySlugRoute
+    }
     '/_app/$citySlug/pages/$slug': {
       id: '/_app/$citySlug/pages/$slug'
       path: '/pages/$slug'
@@ -168,17 +277,34 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppCitySlugPagesSlugRouteImport
       parentRoute: typeof AppCitySlugRoute
     }
+    '/_app/$citySlug/news/$slug': {
+      id: '/_app/$citySlug/news/$slug'
+      path: '/news/$slug'
+      fullPath: '/$citySlug/news/$slug'
+      preLoaderRoute: typeof AppCitySlugNewsSlugRouteImport
+      parentRoute: typeof AppCitySlugRoute
+    }
   }
 }
 
 interface AppCitySlugRouteChildren {
+  AppCitySlugAnnouncementsRoute: typeof AppCitySlugAnnouncementsRoute
+  AppCitySlugContactRoute: typeof AppCitySlugContactRoute
+  AppCitySlugDocumentsRoute: typeof AppCitySlugDocumentsRoute
   AppCitySlugIndexRoute: typeof AppCitySlugIndexRoute
+  AppCitySlugNewsSlugRoute: typeof AppCitySlugNewsSlugRoute
   AppCitySlugPagesSlugRoute: typeof AppCitySlugPagesSlugRoute
+  AppCitySlugNewsIndexRoute: typeof AppCitySlugNewsIndexRoute
 }
 
 const AppCitySlugRouteChildren: AppCitySlugRouteChildren = {
+  AppCitySlugAnnouncementsRoute: AppCitySlugAnnouncementsRoute,
+  AppCitySlugContactRoute: AppCitySlugContactRoute,
+  AppCitySlugDocumentsRoute: AppCitySlugDocumentsRoute,
   AppCitySlugIndexRoute: AppCitySlugIndexRoute,
+  AppCitySlugNewsSlugRoute: AppCitySlugNewsSlugRoute,
   AppCitySlugPagesSlugRoute: AppCitySlugPagesSlugRoute,
+  AppCitySlugNewsIndexRoute: AppCitySlugNewsIndexRoute,
 }
 
 const AppCitySlugRouteWithChildren = AppCitySlugRoute._addFileChildren(
@@ -186,6 +312,7 @@ const AppCitySlugRouteWithChildren = AppCitySlugRoute._addFileChildren(
 )
 
 const rootRouteChildren: RootRouteChildren = {
+  IndexRoute: IndexRoute,
   AppCitySlugRoute: AppCitySlugRouteWithChildren,
   AdminSplatRoute: AdminSplatRoute,
   ApiPreviewRoute: ApiPreviewRoute,

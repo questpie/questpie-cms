@@ -1,6 +1,6 @@
-# QuestPie Configuration
+# QUESTPIE Configuration
 
-This directory contains the QuestPie CMS configuration for the Barbershop example.
+This directory contains the QUESTPIE CMS configuration for the Barbershop example.
 
 ## Structure
 
@@ -255,7 +255,7 @@ function BarbersList() {
 
 ## I18n (Internationalization)
 
-QuestPie supports full i18n for both backend messages and admin UI.
+QUESTPIE supports full i18n for both backend messages and admin UI.
 
 ### Backend Messages (`/server/cms.ts`)
 
@@ -337,7 +337,7 @@ function WelcomeBanner() {
 
 ### Locale Separation
 
-QuestPie separates two types of locales:
+QUESTPIE separates two types of locales:
 
 - **UI Locale** (`uiLocale`) - Admin interface language
 - **Content Locale** (`contentLocale`) - CMS content language (for `_i18n` tables)
