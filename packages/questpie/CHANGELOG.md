@@ -1,82 +1,10 @@
 # questpie
 
-## Unreleased
+## 1.1.1
 
-### Breaking Changes
+### Patch Changes
 
-- **Renamed type helper functions** for clarity and consistency:
-
-  The old `get*` functions were misleading - they only added TypeScript types but didn't actually "get" anything at runtime. New `typed*` prefix clearly communicates they are compile-time type casts.
-
-  | Old (removed)    | New              | Purpose                        |
-  |------------------|------------------|--------------------------------|
-  | `getApp(app)`    | `typedApp(app)`  | Type cast app to `TApp`        |
-  | `getDb(db)`      | `typedDb(db)`    | Type cast db to `InferDbFromApp<TApp>` |
-  | `getSession(s)`  | `typedSession(s)`| Type cast session              |
-  | `getContext(ctx)`| `typedContext(ctx)` | Type cast entire context    |
-  | `getStoredContext()` | `tryGetContext()` | Safe context access (returns undefined) |
-
-  **Migration:**
-  ```typescript
-  // Before
-  import { getApp, getDb, getSession } from "questpie";
-  const cms = getApp<AppCMS>(app);
-  const db = getDb<AppCMS>(db);
-  const session = getSession<AppCMS>(session);
-
-  // After
-  import { typedApp, typedDb, typedSession } from "questpie";
-  const cms = typedApp<AppCMS>(app);
-  const db = typedDb<AppCMS>(db);
-  const session = typedSession<AppCMS>(session);
-  ```
-
-  `getContext()` without parameters is unchanged - it still retrieves context from AsyncLocalStorage.
-
-### Minor Changes
-
-- feat: automatic context propagation via AsyncLocalStorage
-
-  `normalizeContext()` now automatically inherits `locale` and `accessMode` from the current `runWithContext` scope when not explicitly provided. This enables implicit context propagation in nested API calls.
-
-  **Before:** Nested calls required explicit locale passing:
-  ```typescript
-  // In prefetch hook - had to manually pass locale
-  const result = await appApi.find({
-    where: { id: { in: ids } },
-    locale: ctx.locale, // Required!
-  });
-  ```
-
-  **After:** Context is automatically inherited:
-  ```typescript
-  // Locale is inherited from parent runWithContext scope
-  const result = await appApi.find({
-    where: { id: { in: ids } },
-    // locale automatically inherited from AsyncLocalStorage
-  });
-  ```
-
-  New helper `tryGetContext()` provides safe access to the current context:
-  ```typescript
-  import { tryGetContext } from "questpie";
-
-  const ctx = tryGetContext();
-  if (ctx?.locale) {
-    // Use inherited locale
-  }
-  ```
-
-  Additionally, `find` operations now run within `runWithContext()` scope, 
-  enabling `getContext()` in afterRead hooks (including block prefetch).
-
-  This fixes issues where:
-  - Block prefetch hooks fetched data without respecting the current locale
-  - Nested API calls in custom functions lost locale context
-  - Hooks calling other collections didn't inherit access mode
-  - afterRead hooks couldn't use `getContext()` for implicit context access
-
----
+- [`7172275`](https://github.com/questpie/questpie-cms/commit/71722757a95e1f30521ac1eeca1080a8691bb9fc) Thanks [@drepkovsky](https://github.com/drepkovsky)! - fix: public uploads set visibility flag
 
 ## 1.1.0
 
