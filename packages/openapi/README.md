@@ -37,8 +37,8 @@ const handler = withOpenApi(
 
 | Category        | Endpoints                                                                               |
 | --------------- | --------------------------------------------------------------------------------------- |
-| **Collections** | List, create, findOne, update, delete, count, deleteMany, restore, upload, schema, meta |
-| **Globals**     | Get, update, schema                                                                     |
+| **Collections** | List, create, findOne, update, delete, count, deleteMany, restore, versions, revert, upload, schema, meta |
+| **Globals**     | Get, update, versions, revert, schema                                                   |
 | **RPC**         | All procedures from the RPC router tree, with input/output from Zod schemas             |
 | **Auth**        | Better Auth endpoints (sign-in, sign-up, session, sign-out)                             |
 | **Search**      | Full-text search and reindex                                                            |

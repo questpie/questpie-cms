@@ -234,7 +234,10 @@ export {
 	useCollectionDelete,
 	useCollectionItem,
 	useCollectionList,
+	useCollectionRestore,
+	useCollectionRevertVersion,
 	useCollectionUpdate,
+	useCollectionVersions,
 } from "#questpie/admin/client/hooks/use-collection.js";
 // User hooks
 export { useCurrentUser } from "#questpie/admin/client/hooks/use-current-user.js";
@@ -248,7 +251,9 @@ export {
 // Global hooks
 export {
 	useGlobal,
+	useGlobalRevertVersion,
 	useGlobalUpdate,
+	useGlobalVersions,
 } from "#questpie/admin/client/hooks/use-global.js";
 // Media query hooks
 export {
@@ -264,6 +269,7 @@ export {
 	type UseReactiveFieldsResult,
 	useReactiveFields,
 } from "#questpie/admin/client/hooks/use-reactive-fields.js";
+export { useSearchParamToggle } from "#questpie/admin/client/hooks/use-search-param-toggle.js";
 // Server widget data hook
 export { useServerWidgetData } from "#questpie/admin/client/hooks/use-server-widget-data.js";
 // Setup hooks
@@ -271,6 +277,7 @@ export {
 	type SetupStatus,
 	useSetupStatus,
 } from "#questpie/admin/client/hooks/use-setup-status.js";
+export { useSidebarSearchParam } from "#questpie/admin/client/hooks/use-sidebar-search-param.js";
 
 // ============================================================================
 // UTILITIES

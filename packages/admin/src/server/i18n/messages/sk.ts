@@ -22,6 +22,7 @@ export default {
 	"common.previous": "Predchádzajúce",
 	"common.actions": "Akcie",
 	"common.more": "Viac",
+	"common.moreActions": "Viac akcií",
 	"common.yes": "Áno",
 	"common.no": "Nie",
 	"common.ok": "OK",
@@ -91,6 +92,20 @@ export default {
 	"collection.new": "Nový {{name}}",
 	"collection.duplicateSuccess": "{{name}} úspešne zduplikovaný",
 	"collection.duplicateError": "Nepodarilo sa zduplikovať {{name}}",
+	"collection.restoring": "Obnovuje sa...",
+	"collection.restoreSuccess": "Položka bola úspešne obnovená",
+	"collection.restoreError": "Nepodarilo sa obnoviť položku",
+	"collection.bulkRestoreSuccess": {
+		one: "Úspešne obnovená {{count}} položka",
+		few: "Úspešne obnovené {{count}} položky",
+		other: "Úspešne obnovených {{count}} položiek",
+	},
+	"collection.bulkRestoreError": "Nepodarilo sa obnoviť položky",
+	"collection.bulkRestorePartial": {
+		one: "Obnovená {{success}} položka, {{failed}} zlyhala",
+		few: "Obnovené {{success}} položky, {{failed}} zlyhali",
+		other: "Obnovených {{success}} položiek, {{failed}} zlyhalo",
+	},
 
 	// Relations
 	"relation.select": "Vybrať {{name}}",
@@ -120,6 +135,7 @@ export default {
 	"form.id": "ID",
 	"form.created": "Vytvorené",
 	"form.updated": "Aktualizované",
+	"form.lastUpdated": "Naposledy aktualizované",
 	"form.required": "Toto pole je povinné",
 	"form.invalid": "Neplatná hodnota",
 	"form.saveChanges": "Uložiť zmeny",
@@ -481,6 +497,9 @@ export default {
 	"viewOptions.savedViews": "Uložené zobrazenia",
 	"viewOptions.apply": "Použiť",
 	"viewOptions.reset": "Obnoviť",
+	"viewOptions.showDeleted": "Zobraziť vymazané",
+	"viewOptions.showDeletedDescription":
+		"Zahrnúť soft-delete záznamy do tohto zobrazenia.",
 
 	// Saved Views Tab
 	"viewOptions.saveCurrentConfig": "Uložiť aktuálnu konfiguráciu",
@@ -521,6 +540,26 @@ export default {
 		other: "{{count}} aktívnych filtrov",
 	},
 	"viewOptions.clearFilters": "Vymazať filtre",
+
+	// Verzie
+	"version.history": "História verzií",
+	"version.historyDescription":
+		"Prehliadajte predchádzajúce verzie a v prípade potreby obnovte jednu z nich.",
+	"version.globalHistoryDescription":
+		"Prehliadajte predchádzajúce verzie globálnych nastavení a obnovte jednu z nich.",
+	"version.empty": "Neboli nájdené žiadne verzie.",
+	"version.label": "Verzia {{number}}",
+	"version.createdAt": "Vytvorené",
+	"version.user": "Používateľ",
+	"version.revert": "Obnoviť",
+	"version.revertSuccess": "Verzia bola úspešne obnovená",
+	"version.operationCreate": "Vytvorené",
+	"version.operationUpdate": "Aktualizované",
+	"version.operationDelete": "Vymazané",
+	"version.operationUnknown": "Zmenené",
+	"version.revertConfirmTitle": "Obnoviť túto verziu?",
+	"version.revertConfirmDescription":
+		"Táto akcia nahradí aktuálny obsah verziou {{number}}.",
 
 	// Filter Operators
 	"filter.contains": "Obsahuje",

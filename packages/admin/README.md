@@ -313,6 +313,17 @@ SSE-powered live updates are enabled by default. Collection lists and dashboard 
 .list(({ v }) => v.table({ realtime: false }))
 ```
 
+## URL-Synced Panels
+
+Admin keeps major panel states in URL search params so links are shareable and browser navigation works as expected.
+
+- `sidebar=view-options` - collection list view options sheet
+- `sidebar=history` - version history sidebar (collection/global forms)
+- `sidebar=block-library` - block editor library sidebar
+- `preview=true` - live preview mode (collection form)
+
+Legacy params (`history`, `viewOptions`, and `sidebar=preview`) are still read for backward compatibility.
+
 ## Package Exports
 
 ```ts

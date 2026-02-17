@@ -30,6 +30,7 @@ describe("OpenAPI schema generation", () => {
 
 			const spec = generateOpenApiSpec(mockCms as any, undefined, {
 				info: { title: "Test API", version: "1.0.0" },
+				basePath: "/cms",
 			});
 
 			// Check that schemas are generated
@@ -69,6 +70,7 @@ describe("OpenAPI schema generation", () => {
 
 			const spec = generateOpenApiSpec(mockCms as any, undefined, {
 				info: { title: "Test API", version: "1.0.0" },
+				basePath: "/cms",
 			});
 
 			const docSchema = spec.components?.schemas?.PostsDocument as any;
@@ -106,6 +108,7 @@ describe("OpenAPI schema generation", () => {
 
 			const spec = generateOpenApiSpec(mockCms as any, undefined, {
 				info: { title: "Test API", version: "1.0.0" },
+				basePath: "/cms",
 			});
 
 			const insertSchema = spec.components?.schemas?.PostsInsert as any;
@@ -133,6 +136,7 @@ describe("OpenAPI schema generation", () => {
 
 			const spec = generateOpenApiSpec(mockCms as any, undefined, {
 				info: { title: "Test API", version: "1.0.0" },
+				basePath: "/cms",
 			});
 
 			const insertSchema = spec.components?.schemas?.PostsInsert as any;
@@ -146,6 +150,32 @@ describe("OpenAPI schema generation", () => {
 			expect(insertSchema.properties.title).toBeDefined();
 			expect(insertSchema.properties.content).toBeDefined();
 			expect(insertSchema.properties.views).toBeDefined();
+		});
+
+		it("generates collection versioning paths", () => {
+			const q = questpie({ name: "test-openapi-collection-versions" }).fields(
+				defaultFields,
+			);
+
+			const posts = q
+				.collection("posts")
+				.fields((f) => ({
+					title: f.text({ required: true }),
+				}))
+				.options({ versioning: true });
+
+			const mockCms = {
+				getCollections: () => ({ posts }),
+				getGlobals: () => ({}),
+			};
+
+			const spec = generateOpenApiSpec(mockCms as any, undefined, {
+				info: { title: "Test API", version: "1.0.0" },
+				basePath: "/cms",
+			});
+
+			expect(spec.paths?.["/cms/posts/{id}/versions"]?.get).toBeDefined();
+			expect(spec.paths?.["/cms/posts/{id}/revert"]?.post).toBeDefined();
 		});
 	});
 
@@ -177,6 +207,32 @@ describe("OpenAPI schema generation", () => {
 			expect(updateSchema.properties.siteName).toBeDefined();
 			expect(updateSchema.properties.siteDescription).toBeDefined();
 			expect(updateSchema.properties.maintenanceMode).toBeDefined();
+		});
+
+		it("generates global versioning paths", () => {
+			const q = questpie({ name: "test-openapi-global-versions" }).fields(
+				defaultFields,
+			);
+
+			const settings = q
+				.global("settings")
+				.fields((f) => ({
+					siteName: f.text({ required: true }),
+				}))
+				.options({ versioning: true });
+
+			const mockCms = {
+				getCollections: () => ({}),
+				getGlobals: () => ({ settings }),
+			};
+
+			const spec = generateOpenApiSpec(mockCms as any, undefined, {
+				info: { title: "Test API", version: "1.0.0" },
+				basePath: "/cms",
+			});
+
+			expect(spec.paths?.["/cms/globals/settings/versions"]?.get).toBeDefined();
+			expect(spec.paths?.["/cms/globals/settings/revert"]?.post).toBeDefined();
 		});
 	});
 });

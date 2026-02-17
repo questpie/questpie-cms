@@ -23,6 +23,17 @@ export interface GlobalRoutes {
 		params: { global: string },
 		context?: AdapterContext,
 	) => Promise<Response>;
+	versions: (
+		request: Request,
+		params: { global: string },
+		context?: AdapterContext,
+	) => Promise<Response>;
+	revert: (
+		request: Request,
+		params: { global: string },
+		context?: AdapterContext,
+		input?: unknown,
+	) => Promise<Response>;
 	schema: (
 		request: Request,
 		params: { global: string },
@@ -68,6 +79,88 @@ export const createGlobalRoutes = <
 				const globalInstance = cms.getGlobalConfig(params.global as any);
 				const crud = globalInstance.generateCRUD(resolved.cmsContext.db, cms);
 				const result = await crud.get(options, resolved.cmsContext);
+				return smartResponse(result, request);
+			} catch (error) {
+				return errorResponse(error, request, resolved.cmsContext.locale);
+			}
+		},
+
+		versions: async (
+			request: Request,
+			params: { global: string },
+			context?: AdapterContext,
+		): Promise<Response> => {
+			const resolved = await resolveContext(cms, request, config, context);
+
+			try {
+				const url = new URL(request.url);
+				const limitRaw = url.searchParams.get("limit");
+				const offsetRaw = url.searchParams.get("offset");
+				const id = url.searchParams.get("id") ?? undefined;
+				const limit =
+					limitRaw !== null && limitRaw !== "" ? Number(limitRaw) : undefined;
+				const offset =
+					offsetRaw !== null && offsetRaw !== ""
+						? Number(offsetRaw)
+						: undefined;
+
+				const globalInstance = cms.getGlobalConfig(params.global as any);
+				const crud = globalInstance.generateCRUD(resolved.cmsContext.db, cms);
+				const result = await crud.findVersions(
+					{
+						...(typeof id === "string" && id.length > 0 ? { id } : {}),
+						...(Number.isFinite(limit) && limit !== undefined
+							? { limit: Math.floor(limit) }
+							: {}),
+						...(Number.isFinite(offset) && offset !== undefined
+							? { offset: Math.floor(offset) }
+							: {}),
+					},
+					resolved.cmsContext,
+				);
+				return smartResponse(result, request);
+			} catch (error) {
+				return errorResponse(error, request, resolved.cmsContext.locale);
+			}
+		},
+
+		revert: async (
+			request: Request,
+			params: { global: string },
+			context?: AdapterContext,
+			input?: unknown,
+		): Promise<Response> => {
+			const resolved = await resolveContext(cms, request, config, context);
+			const body = input !== undefined ? input : await parseRpcBody(request);
+
+			if (body === null || typeof body !== "object") {
+				return errorResponse(
+					ApiError.badRequest("Invalid JSON body"),
+					request,
+					resolved.cmsContext.locale,
+				);
+			}
+
+			try {
+				const payload = body as {
+					id?: string;
+					version?: number;
+					versionId?: string;
+				};
+				const globalInstance = cms.getGlobalConfig(params.global as any);
+				const crud = globalInstance.generateCRUD(resolved.cmsContext.db, cms);
+				const result = await crud.revertToVersion(
+					{
+						...(typeof payload.id === "string" ? { id: payload.id } : {}),
+						...(typeof payload.version === "number"
+							? { version: payload.version }
+							: {}),
+						...(typeof payload.versionId === "string"
+							? { versionId: payload.versionId }
+							: {}),
+					},
+					resolved.cmsContext,
+				);
 				return smartResponse(result, request);
 			} catch (error) {
 				return errorResponse(error, request, resolved.cmsContext.locale);

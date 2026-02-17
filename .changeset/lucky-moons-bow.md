@@ -1,6 +1,8 @@
 ---
 "questpie": patch
 "@questpie/admin": patch
+"@questpie/openapi": patch
+"@questpie/tanstack-query": patch
 ---
 
 Remove deprecated collection/global scoped `.functions()` RPC from builders and runtime routes. RPC is now app-level only via `rpc().router(...)` on `/rpc/:path...`.
@@ -30,3 +32,23 @@ Polish user form behavior:
 - ban reason/expiry only show when banned
 
 Improve server action client mapping/execution with real form field mapping, RPC execution, and effects handling.
+
+Add full versions/revert parity across the stack:
+- new collection/global adapter routes for versions and revert
+- questpie client methods (`findVersions`, `revertToVersion`)
+- tanstack-query option builders for versions/revert queries and mutations
+- OpenAPI generation for versions/revert on collections and globals
+
+Expand soft-delete and admin action UX:
+- built-in admin actions now include `restore` and `restoreMany`
+- list view supports persisted `includeDeleted` state and passes it to queries
+- bulk toolbar supports restore-many flows
+
+Add version history UI in admin forms with revert confirmations for collections and globals.
+
+Panel state is now URL-driven for better shareability and navigation:
+- side panels use `sidebar=...` (`history`, `view-options`, `block-library`)
+- live preview mode uses `preview=true`
+- legacy params remain supported for backward compatibility
+
+Add integration test coverage for adapter versioning routes and extend package docs for the new endpoints and URL-synced panel behavior.

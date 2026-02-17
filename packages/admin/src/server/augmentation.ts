@@ -1173,6 +1173,8 @@ export type BuiltinActionType =
 	| "save"
 	| "delete"
 	| "deleteMany"
+	| "restore"
+	| "restoreMany"
 	| "duplicate";
 
 /**
@@ -1235,6 +1237,10 @@ export interface ActionsConfigContext<
 		delete: () => BuiltinActionType;
 		/** Enable delete many action */
 		deleteMany: () => BuiltinActionType;
+		/** Enable restore action */
+		restore: () => BuiltinActionType;
+		/** Enable restore many action */
+		restoreMany: () => BuiltinActionType;
 		/** Enable duplicate action */
 		duplicate: () => BuiltinActionType;
 		/** Define a custom action */
@@ -1464,6 +1470,8 @@ export interface ListViewConfigContext<
 		save: string;
 		delete: string;
 		deleteMany: string;
+		restore: string;
+		restoreMany: string;
 		duplicate: string;
 		export: string;
 		custom: (

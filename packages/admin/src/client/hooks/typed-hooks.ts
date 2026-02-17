@@ -115,6 +115,32 @@ export interface TypedHooks<TApp extends Questpie<any>> {
 	) => any;
 
 	/**
+	 * Hook to restore soft-deleted collection item
+	 */
+	useCollectionRestore: <K extends CollectionNames<TApp>>(
+		collection: K,
+		mutationOptions?: Omit<UseMutationOptions, "mutationFn">,
+	) => any;
+
+	/**
+	 * Hook to fetch collection item versions
+	 */
+	useCollectionVersions: <K extends CollectionNames<TApp>>(
+		collection: K,
+		id: string,
+		options?: { limit?: number; offset?: number },
+		queryOptions?: Omit<UseQueryOptions, "queryKey" | "queryFn">,
+	) => any;
+
+	/**
+	 * Hook to revert collection item to a previous version
+	 */
+	useCollectionRevertVersion: <K extends CollectionNames<TApp>>(
+		collection: K,
+		mutationOptions?: Omit<UseMutationOptions, "mutationFn">,
+	) => any;
+
+	/**
 	 * Hook to fetch global settings
 	 */
 	useGlobal: <K extends GlobalNames<TApp>>(
@@ -127,6 +153,23 @@ export interface TypedHooks<TApp extends Questpie<any>> {
 	 * Hook to update global settings
 	 */
 	useGlobalUpdate: <K extends GlobalNames<TApp>>(
+		globalName: K,
+		mutationOptions?: Omit<UseMutationOptions, "mutationFn">,
+	) => any;
+
+	/**
+	 * Hook to fetch global versions
+	 */
+	useGlobalVersions: <K extends GlobalNames<TApp>>(
+		globalName: K,
+		options?: { id?: string; limit?: number; offset?: number },
+		queryOptions?: Omit<UseQueryOptions, "queryKey" | "queryFn">,
+	) => any;
+
+	/**
+	 * Hook to revert global to a previous version
+	 */
+	useGlobalRevertVersion: <K extends GlobalNames<TApp>>(
 		globalName: K,
 		mutationOptions?: Omit<UseMutationOptions, "mutationFn">,
 	) => any;
@@ -402,6 +445,152 @@ export function createTypedHooks<
 		} as any);
 	}
 
+	// Collection restore hook
+	function useCollectionRestore<K extends CollectionNames<TApp>>(
+		collection: K,
+		mutationOptions?: Omit<UseMutationOptions, "mutationFn">,
+	): any {
+		const client = useAdminStore(selectClient);
+		const { locale: contentLocale } = useScopedLocale();
+		const queryClient = useQueryClient();
+		const keyPrefix = ["questpie", "collections"] as const;
+		const queryOpts = createQuestpieQueryOptions(client as any, {
+			keyPrefix,
+			locale: contentLocale,
+		});
+
+		const baseOptions = queryOpts.collections[collection as string].restore();
+		const listQueryKey = queryOpts.key([
+			"collections",
+			collection as string,
+			"find",
+			contentLocale,
+		]);
+		const countQueryKey = queryOpts.key([
+			"collections",
+			collection as string,
+			"count",
+			contentLocale,
+		]);
+		const itemQueryKey = queryOpts.key([
+			"collections",
+			collection as string,
+			"findOne",
+			contentLocale,
+		]);
+
+		return useMutation({
+			...baseOptions,
+			onSuccess: (data: any, variables: any, context: any) => {
+				(mutationOptions?.onSuccess as any)?.(data, variables, context);
+			},
+			onSettled: (data: any, error: any, variables: any, context: any) => {
+				queryClient.invalidateQueries({
+					queryKey: listQueryKey,
+				});
+				queryClient.invalidateQueries({
+					queryKey: countQueryKey,
+				});
+				queryClient.invalidateQueries({
+					queryKey: itemQueryKey,
+				});
+				(mutationOptions?.onSettled as any)?.(data, error, variables, context);
+			},
+			...mutationOptions,
+		} as any);
+	}
+
+	// Collection versions hook
+	function useCollectionVersions<K extends CollectionNames<TApp>>(
+		collection: K,
+		id: string,
+		options?: { limit?: number; offset?: number },
+		queryOptions?: Omit<UseQueryOptions, "queryKey" | "queryFn">,
+	): any {
+		const client = useAdminStore(selectClient);
+		const { locale: contentLocale } = useScopedLocale();
+		const keyPrefix = ["questpie", "collections"] as const;
+		const queryOpts = createQuestpieQueryOptions(client as any, {
+			keyPrefix,
+			locale: contentLocale,
+		});
+
+		return useQuery({
+			...(queryOpts as any).collections[collection as string].findVersions({
+				id,
+				...(options?.limit !== undefined ? { limit: options.limit } : {}),
+				...(options?.offset !== undefined ? { offset: options.offset } : {}),
+			}),
+			enabled: !!id && (queryOptions?.enabled ?? true),
+			...queryOptions,
+		});
+	}
+
+	// Collection revert version hook
+	function useCollectionRevertVersion<K extends CollectionNames<TApp>>(
+		collection: K,
+		mutationOptions?: Omit<UseMutationOptions, "mutationFn">,
+	): any {
+		const client = useAdminStore(selectClient);
+		const { locale: contentLocale } = useScopedLocale();
+		const queryClient = useQueryClient();
+		const keyPrefix = ["questpie", "collections"] as const;
+		const queryOpts = createQuestpieQueryOptions(client as any, {
+			keyPrefix,
+			locale: contentLocale,
+		});
+
+		const baseOptions =
+			queryOpts.collections[collection as string].revertToVersion();
+		const listQueryKey = queryOpts.key([
+			"collections",
+			collection as string,
+			"find",
+			contentLocale,
+		]);
+		const countQueryKey = queryOpts.key([
+			"collections",
+			collection as string,
+			"count",
+			contentLocale,
+		]);
+		const itemQueryKey = queryOpts.key([
+			"collections",
+			collection as string,
+			"findOne",
+			contentLocale,
+		]);
+		const versionsQueryKey = queryOpts.key([
+			"collections",
+			collection as string,
+			"findVersions",
+			contentLocale,
+		]);
+
+		return useMutation({
+			...baseOptions,
+			onSuccess: (data: any, variables: any, context: any) => {
+				(mutationOptions?.onSuccess as any)?.(data, variables, context);
+			},
+			onSettled: (data: any, error: any, variables: any, context: any) => {
+				queryClient.invalidateQueries({
+					queryKey: listQueryKey,
+				});
+				queryClient.invalidateQueries({
+					queryKey: countQueryKey,
+				});
+				queryClient.invalidateQueries({
+					queryKey: itemQueryKey,
+				});
+				queryClient.invalidateQueries({
+					queryKey: versionsQueryKey,
+				});
+				(mutationOptions?.onSettled as any)?.(data, error, variables, context);
+			},
+			...mutationOptions,
+		} as any);
+	}
+
 	// Global hook
 	function useGlobal<K extends GlobalNames<TApp>>(
 		globalName: K,
@@ -467,6 +656,80 @@ export function createTypedHooks<
 		} as any);
 	}
 
+	// Global versions hook
+	function useGlobalVersions<K extends GlobalNames<TApp>>(
+		globalName: K,
+		options?: { id?: string; limit?: number; offset?: number },
+		queryOptions?: Omit<UseQueryOptions, "queryKey" | "queryFn">,
+	): any {
+		const client = useAdminStore(selectClient);
+		const contentLocale = useAdminStore(selectContentLocale);
+		const keyPrefix = ["questpie", "globals"] as const;
+		const queryOpts = createQuestpieQueryOptions(
+			client as any,
+			{
+				keyPrefix,
+				locale: contentLocale,
+			} as any,
+		);
+
+		return useQuery({
+			...(queryOpts as any).globals[globalName as string].findVersions({
+				...options,
+				locale: contentLocale,
+			}),
+			...queryOptions,
+		});
+	}
+
+	// Global revert version hook
+	function useGlobalRevertVersion<K extends GlobalNames<TApp>>(
+		globalName: K,
+		mutationOptions?: Omit<UseMutationOptions, "mutationFn">,
+	): any {
+		const client = useAdminStore(selectClient);
+		const contentLocale = useAdminStore(selectContentLocale);
+		const queryClient = useQueryClient();
+		const keyPrefix = ["questpie", "globals"] as const;
+		const queryOpts = createQuestpieQueryOptions(
+			client as any,
+			{
+				keyPrefix,
+				locale: contentLocale,
+			} as any,
+		);
+
+		const globalQueryKey = queryOpts.key([
+			"globals",
+			globalName as string,
+			"get",
+			contentLocale,
+		]);
+		const versionsQueryKey = queryOpts.key([
+			"globals",
+			globalName as string,
+			"findVersions",
+			contentLocale,
+		]);
+
+		return useMutation({
+			...(queryOpts as any).globals[globalName as string].revertToVersion(),
+			onSuccess: (data: any, variables: any, context: any) => {
+				(mutationOptions?.onSuccess as any)?.(data, variables, context);
+			},
+			onSettled: (data: any, error: any, variables: any, context: any) => {
+				queryClient.invalidateQueries({
+					queryKey: globalQueryKey,
+				});
+				queryClient.invalidateQueries({
+					queryKey: versionsQueryKey,
+				});
+				(mutationOptions?.onSettled as any)?.(data, error, variables, context);
+			},
+			...mutationOptions,
+		} as any);
+	}
+
 	return {
 		useCollectionList,
 		useCollectionCount,
@@ -474,7 +737,12 @@ export function createTypedHooks<
 		useCollectionCreate,
 		useCollectionUpdate,
 		useCollectionDelete,
+		useCollectionRestore,
+		useCollectionVersions,
+		useCollectionRevertVersion,
 		useGlobal,
 		useGlobalUpdate,
+		useGlobalVersions,
+		useGlobalRevertVersion,
 	};
 }

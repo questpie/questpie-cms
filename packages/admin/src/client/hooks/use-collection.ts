@@ -319,3 +319,125 @@ export function useCollectionDelete<K extends ResolvedCollectionNames>(
 		...mutationOptions,
 	} as any);
 }
+
+/**
+ * Hook to restore soft-deleted collection item
+ */
+export function useCollectionRestore<K extends ResolvedCollectionNames>(
+	collection: K,
+	mutationOptions?: Omit<UseMutationOptions, "mutationFn">,
+): any {
+	const { queryOpts, queryClient, locale } = useQuestpieQueryOptions();
+
+	const baseOptions = queryOpts.collections[collection as string].restore();
+	const listQueryKey = queryOpts.key([
+		"collections",
+		collection as string,
+		"find",
+		locale,
+	]);
+	const countQueryKey = queryOpts.key([
+		"collections",
+		collection as string,
+		"count",
+		locale,
+	]);
+	const itemQueryKey = queryOpts.key([
+		"collections",
+		collection as string,
+		"findOne",
+		locale,
+	]);
+
+	return useMutation({
+		...baseOptions,
+		onSuccess: (data: any, variables: any, context: any) => {
+			(mutationOptions?.onSuccess as any)?.(data, variables, context);
+		},
+		onSettled: (data: any, error: any, variables: any, context: any) => {
+			queryClient.invalidateQueries({ queryKey: listQueryKey });
+			queryClient.invalidateQueries({ queryKey: countQueryKey });
+			queryClient.invalidateQueries({ queryKey: itemQueryKey });
+			(mutationOptions?.onSettled as any)?.(data, error, variables, context);
+		},
+		...mutationOptions,
+	} as any);
+}
+
+/**
+ * Hook to fetch version history for a collection item
+ */
+export function useCollectionVersions<K extends ResolvedCollectionNames>(
+	collection: K,
+	id: string,
+	options?: { limit?: number; offset?: number },
+	queryOptions?: Omit<UseQueryOptions, "queryKey" | "queryFn">,
+): any {
+	const { queryOpts } = useQuestpieQueryOptions();
+
+	const baseQuery = (queryOpts as any).collections[
+		collection as string
+	].findVersions({
+		id,
+		...(options?.limit !== undefined ? { limit: options.limit } : {}),
+		...(options?.offset !== undefined ? { offset: options.offset } : {}),
+	});
+
+	return useQuery({
+		...baseQuery,
+		enabled: !!id && (queryOptions?.enabled ?? true),
+		...queryOptions,
+	});
+}
+
+/**
+ * Hook to revert a collection item to a previous version
+ */
+export function useCollectionRevertVersion<K extends ResolvedCollectionNames>(
+	collection: K,
+	mutationOptions?: Omit<UseMutationOptions, "mutationFn">,
+): any {
+	const { queryOpts, queryClient, locale } = useQuestpieQueryOptions();
+
+	const baseOptions =
+		queryOpts.collections[collection as string].revertToVersion();
+	const listQueryKey = queryOpts.key([
+		"collections",
+		collection as string,
+		"find",
+		locale,
+	]);
+	const countQueryKey = queryOpts.key([
+		"collections",
+		collection as string,
+		"count",
+		locale,
+	]);
+	const itemQueryKey = queryOpts.key([
+		"collections",
+		collection as string,
+		"findOne",
+		locale,
+	]);
+	const versionsQueryKey = queryOpts.key([
+		"collections",
+		collection as string,
+		"findVersions",
+		locale,
+	]);
+
+	return useMutation({
+		...baseOptions,
+		onSuccess: (data: any, variables: any, context: any) => {
+			(mutationOptions?.onSuccess as any)?.(data, variables, context);
+		},
+		onSettled: (data: any, error: any, variables: any, context: any) => {
+			queryClient.invalidateQueries({ queryKey: listQueryKey });
+			queryClient.invalidateQueries({ queryKey: countQueryKey });
+			queryClient.invalidateQueries({ queryKey: itemQueryKey });
+			queryClient.invalidateQueries({ queryKey: versionsQueryKey });
+			(mutationOptions?.onSettled as any)?.(data, error, variables, context);
+		},
+		...mutationOptions,
+	} as any);
+}

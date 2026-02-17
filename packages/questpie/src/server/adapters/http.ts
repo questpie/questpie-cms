@@ -251,6 +251,34 @@ export const createFetchHandler = (
 				);
 			}
 
+			if (globalAction === "versions") {
+				if (request.method === "GET") {
+					return routes.globals.versions(
+						request,
+						{ global: globalName },
+						context,
+					);
+				}
+				return errorResponse(
+					ApiError.badRequest("Method not allowed"),
+					request,
+				);
+			}
+
+			if (globalAction === "revert") {
+				if (request.method === "POST") {
+					return routes.globals.revert(
+						request,
+						{ global: globalName },
+						context,
+					);
+				}
+				return errorResponse(
+					ApiError.badRequest("Method not allowed"),
+					request,
+				);
+			}
+
 			if (request.method === "GET") {
 				return routes.globals.get(request, { global: globalName }, context);
 			}
@@ -338,6 +366,28 @@ export const createFetchHandler = (
 		if (action === "restore") {
 			if (request.method === "POST") {
 				return routes.collections.restore(request, { collection, id }, context);
+			}
+
+			return errorResponse(ApiError.badRequest("Method not allowed"), request);
+		}
+
+		// Collection versions history
+		if (action === "versions") {
+			if (request.method === "GET") {
+				return routes.collections.versions(
+					request,
+					{ collection, id },
+					context,
+				);
+			}
+
+			return errorResponse(ApiError.badRequest("Method not allowed"), request);
+		}
+
+		// Collection version revert
+		if (action === "revert") {
+			if (request.method === "POST") {
+				return routes.collections.revert(request, { collection, id }, context);
 			}
 
 			return errorResponse(ApiError.badRequest("Method not allowed"), request);

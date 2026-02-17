@@ -18,15 +18,15 @@ import {
  * Generate OpenAPI paths and component schemas for all collections.
  */
 export function generateCollectionPaths(
-	cms: Questpie<any>,
+	app: Questpie<any>,
 	config: OpenApiConfig,
 ): {
 	paths: Record<string, Record<string, PathOperation>>;
 	schemas: Record<string, unknown>;
 	tags: Array<{ name: string; description?: string }>;
 } {
-	const collections = cms.getCollections();
-	const basePath = config.basePath ?? "/cms";
+	const collections = app.getCollections();
+	const basePath = config.basePath ?? "/";
 	const excluded = new Set(config.exclude?.collections ?? []);
 	const paths: Record<string, Record<string, PathOperation>> = {};
 	const schemas: Record<string, unknown> = {};
@@ -282,6 +282,68 @@ export function generateCollectionPaths(
 				},
 			};
 		}
+
+		// GET /{collection}/{id}/versions
+		paths[`${prefix}/{id}/versions`] = {
+			get: {
+				operationId: `${name}_findVersions`,
+				summary: `List ${name} versions`,
+				tags: [tag],
+				parameters: [
+					idParam,
+					{
+						name: "limit",
+						in: "query",
+						schema: { type: "number" },
+						description: "Maximum number of versions to return",
+					},
+					{
+						name: "offset",
+						in: "query",
+						schema: { type: "number" },
+						description: "Number of versions to skip",
+					},
+				],
+				responses: jsonResponse(
+					{
+						type: "array",
+						items: {
+							type: "object",
+							properties: {
+								id: { type: "string" },
+								versionId: { type: "string" },
+								versionNumber: { type: "number" },
+								versionOperation: { type: "string" },
+								versionUserId: { type: ["string", "null"] },
+								versionCreatedAt: { type: "string", format: "date-time" },
+							},
+						},
+					},
+					`Version history for ${name}`,
+				),
+			},
+		};
+
+		// POST /{collection}/{id}/revert
+		paths[`${prefix}/{id}/revert`] = {
+			post: {
+				operationId: `${name}_revertToVersion`,
+				summary: `Revert ${name} to a version`,
+				tags: [tag],
+				parameters: [idParam],
+				requestBody: jsonRequestBody({
+					type: "object",
+					properties: {
+						version: { type: "number" },
+						versionId: { type: "string" },
+					},
+				}),
+				responses: jsonResponse(
+					ref(documentSchemaName),
+					`Reverted ${name} record`,
+				),
+			},
+		};
 	}
 
 	return { paths, schemas, tags };

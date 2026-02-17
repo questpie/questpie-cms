@@ -11,7 +11,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import type { CollectionSchema, FieldReactiveSchema } from "questpie/client";
 import { QuestpieClientError } from "questpie/client";
 import * as React from "react";
-import { FormProvider, useForm } from "react-hook-form";
+import { FormProvider, useForm, useFormState } from "react-hook-form";
 import { toast } from "sonner";
 import { getDefaultFormActions } from "../../builder/types/action-registry";
 import type {
@@ -52,20 +52,28 @@ import {
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "../../components/ui/dropdown-menu";
+import { VersionHistorySidebar } from "../../components/version-history-sidebar";
 import {
 	useCollectionValidation,
 	usePreferServerValidation,
+	useSearchParamToggle,
+	useSidebarSearchParam,
 } from "../../hooks";
 import {
 	useCollectionCreate,
 	useCollectionDelete,
 	useCollectionItem,
+	useCollectionRestore,
+	useCollectionRevertVersion,
 	useCollectionUpdate,
+	useCollectionVersions,
 } from "../../hooks/use-collection";
 import { useCollectionFields } from "../../hooks/use-collection-fields";
 import { getLockUser, useLock } from "../../hooks/use-locks";
 import { useReactiveFields } from "../../hooks/use-reactive-fields";
+import { useServerActions } from "../../hooks/use-server-actions";
 import { useResolveText, useTranslation } from "../../i18n/hooks";
+import { RenderProfiler } from "../../lib/render-profiler.js";
 import {
 	selectBasePath,
 	selectClient,
@@ -142,6 +150,276 @@ function ReactiveFieldsManager({
 
 	return null;
 }
+
+type FormFieldsContentProps = {
+	collection: string;
+	config: Partial<CollectionBuilderState> | Record<string, any> | undefined;
+	registry?: ComponentRegistry;
+	allCollectionsConfig?: Record<
+		string,
+		Partial<CollectionBuilderState> | Record<string, any>
+	>;
+};
+
+const FormFieldsContent = React.memo(function FormFieldsContent({
+	collection,
+	config,
+	registry,
+	allCollectionsConfig,
+}: FormFieldsContentProps) {
+	return (
+		<RenderProfiler id={`form.fields.${collection}`} minDurationMs={10}>
+			<AutoFormFields
+				collection={collection as any}
+				config={config}
+				registry={registry}
+				allCollectionsConfig={allCollectionsConfig}
+			/>
+		</RenderProfiler>
+	);
+});
+
+type FormStateRefBridgeProps = {
+	control: ReturnType<typeof useForm>["control"];
+	onDirtyChange: (isDirty: boolean) => void;
+	onSubmittingChange: (isSubmitting: boolean) => void;
+};
+
+const FormStateRefBridge = React.memo(function FormStateRefBridge({
+	control,
+	onDirtyChange,
+	onSubmittingChange,
+}: FormStateRefBridgeProps) {
+	const { isDirty, isSubmitting } = useFormState({ control });
+
+	React.useEffect(() => {
+		onDirtyChange(isDirty);
+	}, [isDirty, onDirtyChange]);
+
+	React.useEffect(() => {
+		onSubmittingChange(isSubmitting);
+	}, [isSubmitting, onSubmittingChange]);
+
+	return null;
+});
+
+type AutosaveManagerProps = {
+	form: ReturnType<typeof useForm>;
+	formElementRef: React.RefObject<HTMLFormElement | null>;
+	isEditMode: boolean;
+	id?: string;
+	enabled: boolean;
+	debounce: number;
+	isDirtyRef: React.MutableRefObject<boolean>;
+	isSubmittingRef: React.MutableRefObject<boolean>;
+	updateMutation: { mutateAsync: (args: any) => Promise<any> };
+	previewContext: ReturnType<typeof useLivePreviewContext>;
+	onSavingChange: (isSaving: boolean) => void;
+	onSaved: (savedAt: Date) => void;
+};
+
+const AutosaveManager = React.memo(function AutosaveManager({
+	form,
+	formElementRef,
+	isEditMode,
+	id,
+	enabled,
+	debounce,
+	isDirtyRef,
+	isSubmittingRef,
+	updateMutation,
+	previewContext,
+	onSavingChange,
+	onSaved,
+}: AutosaveManagerProps) {
+	const timerRef = React.useRef<NodeJS.Timeout | null>(null);
+
+	const runAutosave = React.useCallback(async () => {
+		if (!id || !isDirtyRef.current || isSubmittingRef.current) {
+			return;
+		}
+
+		try {
+			onSavingChange(true);
+
+			await form.handleSubmit(
+				async (data) => {
+					const result = await updateMutation.mutateAsync({
+						id,
+						data,
+					});
+
+					form.reset(result as any);
+
+					if (previewContext) {
+						previewContext.triggerPreviewRefresh();
+					}
+
+					onSaved(new Date());
+					onSavingChange(false);
+				},
+				() => {
+					onSavingChange(false);
+				},
+			)();
+		} catch (error) {
+			onSavingChange(false);
+			console.error("Autosave failed:", error);
+		}
+	}, [
+		form,
+		id,
+		isDirtyRef,
+		isSubmittingRef,
+		onSaved,
+		onSavingChange,
+		previewContext,
+		updateMutation,
+	]);
+
+	React.useEffect(() => {
+		if (timerRef.current) {
+			clearTimeout(timerRef.current);
+		}
+
+		if (!enabled || !isEditMode || !id) {
+			return;
+		}
+
+		const target = formElementRef.current;
+		if (!target) {
+			return;
+		}
+
+		const scheduleAutosave = () => {
+			if (timerRef.current) {
+				clearTimeout(timerRef.current);
+			}
+
+			timerRef.current = setTimeout(() => {
+				void runAutosave();
+			}, debounce);
+		};
+
+		target.addEventListener("input", scheduleAutosave, { capture: true });
+		target.addEventListener("change", scheduleAutosave, { capture: true });
+
+		return () => {
+			target.removeEventListener("input", scheduleAutosave, { capture: true });
+			target.removeEventListener("change", scheduleAutosave, {
+				capture: true,
+			});
+
+			if (timerRef.current) {
+				clearTimeout(timerRef.current);
+			}
+		};
+	}, [debounce, enabled, formElementRef, id, isEditMode, runAutosave]);
+
+	return null;
+});
+
+type AutosaveIndicatorProps = {
+	control: ReturnType<typeof useForm>["control"];
+	enabled: boolean;
+	indicator: boolean;
+	isEditMode: boolean;
+	isSaving: boolean;
+	lastSaved: Date | null;
+	formatTimeAgo: (date: Date) => string;
+	t: ReturnType<typeof useTranslation>["t"];
+};
+
+const AutosaveIndicator = React.memo(function AutosaveIndicator({
+	control,
+	enabled,
+	indicator,
+	isEditMode,
+	isSaving,
+	lastSaved,
+	formatTimeAgo,
+	t,
+}: AutosaveIndicatorProps) {
+	const { isDirty } = useFormState({ control });
+	const [, forceUpdate] = React.useReducer((x) => x + 1, 0);
+
+	React.useEffect(() => {
+		if (!lastSaved) {
+			return;
+		}
+
+		const interval = setInterval(forceUpdate, 10000);
+		return () => clearInterval(interval);
+	}, [lastSaved]);
+
+	if (!enabled || !indicator || !isEditMode) {
+		return null;
+	}
+
+	if (isSaving) {
+		return (
+			<Badge variant="secondary" className="gap-1.5">
+				<Icon icon="ph:spinner-gap" className="size-3 animate-spin" />
+				{t("autosave.saving")}
+			</Badge>
+		);
+	}
+
+	if (isDirty) {
+		return (
+			<Badge variant="outline" className="gap-1.5">
+				<Icon icon="ph:clock-counter-clockwise" className="size-3" />
+				{t("autosave.unsavedChanges")}
+			</Badge>
+		);
+	}
+
+	if (lastSaved) {
+		return (
+			<Badge variant="secondary" className="gap-1.5 text-muted-foreground">
+				<Icon icon="ph:check" className="size-3" />
+				{t("autosave.saved")} {formatTimeAgo(lastSaved)}
+			</Badge>
+		);
+	}
+
+	return null;
+});
+
+type SaveSubmitButtonProps = {
+	control: ReturnType<typeof useForm>["control"];
+	isMutationPending: boolean;
+	t: ReturnType<typeof useTranslation>["t"];
+};
+
+const SaveSubmitButton = React.memo(function SaveSubmitButton({
+	control,
+	isMutationPending,
+	t,
+}: SaveSubmitButtonProps) {
+	const { isDirty, isSubmitting } = useFormState({ control });
+	const isSubmittingNow = isMutationPending || isSubmitting;
+
+	return (
+		<Button
+			type="submit"
+			disabled={isSubmittingNow || !isDirty}
+			className="gap-2"
+		>
+			{isSubmittingNow ? (
+				<>
+					<Icon icon="ph:spinner-gap" className="size-4 animate-spin" />
+					{t("common.loading")}
+				</>
+			) : (
+				<>
+					<Icon icon="ph:check" width={16} height={16} />
+					{t("common.save")}
+				</>
+			)}
+		</Button>
+	);
+});
 
 // ============================================================================
 // Types
@@ -308,13 +586,17 @@ export default function FormView({
 	const schemaPreview = schema?.admin?.preview;
 	const hasPreview =
 		!!schemaPreview?.hasUrlBuilder && schemaPreview?.enabled !== false;
-	const canUseLivePreview = hasPreview && isEditMode && !!id;
-
-	// Check URL for ?preview=true on mount
-	const [isLivePreviewOpen, setIsLivePreviewOpen] = React.useState(() => {
-		if (typeof window === "undefined") return false;
-		const params = new URLSearchParams(window.location.search);
-		return params.get("preview") === "true" && canUseLivePreview;
+	const canUseLivePreview = hasPreview && isEditMode && !!id && !previewContext;
+	const previewSearchParamOptions = React.useMemo(
+		() => ({ legacyKeys: [{ key: "sidebar", trueValue: "preview" }] }),
+		[],
+	);
+	const [isLivePreviewOpen, setIsLivePreviewOpen] = useSearchParamToggle(
+		"preview",
+		previewSearchParamOptions,
+	);
+	const [isHistoryOpen, setIsHistoryOpen] = useSidebarSearchParam("history", {
+		legacyKey: "history",
 	});
 
 	// Create mode (or missing id) should never keep preview open
@@ -322,22 +604,14 @@ export default function FormView({
 		if (!canUseLivePreview && isLivePreviewOpen) {
 			setIsLivePreviewOpen(false);
 		}
-	}, [canUseLivePreview, isLivePreviewOpen]);
+	}, [canUseLivePreview, isLivePreviewOpen, setIsLivePreviewOpen]);
 
-	// Sync preview state with URL
+	// Create mode should never keep history sidebar open
 	React.useEffect(() => {
-		if (typeof window === "undefined") return;
-
-		const url = new URL(window.location.href);
-		if (isLivePreviewOpen) {
-			url.searchParams.set("preview", "true");
-		} else {
-			url.searchParams.delete("preview");
+		if ((!isEditMode || !id) && isHistoryOpen) {
+			setIsHistoryOpen(false);
 		}
-
-		// Update URL without navigation
-		window.history.replaceState({}, "", url.toString());
-	}, [isLivePreviewOpen]);
+	}, [isEditMode, id, isHistoryOpen, setIsHistoryOpen]);
 
 	// Auto-detect M:N relations that need to be included when fetching
 	const withRelations = React.useMemo(
@@ -395,6 +669,19 @@ export default function FormView({
 	const createMutation = useCollectionCreate(collection as any);
 	const updateMutation = useCollectionUpdate(collection as any);
 	const deleteMutation = useCollectionDelete(collection as any);
+	const restoreMutation = useCollectionRestore(collection as any);
+	const revertVersionMutation = useCollectionRevertVersion(collection as any);
+
+	const [pendingRevertVersion, setPendingRevertVersion] =
+		React.useState<any>(null);
+
+	const { data: versionsData, isLoading: versionsLoading } =
+		useCollectionVersions(
+			collection as any,
+			id ?? "",
+			{ limit: 50 },
+			{ enabled: isEditMode && !!id && isHistoryOpen },
+		);
 
 	// Get validation resolver - prefer server validation (AJV with JSON Schema) over client validation
 	const clientResolver = useCollectionValidation(collection);
@@ -412,12 +699,21 @@ export default function FormView({
 	// Autosave state
 	const [isSaving, setIsSaving] = React.useState(false);
 	const [lastSaved, setLastSaved] = React.useState<Date | null>(null);
-	const autoSaveTimerRef = React.useRef<NodeJS.Timeout | null>(null);
+	const formElementRef = React.useRef<HTMLFormElement | null>(null);
+	const formIsDirtyRef = React.useRef(false);
+	const formIsSubmittingRef = React.useRef(false);
 
 	// Get autosave config from collection config
 	const autoSaveConfig = React.useMemo(() => {
 		const cfg = (config as any)?.autoSave;
-		if (!cfg) return { enabled: false, debounce: 500 };
+		if (!cfg) {
+			return {
+				enabled: false,
+				debounce: 500,
+				indicator: false,
+				preventNavigation: false,
+			};
+		}
 		return {
 			enabled: cfg.enabled !== false,
 			debounce: cfg.debounce ?? 500,
@@ -442,6 +738,17 @@ export default function FormView({
 	);
 	const skipItemResetRef = React.useRef(false);
 
+	const handleFormDirtyChange = React.useCallback((isDirty: boolean) => {
+		formIsDirtyRef.current = isDirty;
+	}, []);
+
+	const handleFormSubmittingChange = React.useCallback(
+		(isSubmitting: boolean) => {
+			formIsSubmittingRef.current = isSubmitting;
+		},
+		[],
+	);
+
 	// Detect locale change and show confirmation dialog if form is dirty
 	React.useEffect(() => {
 		if (!isEditMode) {
@@ -449,7 +756,7 @@ export default function FormView({
 			return;
 		}
 		if (prevLocaleRef.current !== contentLocale) {
-			if (form.formState.isDirty && !localeChangeDialog.open) {
+			if (formIsDirtyRef.current && !localeChangeDialog.open) {
 				// Store the new locale and revert to previous locale
 				// The dialog will decide whether to apply or discard
 				skipItemResetRef.current = true;
@@ -464,7 +771,6 @@ export default function FormView({
 		}
 	}, [
 		contentLocale,
-		form.formState.isDirty,
 		form.getValues,
 		setContentLocale,
 		localeChangeDialog.open,
@@ -565,81 +871,12 @@ export default function FormView({
 		});
 	});
 
-	// Autosave logic - debounced save on form changes
-	React.useEffect(() => {
-		// Clear existing timer
-		if (autoSaveTimerRef.current) {
-			clearTimeout(autoSaveTimerRef.current);
-		}
-
-		// Don't autosave if:
-		// - Autosave is disabled
-		// - Form is not dirty
-		// - Form is already submitting
-		// - Not in edit mode (don't autosave on create)
-		if (
-			!autoSaveConfig.enabled ||
-			!form.formState.isDirty ||
-			form.formState.isSubmitting ||
-			!isEditMode ||
-			!id
-		) {
-			return;
-		}
-
-		// Start debounce timer
-		autoSaveTimerRef.current = setTimeout(async () => {
-			try {
-				setIsSaving(true);
-				await form.handleSubmit(async (data) => {
-					// Silent save (no toast)
-					const result = await updateMutation.mutateAsync({
-						id,
-						data,
-					});
-
-					// Reset form to mark as not dirty
-					form.reset(result as any);
-
-					// Trigger preview refresh after successful save
-					if (previewContext) {
-						previewContext.triggerPreviewRefresh();
-					}
-
-					// Update last saved timestamp
-					setLastSaved(new Date());
-					setIsSaving(false);
-				})();
-			} catch (error) {
-				setIsSaving(false);
-				// Silently fail autosave (user can still manually save)
-				console.error("Autosave failed:", error);
-			}
-		}, autoSaveConfig.debounce);
-
-		return () => {
-			if (autoSaveTimerRef.current) {
-				clearTimeout(autoSaveTimerRef.current);
-			}
-		};
-	}, [
-		form.formState.isDirty,
-		form.formState.isSubmitting,
-		form,
-		autoSaveConfig.enabled,
-		autoSaveConfig.debounce,
-		isEditMode,
-		updateMutation,
-		id,
-		previewContext,
-	]);
-
 	// Prevent navigation when there are unsaved changes
 	React.useEffect(() => {
 		if (!autoSaveConfig.preventNavigation || !autoSaveConfig.enabled) return;
 
 		const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-			if (form.formState.isDirty) {
+			if (formIsDirtyRef.current) {
 				e.preventDefault();
 				e.returnValue = "";
 			}
@@ -647,11 +884,7 @@ export default function FormView({
 
 		window.addEventListener("beforeunload", handleBeforeUnload);
 		return () => window.removeEventListener("beforeunload", handleBeforeUnload);
-	}, [
-		form.formState.isDirty,
-		autoSaveConfig.preventNavigation,
-		autoSaveConfig.enabled,
-	]);
+	}, [autoSaveConfig.preventNavigation, autoSaveConfig.enabled]);
 
 	const onSubmitRef = React.useRef(onSubmit);
 	onSubmitRef.current = onSubmit;
@@ -672,10 +905,8 @@ export default function FormView({
 		return () => document.removeEventListener("keydown", handleKeyDown);
 	}, [form, t]);
 
-	const isSubmitting =
-		createMutation.isPending ||
-		updateMutation.isPending ||
-		form.formState.isSubmitting;
+	const isMutationPending =
+		createMutation.isPending || updateMutation.isPending;
 
 	// ========================================================================
 	// Form Actions
@@ -686,13 +917,41 @@ export default function FormView({
 		resolvedFormConfig as any
 	)?.actions;
 
+	const { serverActions } = useServerActions({ collection });
+
+	const scopedServerFormActions = React.useMemo(
+		() =>
+			isEditMode
+				? serverActions.filter((action) => {
+						const scope = (action as any).scope;
+						return scope === "single" || scope === "row";
+					})
+				: [],
+		[isEditMode, serverActions],
+	);
+
 	// Use defaults if no actions defined and in edit mode
 	// In create mode, we don't show duplicate/delete actions
-	const formActions: FormViewActionsConfig | undefined = React.useMemo(() => {
-		if (configFormActions) return configFormActions;
-		if (!isEditMode) return { primary: [], secondary: [] };
-		return getDefaultFormActions();
-	}, [configFormActions, isEditMode]);
+	const formActions: FormViewActionsConfig = React.useMemo(() => {
+		const base =
+			configFormActions ??
+			(!isEditMode ? { primary: [], secondary: [] } : getDefaultFormActions());
+
+		const primary = [...(base.primary ?? [])];
+		const secondary = [...(base.secondary ?? [])];
+		const existingIds = new Set([...primary, ...secondary].map((a) => a.id));
+
+		for (const action of scopedServerFormActions) {
+			if (existingIds.has(action.id)) continue;
+			secondary.push(action as ActionDefinition);
+			existingIds.add(action.id);
+		}
+
+		return {
+			primary,
+			secondary,
+		};
+	}, [configFormActions, isEditMode, scopedServerFormActions]);
 
 	// Dialog state for form actions
 	const [dialogAction, setDialogAction] =
@@ -835,13 +1094,13 @@ export default function FormView({
 	);
 
 	const visiblePrimaryActions = React.useMemo(
-		() => filterVisibleActions(formActions?.primary),
-		[formActions?.primary, filterVisibleActions],
+		() => filterVisibleActions(formActions.primary),
+		[formActions.primary, filterVisibleActions],
 	);
 
 	const visibleSecondaryActions = React.useMemo(
-		() => filterVisibleActions(formActions?.secondary),
-		[formActions?.secondary, filterVisibleActions],
+		() => filterVisibleActions(formActions.secondary),
+		[formActions.secondary, filterVisibleActions],
 	);
 
 	// Group secondary by variant
@@ -868,6 +1127,30 @@ export default function FormView({
 					break;
 				}
 				case "api": {
+					if (
+						handler.method === "POST" &&
+						handler.endpoint === "{id}/restore"
+					) {
+						const itemId = transformedItem?.id || id;
+						if (!itemId) {
+							toast.error(t("collection.restoreError"));
+							break;
+						}
+
+						setActionLoading(true);
+						toast.promise(
+							restoreMutation.mutateAsync({ id: itemId }).finally(() => {
+								setActionLoading(false);
+							}),
+							{
+								loading: t("collection.restoring"),
+								success: t("collection.restoreSuccess"),
+								error: (err) => err.message || t("collection.restoreError"),
+							},
+						);
+						break;
+					}
+
 					// For DELETE operations, use the deleteMutation hook
 					if (handler.method === "DELETE") {
 						const itemId = transformedItem?.id || id;
@@ -955,6 +1238,7 @@ export default function FormView({
 			storeNavigate,
 			storeBasePath,
 			deleteMutation,
+			restoreMutation,
 			collection,
 			basePath,
 			navigate,
@@ -962,6 +1246,38 @@ export default function FormView({
 			resolveText,
 		],
 	);
+
+	const handleRevertVersion = React.useCallback((version: any) => {
+		setPendingRevertVersion(version);
+	}, []);
+
+	const confirmRevertVersion = React.useCallback(async () => {
+		if (!pendingRevertVersion || !id) return;
+
+		const payload: { id: string; version?: number; versionId?: string } = {
+			id,
+		};
+		if (typeof pendingRevertVersion.versionId === "string") {
+			payload.versionId = pendingRevertVersion.versionId;
+		} else if (typeof pendingRevertVersion.versionNumber === "number") {
+			payload.version = pendingRevertVersion.versionNumber;
+		}
+
+		const result = await revertVersionMutation.mutateAsync(payload);
+		form.reset(result as any);
+		if (previewContext) {
+			previewContext.triggerPreviewRefresh();
+		}
+		toast.success(t("version.revertSuccess"));
+		setPendingRevertVersion(null);
+	}, [
+		pendingRevertVersion,
+		id,
+		revertVersionMutation,
+		form,
+		previewContext,
+		t,
+	]);
 
 	// Handle action click
 	const handleActionClick = React.useCallback(
@@ -1010,14 +1326,6 @@ export default function FormView({
 		return t("autosave.hoursAgo", { count: hours });
 	};
 
-	// Re-render every 10 seconds to update "time ago" display
-	const [, forceUpdate] = React.useReducer((x) => x + 1, 0);
-	React.useEffect(() => {
-		if (!lastSaved || !autoSaveConfig.indicator) return;
-		const interval = setInterval(forceUpdate, 10000);
-		return () => clearInterval(interval);
-	}, [lastSaved, autoSaveConfig.indicator]);
-
 	// Refresh lock on form activity (debounced) - keeps lock alive while user is editing
 	const lockRefreshTimerRef = React.useRef<NodeJS.Timeout | null>(null);
 	React.useEffect(() => {
@@ -1032,20 +1340,30 @@ export default function FormView({
 			}, 1000);
 		};
 
-		const subscription = form.watch(() => {
-			scheduleLockRefresh();
-		});
+		const events = ["input", "change", "keydown", "pointerdown"] as const;
+		const target = formElementRef.current ?? document;
+
+		for (const event of events) {
+			target.addEventListener(event, scheduleLockRefresh, {
+				capture: true,
+			});
+		}
 
 		// Keep lock alive if user opens edit form and pauses before first change
 		scheduleLockRefresh();
 
 		return () => {
-			subscription.unsubscribe();
+			for (const event of events) {
+				target.removeEventListener(event, scheduleLockRefresh, {
+					capture: true,
+				});
+			}
+
 			if (lockRefreshTimerRef.current) {
 				clearTimeout(lockRefreshTimerRef.current);
 			}
 		};
-	}, [form, isEditMode, isBlocked, refreshLock]);
+	}, [isEditMode, isBlocked, refreshLock]);
 
 	// Generate preview URL via server RPC (url function runs server-side)
 	const [previewUrl, setPreviewUrl] = React.useState<string | null>(null);
@@ -1153,242 +1471,244 @@ export default function FormView({
 			)}
 
 			<FormProvider {...form}>
+				<FormStateRefBridge
+					control={form.control}
+					onDirtyChange={handleFormDirtyChange}
+					onSubmittingChange={handleFormSubmittingChange}
+				/>
+				<AutosaveManager
+					form={form}
+					formElementRef={formElementRef}
+					isEditMode={isEditMode}
+					id={id}
+					enabled={autoSaveConfig.enabled}
+					debounce={autoSaveConfig.debounce}
+					isDirtyRef={formIsDirtyRef}
+					isSubmittingRef={formIsSubmittingRef}
+					updateMutation={updateMutation}
+					previewContext={previewContext}
+					onSavingChange={setIsSaving}
+					onSaved={setLastSaved}
+				/>
 				{/* Manage server-side reactive field behaviors (compute, hidden, etc.) */}
 				<ReactiveFieldsManager
 					collection={collection}
 					reactiveConfigs={reactiveConfigs}
-					enabled={!isBlocked && !isSubmitting}
+					enabled={!isBlocked && !isMutationPending}
 				/>
-				<form
-					onSubmit={(e) => {
-						e.stopPropagation();
-						if (isBlocked) {
-							e.preventDefault();
-							toast.error(t("lock.cannotSave"));
-							return;
-						}
-						form.handleSubmit(onSubmit, (errors) => {
-							console.warn("[FormView] Validation errors:", errors);
-							toast.error(t("toast.validationFailed"), {
-								description: t("toast.validationDescription"),
-							});
-						})(e);
-					}}
-					className="space-y-4"
-				>
-					{/* Header - Title, Meta & Actions */}
-					<div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-						<div className="min-w-0 flex-1">
-							<div className="flex items-center gap-3 flex-wrap">
-								<h1 className="text-2xl md:text-3xl font-extrabold tracking-tight truncate">
-									{title}
-								</h1>
-								{localeOptions.length > 0 && (
-									<LocaleSwitcher
-										locales={localeOptions}
-										value={contentLocale}
-										onChange={setContentLocale}
-									/>
-								)}
-
-								{/* Autosave status indicator */}
-								{autoSaveConfig.indicator &&
-									autoSaveConfig.enabled &&
-									isEditMode && (
-										<>
-											{isSaving && (
-												<Badge variant="secondary" className="gap-1.5">
-													<Icon
-														icon="ph:spinner-gap"
-														className="size-3 animate-spin"
-													/>
-													{t("autosave.saving")}
-												</Badge>
-											)}
-											{!isSaving && form.formState.isDirty && (
-												<Badge variant="outline" className="gap-1.5">
-													<Icon
-														icon="ph:clock-counter-clockwise"
-														className="size-3"
-													/>
-													{t("autosave.unsavedChanges")}
-												</Badge>
-											)}
-											{!isSaving && !form.formState.isDirty && lastSaved && (
-												<Badge
-													variant="secondary"
-													className="gap-1.5 text-muted-foreground"
-												>
-													<Icon icon="ph:check" className="size-3" />
-													{t("autosave.saved")} {formatTimeAgo(lastSaved)}
-												</Badge>
-											)}
-										</>
-									)}
-							</div>
-							{/* Metadata - horizontal scroll on mobile */}
-							{showMeta && item && (
-								<div className="mt-1 overflow-x-auto no-scrollbar">
-									<p className="text-xs text-muted-foreground font-mono flex items-center gap-2 whitespace-nowrap">
-										<span className="opacity-60">{t("form.id")}:</span>
-										<button
-											type="button"
-											className="hover:text-foreground transition-colors cursor-pointer"
-											onClick={() => {
-												navigator.clipboard.writeText(String(item.id)).then(
-													() => toast.success(t("toast.idCopied")),
-													() => toast.error(t("toast.copyFailed")),
-												);
-											}}
-											title={t("common.copy")}
-										>
-											{item.id}
-										</button>
-										{item.createdAt && (
-											<>
-												<span className="opacity-40">·</span>
-												<span>
-													<span className="opacity-60">
-														{t("form.created")}{" "}
-													</span>
-													{formatDate(item.createdAt)}
-												</span>
-											</>
-										)}
-										{item.updatedAt && (
-											<>
-												<span className="opacity-40">·</span>
-												<span>
-													<span className="opacity-60">
-														{t("form.updated")}{" "}
-													</span>
-													{formatDate(item.updatedAt)}
-												</span>
-											</>
-										)}
-									</p>
-								</div>
-							)}
-						</div>
-
-						<div className="flex items-center gap-2 shrink-0 w-auto">
-							{headerActions}
-
-							{/* Live Preview button */}
-							{canUseLivePreview && (
-								<Button
-									type="button"
-									variant="outline"
-									size="icon"
-									className="size-9"
-									onClick={() => setIsLivePreviewOpen(true)}
-									title={t("preview.livePreview")}
-								>
-									<Icon icon="ph:eye" className="size-4" />
-									<span className="sr-only">{t("preview.livePreview")}</span>
-								</Button>
-							)}
-
-							{/* Primary form actions as buttons */}
-							{visiblePrimaryActions.map((action) => (
-								<ActionButton
-									key={action.id}
-									action={action}
-									collection={collection}
-									helpers={actionHelpers}
-									onOpenDialog={(a) => setDialogAction(a)}
-								/>
-							))}
-
-							{/* Save button */}
-							<Button
-								type="submit"
-								disabled={isSubmitting || !form.formState.isDirty}
-								className="gap-2"
-							>
-								{isSubmitting ? (
-									<>
-										<Icon
-											icon="ph:spinner-gap"
-											className="size-4 animate-spin"
+				<RenderProfiler id={`form.shell.${collection}`} minDurationMs={12}>
+					<form
+						ref={formElementRef}
+						onSubmit={(e) => {
+							e.stopPropagation();
+							if (isBlocked) {
+								e.preventDefault();
+								toast.error(t("lock.cannotSave"));
+								return;
+							}
+							form.handleSubmit(onSubmit, (errors) => {
+								console.warn("[FormView] Validation errors:", errors);
+								toast.error(t("toast.validationFailed"), {
+									description: t("toast.validationDescription"),
+								});
+							})(e);
+						}}
+						className="space-y-4"
+					>
+						{/* Header - Title, Meta & Actions */}
+						<div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+							<div className="min-w-0 flex-1">
+								<div className="flex items-center gap-3 flex-wrap">
+									<h1 className="text-2xl md:text-3xl font-extrabold tracking-tight truncate">
+										{title}
+									</h1>
+									{localeOptions.length > 0 && (
+										<LocaleSwitcher
+											locales={localeOptions}
+											value={contentLocale}
+											onChange={setContentLocale}
 										/>
-										{t("common.loading")}
-									</>
-								) : (
-									<>
-										<Icon icon="ph:check" width={16} height={16} />
-										{t("common.save")}
-									</>
-								)}
-							</Button>
+									)}
 
-							{/* Secondary form actions in dropdown */}
-							{visibleSecondaryActions.length > 0 && (
-								<DropdownMenu>
-									<DropdownMenuTrigger
-										render={
-											<Button
-												variant="outline"
-												size="icon"
-												className="size-9"
-											/>
-										}
-									>
-										<Icon icon="ph:dots-three-vertical" className="size-4" />
-										<span className="sr-only">{t("common.moreActions")}</span>
-									</DropdownMenuTrigger>
-									<DropdownMenuContent align="end">
-										{regularSecondary.map((action) => {
-											const iconElement = resolveIconElement(action.icon, {
-												className: "mr-2 size-4",
-											});
-											return (
-												<DropdownMenuItem
-													key={action.id}
-													onClick={() => handleActionClick(action)}
-													disabled={actionLoading}
-												>
-													{iconElement}
-													{resolveText(action.label)}
-												</DropdownMenuItem>
-											);
-										})}
-
-										{regularSecondary.length > 0 &&
-											destructiveSecondary.length > 0 && (
-												<DropdownMenuSeparator />
+									{/* Autosave status indicator */}
+									<AutosaveIndicator
+										control={form.control}
+										enabled={autoSaveConfig.enabled}
+										indicator={autoSaveConfig.indicator}
+										isEditMode={isEditMode}
+										isSaving={isSaving}
+										lastSaved={lastSaved}
+										formatTimeAgo={formatTimeAgo}
+										t={t}
+									/>
+								</div>
+								{/* Metadata - horizontal scroll on mobile */}
+								{showMeta && item && (
+									<div className="mt-1 overflow-x-auto no-scrollbar">
+										<p className="text-xs text-muted-foreground font-mono flex items-center gap-2 whitespace-nowrap">
+											<span className="opacity-60">{t("form.id")}:</span>
+											<button
+												type="button"
+												className="hover:text-foreground transition-colors cursor-pointer"
+												onClick={() => {
+													navigator.clipboard.writeText(String(item.id)).then(
+														() => toast.success(t("toast.idCopied")),
+														() => toast.error(t("toast.copyFailed")),
+													);
+												}}
+												title={t("common.copy")}
+											>
+												{item.id}
+											</button>
+											{item.createdAt && (
+												<>
+													<span className="opacity-40">·</span>
+													<span>
+														<span className="opacity-60">
+															{t("form.created")}{" "}
+														</span>
+														{formatDate(item.createdAt)}
+													</span>
+												</>
 											)}
+											{item.updatedAt && (
+												<>
+													<span className="opacity-40">·</span>
+													<span>
+														<span className="opacity-60">
+															{t("form.updated")}{" "}
+														</span>
+														{formatDate(item.updatedAt)}
+													</span>
+												</>
+											)}
+										</p>
+									</div>
+								)}
+							</div>
 
-										{destructiveSecondary.map((action) => {
-											const iconElement = resolveIconElement(action.icon, {
-												className: "mr-2 size-4",
-											});
-											return (
-												<DropdownMenuItem
-													key={action.id}
-													variant="destructive"
-													onClick={() => handleActionClick(action)}
-													disabled={actionLoading}
-												>
-													{iconElement}
-													{resolveText(action.label)}
-												</DropdownMenuItem>
-											);
-										})}
-									</DropdownMenuContent>
-								</DropdownMenu>
-							)}
+							<div className="flex items-center gap-2 shrink-0 w-auto">
+								{headerActions}
+
+								{/* Live Preview button */}
+								{canUseLivePreview && (
+									<Button
+										type="button"
+										variant="outline"
+										size="icon"
+										className="size-9"
+										onClick={() => setIsLivePreviewOpen(true)}
+										title={t("preview.livePreview")}
+									>
+										<Icon icon="ph:eye" className="size-4" />
+										<span className="sr-only">{t("preview.livePreview")}</span>
+									</Button>
+								)}
+
+								{/* Version history button */}
+								{isEditMode && id && (
+									<Button
+										type="button"
+										variant="outline"
+										size="icon"
+										className="size-9"
+										onClick={() => setIsHistoryOpen(true)}
+										title={t("version.history")}
+									>
+										<Icon
+											icon="ph:clock-counter-clockwise"
+											className="size-4"
+										/>
+										<span className="sr-only">{t("version.history")}</span>
+									</Button>
+								)}
+
+								{/* Primary form actions as buttons */}
+								{visiblePrimaryActions.map((action) => (
+									<ActionButton
+										key={action.id}
+										action={action}
+										collection={collection}
+										helpers={actionHelpers}
+										onOpenDialog={(a) => setDialogAction(a)}
+									/>
+								))}
+
+								{/* Save button */}
+								<SaveSubmitButton
+									control={form.control}
+									isMutationPending={isMutationPending}
+									t={t}
+								/>
+
+								{/* Secondary form actions in dropdown */}
+								{visibleSecondaryActions.length > 0 && (
+									<DropdownMenu>
+										<DropdownMenuTrigger
+											render={
+												<Button
+													variant="outline"
+													size="icon"
+													className="size-9"
+												/>
+											}
+										>
+											<Icon icon="ph:dots-three-vertical" className="size-4" />
+											<span className="sr-only">{t("common.moreActions")}</span>
+										</DropdownMenuTrigger>
+										<DropdownMenuContent align="end">
+											{regularSecondary.map((action) => {
+												const iconElement = resolveIconElement(action.icon, {
+													className: "mr-2 size-4",
+												});
+												return (
+													<DropdownMenuItem
+														key={action.id}
+														onClick={() => handleActionClick(action)}
+														disabled={actionLoading}
+													>
+														{iconElement}
+														{resolveText(action.label)}
+													</DropdownMenuItem>
+												);
+											})}
+
+											{regularSecondary.length > 0 &&
+												destructiveSecondary.length > 0 && (
+													<DropdownMenuSeparator />
+												)}
+
+											{destructiveSecondary.map((action) => {
+												const iconElement = resolveIconElement(action.icon, {
+													className: "mr-2 size-4",
+												});
+												return (
+													<DropdownMenuItem
+														key={action.id}
+														variant="destructive"
+														onClick={() => handleActionClick(action)}
+														disabled={actionLoading}
+													>
+														{iconElement}
+														{resolveText(action.label)}
+													</DropdownMenuItem>
+												);
+											})}
+										</DropdownMenuContent>
+									</DropdownMenu>
+								)}
+							</div>
 						</div>
-					</div>
 
-					{/* Main Content - Form Fields */}
-					<AutoFormFields
-						collection={collection as any}
-						config={formConfigBridge}
-						registry={registry}
-						allCollectionsConfig={allCollectionsConfig}
-					/>
-				</form>
+						{/* Main Content - Form Fields */}
+						<FormFieldsContent
+							collection={collection}
+							config={formConfigBridge}
+							registry={registry}
+							allCollectionsConfig={allCollectionsConfig}
+						/>
+					</form>
+				</RenderProfiler>
 			</FormProvider>
 
 			{/* Locale Change Confirmation Dialog */}
@@ -1441,6 +1761,40 @@ export default function FormView({
 					helpers={actionHelpers}
 				/>
 			)}
+
+			<VersionHistorySidebar
+				open={isHistoryOpen}
+				onOpenChange={setIsHistoryOpen}
+				title={t("version.history")}
+				description={t("version.historyDescription")}
+				versions={(versionsData ?? []) as any[]}
+				isLoading={versionsLoading}
+				isReverting={revertVersionMutation.isPending}
+				onRevert={async (version) => {
+					handleRevertVersion(version);
+				}}
+			/>
+
+			<ConfirmationDialog
+				open={!!pendingRevertVersion}
+				onOpenChange={(open) => {
+					if (!open) setPendingRevertVersion(null);
+				}}
+				config={{
+					title: t("version.revertConfirmTitle"),
+					description: t("version.revertConfirmDescription", {
+						number:
+							pendingRevertVersion?.versionNumber ??
+							pendingRevertVersion?.versionId ??
+							"-",
+					}),
+					confirmLabel: t("version.revert"),
+					cancelLabel: t("common.cancel"),
+					destructive: false,
+				}}
+				onConfirm={confirmRevertVersion}
+				loading={revertVersionMutation.isPending}
+			/>
 		</>
 	);
 

@@ -16,6 +16,7 @@ const EMPTY_CONFIG: ViewConfiguration = {
 	sortConfig: null,
 	visibleColumns: [],
 	realtime: undefined,
+	includeDeleted: false,
 	pagination: { page: 1, pageSize: 25 },
 };
 
@@ -136,6 +137,10 @@ export function useViewState(
 					storedConfig.realtime !== undefined
 						? storedConfig.realtime
 						: initialConfig?.realtime,
+				includeDeleted:
+					storedConfig.includeDeleted !== undefined
+						? storedConfig.includeDeleted
+						: (initialConfig?.includeDeleted ?? false),
 				pagination: storedConfig.pagination ?? { page: 1, pageSize: 25 },
 			};
 		}
@@ -146,6 +151,7 @@ export function useViewState(
 			sortConfig: initialConfig?.sortConfig ?? null,
 			visibleColumns: defaultColumns,
 			realtime: initialConfig?.realtime,
+			includeDeleted: initialConfig?.includeDeleted ?? false,
 			pagination: initialConfig?.pagination ?? { page: 1, pageSize: 25 },
 		};
 	}, [storedConfig, defaultColumns, initialConfig]);
@@ -330,12 +336,19 @@ export function useViewState(
 			config.filters.length > 0 ||
 			config.sortConfig !== null ||
 			config.realtime !== initialConfig?.realtime ||
+			(config.includeDeleted ?? false) !==
+				(initialConfig?.includeDeleted ?? false) ||
 			config.pagination?.page !== 1 ||
 			config.pagination?.pageSize !== 25 ||
 			JSON.stringify([...config.visibleColumns].sort()) !==
 				JSON.stringify([...defaultColumns].sort())
 		);
-	}, [config, defaultColumns, initialConfig?.realtime]);
+	}, [
+		config,
+		defaultColumns,
+		initialConfig?.includeDeleted,
+		initialConfig?.realtime,
+	]);
 
 	return {
 		config,

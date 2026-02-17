@@ -173,6 +173,17 @@ export type AdapterRoutes = {
 			params: { collection: string; id: string },
 			context?: AdapterContext,
 		) => Promise<Response>;
+		versions: (
+			request: Request,
+			params: { collection: string; id: string },
+			context?: AdapterContext,
+		) => Promise<Response>;
+		revert: (
+			request: Request,
+			params: { collection: string; id: string },
+			context?: AdapterContext,
+			input?: unknown,
+		) => Promise<Response>;
 		restore: (
 			request: Request,
 			params: { collection: string; id: string },
@@ -207,6 +218,17 @@ export type AdapterRoutes = {
 			context?: AdapterContext,
 		) => Promise<Response>;
 		update: (
+			request: Request,
+			params: { global: string },
+			context?: AdapterContext,
+			input?: unknown,
+		) => Promise<Response>;
+		versions: (
+			request: Request,
+			params: { global: string },
+			context?: AdapterContext,
+		) => Promise<Response>;
+		revert: (
 			request: Request,
 			params: { global: string },
 			context?: AdapterContext,

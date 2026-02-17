@@ -17,7 +17,11 @@ import {
 } from "@tanstack/react-table";
 import * as React from "react";
 import { Suspense, useMemo, useState } from "react";
-import type { ActionsConfig } from "../../builder/types/action-types";
+import { createActionRegistryProxy } from "../../builder/types/action-registry";
+import type {
+	ActionDefinition,
+	ActionsConfig,
+} from "../../builder/types/action-types";
 import type {
 	CollectionBuilderState,
 	ListViewConfig,
@@ -59,6 +63,7 @@ import { useActions } from "../../hooks/use-action";
 import {
 	useCollectionDelete,
 	useCollectionList,
+	useCollectionRestore,
 } from "../../hooks/use-collection";
 import { useCollectionFields } from "../../hooks/use-collection-fields";
 import { useSuspenseCollectionMeta } from "../../hooks/use-collection-meta";
@@ -71,6 +76,11 @@ import {
 	useSaveView,
 } from "../../hooks/use-saved-views";
 import { useDebouncedValue, useSearch } from "../../hooks/use-search";
+import {
+	mergeServerActions,
+	useServerActions,
+} from "../../hooks/use-server-actions";
+import { useSidebarSearchParam } from "../../hooks/use-sidebar-search-param";
 import { useViewState } from "../../hooks/use-view-state";
 import { useResolveText, useTranslation } from "../../i18n/hooks";
 import { cn } from "../../lib/utils";
@@ -104,6 +114,55 @@ import { TableViewSkeleton } from "./view-skeletons";
  */
 export type TableViewConfig = ListViewConfig;
 
+const actionRegistry = createActionRegistryProxy<any>();
+
+type ServerActionReference =
+	| string
+	| { type?: string; config?: Record<string, unknown> };
+
+function resolveBuiltinListAction(
+	reference: ServerActionReference,
+): ActionDefinition | null {
+	const type =
+		typeof reference === "string"
+			? reference
+			: typeof reference?.type === "string"
+				? reference.type
+				: undefined;
+
+	const config =
+		typeof reference === "object" && reference !== null
+			? (reference.config as Partial<ActionDefinition> | undefined)
+			: undefined;
+
+	if (!type) return null;
+
+	switch (type) {
+		case "create":
+			return actionRegistry.create(config);
+		case "delete":
+			return actionRegistry.delete(config);
+		case "deleteMany":
+			return actionRegistry.deleteMany(config);
+		case "duplicate":
+			return actionRegistry.duplicate(config);
+		default:
+			return null;
+	}
+}
+
+function mapActionReferencesToDefinitions(
+	references: unknown,
+): ActionDefinition[] {
+	if (!Array.isArray(references)) return [];
+
+	return references
+		.map((reference) =>
+			resolveBuiltinListAction(reference as ServerActionReference),
+		)
+		.filter((action): action is ActionDefinition => action !== null);
+}
+
 function mapListSchemaToConfig(list?: {
 	view?: string;
 	columns?: string[];
@@ -120,6 +179,34 @@ function mapListSchemaToConfig(list?: {
 	if (list.searchable?.length) {
 		config.searchFields = list.searchable as any;
 		config.searchable = true;
+	}
+
+	if (list.actions && typeof list.actions === "object") {
+		const listActions = list.actions as {
+			header?: {
+				primary?: unknown;
+				secondary?: unknown;
+			};
+			bulk?: unknown;
+		};
+
+		const header = listActions.header
+			? {
+					primary: mapActionReferencesToDefinitions(listActions.header.primary),
+					secondary: mapActionReferencesToDefinitions(
+						listActions.header.secondary,
+					),
+				}
+			: undefined;
+
+		const bulk = mapActionReferencesToDefinitions(listActions.bulk);
+
+		if (header || bulk.length > 0) {
+			config.actions = {
+				...(header ? { header } : {}),
+				...(bulk.length > 0 ? { bulk } : {}),
+			};
+		}
 	}
 
 	return config;
@@ -274,6 +361,17 @@ function TableViewInner({
 	const resolvedActionsConfig =
 		actionsConfig ?? (resolvedListConfig as any)?.actions;
 
+	const { serverActions } = useServerActions({ collection });
+
+	const mergedActionsConfig = React.useMemo(
+		() =>
+			mergeServerActions(
+				(resolvedActionsConfig ?? {}) as ActionsConfig,
+				serverActions,
+			),
+		[resolvedActionsConfig, serverActions],
+	);
+
 	// Get user session for preferences (suspense-enabled)
 	const { user } = useSessionState();
 
@@ -301,7 +399,7 @@ function TableViewInner({
 		closeDialog,
 	} = useActions({
 		collection,
-		actionsConfig: resolvedActionsConfig,
+		actionsConfig: mergedActionsConfig,
 	});
 
 	// Build columns from config - buildAllColumns enables showing any field user selects
@@ -331,7 +429,9 @@ function TableViewInner({
 	);
 
 	// Filter builder sheet state
-	const [isSheetOpen, setIsSheetOpen] = useState(false);
+	const [isSheetOpen, setIsSheetOpen] = useSidebarSearchParam("view-options", {
+		legacyKey: "viewOptions",
+	});
 	const [searchTerm, setSearchTerm] = useState("");
 
 	// Default columns using configured columns from .list() or auto-detection
@@ -358,6 +458,10 @@ function TableViewInner({
 	// Build query options from view state (filters, sort)
 	const queryOptions = useMemo(() => {
 		const options: any = {};
+
+		if (collectionMeta?.softDelete) {
+			options.includeDeleted = !!viewState.config.includeDeleted;
+		}
 
 		// Add field expansion if needed
 		if (hasFieldsToExpand(expandedFields)) {
@@ -567,10 +671,12 @@ function TableViewInner({
 	}, [
 		expandedFields,
 		viewState.config.filters,
+		viewState.config.includeDeleted,
 		viewState.config.sortConfig,
 		viewState.config.pagination?.page,
 		viewState.config.pagination?.pageSize,
 		resolvedFields,
+		collectionMeta?.softDelete,
 		collectionMeta?.relations,
 	]);
 
@@ -614,6 +720,7 @@ function TableViewInner({
 
 	// Delete mutation for bulk actions
 	const deleteMutation = useCollectionDelete(collection as any);
+	const restoreMutation = useCollectionRestore(collection as any);
 
 	// Build available fields from config for column picker
 	// All fields are available in Options, but defaults come from .list() config
@@ -631,8 +738,9 @@ function TableViewInner({
 				const isAllSelected = t.getIsAllPageRowsSelected();
 				const isSomeSelected = t.getIsSomePageRowsSelected();
 				return (
-					// biome-ignore lint/a11y/noStaticElementInteractions: <explanation>
+					// biome-ignore lint/a11y/noStaticElementInteractions: stops row click propagation for checkbox cell
 					<div
+						role="presentation"
 						onClick={(e) => e.stopPropagation()}
 						onKeyDown={(e) => e.stopPropagation()}
 					>
@@ -651,8 +759,9 @@ function TableViewInner({
 				const isSelected = row.getIsSelected();
 				const canSelect = row.getCanSelect();
 				return (
-					// biome-ignore lint/a11y/noStaticElementInteractions: <explanation>
+					// biome-ignore lint/a11y/noStaticElementInteractions: stops row click propagation for checkbox cell
 					<div
+						role="presentation"
 						onClick={(e) => e.stopPropagation()}
 						onKeyDown={(e) => e.stopPropagation()}
 					>
@@ -835,6 +944,36 @@ function TableViewInner({
 		[deleteMutation, actionHelpers, t],
 	);
 
+	// Bulk restore handler
+	const handleBulkRestore = React.useCallback(
+		async (ids: string[]) => {
+			const results = await Promise.allSettled(
+				ids.map((id) => restoreMutation.mutateAsync({ id })),
+			);
+
+			const successCount = results.filter(
+				(r) => r.status === "fulfilled",
+			).length;
+			const failCount = results.filter((r) => r.status === "rejected").length;
+
+			if (failCount === 0) {
+				actionHelpers.toast.success(
+					t("collection.bulkRestoreSuccess", { count: successCount }),
+				);
+			} else if (successCount === 0) {
+				actionHelpers.toast.error(t("collection.bulkRestoreError"));
+			} else {
+				actionHelpers.toast.warning(
+					t("collection.bulkRestorePartial", {
+						success: successCount,
+						failed: failCount,
+					}),
+				);
+			}
+		},
+		[restoreMutation, actionHelpers, t],
+	);
+
 	if (isLoading) {
 		return (
 			<div className="container">
@@ -942,6 +1081,7 @@ function TableViewInner({
 					pageCount={filteredItems.length}
 					onOpenDialog={(action, items) => openDialog(action, items)}
 					onBulkDelete={handleBulkDelete}
+					onBulkRestore={handleBulkRestore}
 					filterCount={viewState.config.filters.length}
 					onOpenFilters={() => setIsSheetOpen(true)}
 					onClearFilters={() =>
@@ -1248,6 +1388,7 @@ function TableViewInner({
 					savedViewsLoading={savedViewsLoading}
 					onSaveView={handleSaveView}
 					onDeleteView={handleDeleteView}
+					supportsSoftDelete={collectionMeta?.softDelete ?? false}
 				/>
 
 				{/* Action Dialog */}

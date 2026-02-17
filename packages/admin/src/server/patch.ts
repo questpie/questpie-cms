@@ -377,6 +377,8 @@ function createActionProxy() {
 		save: "save",
 		delete: "delete",
 		deleteMany: "deleteMany",
+		restore: "restore",
+		restoreMany: "restoreMany",
 		duplicate: "duplicate",
 		export: "export",
 
@@ -480,6 +482,8 @@ function createActionsConfigContext<
 			save: () => "save" as BuiltinActionType,
 			delete: () => "delete" as BuiltinActionType,
 			deleteMany: () => "deleteMany" as BuiltinActionType,
+			restore: () => "restore" as BuiltinActionType,
+			restoreMany: () => "restoreMany" as BuiltinActionType,
 			duplicate: () => "duplicate" as BuiltinActionType,
 			action: <TData = Record<string, unknown>>(
 				def: Omit<ServerActionDefinition<TData>, "scope"> & {

@@ -82,7 +82,10 @@ export {
 	useCollectionDelete,
 	useCollectionItem,
 	useCollectionList,
+	useCollectionRestore,
+	useCollectionRevertVersion,
 	useCollectionUpdate,
+	useCollectionVersions,
 } from "./use-collection";
 // Collection fields hook (schema -> field definitions)
 export { useCollectionFields } from "./use-collection-fields";
@@ -118,7 +121,12 @@ export {
 	useFieldHooks,
 } from "./use-field-hooks";
 // Global hooks
-export { useGlobal, useGlobalUpdate } from "./use-global";
+export {
+	useGlobal,
+	useGlobalRevertVersion,
+	useGlobalUpdate,
+	useGlobalVersions,
+} from "./use-global";
 export { useGlobalFields } from "./use-global-fields";
 export {
 	getGlobalMetaQueryKey,
@@ -169,6 +177,7 @@ export {
 	useReindex,
 	useSearch,
 } from "./use-search";
+export { useSearchParamToggle } from "./use-search-param-toggle";
 // Server actions hook
 export {
 	mergeServerActions,
@@ -187,6 +196,7 @@ export {
 } from "./use-server-validation";
 // Setup status hook
 export { type SetupStatus, useSetupStatus } from "./use-setup-status";
+export { useSidebarSearchParam } from "./use-sidebar-search-param";
 // Upload hook
 export {
 	type Asset,

@@ -11,15 +11,15 @@ import { jsonRequestBody, jsonResponse, ref } from "./schemas.js";
  * Generate OpenAPI paths and component schemas for all globals.
  */
 export function generateGlobalPaths(
-	cms: Questpie<any>,
+	app: Questpie<any>,
 	config: OpenApiConfig,
 ): {
 	paths: Record<string, Record<string, PathOperation>>;
 	schemas: Record<string, unknown>;
 	tags: Array<{ name: string; description?: string }>;
 } {
-	const globals = cms.getGlobals();
-	const basePath = config.basePath ?? "/cms";
+	const globals = app.getGlobals();
+	const basePath = config.basePath ?? "/";
 	const excluded = new Set(config.exclude?.globals ?? []);
 	const paths: Record<string, Record<string, PathOperation>> = {};
 	const schemas: Record<string, unknown> = {};
@@ -119,6 +119,73 @@ export function generateGlobalPaths(
 				responses: jsonResponse(
 					{ type: "object", description: "Introspected global schema" },
 					`Introspection schema for ${name} global`,
+				),
+			},
+		};
+
+		// GET /globals/{name}/versions
+		paths[`${prefix}/versions`] = {
+			get: {
+				operationId: `global_${name}_findVersions`,
+				summary: `List ${name} global versions`,
+				tags: [tag],
+				parameters: [
+					{
+						name: "id",
+						in: "query",
+						schema: { type: "string" },
+						description: "Global record ID",
+					},
+					{
+						name: "limit",
+						in: "query",
+						schema: { type: "number" },
+						description: "Maximum number of versions to return",
+					},
+					{
+						name: "offset",
+						in: "query",
+						schema: { type: "number" },
+						description: "Number of versions to skip",
+					},
+				],
+				responses: jsonResponse(
+					{
+						type: "array",
+						items: {
+							type: "object",
+							properties: {
+								id: { type: "string" },
+								versionId: { type: "string" },
+								versionNumber: { type: "number" },
+								versionOperation: { type: "string" },
+								versionUserId: { type: ["string", "null"] },
+								versionCreatedAt: { type: "string", format: "date-time" },
+							},
+						},
+					},
+					`Version history for ${name} global`,
+				),
+			},
+		};
+
+		// POST /globals/{name}/revert
+		paths[`${prefix}/revert`] = {
+			post: {
+				operationId: `global_${name}_revertToVersion`,
+				summary: `Revert ${name} global to a version`,
+				tags: [tag],
+				requestBody: jsonRequestBody({
+					type: "object",
+					properties: {
+						id: { type: "string" },
+						version: { type: "number" },
+						versionId: { type: "string" },
+					},
+				}),
+				responses: jsonResponse(
+					ref(valueSchemaName),
+					`Reverted ${name} global value`,
 				),
 			},
 		};

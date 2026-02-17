@@ -113,8 +113,12 @@ The adapter creates catch-all handlers under your base path:
 | PATCH  | `/api/cms/collections/:name/:id`         | Update item          |
 | DELETE | `/api/cms/collections/:name/:id`         | Delete item          |
 | POST   | `/api/cms/collections/:name/:id/restore` | Restore soft-deleted |
+| GET    | `/api/cms/collections/:name/:id/versions` | List item versions   |
+| POST   | `/api/cms/collections/:name/:id/revert`   | Revert item version  |
 | GET    | `/api/cms/globals/:name`                 | Get global           |
 | PATCH  | `/api/cms/globals/:name`                 | Update global        |
+| GET    | `/api/cms/globals/:name/versions`         | List global versions |
+| POST   | `/api/cms/globals/:name/revert`           | Revert global version |
 | POST   | `/api/cms/collections/:name/upload`      | Upload file          |
 | ALL    | `/api/cms/auth/*`                        | Better Auth routes   |
 | POST   | `/api/cms/rpc/*`                         | RPC procedures       |

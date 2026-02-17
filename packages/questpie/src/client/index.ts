@@ -330,6 +330,32 @@ type CollectionAPI<
 	) => Promise<CollectionSelect<TCollection>>;
 
 	/**
+	 * Find version history for a single record
+	 */
+	findVersions: (
+		params: { id: string; limit?: number; offset?: number },
+		options?: LocaleOptions,
+	) => Promise<
+		Array<
+			CollectionSelect<TCollection> & {
+				versionId: string;
+				versionNumber: number;
+				versionOperation: string;
+				versionUserId: string | null;
+				versionCreatedAt: Date;
+			}
+		>
+	>;
+
+	/**
+	 * Revert a record to a specific version
+	 */
+	revertToVersion: (
+		params: { id: string; version?: number; versionId?: string },
+		options?: LocaleOptions,
+	) => Promise<CollectionSelect<TCollection>>;
+
+	/**
 	 * Update multiple records matching a where clause
 	 */
 	updateMany: (
@@ -455,6 +481,38 @@ type GlobalAPI<
 	 * Get global metadata (timestamps, versioning, localized fields)
 	 */
 	meta: () => Promise<GlobalMeta>;
+
+	/**
+	 * Find global version history
+	 */
+	findVersions: (options?: {
+		id?: string;
+		limit?: number;
+		offset?: number;
+		locale?: string;
+		localeFallback?: boolean;
+	}) => Promise<
+		Array<
+			GlobalSelect<TGlobal> & {
+				versionId: string;
+				versionNumber: number;
+				versionOperation: string;
+				versionUserId: string | null;
+				versionCreatedAt: Date;
+			}
+		>
+	>;
+
+	/**
+	 * Revert global to a specific version
+	 */
+	revertToVersion: (
+		params: { id?: string; version?: number; versionId?: string },
+		options?: {
+			locale?: string;
+			localeFallback?: boolean;
+		},
+	) => Promise<GlobalSelect<TGlobal>>;
 };
 
 /**
@@ -838,6 +896,48 @@ export function createClient<
 					});
 				},
 
+				findVersions: async (
+					{
+						id,
+						limit,
+						offset,
+					}: { id: string; limit?: number; offset?: number },
+					options: LocaleOptions = {},
+				) => {
+					const queryString = qs.stringify(
+						{
+							limit,
+							offset,
+							...options,
+						},
+						{
+							skipNulls: true,
+							arrayFormat: "brackets",
+						},
+					);
+					const path = `${cmsBasePath}/${collectionName}/${id}/versions${queryString ? `?${queryString}` : ""}`;
+					return request(path);
+				},
+
+				revertToVersion: async (
+					{
+						id,
+						version,
+						versionId,
+					}: { id: string; version?: number; versionId?: string },
+					options: LocaleOptions = {},
+				) => {
+					const queryString = qs.stringify(options, {
+						skipNulls: true,
+						arrayFormat: "brackets",
+					});
+					const path = `${cmsBasePath}/${collectionName}/${id}/revert${queryString ? `?${queryString}` : ""}`;
+					return request(path, {
+						method: "POST",
+						body: JSON.stringify({ version, versionId }),
+					});
+				},
+
 				updateMany: async (
 					{ where, data }: { where: any; data: any },
 					options: LocaleOptions = {},
@@ -1064,6 +1164,49 @@ export function createClient<
 
 				meta: async () => {
 					return request(`${cmsBasePath}/globals/${globalName}/meta`);
+				},
+
+				findVersions: async (
+					options: {
+						id?: string;
+						limit?: number;
+						offset?: number;
+						locale?: string;
+						localeFallback?: boolean;
+					} = {},
+				) => {
+					const queryString = qs.stringify(
+						{
+							id: options.id,
+							limit: options.limit,
+							offset: options.offset,
+							locale: options.locale,
+							localeFallback: options.localeFallback,
+						},
+						{ skipNulls: true, arrayFormat: "brackets" },
+					);
+					const path = `${cmsBasePath}/globals/${globalName}/versions${queryString ? `?${queryString}` : ""}`;
+					return request(path);
+				},
+
+				revertToVersion: async (
+					params: { id?: string; version?: number; versionId?: string },
+					options: { locale?: string; localeFallback?: boolean } = {},
+				) => {
+					const queryString = qs.stringify(
+						{
+							locale: options.locale,
+							localeFallback: options.localeFallback,
+						},
+						{ skipNulls: true, arrayFormat: "brackets" },
+					);
+					return request(
+						`${cmsBasePath}/globals/${globalName}/revert${queryString ? `?${queryString}` : ""}`,
+						{
+							method: "POST",
+							body: JSON.stringify(params),
+						},
+					);
 				},
 			};
 

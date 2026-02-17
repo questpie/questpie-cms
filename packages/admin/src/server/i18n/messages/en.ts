@@ -22,6 +22,7 @@ export default {
 	"common.previous": "Previous",
 	"common.actions": "Actions",
 	"common.more": "More",
+	"common.moreActions": "More actions",
 	"common.yes": "Yes",
 	"common.no": "No",
 	"common.ok": "OK",
@@ -86,6 +87,18 @@ export default {
 	"collection.new": "New {{name}}",
 	"collection.duplicateSuccess": "{{name}} duplicated successfully",
 	"collection.duplicateError": "Failed to duplicate {{name}}",
+	"collection.restoring": "Restoring...",
+	"collection.restoreSuccess": "Item restored successfully",
+	"collection.restoreError": "Failed to restore item",
+	"collection.bulkRestoreSuccess": {
+		one: "Successfully restored {{count}} item",
+		other: "Successfully restored {{count}} items",
+	},
+	"collection.bulkRestoreError": "Failed to restore items",
+	"collection.bulkRestorePartial": {
+		one: "Restored {{success}} item, {{failed}} failed",
+		other: "Restored {{success}} items, {{failed}} failed",
+	},
 
 	// Relations
 	"relation.select": "Select {{name}}",
@@ -114,6 +127,7 @@ export default {
 	"form.id": "ID",
 	"form.created": "Created",
 	"form.updated": "Updated",
+	"form.lastUpdated": "Last updated",
 	"form.required": "This field is required",
 	"form.invalid": "Invalid value",
 	"form.saveChanges": "Save changes",
@@ -465,6 +479,29 @@ export default {
 	"viewOptions.savedViews": "Saved Views",
 	"viewOptions.apply": "Apply",
 	"viewOptions.reset": "Reset",
+	"viewOptions.showDeleted": "Show deleted",
+	"viewOptions.showDeletedDescription":
+		"Include soft-deleted records in this view.",
+
+	// Versions
+	"version.history": "Version history",
+	"version.historyDescription":
+		"Browse previous versions and restore one if needed.",
+	"version.globalHistoryDescription":
+		"Browse previous global versions and restore one if needed.",
+	"version.empty": "No versions found.",
+	"version.label": "Version {{number}}",
+	"version.createdAt": "Created",
+	"version.user": "User",
+	"version.revert": "Revert",
+	"version.revertSuccess": "Version restored successfully",
+	"version.operationCreate": "Created",
+	"version.operationUpdate": "Updated",
+	"version.operationDelete": "Deleted",
+	"version.operationUnknown": "Changed",
+	"version.revertConfirmTitle": "Revert to this version?",
+	"version.revertConfirmDescription":
+		"This will replace current content with version {{number}}.",
 
 	// Saved Views Tab
 	"viewOptions.saveCurrentConfig": "Save Current Configuration",

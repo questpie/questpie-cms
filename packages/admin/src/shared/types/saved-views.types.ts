@@ -63,6 +63,7 @@ export interface ViewConfiguration {
 	sortConfig: SortConfig | null;
 	visibleColumns: string[];
 	realtime?: boolean;
+	includeDeleted?: boolean;
 	pagination?: {
 		page: number;
 		pageSize: number;

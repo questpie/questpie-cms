@@ -9,6 +9,8 @@
 
 import { Icon } from "@iconify/react";
 import * as React from "react";
+import { useSidebarSearchParam } from "../../hooks/use-sidebar-search-param.js";
+import { RenderProfiler } from "../../lib/render-profiler.js";
 import { cn } from "../../lib/utils.js";
 import { Button } from "../ui/button.js";
 import { BlockCanvas } from "./block-canvas.js";
@@ -41,11 +43,13 @@ export function BlockEditorLayout({
 	const actions = useBlockEditorActions();
 	const tree = useBlockTree();
 	const isLibraryOpen = useBlockLibraryOpen();
-	const [sidebarOpen, setSidebarOpen] = React.useState(false);
+	const [sidebarOpen, setSidebarOpen] = useSidebarSearchParam("block-library");
 
 	// Open sidebar with insert position at end of root
 	const handleOpenSidebar = () => {
-		actions.openLibrary({ parentId: null, index: tree.length });
+		if (!isLibraryOpen) {
+			actions.openLibrary({ parentId: null, index: tree.length });
+		}
 		setSidebarOpen(true);
 	};
 
@@ -60,7 +64,14 @@ export function BlockEditorLayout({
 		if (isLibraryOpen && !sidebarOpen) {
 			setSidebarOpen(true);
 		}
-	}, [isLibraryOpen, sidebarOpen]);
+	}, [isLibraryOpen, sidebarOpen, setSidebarOpen]);
+
+	// Open library state when URL requests this sidebar
+	React.useEffect(() => {
+		if (sidebarOpen && !isLibraryOpen) {
+			actions.openLibrary({ parentId: null, index: tree.length });
+		}
+	}, [sidebarOpen, isLibraryOpen, actions, tree.length]);
 
 	const hasBlocks = tree.length > 0;
 
@@ -70,7 +81,9 @@ export function BlockEditorLayout({
 			style={{ minHeight }}
 		>
 			{/* Main content area */}
-			<BlockCanvas />
+			<RenderProfiler id="blocks.canvas" minDurationMs={8}>
+				<BlockCanvas />
+			</RenderProfiler>
 
 			{/* Empty state hint */}
 			{!hasBlocks && (
@@ -98,7 +111,14 @@ export function BlockEditorLayout({
 			)}
 
 			{/* Block Library Sidebar */}
-			<BlockLibrarySidebar open={sidebarOpen} onClose={handleCloseSidebar} />
+			{(sidebarOpen || isLibraryOpen) && (
+				<RenderProfiler id="blocks.library" minDurationMs={8}>
+					<BlockLibrarySidebar
+						open={sidebarOpen}
+						onClose={handleCloseSidebar}
+					/>
+				</RenderProfiler>
+			)}
 		</div>
 	);
 }

@@ -15,9 +15,17 @@ import type {
 	FormViewConfig,
 } from "../../builder/types/field-types";
 import type { GlobalBuilderState } from "../../builder/types/global-types";
+import { ConfirmationDialog } from "../../components/actions/confirmation-dialog";
 import { LocaleSwitcher } from "../../components/locale-switcher";
 import { Button } from "../../components/ui/button";
-import { useGlobal, useGlobalUpdate } from "../../hooks";
+import { VersionHistorySidebar } from "../../components/version-history-sidebar";
+import {
+	useGlobal,
+	useGlobalRevertVersion,
+	useGlobalUpdate,
+	useGlobalVersions,
+	useSidebarSearchParam,
+} from "../../hooks";
 import { useGlobalFields } from "../../hooks/use-global-fields";
 import { useReactiveFields } from "../../hooks/use-reactive-fields";
 import { useGlobalServerValidation } from "../../hooks/use-server-validation";
@@ -153,6 +161,19 @@ export default function GlobalFormView({
 			onError?.(error);
 		},
 	});
+	const revertVersionMutation = useGlobalRevertVersion(globalName);
+
+	const [isHistoryOpen, setIsHistoryOpen] = useSidebarSearchParam("history", {
+		legacyKey: "history",
+	});
+	const [pendingRevertVersion, setPendingRevertVersion] =
+		React.useState<any>(null);
+
+	const { data: versionsData, isLoading: versionsLoading } = useGlobalVersions(
+		globalName,
+		{ id: globalData?.id, limit: 50 },
+		{ enabled: isHistoryOpen },
+	);
 
 	// Get validation resolver - uses server JSON Schema for validation
 	const { resolver } = useGlobalServerValidation(globalName);
@@ -249,6 +270,25 @@ export default function GlobalFormView({
 
 	const isSubmitting = updateMutation.isPending || form.formState.isSubmitting;
 
+	const confirmRevertVersion = React.useCallback(async () => {
+		if (!pendingRevertVersion) return;
+
+		const payload: { id?: string; version?: number; versionId?: string } = {};
+		if (typeof globalData?.id === "string") {
+			payload.id = globalData.id;
+		}
+		if (typeof pendingRevertVersion.versionId === "string") {
+			payload.versionId = pendingRevertVersion.versionId;
+		} else if (typeof pendingRevertVersion.versionNumber === "number") {
+			payload.version = pendingRevertVersion.versionNumber;
+		}
+
+		const result = await revertVersionMutation.mutateAsync(payload);
+		form.reset(result as any);
+		toast.success(t("version.revertSuccess"));
+		setPendingRevertVersion(null);
+	}, [pendingRevertVersion, globalData?.id, revertVersionMutation, form, t]);
+
 	// Format date helper
 	const formatDate = (date: string | Date) => {
 		return new Date(date).toLocaleDateString(undefined, {
@@ -300,6 +340,17 @@ export default function GlobalFormView({
 
 					<div className="flex items-center gap-2 shrink-0">
 						{headerActions}
+						<Button
+							type="button"
+							variant="outline"
+							size="icon"
+							className="size-9"
+							onClick={() => setIsHistoryOpen(true)}
+							title={t("version.history")}
+						>
+							<Icon icon="ph:clock-counter-clockwise" className="size-4" />
+							<span className="sr-only">{t("version.history")}</span>
+						</Button>
 						<Button type="submit" disabled={isSubmitting} className="gap-2">
 							{isSubmitting ? (
 								<>
@@ -324,6 +375,40 @@ export default function GlobalFormView({
 					registry={registry}
 				/>
 			</form>
+
+			<VersionHistorySidebar
+				open={isHistoryOpen}
+				onOpenChange={setIsHistoryOpen}
+				title={t("version.history")}
+				description={t("version.globalHistoryDescription")}
+				versions={(versionsData ?? []) as any[]}
+				isLoading={versionsLoading}
+				isReverting={revertVersionMutation.isPending}
+				onRevert={async (version) => {
+					setPendingRevertVersion(version);
+				}}
+			/>
+
+			<ConfirmationDialog
+				open={!!pendingRevertVersion}
+				onOpenChange={(open) => {
+					if (!open) setPendingRevertVersion(null);
+				}}
+				config={{
+					title: t("version.revertConfirmTitle"),
+					description: t("version.revertConfirmDescription", {
+						number:
+							pendingRevertVersion?.versionNumber ??
+							pendingRevertVersion?.versionId ??
+							"-",
+					}),
+					confirmLabel: t("version.revert"),
+					cancelLabel: t("common.cancel"),
+					destructive: false,
+				}}
+				onConfirm={confirmRevertVersion}
+				loading={revertVersionMutation.isPending}
+			/>
 		</FormProvider>
 	);
 }
