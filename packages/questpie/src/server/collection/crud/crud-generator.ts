@@ -12,6 +12,7 @@ import type {
 	AccessWhere,
 	CollectionBuilderState,
 	HookContext,
+	TransitionHookContext,
 } from "#questpie/server/collection/builder/types.js";
 
 /** Title expression for SQL queries - resolved column or SQL expression */
@@ -80,13 +81,14 @@ import type {
 	PaginatedResult,
 	RestoreParams,
 	RevertVersionOptions,
+	TransitionStageParams,
 	UpdateParams,
 	UploadFile,
 	Where,
 	With,
 } from "#questpie/server/collection/crud/types.js";
 import { createVersionRecord } from "#questpie/server/collection/crud/versioning/index.js";
-import type { Questpie } from "#questpie/server/config/cms.js";
+import type { Questpie } from "#questpie/server/config/questpie.js";
 import { runWithContext } from "#questpie/server/config/context.js";
 import type { StorageVisibility } from "#questpie/server/config/types.js";
 import { ApiError, parseDatabaseError } from "#questpie/server/errors/index.js";
@@ -95,8 +97,14 @@ import {
 	applyFieldOutputHooks,
 } from "#questpie/server/fields/runtime.js";
 import type { FieldDefinitionAccess } from "#questpie/server/fields/types.js";
+import {
+	type ResolvedWorkflowConfig,
+	resolveWorkflowConfig,
+} from "#questpie/server/workflow/config.js";
 
 export class CRUDGenerator<TState extends CollectionBuilderState> {
+	private readonly workflowConfig: ResolvedWorkflowConfig | undefined;
+
 	// Public accessors for internal use by relation resolution
 	public get relatedTable() {
 		return this.table;
@@ -126,8 +134,16 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 			context: any,
 		) => TitleExpressionSQL,
 		_getRawTitleExpression?: (context: any) => TitleExpressionSQL,
-		private cms?: Questpie<any>,
-	) {}
+		private app?: Questpie<any>,
+	) {
+		this.workflowConfig = resolveWorkflowConfig(this.state.options.workflow);
+
+		if (this.workflowConfig && !this.versionsTable) {
+			throw new Error(
+				`Collection "${this.state.name}" enables workflow but versioning is disabled. Enable options.versioning to use workflow stages.`,
+			);
+		}
+	}
 
 	/**
 	 * Get localized field names.
@@ -149,34 +165,139 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 		return this.getLocalizedFieldNames().length > 0;
 	}
 
+	private getReadStage(
+		options: FindManyOptions | FindOneOptionsBase,
+		context: CRUDContext,
+	): string | undefined {
+		if (!this.workflowConfig) return undefined;
+
+		const requested = options.stage ?? context.stage;
+		const stage = requested ?? this.workflowConfig.initialStage;
+		const exists = this.workflowConfig.stages.some(
+			(item) => item.name === stage,
+		);
+
+		if (!exists) {
+			throw ApiError.badRequest(
+				`Unknown workflow stage "${stage}" for collection "${this.state.name}"`,
+			);
+		}
+
+		return stage;
+	}
+
+	private getWriteStage(context: CRUDContext): string | undefined {
+		if (!this.workflowConfig) return undefined;
+
+		const stage = context.stage ?? this.workflowConfig.initialStage;
+		const exists = this.workflowConfig.stages.some(
+			(item) => item.name === stage,
+		);
+
+		if (!exists) {
+			throw ApiError.badRequest(
+				`Unknown workflow stage "${stage}" for collection "${this.state.name}"`,
+			);
+		}
+
+		return stage;
+	}
+
+	private assertTransitionAllowed(fromStage: string, toStage: string): void {
+		if (!this.workflowConfig || fromStage === toStage) {
+			return;
+		}
+
+		const fromConfig = this.workflowConfig.stages.find(
+			(item) => item.name === fromStage,
+		);
+		if (!fromConfig) {
+			return;
+		}
+
+		if (fromConfig.transitions && !fromConfig.transitions.includes(toStage)) {
+			throw ApiError.badRequest(
+				`Transition from "${fromStage}" to "${toStage}" is not allowed for collection "${this.state.name}"`,
+			);
+		}
+	}
+
+	private async getCurrentWorkflowStage(
+		db: any,
+		recordId: string | number,
+	): Promise<string> {
+		if (!this.workflowConfig || !this.versionsTable) {
+			return this.workflowConfig?.initialStage ?? "draft";
+		}
+
+		const stageColumn = (this.versionsTable as any).versionStage;
+		if (!stageColumn) {
+			return this.workflowConfig.initialStage;
+		}
+
+		const rows = await db
+			.select({ stage: stageColumn })
+			.from(this.versionsTable)
+			.where(
+				and(
+					eq((this.versionsTable as any).id, recordId),
+					sql`${stageColumn} IS NOT NULL`,
+				),
+			)
+			.orderBy(sql`${(this.versionsTable as any).versionNumber} DESC`)
+			.limit(1);
+
+		return rows[0]?.stage ?? this.workflowConfig.initialStage;
+	}
+
+	private buildLatestStageSubquery(db: any, stage: string, aliasName: string) {
+		if (!this.versionsTable) {
+			throw ApiError.notImplemented("Versioning");
+		}
+
+		return db
+			.select({
+				id: (this.versionsTable as any).id,
+				maxVersionNumber:
+					sql<number>`MAX(${(this.versionsTable as any).versionNumber})`.as(
+						"max_version_number",
+					),
+			})
+			.from(this.versionsTable)
+			.where(eq((this.versionsTable as any).versionStage, stage))
+			.groupBy((this.versionsTable as any).id)
+			.as(aliasName);
+	}
+
 	/**
 	 * Generate CRUD operations
 	 */
 	generate(): CRUD {
-		const find = this.wrapWithCMSContext(this.createFind());
-		const findOne = this.wrapWithCMSContext(this.createFindOne());
-		const updateMany = this.wrapWithCMSContext(this.createUpdateMany());
-		const deleteMany = this.wrapWithCMSContext(this.createDeleteMany());
-		const restoreById = this.wrapWithCMSContext(this.createRestore());
+		const find = this.wrapWithAppContext(this.createFind());
+		const findOne = this.wrapWithAppContext(this.createFindOne());
+		const updateMany = this.wrapWithAppContext(this.createUpdateMany());
+		const deleteMany = this.wrapWithAppContext(this.createDeleteMany());
+		const restoreById = this.wrapWithAppContext(this.createRestore());
 
 		const crud: CRUD = {
 			find,
 			findOne,
-			count: this.wrapWithCMSContext(this.createCount()),
-			create: this.wrapWithCMSContext(this.createCreate()),
-			updateById: this.wrapWithCMSContext(this.createUpdate()),
+			count: this.wrapWithAppContext(this.createCount()),
+			create: this.wrapWithAppContext(this.createCreate()),
+			updateById: this.wrapWithAppContext(this.createUpdate()),
 			update: updateMany,
-			deleteById: this.wrapWithCMSContext(this.createDelete()),
+			deleteById: this.wrapWithAppContext(this.createDelete()),
 			delete: deleteMany,
 			restoreById,
-			findVersions: this.wrapWithCMSContext(this.createFindVersions()),
-			revertToVersion: this.wrapWithCMSContext(this.createRevertToVersion()),
+			findVersions: this.wrapWithAppContext(this.createFindVersions()),
+			revertToVersion: this.wrapWithAppContext(this.createRevertToVersion()),
+			transitionStage: this.wrapWithAppContext(this.createTransitionStage()),
 		};
 
 		// Add upload methods if collection has upload config
 		if (this.state.upload) {
-			crud.upload = this.wrapWithCMSContext(this.createUpload());
-			crud.uploadMany = this.wrapWithCMSContext(this.createUploadMany());
+			crud.upload = this.wrapWithAppContext(this.createUpload());
+			crud.uploadMany = this.wrapWithAppContext(this.createUploadMany());
 		}
 
 		crud["~internalState"] = this.state;
@@ -200,7 +321,7 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 		return normalizeContext(context);
 	}
 
-	private wrapWithCMSContext<TArgs extends any[], TResult>(
+	private wrapWithAppContext<TArgs extends any[], TResult>(
 		fn: (...args: TArgs) => Promise<TResult>,
 	): (...args: TArgs) => Promise<TResult> {
 		// Direct passthrough - context is passed explicitly through function arguments
@@ -267,18 +388,22 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 		mode: "many" | "one",
 	): Promise<PaginatedResult<T> | T | null> {
 		// Normalize context FIRST to ensure locale defaults are applied
-		const normalized = this.normalizeContext(context);
+		const normalized = this.normalizeContext({
+			...context,
+			stage: options.stage ?? context.stage,
+		});
 		const db = this.getDb(normalized);
 
 		// Run entire read operation within request-scoped context
 		// This enables implicit getContext<TApp>() calls in hooks (e.g., afterRead prefetch)
 		return runWithContext(
 			{
-				app: this.cms,
+				app: this.app,
 				session: normalized.session,
 				db,
 				locale: normalized.locale,
 				accessMode: normalized.accessMode,
+				stage: normalized.stage,
 			},
 			async () => {
 				// Execute beforeOperation hook
@@ -324,20 +449,92 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 
 				const mergedWhere = this.mergeWhere(options.where, accessWhere);
 				const includeDeleted = options.includeDeleted === true;
+				const readStage = this.getReadStage(options, normalized);
+				const useStageVersions =
+					!!this.workflowConfig &&
+					!!readStage &&
+					readStage !== this.workflowConfig.initialStage;
 
 				// Get total count only for 'many' mode (pagination)
 				let totalDocs = 0;
 				if (mode === "many") {
-					const countFn = this.createCount();
-					totalDocs = await countFn(
-						{ where: mergedWhere, includeDeleted },
-						{ ...normalized, accessMode: "system" },
-					);
+					if (useStageVersions && this.versionsTable) {
+						const latestStageSubquery = this.buildLatestStageSubquery(
+							db,
+							readStage,
+							"latest_stage_count",
+						);
+
+						let countQuery = db
+							.select({ count: count() })
+							.from(this.versionsTable)
+							.innerJoin(
+								latestStageSubquery,
+								and(
+									eq(
+										(this.versionsTable as any).id,
+										(latestStageSubquery as any).id,
+									),
+									eq(
+										(this.versionsTable as any).versionNumber,
+										(latestStageSubquery as any).maxVersionNumber,
+									),
+								),
+							);
+
+						const countWhereClauses: SQL[] = [];
+						if (mergedWhere) {
+							const whereClause = this.buildWhereClause(
+								mergedWhere,
+								false,
+								this.versionsTable,
+								normalized,
+							);
+							if (whereClause) {
+								countWhereClauses.push(whereClause);
+							}
+						}
+
+						if (this.state.options.softDelete && !includeDeleted) {
+							const deletedAtColumn = (this.versionsTable as any).deletedAt;
+							if (deletedAtColumn) {
+								countWhereClauses.push(sql`${deletedAtColumn} IS NULL`);
+							}
+						}
+
+						if (
+							!includeDeleted &&
+							(this.versionsTable as any).versionOperation
+						) {
+							countWhereClauses.push(
+								sql`${(this.versionsTable as any).versionOperation} != 'delete'`,
+							);
+						}
+
+						if (countWhereClauses.length > 0) {
+							countQuery = countQuery.where(and(...countWhereClauses));
+						}
+
+						const countRows = await countQuery;
+						totalDocs = countRows[0]?.count ?? 0;
+					} else {
+						const countFn = this.createCount();
+						totalDocs = await countFn(
+							{ where: mergedWhere, includeDeleted },
+							{ ...normalized, accessMode: "system" },
+						);
+					}
 				}
 
-				// Determine if we are using i18n (i18n table exists = collection has localized fields)
-				// If i18n table exists, we MUST use i18n queries to properly fetch localized fields
-				const useI18n = !!this.i18nTable;
+				const readTable = useStageVersions
+					? (this.versionsTable as PgTable)
+					: this.table;
+				const i18nSourceTable = useStageVersions
+					? this.i18nVersionsTable
+					: this.i18nTable;
+
+				// Determine if we are using i18n (i18n source table exists = entity has localized fields)
+				const useI18n = !!i18nSourceTable;
 				const needsFallback =
 					useI18n &&
 					normalized.localeFallback !== false &&
@@ -345,10 +542,16 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 
 				// Create aliased i18n tables for current and fallback locales
 				const i18nCurrentTable = useI18n
-					? alias(this.i18nTable!, "i18n_current")
+					? alias(
+							i18nSourceTable!,
+							useStageVersions ? "i18n_v_current" : "i18n_current",
+						)
 					: null;
 				const i18nFallbackTable = needsFallback
-					? alias(this.i18nTable!, "i18n_fallback")
+					? alias(
+							i18nSourceTable!,
+							useStageVersions ? "i18n_v_fallback" : "i18n_fallback",
+						)
 					: null;
 
 				// Build SELECT object with aliased i18n tables
@@ -358,34 +561,93 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 					normalized,
 					i18nCurrentTable,
 					i18nFallbackTable,
+					readTable,
+					useStageVersions,
 				);
 
 				// Start building query
-				let query = db.select(selectObj).from(this.table);
-
-				// Add i18n joins if locale provided and localized fields exist
-				if (useI18n && i18nCurrentTable) {
-					// LEFT JOIN for current locale
-					query = query.leftJoin(
-						i18nCurrentTable,
-						and(
-							eq((i18nCurrentTable as any).parentId, (this.table as any).id),
-							eq((i18nCurrentTable as any).locale, normalized.locale!),
-						),
+				let query: any;
+				if (useStageVersions) {
+					const latestStageSubquery = this.buildLatestStageSubquery(
+						db,
+						readStage,
+						"latest_stage_versions",
 					);
-
-					// LEFT JOIN for fallback locale (only if different from current)
-					if (needsFallback && i18nFallbackTable) {
-						query = query.leftJoin(
-							i18nFallbackTable,
+					query = db
+						.select(selectObj)
+						.from(readTable)
+						.innerJoin(
+							latestStageSubquery,
 							and(
-								eq((i18nFallbackTable as any).parentId, (this.table as any).id),
+								eq((readTable as any).id, (latestStageSubquery as any).id),
 								eq(
-									(i18nFallbackTable as any).locale,
-									normalized.defaultLocale!,
+									(readTable as any).versionNumber,
+									(latestStageSubquery as any).maxVersionNumber,
 								),
 							),
 						);
+				} else {
+					query = db.select(selectObj).from(readTable);
+				}
+
+				// Add i18n joins if locale provided and localized fields exist
+				if (useI18n && i18nCurrentTable) {
+					if (useStageVersions) {
+						query = query.leftJoin(
+							i18nCurrentTable,
+							and(
+								eq((i18nCurrentTable as any).parentId, (readTable as any).id),
+								eq(
+									(i18nCurrentTable as any).versionNumber,
+									(readTable as any).versionNumber,
+								),
+								eq((i18nCurrentTable as any).locale, normalized.locale!),
+							),
+						);
+
+						if (needsFallback && i18nFallbackTable) {
+							query = query.leftJoin(
+								i18nFallbackTable,
+								and(
+									eq(
+										(i18nFallbackTable as any).parentId,
+										(readTable as any).id,
+									),
+									eq(
+										(i18nFallbackTable as any).versionNumber,
+										(readTable as any).versionNumber,
+									),
+									eq(
+										(i18nFallbackTable as any).locale,
+										normalized.defaultLocale!,
+									),
+								),
+							);
+						}
+					} else {
+						query = query.leftJoin(
+							i18nCurrentTable,
+							and(
+								eq((i18nCurrentTable as any).parentId, (readTable as any).id),
+								eq((i18nCurrentTable as any).locale, normalized.locale!),
+							),
+						);
+
+						if (needsFallback && i18nFallbackTable) {
+							query = query.leftJoin(
+								i18nFallbackTable,
+								and(
+									eq(
+										(i18nFallbackTable as any).parentId,
+										(readTable as any).id,
+									),
+									eq(
+										(i18nFallbackTable as any).locale,
+										normalized.defaultLocale!,
+									),
+								),
+							);
+						}
 					}
 				}
 
@@ -396,7 +658,7 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 					const whereClause = this.buildWhereClause(
 						mergedWhere,
 						useI18n,
-						undefined,
+						readTable,
 						normalized,
 						undefined,
 						i18nCurrentTable,
@@ -409,8 +671,18 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 
 				// Soft delete filter
 				if (this.state.options.softDelete && !includeDeleted) {
-					const softDeleteFilter = sql`${(this.table as any).deletedAt} IS NULL`;
-					whereClauses.push(softDeleteFilter);
+					const deletedAtColumn = (readTable as any).deletedAt;
+					if (deletedAtColumn) {
+						const softDeleteFilter = sql`${deletedAtColumn} IS NULL`;
+						whereClauses.push(softDeleteFilter);
+					}
+				}
+
+				if (useStageVersions && !includeDeleted) {
+					const versionOperationColumn = (readTable as any).versionOperation;
+					if (versionOperationColumn) {
+						whereClauses.push(sql`${versionOperationColumn} != 'delete'`);
+					}
 				}
 
 				// Search filter by _title (for relation pickers, etc.) - only for 'many' mode
@@ -427,7 +699,7 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 							i18nCurrentTable
 						) {
 							titleExpr = buildLocalizedFieldRef(this.state.title, {
-								table: this.table,
+								table: readTable,
 								state: this.state,
 								i18nCurrentTable,
 								i18nFallbackTable,
@@ -436,22 +708,23 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 						}
 						// If title is a regular field
 						else if (this.state.title in this.state.fields) {
-							titleExpr = (this.table as any)[this.state.title];
+							titleExpr = (readTable as any)[this.state.title];
 						}
 						// If title is a virtual field, get from virtuals with aliased tables
-						else if (this.getVirtualsWithAliases) {
-							const virtuals = this.getVirtualsWithAliases(
-								normalized,
-								i18nCurrentTable,
-								i18nFallbackTable,
-							);
+						else {
+							const virtualGetter = useStageVersions
+								? this.getVirtualsForVersionsWithAliases
+								: this.getVirtualsWithAliases;
+							const virtuals = virtualGetter
+								? virtualGetter(normalized, i18nCurrentTable, i18nFallbackTable)
+								: undefined;
 							if (virtuals && this.state.title in virtuals) {
 								titleExpr = (virtuals as any)[this.state.title];
 							}
 						}
 					}
 
-					titleExpr = titleExpr || (this.table as any).id;
+					titleExpr = titleExpr || (readTable as any).id;
 					// Case-insensitive search using ILIKE
 					const searchFilter = sql`${titleExpr}::text ILIKE ${`%${searchTerm}%`}`;
 					whereClauses.push(searchFilter);
@@ -468,6 +741,7 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 						useI18n,
 						i18nCurrentTable,
 						i18nFallbackTable,
+						readTable,
 					);
 					for (const clause of orderClauses) {
 						query = query.orderBy(clause);
@@ -501,7 +775,7 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 				}
 
 				// Handle relations
-				if (rows.length > 0 && options.with && this.cms) {
+				if (rows.length > 0 && options.with && this.app) {
 					await this.resolveRelations(rows, options.with, normalized);
 				}
 
@@ -593,7 +867,7 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 		withConfig: With,
 		context: CRUDContext,
 	) {
-		if (!rows.length || !withConfig || !this.cms) return;
+		if (!rows.length || !withConfig || !this.app) return;
 		const db = this.getDb(context);
 		const typedRows = rows as Array<Record<string, any>>;
 		const relationOptionKeys = new Set([
@@ -613,7 +887,7 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 			const relation = this.state.relations?.[relationName];
 			if (!relation) continue;
 
-			const relatedCrud = this.cms.api.collections[
+			const relatedCrud = this.app.api.collections[
 				relation.collection
 			] as unknown as CRUD;
 
@@ -665,7 +939,7 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 						db,
 						resolveFieldKey: this.resolveFieldKey,
 						buildWhereClause,
-						cms: this.cms,
+						app: this.app,
 					});
 				} else {
 					await resolveHasManyRelation({
@@ -678,13 +952,13 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 						db,
 						resolveFieldKey: this.resolveFieldKey,
 						buildWhereClause,
-						cms: this.cms,
+						app: this.app,
 					});
 				}
 			}
 			// ManyToMany relation (through junction table)
 			else if (relation.type === "manyToMany" && relation.through) {
-				const junctionCrud = this.cms.api.collections[
+				const junctionCrud = this.app.api.collections[
 					relation.through
 				] as unknown as CRUD;
 				await resolveManyToManyRelation({
@@ -770,11 +1044,11 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 		record: any,
 		context: CRUDContext,
 	): Promise<void> {
-		if (!this.cms || !this.state.relations) return;
+		if (!this.app || !this.state.relations) return;
 		await handleCascadeDelete({
 			record,
 			relations: this.state.relations,
-			cms: this.cms,
+			app: this.app,
 			context,
 			resolveFieldKey: this.resolveFieldKey,
 		});
@@ -805,14 +1079,14 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 		regularFields: Record<string, any>;
 		nestedRelations: Record<string, any>;
 	}> {
-		if (!this.cms || !this.state.relations) {
+		if (!this.app || !this.state.relations) {
 			return { regularFields, nestedRelations };
 		}
 		return applyBelongsToRelations(
 			regularFields,
 			nestedRelations,
 			this.state.relations,
-			this.cms,
+			this.app,
 			context,
 			tx,
 			this.resolveFieldKey,
@@ -855,12 +1129,12 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 		context: CRUDContext,
 		tx: any,
 	): Promise<void> {
-		if (!this.cms || !this.state.relations) return;
+		if (!this.app || !this.state.relations) return;
 		await processNestedRelations({
 			parentRecord,
 			nestedRelations,
 			relations: this.state.relations,
-			cms: this.cms,
+			app: this.app,
 			context,
 			tx,
 			resolveFieldKey: this.resolveFieldKey,
@@ -880,11 +1154,12 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 			// This enables implicit getContext<TApp>() calls in hooks/access control
 			return runWithContext(
 				{
-					app: this.cms,
+					app: this.app,
 					session: normalized.session,
 					db,
 					locale: normalized.locale,
 					accessMode: normalized.accessMode,
+					stage: normalized.stage,
 				},
 				async () => {
 					// Execute beforeOperation hook
@@ -1180,7 +1455,11 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 
 		const recordsResult = (await this._executeFind(
 			{ ...findOptions, includeDeleted: true },
-			{ ...normalized, accessMode: "system" },
+			{
+				...normalized,
+				accessMode: "system",
+				stage: this.workflowConfig?.initialStage,
+			},
 			"many",
 		)) as PaginatedResult<any>;
 
@@ -1360,7 +1639,11 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 				// Re-fetch updated records with full state (i18n, virtuals, title, etc.)
 				const reFetchResult = (await this._executeFind(
 					{ where: { id: { in: recordIds } }, includeDeleted: true },
-					{ ...txContext, accessMode: "system" },
+					{
+						...txContext,
+						accessMode: "system",
+						stage: this.workflowConfig?.initialStage,
+					},
 					"many",
 				)) as PaginatedResult<any>;
 
@@ -2097,7 +2380,13 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 					.limit(1);
 				const result = updatedRows[0];
 
-				await this.createVersion(tx, result, "update", normalized);
+				await this.createVersion(
+					tx,
+					result,
+					"update",
+					normalized,
+					(version as any).versionStage,
+				);
 
 				await this.executeHooks(
 					this.state.hooks?.afterChange as any,
@@ -2128,6 +2417,173 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 	}
 
 	/**
+	 * Transition a record to a different workflow stage without data mutation.
+	 * Validates workflow is enabled, stage exists, transition is allowed,
+	 * creates a version snapshot at the target stage, and broadcasts realtime.
+	 */
+	private createTransitionStage() {
+		return async (
+			params: TransitionStageParams,
+			context: CRUDContext = {},
+		) => {
+			if (!this.workflowConfig) {
+				throw ApiError.badRequest(
+					`Workflow is not enabled for collection "${this.state.name}"`,
+				);
+			}
+
+			const { id, stage: toStage, scheduledAt } = params;
+
+			// If scheduledAt is in the future, schedule via queue job
+			if (scheduledAt && scheduledAt.getTime() > Date.now()) {
+				const queue = (this.app as any)?.queue;
+				if (!queue?.["scheduled-transition"]?.publish) {
+					throw ApiError.badRequest(
+						"Scheduled transitions require a queue adapter with the scheduled-transition job registered",
+					);
+				}
+				await queue["scheduled-transition"].publish(
+					{
+						type: "collection" as const,
+						collection: this.state.name,
+						recordId: id as string,
+						stage: toStage,
+					},
+					{ startAfter: scheduledAt },
+				);
+				// Return the existing record unchanged
+				const rows = await this.getDb(this.normalizeContext(context))
+					.select()
+					.from(this.table)
+					.where(eq((this.table as any).id, id))
+					.limit(1);
+				return rows[0] ?? null;
+			}
+			const normalized = this.normalizeContext(context);
+			const db = this.getDb(normalized);
+
+			// Validate target stage exists
+			const stageExists = this.workflowConfig.stages.some(
+				(s) => s.name === toStage,
+			);
+			if (!stageExists) {
+				throw ApiError.badRequest(
+					`Unknown workflow stage "${toStage}" for collection "${this.state.name}"`,
+				);
+			}
+
+			// Load existing record
+			const existingRows = await db
+				.select()
+				.from(this.table)
+				.where(eq((this.table as any).id, id))
+				.limit(1);
+			const existing = existingRows[0];
+
+			if (!existing) {
+				throw ApiError.notFound("Record", id);
+			}
+
+			// Enforce access control: access.transition with fallback to access.update
+			if (normalized.accessMode !== "system") {
+				const accessRule =
+					this.state.access?.transition ??
+					this.state.access?.update ??
+					this.app?.defaultAccess?.update;
+				const canTransition = await executeAccessRule(accessRule, {
+					app: this.app,
+					db,
+					session: normalized.session,
+					locale: normalized.locale,
+					row: existing,
+				});
+				if (canTransition === false) {
+					throw ApiError.forbidden({
+						operation: "update",
+						resource: this.state.name,
+						reason:
+							"User does not have permission to transition this record",
+					});
+				}
+				if (typeof canTransition === "object") {
+					const matchesConditions = await this.checkAccessConditions(
+						canTransition,
+						existing,
+					);
+					if (!matchesConditions) {
+						throw ApiError.forbidden({
+							operation: "update",
+							resource: this.state.name,
+							reason:
+								"Record does not match access control conditions",
+						});
+					}
+				}
+			}
+
+			// Get current stage and assert transition allowed
+			const fromStage = await this.getCurrentWorkflowStage(db, id);
+			this.assertTransitionAllowed(fromStage, toStage);
+
+			// Build transition hook context
+			const transitionCtx: TransitionHookContext = {
+				data: existing,
+				fromStage,
+				toStage,
+				app: this.app,
+				session: normalized.session,
+				locale: normalized.locale,
+				db,
+			};
+
+			// Execute beforeTransition hooks (throw to abort)
+			await this.executeTransitionHooks(
+				this.state.hooks?.beforeTransition,
+				transitionCtx,
+			);
+
+			// Create version snapshot at target stage (no data mutation)
+			let changeEvent: any = null;
+			await withTransaction(db, async (tx: any) => {
+				await createVersionRecord({
+					tx,
+					row: existing,
+					operation: "update",
+					versionsTable: this.versionsTable!,
+					i18nVersionsTable: this.i18nVersionsTable,
+					i18nTable: this.i18nTable,
+					options: this.state.options,
+					context: normalized,
+					workflowStage: toStage,
+					workflowFromStage: fromStage,
+				});
+
+				changeEvent = await this.appendRealtimeChange(
+					{
+						operation: "update",
+						recordId: id as string,
+						payload: {
+							workflowTransition: { from: fromStage, to: toStage },
+						},
+					},
+					normalized,
+					tx,
+				);
+			});
+
+			// Execute afterTransition hooks
+			await this.executeTransitionHooks(
+				this.state.hooks?.afterTransition,
+				transitionCtx,
+			);
+
+			await this.notifyRealtimeChange(changeEvent);
+
+			return existing;
+		};
+	}
+
+	/**
 	 * Create a new version of the record
 	 * Delegates to extracted createVersionRecord utility
 	 */
@@ -2136,8 +2592,30 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 		row: any,
 		operation: "create" | "update" | "delete",
 		context: CRUDContext,
+		stageOverride?: string,
 	) {
 		if (!this.versionsTable) return;
+
+		let workflowStage: string | undefined;
+		let workflowFromStage: string | undefined;
+
+		if (this.workflowConfig) {
+			if (operation === "delete") {
+				workflowFromStage = await this.getCurrentWorkflowStage(tx, row.id);
+				workflowStage = workflowFromStage;
+			} else {
+				const requestedStage = stageOverride ?? this.getWriteStage(context);
+				workflowStage = requestedStage;
+
+				if (operation === "update") {
+					workflowFromStage = await this.getCurrentWorkflowStage(tx, row.id);
+					if (workflowStage) {
+						this.assertTransitionAllowed(workflowFromStage, workflowStage);
+					}
+				}
+			}
+		}
+
 		await createVersionRecord({
 			tx,
 			row,
@@ -2147,6 +2625,8 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 			i18nTable: this.i18nTable,
 			options: this.state.options,
 			context,
+			workflowStage,
+			workflowFromStage,
 		});
 	}
 
@@ -2162,7 +2642,22 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 	}
 
 	/**
-	 * Create hook context with full CMS access
+	 * Execute transition hooks (supports arrays).
+	 * Uses TransitionHookContext instead of HookContext.
+	 */
+	private async executeTransitionHooks(
+		hooks: any | any[] | undefined,
+		ctx: TransitionHookContext,
+	) {
+		if (!hooks) return;
+		const hookArray = Array.isArray(hooks) ? hooks : [hooks];
+		for (const hook of hookArray) {
+			await hook(ctx);
+		}
+	}
+
+	/**
+	 * Create hook context with full app access
 	 * Delegates to shared createHookContext utility
 	 */
 	private createHookContext(params: {
@@ -2174,14 +2669,14 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 	}): HookContext<any, any, any> {
 		return createHookContext({
 			...params,
-			cms: this.cms,
+			app: this.app,
 		});
 	}
 
 	/**
 	 * Enforce access control
 	 * Delegates to extracted executeAccessRule utility
-	 * Falls back to CMS defaultAccess if collection doesn't define its own rules
+	 * Falls back to app defaultAccess if collection doesn't define its own rules
 	 */
 	private async enforceAccessControl(
 		operation: "read" | "create" | "update" | "delete",
@@ -2195,11 +2690,11 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 		// System mode bypasses all access control
 		if (normalized.accessMode === "system") return true;
 
-		// Use collection's access rule, or fall back to CMS defaultAccess
+		// Use collection's access rule, or fall back to app defaultAccess
 		const accessRule =
-			this.state.access?.[operation] ?? this.cms?.defaultAccess?.[operation];
+			this.state.access?.[operation] ?? this.app?.defaultAccess?.[operation];
 		return executeAccessRule(accessRule, {
-			cms: this.cms,
+			app: this.app,
 			db,
 			session: normalized.session,
 			locale: normalized.locale,
@@ -2234,7 +2729,7 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 		const fieldAccess = this.getFieldAccessRules();
 
 		const fieldsToRemove = await getRestrictedReadFields(result, context, {
-			cms: this.cms,
+			app: this.app,
 			db,
 			fieldAccess,
 		});
@@ -2263,7 +2758,7 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 			data,
 			fieldAccess,
 			context,
-			{ cms: this.cms, db },
+			{ app: this.app, db },
 			this.state.name,
 			operation,
 			existing,
@@ -2308,7 +2803,7 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 			i18nCurrentTable: i18nCurrentTable ?? null,
 			i18nFallbackTable: i18nFallbackTable ?? null,
 			context,
-			cms: this.cms,
+			app: this.app,
 			useI18n,
 			db: this.db,
 		});
@@ -2330,14 +2825,23 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 		context?: CRUDContext,
 		i18nCurrentTable?: PgTable | null,
 		i18nFallbackTable?: PgTable | null,
+		table?: PgTable,
+		useVersionVirtuals: boolean = false,
 	): any {
+		const virtualGetter = useVersionVirtuals
+			? this.getVirtualsForVersionsWithAliases
+			: this.getVirtualsWithAliases;
+		const titleGetter = useVersionVirtuals
+			? this.getTitleExpressionForVersions
+			: this.getTitleExpression;
+
 		return buildSelectObject(columns, extras, context, {
-			table: this.table,
+			table: table ?? this.table,
 			state: this.state,
 			i18nCurrentTable: i18nCurrentTable ?? null,
 			i18nFallbackTable: i18nFallbackTable ?? null,
-			getVirtualsWithAliases: this.getVirtualsWithAliases,
-			getTitle: this.getTitleExpression,
+			getVirtualsWithAliases: virtualGetter,
+			getTitle: titleGetter,
 		});
 	}
 
@@ -2380,9 +2884,10 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 		useI18n: boolean = false,
 		i18nCurrentTable?: PgTable | null,
 		i18nFallbackTable?: PgTable | null,
+		table?: PgTable,
 	): SQL[] {
 		return buildOrderByClauses(orderBy, {
-			table: this.table,
+			table: table ?? this.table,
 			state: this.state,
 			i18nCurrentTable: i18nCurrentTable ?? null,
 			i18nFallbackTable: i18nFallbackTable ?? null,
@@ -2452,9 +2957,9 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 		record: any,
 		context: CRUDContext,
 	): Promise<void> {
-		if (!this.cms) return;
+		if (!this.app) return;
 		return indexToSearch(record, context, {
-			cms: this.cms,
+			app: this.app,
 			state: this.state,
 			getTitle: this.getTitleExpression,
 		});
@@ -2473,7 +2978,7 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 		context: CRUDContext,
 		db: any,
 	) {
-		return appendRealtimeChange(params, context, db, this.cms, this.state.name);
+		return appendRealtimeChange(params, context, db, this.app, this.state.name);
 	}
 
 	/**
@@ -2481,7 +2986,7 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 	 * Delegates to shared notifyRealtimeChange utility
 	 */
 	private async notifyRealtimeChange(change: unknown) {
-		return notifyRealtimeChange(change, this.cms);
+		return notifyRealtimeChange(change, this.app);
 	}
 
 	/**
@@ -2492,9 +2997,9 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 		recordId: string,
 		context: CRUDContext,
 	): Promise<void> {
-		if (!this.cms) return;
+		if (!this.app) return;
 		return removeFromSearch(recordId, context, {
-			cms: this.cms,
+			app: this.app,
 			state: this.state,
 		});
 	}
@@ -2513,7 +3018,7 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 				throw ApiError.notImplemented("Upload");
 			}
 
-			if (!this.cms?.storage) {
+			if (!this.app?.storage) {
 				throw ApiError.internal("Storage not configured");
 			}
 
@@ -2559,7 +3064,7 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 				const { Readable } = await import("node:stream");
 				const webStream = file.stream();
 				const nodeStream = Readable.fromWeb(webStream as any);
-				await this.cms.storage.use().putStream(key, nodeStream, {
+				await this.app.storage.use().putStream(key, nodeStream, {
 					contentType: file.type,
 					contentLength: file.size,
 					visibility,
@@ -2567,7 +3072,7 @@ export class CRUDGenerator<TState extends CollectionBuilderState> {
 			} else {
 				// Fallback to buffer-based upload for files without stream support
 				const buffer = await file.arrayBuffer();
-				await this.cms.storage.use().put(key, new Uint8Array(buffer), {
+				await this.app.storage.use().put(key, new Uint8Array(buffer), {
 					contentType: file.type,
 					contentLength: file.size,
 					visibility,

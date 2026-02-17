@@ -55,18 +55,26 @@ import type {
 	GlobalBuilderState,
 	GlobalHookContext,
 	GlobalHookFunction,
+	GlobalTransitionHookContext,
 } from "#questpie/server/global/builder/types.js";
+import {
+	type ResolvedWorkflowConfig,
+	resolveWorkflowConfig,
+} from "#questpie/server/workflow/config.js";
 import { DEFAULT_LOCALE } from "#questpie/shared/constants.js";
 import type {
 	GlobalCRUD,
 	GlobalFindVersionsOptions,
 	GlobalGetOptions,
 	GlobalRevertVersionOptions,
+	GlobalTransitionStageParams,
 	GlobalUpdateOptions,
 	GlobalVersionRecord,
 } from "./types.js";
 
 export class GlobalCRUDGenerator<TState extends GlobalBuilderState> {
+	private readonly workflowConfig: ResolvedWorkflowConfig | undefined;
+
 	constructor(
 		private state: TState,
 		private table: PgTable,
@@ -76,15 +84,24 @@ export class GlobalCRUDGenerator<TState extends GlobalBuilderState> {
 		private db: any,
 		private getVirtuals?: (context: any) => any,
 		private getVirtualsForVersions?: (context: any) => any,
-		private cms?: any,
-	) {}
+		private app?: any,
+	) {
+		this.workflowConfig = resolveWorkflowConfig(this.state.options.workflow);
+
+		if (this.workflowConfig && !this.versionsTable) {
+			throw new Error(
+				`Global "${this.state.name}" enables workflow but versioning is disabled. Enable options.versioning to use workflow stages.`,
+			);
+		}
+	}
 
 	generate(): GlobalCRUD {
 		const crud: GlobalCRUD = {
 			get: this.wrapGetWithCMSContext(this.createGet()),
 			update: this.wrapUpdateWithCMSContext(this.createUpdate()),
-			findVersions: this.wrapWithCMSContext(this.createFindVersions()),
-			revertToVersion: this.wrapWithCMSContext(this.createRevertToVersion()),
+			findVersions: this.wrapWithAppContext(this.createFindVersions()),
+			revertToVersion: this.wrapWithAppContext(this.createRevertToVersion()),
+			transitionStage: this.wrapWithAppContext(this.createTransitionStage()),
 		};
 		return crud;
 	}
@@ -102,6 +119,94 @@ export class GlobalCRUDGenerator<TState extends GlobalBuilderState> {
 	): Required<Pick<CRUDContext, "accessMode" | "locale" | "defaultLocale">> &
 		CRUDContext {
 		return normalizeContext(context);
+	}
+
+	private getReadStage(
+		options: GlobalGetOptions,
+		context: CRUDContext,
+	): string | undefined {
+		if (!this.workflowConfig) return undefined;
+
+		const requested = options.stage ?? context.stage;
+		const stage = requested ?? this.workflowConfig.initialStage;
+		const exists = this.workflowConfig.stages.some(
+			(item) => item.name === stage,
+		);
+
+		if (!exists) {
+			throw ApiError.badRequest(
+				`Unknown workflow stage "${stage}" for global "${this.state.name}"`,
+			);
+		}
+
+		return stage;
+	}
+
+	private getWriteStage(
+		context: CRUDContext,
+		override?: string,
+	): string | undefined {
+		if (!this.workflowConfig) return undefined;
+
+		const stage = override ?? context.stage ?? this.workflowConfig.initialStage;
+		const exists = this.workflowConfig.stages.some(
+			(item) => item.name === stage,
+		);
+
+		if (!exists) {
+			throw ApiError.badRequest(
+				`Unknown workflow stage "${stage}" for global "${this.state.name}"`,
+			);
+		}
+
+		return stage;
+	}
+
+	private assertTransitionAllowed(fromStage: string, toStage: string): void {
+		if (!this.workflowConfig || fromStage === toStage) {
+			return;
+		}
+
+		const fromConfig = this.workflowConfig.stages.find(
+			(item) => item.name === fromStage,
+		);
+		if (!fromConfig) {
+			return;
+		}
+
+		if (fromConfig.transitions && !fromConfig.transitions.includes(toStage)) {
+			throw ApiError.badRequest(
+				`Transition from "${fromStage}" to "${toStage}" is not allowed for global "${this.state.name}"`,
+			);
+		}
+	}
+
+	private async getCurrentWorkflowStage(
+		db: any,
+		recordId: string | number,
+	): Promise<string> {
+		if (!this.workflowConfig || !this.versionsTable) {
+			return this.workflowConfig?.initialStage ?? "draft";
+		}
+
+		const stageColumn = (this.versionsTable as any).versionStage;
+		if (!stageColumn) {
+			return this.workflowConfig.initialStage;
+		}
+
+		const rows = await db
+			.select({ stage: stageColumn })
+			.from(this.versionsTable)
+			.where(
+				and(
+					eq((this.versionsTable as any).id, recordId),
+					sql`${stageColumn} IS NOT NULL`,
+				),
+			)
+			.orderBy(sql`${(this.versionsTable as any).versionNumber} DESC`)
+			.limit(1);
+
+		return rows[0]?.stage ?? this.workflowConfig.initialStage;
 	}
 
 	private getFieldAccessRules():
@@ -167,7 +272,7 @@ export class GlobalCRUDGenerator<TState extends GlobalBuilderState> {
 			params,
 			context,
 			db,
-			this.cms,
+			this.app,
 			this.state.name,
 			"global",
 		);
@@ -178,7 +283,7 @@ export class GlobalCRUDGenerator<TState extends GlobalBuilderState> {
 	 * Delegates to shared notifyRealtimeChange utility
 	 */
 	private async notifyRealtimeChange(change: unknown) {
-		return notifyRealtimeChange(change, this.cms);
+		return notifyRealtimeChange(change, this.app);
 	}
 
 	/**
@@ -222,7 +327,7 @@ export class GlobalCRUDGenerator<TState extends GlobalBuilderState> {
 	/**
 	 * Generic wrapper for other methods where context is always last
 	 */
-	private wrapWithCMSContext<TArgs extends any[], TResult>(
+	private wrapWithAppContext<TArgs extends any[], TResult>(
 		fn: (...args: TArgs) => Promise<TResult>,
 	): (...args: TArgs) => Promise<TResult> {
 		return fn;
@@ -313,7 +418,10 @@ export class GlobalCRUDGenerator<TState extends GlobalBuilderState> {
 			context: CRUDContext = {},
 		) => {
 			const db = this.getDb(context);
-			const normalized = this.normalizeContext(context);
+			const normalized = this.normalizeContext({
+				...context,
+				stage: options.stage ?? context.stage,
+			});
 			const isScoped = this.state.options.scoped !== undefined;
 			const scopeId = isScoped ? this.resolveScopeId(normalized) : undefined;
 
@@ -338,80 +446,136 @@ export class GlobalCRUDGenerator<TState extends GlobalBuilderState> {
 				this.createHookContext({ data: null, context: normalized, db }),
 			);
 
-			const { query, useI18n, needsFallback } = this.buildSelectQuery(
-				db,
-				normalized,
-				options.columns,
-			);
+			const readStage = this.getReadStage(options, normalized);
+			const useStageVersions =
+				!!this.workflowConfig &&
+				!!readStage &&
+				readStage !== this.workflowConfig.initialStage;
 
-			// Apply scope filter if this is a scoped global
-			let scopedQuery = query;
-			if (isScoped) {
-				if (scopeId) {
-					scopedQuery = query.where(eq((this.table as any).scopeId, scopeId));
-				} else {
-					scopedQuery = query.where(
-						sql`${(this.table as any).scopeId} IS NULL`,
-					);
+			let row: any = null;
+
+			if (useStageVersions && this.versionsTable) {
+				let baseRow = await this.getCurrentRow(db, normalized);
+
+				if (!baseRow) {
+					baseRow = await withTransaction(db, async (tx: any) => {
+						const insertValues: Record<string, any> = {};
+						if (isScoped) {
+							insertValues.scopeId = scopeId ?? null;
+						}
+
+						const [inserted] = await tx
+							.insert(this.table)
+							.values(insertValues)
+							.returning();
+
+						if (!inserted) {
+							throw ApiError.internal("Failed to auto-create global record");
+						}
+
+						const createStageContext = this.workflowConfig
+							? { ...normalized, stage: this.workflowConfig.initialStage }
+							: normalized;
+						await this.createVersion(
+							tx,
+							inserted,
+							"create",
+							createStageContext,
+						);
+						return inserted;
+					});
+				}
+
+				const versionRows = await db
+					.select(this.buildVersionsSelectObject(normalized))
+					.from(this.versionsTable)
+					.where(
+						and(
+							eq((this.versionsTable as any).id, baseRow.id),
+							eq((this.versionsTable as any).versionStage, readStage),
+							sql`${(this.versionsTable as any).versionOperation} != 'delete'`,
+						),
+					)
+					.orderBy(sql`${(this.versionsTable as any).versionNumber} DESC`)
+					.limit(1);
+
+				row = versionRows[0] ? this.stripVersionMetadata(versionRows[0]) : null;
+			} else {
+				const { query, useI18n, needsFallback } = this.buildSelectQuery(
+					db,
+					normalized,
+					options.columns,
+				);
+
+				// Apply scope filter if this is a scoped global
+				let scopedQuery = query;
+				if (isScoped) {
+					if (scopeId) {
+						scopedQuery = query.where(eq((this.table as any).scopeId, scopeId));
+					} else {
+						scopedQuery = query.where(
+							sql`${(this.table as any).scopeId} IS NULL`,
+						);
+					}
+				}
+
+				let rows = await scopedQuery.limit(1);
+
+				// Application-side i18n merge
+				if (useI18n && rows.length > 0 && this.state.localized.length > 0) {
+					rows = mergeI18nRows(rows, {
+						localizedFields: this.state.localized,
+						hasFallback: needsFallback,
+					});
+				}
+
+				row = rows[0] || null;
+
+				if (!row) {
+					row = await withTransaction(db, async (tx: any) => {
+						// Auto-create with scope_id if scoped
+						const insertValues: Record<string, any> = {};
+						if (isScoped) {
+							insertValues.scopeId = scopeId ?? null;
+						}
+
+						const [inserted] = await tx
+							.insert(this.table)
+							.values(insertValues)
+							.returning();
+						if (!inserted) {
+							throw ApiError.internal("Failed to auto-create global record");
+						}
+
+						await this.createVersion(tx, inserted, "create", normalized);
+
+						const {
+							query: createdQuery,
+							useI18n: createdUseI18n,
+							needsFallback: createdNeedsFallback,
+						} = this.buildSelectQuery(tx, normalized, options.columns);
+						let createdRows = await createdQuery
+							.where(eq((this.table as any).id, inserted.id))
+							.limit(1);
+
+						// Application-side i18n merge
+						if (
+							createdUseI18n &&
+							createdRows.length > 0 &&
+							this.state.localized.length > 0
+						) {
+							createdRows = mergeI18nRows(createdRows, {
+								localizedFields: this.state.localized,
+								hasFallback: createdNeedsFallback,
+							});
+						}
+
+						return createdRows[0] || inserted;
+					});
 				}
 			}
 
-			let rows = await scopedQuery.limit(1);
-
-			// Application-side i18n merge
-			if (useI18n && rows.length > 0 && this.state.localized.length > 0) {
-				rows = mergeI18nRows(rows, {
-					localizedFields: this.state.localized,
-					hasFallback: needsFallback,
-				});
-			}
-
-			let row = rows[0] || null;
-
-			if (!row) {
-				row = await withTransaction(db, async (tx: any) => {
-					// Auto-create with scope_id if scoped
-					const insertValues: Record<string, any> = {};
-					if (isScoped) {
-						insertValues.scopeId = scopeId ?? null;
-					}
-
-					const [inserted] = await tx
-						.insert(this.table)
-						.values(insertValues)
-						.returning();
-					if (!inserted) {
-						throw ApiError.internal("Failed to auto-create global record");
-					}
-
-					await this.createVersion(tx, inserted, "create", normalized);
-
-					const {
-						query: createdQuery,
-						useI18n: createdUseI18n,
-						needsFallback: createdNeedsFallback,
-					} = this.buildSelectQuery(tx, normalized, options.columns);
-					let createdRows = await createdQuery
-						.where(eq((this.table as any).id, inserted.id))
-						.limit(1);
-
-					// Application-side i18n merge
-					if (
-						createdUseI18n &&
-						createdRows.length > 0 &&
-						this.state.localized.length > 0
-					) {
-						createdRows = mergeI18nRows(createdRows, {
-							localizedFields: this.state.localized,
-							hasFallback: createdNeedsFallback,
-						});
-					}
-
-					return createdRows[0] || inserted;
-				});
-			}
-
-			if (row && options.with && this.cms) {
+			if (row && options.with && this.app) {
 				await this.resolveRelations([row], options.with, normalized);
 			}
 
@@ -457,12 +621,12 @@ export class GlobalCRUDGenerator<TState extends GlobalBuilderState> {
 		context: CRUDContext,
 		tx: any,
 	): Promise<void> {
-		if (!this.cms || !this.state.relations) return;
+		if (!this.app || !this.state.relations) return;
 		await processNestedRelations({
 			parentRecord,
 			nestedRelations,
 			relations: this.state.relations,
-			cms: this.cms,
+			app: this.app,
 			context,
 			tx,
 			resolveFieldKey: (state, column, table) =>
@@ -477,7 +641,14 @@ export class GlobalCRUDGenerator<TState extends GlobalBuilderState> {
 			options: GlobalUpdateOptions = {},
 		) => {
 			const db = this.getDb(context);
-			const normalized = this.normalizeContext(context);
+			const normalized = this.normalizeContext({
+				...context,
+				stage: options.stage ?? context.stage,
+			});
+			const workflowStage = this.getWriteStage(normalized, options.stage);
+			const workflowContext = workflowStage
+				? { ...normalized, stage: workflowStage }
+				: normalized;
 			const isScoped = this.state.options.scoped !== undefined;
 			const scopeId = isScoped ? this.resolveScopeId(normalized) : undefined;
 			const existing = await this.getCurrentRow(db, normalized);
@@ -640,7 +811,7 @@ export class GlobalCRUDGenerator<TState extends GlobalBuilderState> {
 					tx,
 					baseRecord,
 					existing ? "update" : "create",
-					normalized,
+					workflowContext,
 				);
 
 				await this.executeHooks(
@@ -675,7 +846,7 @@ export class GlobalCRUDGenerator<TState extends GlobalBuilderState> {
 			});
 
 			// Resolve relations if requested
-			if (updatedRecord && options.with && this.cms) {
+			if (updatedRecord && options.with && this.app) {
 				await this.resolveRelations([updatedRecord], options.with, normalized);
 			}
 
@@ -972,7 +1143,13 @@ export class GlobalCRUDGenerator<TState extends GlobalBuilderState> {
 					throw ApiError.internal("Global record not found after revert");
 				}
 
-				await this.createVersion(tx, baseRecord, "update", normalized);
+				await this.createVersion(
+					tx,
+					baseRecord,
+					"update",
+					normalized,
+					(version as any).versionStage,
+				);
 
 				await this.executeHooks(
 					this.state.hooks?.afterUpdate,
@@ -1009,6 +1186,149 @@ export class GlobalCRUDGenerator<TState extends GlobalBuilderState> {
 	}
 
 	/**
+	 * Transition the global to a different workflow stage without data mutation.
+	 * Validates workflow is enabled, stage exists, transition is allowed,
+	 * creates a version snapshot at the target stage, and broadcasts realtime.
+	 */
+	private createTransitionStage() {
+		return async (
+			params: GlobalTransitionStageParams,
+			context: CRUDContext = {},
+		) => {
+			if (!this.workflowConfig) {
+				throw ApiError.badRequest(
+					`Workflow is not enabled for global "${this.state.name}"`,
+				);
+			}
+
+			const { stage: toStage, scheduledAt } = params;
+
+			// If scheduledAt is in the future, schedule via queue job
+			if (scheduledAt && scheduledAt.getTime() > Date.now()) {
+				const queue = (this.app as any)?.queue;
+				if (!queue?.["scheduled-transition"]?.publish) {
+					throw ApiError.badRequest(
+						"Scheduled transitions require a queue adapter with the scheduled-transition job registered",
+					);
+				}
+				await queue["scheduled-transition"].publish(
+					{
+						type: "global" as const,
+						global: this.state.name,
+						stage: toStage,
+					},
+					{ startAfter: scheduledAt },
+				);
+				// Return the existing global record unchanged
+				const normalized = this.normalizeContext(context);
+				const db = this.getDb(normalized);
+				return (await this.getCurrentRow(db, normalized)) ?? null;
+			}
+			const normalized = this.normalizeContext(context);
+			const db = this.getDb(normalized);
+
+			// Validate target stage exists
+			const stageExists = this.workflowConfig.stages.some(
+				(s) => s.name === toStage,
+			);
+			if (!stageExists) {
+				throw ApiError.badRequest(
+					`Unknown workflow stage "${toStage}" for global "${this.state.name}"`,
+				);
+			}
+
+			// Load existing global record
+			const existing = await this.getCurrentRow(db, normalized);
+			if (!existing) {
+				throw ApiError.notFound("Global", this.state.name);
+			}
+
+			// Enforce access control: access.transition with fallback to access.update
+			if (normalized.accessMode !== "system") {
+				const accessRule =
+					this.state.access?.transition ??
+					this.state.access?.update ??
+					this.app?.defaultAccess?.update;
+				const result = await executeAccessRule(accessRule, {
+					app: this.app,
+					db,
+					session: normalized.session,
+					locale: normalized.locale,
+					row: existing,
+				});
+				// Globals only support boolean access rules
+				if (result !== true) {
+					throw ApiError.forbidden({
+						operation: "update",
+						resource: this.state.name,
+						reason:
+							"User does not have permission to transition this global",
+					});
+				}
+			}
+
+			// Get current stage and assert transition allowed
+			const fromStage = await this.getCurrentWorkflowStage(db, existing.id);
+			this.assertTransitionAllowed(fromStage, toStage);
+
+			// Build transition hook context
+			const transitionCtx: GlobalTransitionHookContext = {
+				data: existing,
+				fromStage,
+				toStage,
+				app: this.app,
+				session: normalized.session,
+				locale: normalized.locale,
+				db,
+			};
+
+			// Execute beforeTransition hooks (throw to abort)
+			await this.executeTransitionHooks(
+				this.state.hooks?.beforeTransition,
+				transitionCtx,
+			);
+
+			// Create version snapshot at target stage (no data mutation)
+			let changeEvent: any = null;
+			await withTransaction(db, async (tx: any) => {
+				await createVersionRecord({
+					tx,
+					row: existing,
+					operation: "update",
+					versionsTable: this.versionsTable!,
+					i18nVersionsTable: this.i18nVersionsTable,
+					i18nTable: this.i18nTable,
+					options: this.state.options,
+					context: normalized,
+					workflowStage: toStage,
+					workflowFromStage: fromStage,
+				});
+
+				changeEvent = await this.appendRealtimeChange(
+					{
+						operation: "update",
+						payload: {
+							workflowTransition: { from: fromStage, to: toStage },
+						},
+					},
+					normalized,
+					tx,
+				);
+			});
+
+			// Execute afterTransition hooks
+			await this.executeTransitionHooks(
+				this.state.hooks?.afterTransition,
+				transitionCtx,
+			);
+
+			await this.notifyRealtimeChange(changeEvent);
+
+			return existing;
+		};
+	}
+
+	/**
 	 * Create a new version of the record
 	 * Delegates to extracted createVersionRecord utility
 	 */
@@ -1017,8 +1337,30 @@ export class GlobalCRUDGenerator<TState extends GlobalBuilderState> {
 		row: any,
 		operation: "create" | "update" | "delete",
 		context: CRUDContext,
+		stageOverride?: string,
 	) {
 		if (!this.versionsTable) return;
+
+		let workflowStage: string | undefined;
+		let workflowFromStage: string | undefined;
+
+		if (this.workflowConfig) {
+			if (operation === "delete") {
+				workflowFromStage = await this.getCurrentWorkflowStage(tx, row.id);
+				workflowStage = workflowFromStage;
+			} else {
+				const requestedStage = this.getWriteStage(context, stageOverride);
+				workflowStage = requestedStage;
+
+				if (operation === "update") {
+					workflowFromStage = await this.getCurrentWorkflowStage(tx, row.id);
+					if (workflowStage) {
+						this.assertTransitionAllowed(workflowFromStage, workflowStage);
+					}
+				}
+			}
+		}
+
 		await createVersionRecord({
 			tx,
 			row,
@@ -1028,6 +1370,8 @@ export class GlobalCRUDGenerator<TState extends GlobalBuilderState> {
 			i18nTable: this.i18nTable,
 			options: this.state.options,
 			context,
+			workflowStage,
+			workflowFromStage,
 		});
 	}
 
@@ -1155,6 +1499,21 @@ export class GlobalCRUDGenerator<TState extends GlobalBuilderState> {
 		return select;
 	}
 
+	private stripVersionMetadata(row: Record<string, any>): Record<string, any> {
+		const {
+			versionId: _versionId,
+			versionNumber: _versionNumber,
+			versionOperation: _versionOperation,
+			versionUserId: _versionUserId,
+			versionCreatedAt: _versionCreatedAt,
+			versionStage: _versionStage,
+			versionFromStage: _versionFromStage,
+			...rest
+		} = row;
+
+		return rest;
+	}
+
 	/**
 	 * Split input data into localized and non-localized fields.
 	 * Uses field definition schemas to determine which nested fields are localized.
@@ -1169,7 +1528,7 @@ export class GlobalCRUDGenerator<TState extends GlobalBuilderState> {
 	}
 
 	/**
-	 * Create hook context with full CMS access
+	 * Create hook context with full app access
 	 */
 	private createHookContext(params: {
 		data: any;
@@ -1181,7 +1540,7 @@ export class GlobalCRUDGenerator<TState extends GlobalBuilderState> {
 		return {
 			data: params.data,
 			input: params.input,
-			app: this.cms as any,
+			app: this.app as any,
 			session: normalized.session,
 			locale: normalized.locale,
 			accessMode: normalized.accessMode,
@@ -1201,9 +1560,24 @@ export class GlobalCRUDGenerator<TState extends GlobalBuilderState> {
 	}
 
 	/**
+	 * Execute transition hooks (supports arrays).
+	 * Uses GlobalTransitionHookContext instead of GlobalHookContext.
+	 */
+	private async executeTransitionHooks(
+		hooks: any | any[] | undefined,
+		ctx: GlobalTransitionHookContext,
+	) {
+		if (!hooks) return;
+		const hookArray = Array.isArray(hooks) ? hooks : [hooks];
+		for (const hook of hookArray) {
+			await hook(ctx);
+		}
+	}
+
+	/**
 	 * Enforce access control
 	 * Delegates to extracted executeAccessRule utility
-	 * Falls back to CMS defaultAccess if global doesn't define its own rules
+	 * Falls back to app defaultAccess if global doesn't define its own rules
 	 * Note: Globals only return boolean (no AccessWhere support)
 	 */
 	private async enforceAccessControl(
@@ -1220,12 +1594,12 @@ export class GlobalCRUDGenerator<TState extends GlobalBuilderState> {
 		// Map global operation names to collection access names
 		const accessOperation = operation === "update" ? "update" : "read";
 
-		// Use global's access rule, or fall back to CMS defaultAccess
+		// Use global's access rule, or fall back to app defaultAccess
 		const accessRule =
 			this.state.access?.[operation] ??
-			this.cms?.defaultAccess?.[accessOperation];
+			this.app?.defaultAccess?.[accessOperation];
 		const result = await executeAccessRule(accessRule, {
-			cms: this.cms,
+			app: this.app,
 			db,
 			session: normalized.session,
 			locale: normalized.locale,
@@ -1320,7 +1694,7 @@ export class GlobalCRUDGenerator<TState extends GlobalBuilderState> {
 		const db = this.getDb(context);
 		const fieldAccess = this.getFieldAccessRules();
 		const fieldsToRemove = await getRestrictedReadFields(result, context, {
-			cms: this.cms,
+			app: this.app,
 			db,
 			fieldAccess,
 		});
@@ -1420,7 +1794,7 @@ export class GlobalCRUDGenerator<TState extends GlobalBuilderState> {
 		withConfig: With,
 		context: CRUDContext,
 	) {
-		if (!rows.length || !withConfig || !this.cms) return;
+		if (!rows.length || !withConfig || !this.app) return;
 		const db = this.getDb(context);
 
 		for (const [relationName, relationOptions] of Object.entries(withConfig)) {
@@ -1429,7 +1803,7 @@ export class GlobalCRUDGenerator<TState extends GlobalBuilderState> {
 			const relation = this.state.relations[relationName];
 			if (!relation) continue;
 
-			const relatedCrud = this.cms.api.collections[relation.collection];
+			const relatedCrud = this.app.api.collections[relation.collection];
 
 			if (relation.fields && relation.fields.length > 0) {
 				const sourceField = relation.fields[0];
@@ -1657,7 +2031,7 @@ export class GlobalCRUDGenerator<TState extends GlobalBuilderState> {
 
 				if (!sourceField || !targetField) continue;
 
-				const junctionCrud = this.cms.api.collections[relation.through];
+				const junctionCrud = this.app.api.collections[relation.through];
 
 				const sourceIds = new Set(
 					rows
@@ -1803,11 +2177,11 @@ export class GlobalCRUDGenerator<TState extends GlobalBuilderState> {
 		relationWhere: Where | undefined,
 		context?: CRUDContext,
 	) {
-		if (!this.cms || !relation.fields || !relation.references?.length) {
+		if (!this.app || !relation.fields || !relation.references?.length) {
 			return undefined;
 		}
 
-		const relatedCrud = this.cms.api.collections[relation.collection];
+		const relatedCrud = this.app.api.collections[relation.collection];
 		const relatedTable = relatedCrud["~internalRelatedTable"];
 		const relatedState = relatedCrud["~internalState"];
 
@@ -1856,9 +2230,9 @@ export class GlobalCRUDGenerator<TState extends GlobalBuilderState> {
 		parentTable: PgTable,
 		context?: CRUDContext,
 	) {
-		if (!this.cms || relation.fields) return undefined;
+		if (!this.app || relation.fields) return undefined;
 
-		const relatedCrud = this.cms.api.collections[relation.collection];
+		const relatedCrud = this.app.api.collections[relation.collection];
 		const relatedTable = relatedCrud["~internalRelatedTable"];
 		const relatedState = relatedCrud["~internalState"];
 		const reverseRelationName = relation.relationName;
@@ -1915,10 +2289,10 @@ export class GlobalCRUDGenerator<TState extends GlobalBuilderState> {
 		parentTable: any,
 		context?: CRUDContext,
 	) {
-		if (!this.cms || !relation.through) return undefined;
+		if (!this.app || !relation.through) return undefined;
 
-		const relatedCrud = this.cms.api.collections[relation.collection];
-		const junctionCrud = this.cms.api.collections[relation.through];
+		const relatedCrud = this.app.api.collections[relation.collection];
+		const junctionCrud = this.app.api.collections[relation.through];
 		const relatedTable = relatedCrud["~internalRelatedTable"];
 		const junctionTable = junctionCrud["~internalRelatedTable"];
 		const relatedState = relatedCrud["~internalState"];
@@ -1998,7 +2372,7 @@ export class GlobalCRUDGenerator<TState extends GlobalBuilderState> {
 			i18nCurrentTable: i18nCurrentTable ?? null,
 			i18nFallbackTable: i18nFallbackTable ?? null,
 			context,
-			cms: this.cms,
+			app: this.app,
 			useI18n,
 			db: this.db,
 		});

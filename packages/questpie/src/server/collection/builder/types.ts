@@ -10,7 +10,7 @@ import type { PgColumn, PgTableWithColumns } from "drizzle-orm/pg-core";
 import type { Collection } from "#questpie/server/collection/builder/collection.js";
 import type { ValidationSchemas } from "#questpie/server/collection/builder/validation-helpers.js";
 // Note: any types are intentional for composition flexibility.
-// Users should use typedApp<AppCMS>(), typedDb<AppCMS>(), and typedSession<AppCMS>() for type-safe access.
+// Users should use typedApp<App>(), typedDb<App>(), and typedSession<App>() for type-safe access.
 import type { AccessMode } from "#questpie/server/config/types.js";
 import type {
 	FieldDefinition,
@@ -31,6 +31,34 @@ export type TitleExpression = string;
 export interface CollectionVersioningOptions {
 	enabled: boolean;
 	maxVersions?: number; // default: 50
+}
+
+/**
+ * Workflow stage definition.
+ *
+ * `transitions` defines explicit allowed next stages. If omitted, transitions
+ * are unrestricted (any configured stage can be targeted).
+ */
+export interface WorkflowStageOptions {
+	label?: string;
+	description?: string;
+	transitions?: readonly string[];
+}
+
+/**
+ * Workflow configuration for collections/globals.
+ *
+ * Supports either:
+ * - `string[]` stage shorthand: ["draft", "review", "published"]
+ * - keyed object: { draft: { ... }, review: { transitions: [...] } }
+ */
+export interface WorkflowOptions {
+	stages?: readonly string[] | Record<string, WorkflowStageOptions>;
+	/**
+	 * Stage used on create when no explicit stage is passed.
+	 * Defaults to the first configured stage.
+	 */
+	initialStage?: string;
 }
 
 /**
@@ -80,6 +108,10 @@ export interface CollectionOptions {
 	 * Versioning configuration
 	 */
 	versioning?: boolean | CollectionVersioningOptions;
+	/**
+	 * Publishing workflow configuration.
+	 */
+	workflow?: boolean | WorkflowOptions;
 }
 
 /**
@@ -270,26 +302,26 @@ export interface RelationVariant {
 }
 
 /**
- * Base context for hooks - receives full CMS access via `app`.
+ * Base context for hooks - receives full app access via `app`.
  *
  * @template TData - The record data type (created/updated/deleted)
  * @template TOriginal - The original record type (for update/delete operations), use `never` if not available
  * @template TOperation - The operation type
- * @template TApp - The CMS app type (defaults to any)
+ * @template TApp - The app app type (defaults to any)
  *
  * @example
  * ```ts
  * import { typedApp, typedDb, typedSession } from "questpie";
- * import type { AppCMS } from "./cms";
+ * import type { App } from "./questpie";
  *
  * .hooks({
  *   afterChange: async ({ data, app, db, session }) => {
- *     const cms = typedApp<AppCMS>(app);
- *     const database = typedDb<AppCMS>(db);
- *     const sess = typedSession<AppCMS>(session);
+ *     const app = typedApp<App>(app);
+ *     const database = typedDb<App>(db);
+ *     const sess = typedSession<App>(session);
  *
  *     // ✅ Fully typed access
- *     await cms.queue.notify.publish({ id: data.id });
+ *     await app.queue.notify.publish({ id: data.id });
  *     await database.insert(auditLog).values({ ... });
  *   }
  * })
@@ -316,13 +348,13 @@ export interface HookContext<
 	original: TOriginal extends never ? never : TOriginal | undefined;
 
 	/**
-	 * CMS instance - use typedApp<AppCMS>(app) for type-safe access.
+	 * app instance - use typedApp<App>(app) for type-safe access.
 	 *
 	 * @example
 	 * ```ts
-	 * const cms = typedApp<AppCMS>(app);
-	 * cms.queue.jobName.publish(...);
-	 * cms.email.send(...);
+	 * const app = typedApp<App>(app);
+	 * app.queue.jobName.publish(...);
+	 * app.email.send(...);
 	 * ```
 	 */
 	app: TApp;
@@ -333,11 +365,11 @@ export interface HookContext<
 	 * - null = explicitly unauthenticated
 	 * - object = authenticated
 	 *
-	 * Use typedSession<AppCMS>(session) for type-safe access.
+	 * Use typedSession<App>(session) for type-safe access.
 	 *
 	 * @example
 	 * ```ts
-	 * const sess = typedSession<AppCMS>(session);
+	 * const sess = typedSession<App>(session);
 	 * if (sess?.user.role === 'admin') { ... }
 	 * ```
 	 */
@@ -360,11 +392,11 @@ export interface HookContext<
 
 	/**
 	 * Database client (may be transaction).
-	 * Use typedDb<AppCMS>(db) for type-safe Drizzle operations.
+	 * Use typedDb<App>(db) for type-safe Drizzle operations.
 	 *
 	 * @example
 	 * ```ts
-	 * const database = typedDb<AppCMS>(db);
+	 * const database = typedDb<App>(db);
 	 * await database.insert(table).values({ ... });
 	 * ```
 	 */
@@ -375,27 +407,27 @@ export interface HookContext<
  * Access control context for collection operations.
  *
  * @template TData - The record data type
- * @template TApp - The CMS app type (defaults to any)
+ * @template TApp - The app app type (defaults to any)
  *
  * @example
  * ```ts
  * import { typedSession } from "questpie";
- * import type { AppCMS } from "./cms";
+ * import type { App } from "./questpie";
  *
  * .access({
  *   read: ({ session, data }) => {
- *     const sess = typedSession<AppCMS>(session);
+ *     const sess = typedSession<App>(session);
  *     return data.userId === sess?.user.id || sess?.user.role === 'admin'
  *   }
  * })
  * ```
  */
 export interface AccessContext<TData = any, TApp = any> {
-	/** CMS instance - use typedApp<AppCMS>(app) for type-safe access */
+	/** app instance - use typedApp<App>(app) for type-safe access */
 	app: TApp;
 	/**
 	 * Auth session (user + session) from Better Auth.
-	 * Use typedSession<AppCMS>(session) for type-safe access.
+	 * Use typedSession<App>(session) for type-safe access.
 	 * - undefined = session not resolved
 	 * - null = explicitly unauthenticated
 	 * - object = authenticated
@@ -405,7 +437,7 @@ export interface AccessContext<TData = any, TApp = any> {
 	data?: TData;
 	/** Input data (for create/update) */
 	input?: any;
-	/** Database client - use typedDb<AppCMS>(db) for type-safe access */
+	/** Database client - use typedDb<App>(db) for type-safe access */
 	db: any;
 	/** Current locale */
 	locale?: string;
@@ -413,12 +445,12 @@ export interface AccessContext<TData = any, TApp = any> {
 
 /**
  * Hook function type
- * Receives full CMS context with specific operation type
+ * Receives full app context with specific operation type
  *
  * @template TData - The record data type
  * @template TOriginal - The original record type (for update/delete operations)
  * @template TOperation - The operation type
- * @template TApp - The CMS app type
+ * @template TApp - The app app type
  */
 export type HookFunction<
 	TData = any,
@@ -550,6 +582,35 @@ export type AfterDeleteHook<TSelect = any, TApp = any> = HookFunction<
 >;
 
 /**
+ * Context passed to workflow transition hooks.
+ * Includes the stage transition info alongside standard hook fields.
+ */
+export interface TransitionHookContext<TData = any, TApp = any> {
+	/** Record being transitioned */
+	data: TData;
+	/** Stage the record is transitioning from */
+	fromStage: string;
+	/** Stage the record is transitioning to */
+	toStage: string;
+	/** app instance - use typedApp<App>(app) for type-safe access */
+	app: TApp;
+	/** Auth session */
+	session?: any | null;
+	/** Current locale */
+	locale?: string;
+	/** Database client (may be transaction) */
+	db: any;
+}
+
+/**
+ * Hook function for workflow stage transitions.
+ * Throw to abort the transition in beforeTransition.
+ */
+export type TransitionHook<TData = any, TApp = any> = (
+	ctx: TransitionHookContext<TData, TApp>,
+) => Promise<void> | void;
+
+/**
  * Collection lifecycle hooks
  * Each hook type can have multiple functions (executed in order)
  *
@@ -562,7 +623,7 @@ export type AfterDeleteHook<TSelect = any, TApp = any> = HookFunction<
  * @template TSelect - The complete record type (after read)
  * @template TInsert - The insert data type
  * @template TUpdate - The update data type
- * @template TApp - The CMS app type
+ * @template TApp - The app app type
  */
 export interface CollectionHooks<
 	TSelect = any,
@@ -577,7 +638,7 @@ export interface CollectionHooks<
 	 * - `data`: Input data (type depends on operation)
 	 * - `original`: Not available
 	 * - `operation`: "create" | "update" | "delete" | "read"
-	 * - `app`: CMS instance
+	 * - `app`: app instance
 	 *
 	 * **Use cases:** logging, rate limiting, early validation
 	 */
@@ -592,7 +653,7 @@ export interface CollectionHooks<
 	 * - `data`: Mutable input data (TInsert on create, TUpdate on update)
 	 * - `original`: Not available
 	 * - `operation`: "create" | "update"
-	 * - `app`: CMS instance
+	 * - `app`: app instance
 	 *
 	 * **Use cases:** transforming input, setting defaults, normalizing data
 	 *
@@ -616,7 +677,7 @@ export interface CollectionHooks<
 	 * - `data`: Validated input data (TInsert on create, TUpdate on update)
 	 * - `original`: Not available
 	 * - `operation`: "create" | "update"
-	 * - `app`: CMS instance
+	 * - `app`: app instance
 	 *
 	 * **Use cases:** business logic, complex validation, derived fields
 	 *
@@ -640,7 +701,7 @@ export interface CollectionHooks<
 	 * - `data`: Complete record (TSelect)
 	 * - `original`: Original record (TSelect) - **only on update**
 	 * - `operation`: "create" | "update"
-	 * - `app`: CMS instance
+	 * - `app`: app instance
 	 *
 	 * **Use cases:** notifications, webhooks, syncing to external services
 	 *
@@ -666,7 +727,7 @@ export interface CollectionHooks<
 	 * - `data`: Query context/options
 	 * - `original`: Not available
 	 * - `operation`: "read"
-	 * - `app`: CMS instance
+	 * - `app`: app instance
 	 *
 	 * **Use cases:** modifying query options, adding filters
 	 */
@@ -679,7 +740,7 @@ export interface CollectionHooks<
 	 * - `data`: Complete record (TSelect)
 	 * - `original`: Original record (TSelect) - **only on update**
 	 * - `operation`: "create" | "update" | "delete" | "read"
-	 * - `app`: CMS instance
+	 * - `app`: app instance
 	 *
 	 * **Use cases:** transforming output, adding computed fields, formatting
 	 *
@@ -700,7 +761,7 @@ export interface CollectionHooks<
 	 * - `data`: Record to be deleted (TSelect)
 	 * - `original`: Not available
 	 * - `operation`: "delete"
-	 * - `app`: CMS instance
+	 * - `app`: app instance
 	 *
 	 * **Use cases:** preventing deletion, cascading deletes, creating backups
 	 *
@@ -727,7 +788,7 @@ export interface CollectionHooks<
 	 * - `data`: Deleted record (TSelect)
 	 * - `original`: Not available
 	 * - `operation`: "delete"
-	 * - `app`: CMS instance
+	 * - `app`: app instance
 	 *
 	 * **Use cases:** cleanup, logging, notifying users
 	 *
@@ -741,6 +802,25 @@ export interface CollectionHooks<
 	afterDelete?:
 		| AfterDeleteHook<TSelect, TApp>[]
 		| AfterDeleteHook<TSelect, TApp>;
+
+	/**
+	 * Runs before a workflow stage transition (transitionStage).
+	 * Throw to abort the transition.
+	 *
+	 * **Context:** `data` (record), `fromStage`, `toStage`, `app`, `db`
+	 */
+	beforeTransition?:
+		| TransitionHook<TSelect, TApp>[]
+		| TransitionHook<TSelect, TApp>;
+
+	/**
+	 * Runs after a workflow stage transition (transitionStage).
+	 *
+	 * **Context:** `data` (record), `fromStage`, `toStage`, `app`, `db`
+	 */
+	afterTransition?:
+		| TransitionHook<TSelect, TApp>[]
+		| TransitionHook<TSelect, TApp>;
 }
 
 /**
@@ -791,6 +871,11 @@ export interface CollectionAccess<TRow = any, TApp = any> {
 	create?: AccessRule<TRow, any, TApp>;
 	update?: AccessRule<TRow, any, TApp>;
 	delete?: AccessRule<TRow, any, TApp>;
+	/**
+	 * Access rule for workflow stage transitions.
+	 * Falls back to `update` if not specified.
+	 */
+	transition?: AccessRule<TRow, any, TApp>;
 
 	/**
 	 * Field-scoped access rules.
@@ -1024,7 +1109,7 @@ export type ExtractAccess<TState extends CollectionBuilderState> =
  * Default empty state for a new collection
  *
  * @param TName - Collection name
- * @param TQuestpieApp - Reference to QuestpieBuilder instance (for accessing cms config)
+ * @param TQuestpieApp - Reference to QuestpieBuilder instance (for accessing app config)
  * @param TFieldTypes - Field types available in .fields((f) => ...), passed directly to avoid type extraction issues
  */
 export type EmptyCollectionState<

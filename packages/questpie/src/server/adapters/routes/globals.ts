@@ -4,7 +4,7 @@
  * Global settings route handlers.
  */
 
-import type { Questpie } from "../../config/cms.js";
+import type { Questpie } from "../../config/questpie.js";
 import type { QuestpieConfig } from "../../config/types.js";
 import { ApiError } from "../../errors/index.js";
 import { introspectGlobal } from "../../global/introspection.js";
@@ -34,6 +34,12 @@ export interface GlobalRoutes {
 		context?: AdapterContext,
 		input?: unknown,
 	) => Promise<Response>;
+	transition: (
+		request: Request,
+		params: { global: string },
+		context?: AdapterContext,
+		input?: unknown,
+	) => Promise<Response>;
 	schema: (
 		request: Request,
 		params: { global: string },
@@ -54,8 +60,7 @@ export interface GlobalRoutes {
 
 export const createGlobalRoutes = <
 	TConfig extends QuestpieConfig = QuestpieConfig,
->(
-	cms: Questpie<TConfig>,
+>(app: Questpie<TConfig>,
 	config: AdapterConfig<TConfig> = {},
 ): GlobalRoutes => {
 	const errorResponse = (
@@ -63,7 +68,7 @@ export const createGlobalRoutes = <
 		request: Request,
 		locale?: string,
 	): Response => {
-		return handleError(error, { request, cms, locale });
+		return handleError(error, { request, app, locale });
 	};
 
 	return {
@@ -72,16 +77,16 @@ export const createGlobalRoutes = <
 			params: { global: string },
 			context?: AdapterContext,
 		): Promise<Response> => {
-			const resolved = await resolveContext(cms, request, config, context);
+			const resolved = await resolveContext(app, request, config, context);
 
 			try {
 				const options = parseGlobalGetOptions(new URL(request.url));
-				const globalInstance = cms.getGlobalConfig(params.global as any);
-				const crud = globalInstance.generateCRUD(resolved.cmsContext.db, cms);
-				const result = await crud.get(options, resolved.cmsContext);
+				const globalInstance = app.getGlobalConfig(params.global as any);
+				const crud = globalInstance.generateCRUD(resolved.appContext.db, app);
+				const result = await crud.get(options, resolved.appContext);
 				return smartResponse(result, request);
 			} catch (error) {
-				return errorResponse(error, request, resolved.cmsContext.locale);
+				return errorResponse(error, request, resolved.appContext.locale);
 			}
 		},
 
@@ -90,7 +95,7 @@ export const createGlobalRoutes = <
 			params: { global: string },
 			context?: AdapterContext,
 		): Promise<Response> => {
-			const resolved = await resolveContext(cms, request, config, context);
+			const resolved = await resolveContext(app, request, config, context);
 
 			try {
 				const url = new URL(request.url);
@@ -104,8 +109,8 @@ export const createGlobalRoutes = <
 						? Number(offsetRaw)
 						: undefined;
 
-				const globalInstance = cms.getGlobalConfig(params.global as any);
-				const crud = globalInstance.generateCRUD(resolved.cmsContext.db, cms);
+				const globalInstance = app.getGlobalConfig(params.global as any);
+				const crud = globalInstance.generateCRUD(resolved.appContext.db, app);
 				const result = await crud.findVersions(
 					{
 						...(typeof id === "string" && id.length > 0 ? { id } : {}),
@@ -116,11 +121,11 @@ export const createGlobalRoutes = <
 							? { offset: Math.floor(offset) }
 							: {}),
 					},
-					resolved.cmsContext,
+					resolved.appContext,
 				);
 				return smartResponse(result, request);
 			} catch (error) {
-				return errorResponse(error, request, resolved.cmsContext.locale);
+				return errorResponse(error, request, resolved.appContext.locale);
 			}
 		},
 
@@ -130,14 +135,14 @@ export const createGlobalRoutes = <
 			context?: AdapterContext,
 			input?: unknown,
 		): Promise<Response> => {
-			const resolved = await resolveContext(cms, request, config, context);
+			const resolved = await resolveContext(app, request, config, context);
 			const body = input !== undefined ? input : await parseRpcBody(request);
 
 			if (body === null || typeof body !== "object") {
 				return errorResponse(
 					ApiError.badRequest("Invalid JSON body"),
 					request,
-					resolved.cmsContext.locale,
+					resolved.appContext.locale,
 				);
 			}
 
@@ -147,8 +152,8 @@ export const createGlobalRoutes = <
 					version?: number;
 					versionId?: string;
 				};
-				const globalInstance = cms.getGlobalConfig(params.global as any);
-				const crud = globalInstance.generateCRUD(resolved.cmsContext.db, cms);
+				const globalInstance = app.getGlobalConfig(params.global as any);
+				const crud = globalInstance.generateCRUD(resolved.appContext.db, app);
 				const result = await crud.revertToVersion(
 					{
 						...(typeof payload.id === "string" ? { id: payload.id } : {}),
@@ -159,11 +164,45 @@ export const createGlobalRoutes = <
 							? { versionId: payload.versionId }
 							: {}),
 					},
-					resolved.cmsContext,
+					resolved.appContext,
 				);
 				return smartResponse(result, request);
 			} catch (error) {
-				return errorResponse(error, request, resolved.cmsContext.locale);
+				return errorResponse(error, request, resolved.appContext.locale);
+			}
+		},
+
+		transition: async (
+			request: Request,
+			params: { global: string },
+			context?: AdapterContext,
+			input?: unknown,
+		): Promise<Response> => {
+			const resolved = await resolveContext(app, request, config, context);
+			const body = input !== undefined ? input : await parseRpcBody(request);
+
+			if (body === null || typeof body !== "object") {
+				return errorResponse(
+					ApiError.badRequest("Invalid JSON body"),
+					request,
+					resolved.appContext.locale,
+				);
+			}
+
+			try {
+				const payload = body as { stage: string };
+				if (!payload.stage || typeof payload.stage !== "string") {
+					throw ApiError.badRequest("Missing required field: stage");
+				}
+				const globalInstance = app.getGlobalConfig(params.global as any);
+				const crud = globalInstance.generateCRUD(resolved.appContext.db, app);
+				const result = await crud.transitionStage(
+					{ stage: payload.stage },
+					resolved.appContext,
+				);
+				return smartResponse(result, request);
+			} catch (error) {
+				return errorResponse(error, request, resolved.appContext.locale);
 			}
 		},
 
@@ -172,14 +211,14 @@ export const createGlobalRoutes = <
 			params: { global: string },
 			context?: AdapterContext,
 		): Promise<Response> => {
-			const resolved = await resolveContext(cms, request, config, context);
-			const globalInstance = cms.getGlobalConfig(params.global as any);
+			const resolved = await resolveContext(app, request, config, context);
+			const globalInstance = app.getGlobalConfig(params.global as any);
 
 			if (!globalInstance) {
 				return errorResponse(
 					ApiError.notFound("Global", params.global),
 					request,
-					resolved.cmsContext.locale,
+					resolved.appContext.locale,
 				);
 			}
 
@@ -187,15 +226,15 @@ export const createGlobalRoutes = <
 				const schema = await introspectGlobal(
 					globalInstance,
 					{
-						session: resolved.cmsContext.session,
-						db: cms.db,
-						locale: resolved.cmsContext.locale,
+						session: resolved.appContext.session,
+						db: app.db,
+						locale: resolved.appContext.locale,
 					},
-					cms,
+					app,
 				);
 				return smartResponse(schema, request);
 			} catch (error) {
-				return errorResponse(error, request, resolved.cmsContext.locale);
+				return errorResponse(error, request, resolved.appContext.locale);
 			}
 		},
 
@@ -205,24 +244,24 @@ export const createGlobalRoutes = <
 			context?: AdapterContext,
 			input?: unknown,
 		): Promise<Response> => {
-			const resolved = await resolveContext(cms, request, config, context);
+			const resolved = await resolveContext(app, request, config, context);
 			const body = input !== undefined ? input : await parseRpcBody(request);
 			if (body === null) {
 				return errorResponse(
 					ApiError.badRequest("Invalid JSON body"),
 					request,
-					resolved.cmsContext.locale,
+					resolved.appContext.locale,
 				);
 			}
 
 			try {
 				const options = parseGlobalUpdateOptions(new URL(request.url));
-				const globalInstance = cms.getGlobalConfig(params.global as any);
-				const crud = globalInstance.generateCRUD(resolved.cmsContext.db, cms);
-				const result = await crud.update(body, resolved.cmsContext, options);
+				const globalInstance = app.getGlobalConfig(params.global as any);
+				const crud = globalInstance.generateCRUD(resolved.appContext.db, app);
+				const result = await crud.update(body, resolved.appContext, options);
 				return smartResponse(result, request);
 			} catch (error) {
-				return errorResponse(error, request, resolved.cmsContext.locale);
+				return errorResponse(error, request, resolved.appContext.locale);
 			}
 		},
 
@@ -231,14 +270,14 @@ export const createGlobalRoutes = <
 			params: { global: string },
 			context?: AdapterContext,
 		): Promise<Response> => {
-			const resolved = await resolveContext(cms, request, config, context);
-			const globalInstance = cms.getGlobalConfig(params.global as any);
+			const resolved = await resolveContext(app, request, config, context);
+			const globalInstance = app.getGlobalConfig(params.global as any);
 
 			if (!globalInstance) {
 				return errorResponse(
 					ApiError.notFound("Global", params.global),
 					request,
-					resolved.cmsContext.locale,
+					resolved.appContext.locale,
 				);
 			}
 
@@ -246,7 +285,7 @@ export const createGlobalRoutes = <
 				const meta = globalInstance.getMeta();
 				return smartResponse(meta, request);
 			} catch (error) {
-				return errorResponse(error, request, resolved.cmsContext.locale);
+				return errorResponse(error, request, resolved.appContext.locale);
 			}
 		},
 	};

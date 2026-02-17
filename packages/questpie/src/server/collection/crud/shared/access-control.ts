@@ -11,7 +11,7 @@ import type {
   CollectionAccess,
 } from "#questpie/server/collection/builder/types.js";
 import type { CRUDContext } from "#questpie/server/collection/crud/types.js";
-import type { Questpie } from "#questpie/server/config/cms.js";
+import type { Questpie } from "#questpie/server/config/questpie.js";
 import type {
   FieldAccessContext,
   FieldDefinitionAccess,
@@ -22,7 +22,7 @@ import { getDb, normalizeContext } from "./context.js";
  * Context for access rule evaluation
  */
 export interface AccessRuleEvaluationContext {
-  cms?: Questpie<any>;
+  app?: Questpie<any>;
   db: any;
   session?: CRUDContext["session"];
   locale?: string;
@@ -57,7 +57,7 @@ export async function executeAccessRule(
   // Function rule
   if (typeof rule === "function") {
     const result = await rule({
-      app: context.cms as any,
+      app: context.app as any,
       session: context.session,
       data: context.row,
       input: context.input,
@@ -120,7 +120,7 @@ export async function matchesAccessConditions(
  * Options for filtering fields based on read access
  */
 export interface FilterFieldsForReadOptions {
-  cms?: Questpie<any>;
+  app?: Questpie<any>;
   db: any;
   fieldAccess?: Record<string, FieldDefinitionAccess>;
 }
@@ -234,7 +234,7 @@ export async function checkFieldWriteAccess(
   fieldName: string,
   fieldAccess: Record<string, FieldDefinitionAccess> | undefined,
   context: CRUDContext,
-  options: { cms?: Questpie<any>; db: any },
+  options: { app?: Questpie<any>; db: any },
   operation: "create" | "update",
   existingRow?: any,
 ): Promise<boolean> {
@@ -277,7 +277,7 @@ export async function validateFieldsWriteAccess(
   data: Record<string, any>,
   fieldAccess: Record<string, FieldDefinitionAccess> | undefined,
   context: CRUDContext,
-  options: { cms?: Questpie<any>; db: any },
+  options: { app?: Questpie<any>; db: any },
   collectionName: string,
   operation: "create" | "update",
   existingRow?: any,

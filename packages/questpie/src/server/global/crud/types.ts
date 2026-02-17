@@ -1,24 +1,24 @@
 import type {
-  ApplyQuery,
-  Columns,
-  CRUDContext,
-  NestedRelationMutation,
-  With,
+	ApplyQuery,
+	Columns,
+	CRUDContext,
+	NestedRelationMutation,
+	With,
 } from "#questpie/server/collection/crud/types.js";
 import type {
-  FieldSelect,
-  GlobalFieldDefinitionsWithSystem,
+	FieldSelect,
+	GlobalFieldDefinitionsWithSystem,
 } from "#questpie/server/fields/field-types.js";
 import type {
-  FieldDefinition,
-  FieldDefinitionState,
+	FieldDefinition,
+	FieldDefinitionState,
 } from "#questpie/server/fields/types.js";
 import type { GlobalOptions } from "#questpie/server/global/builder/types.js";
 import type {
-  ExtractRelationInsert,
-  GlobalSelect as GlobalSelectFromInfer,
-  GlobalState,
-  Prettify,
+	ExtractRelationInsert,
+	GlobalSelect as GlobalSelectFromInfer,
+	GlobalState,
+	Prettify,
 } from "#questpie/shared/type-utils.js";
 
 /**
@@ -37,26 +37,26 @@ type RelationValue<T> = T extends (infer U)[] ? U : T;
  * Uses the same pattern as collection RelationMutations
  */
 type GlobalRelationMutations<TRelations> = [TRelations] extends [never]
-  ? {}
-  : IsAny<TRelations> extends true
-    ? {} // When TRelations is `any`, don't create index signature
-    : string extends keyof TRelations
-      ? {} // TRelations has index signature (e.g., Record<string, ...>), don't add relation fields
-      : [TRelations] extends [Record<string, any>]
-        ? keyof TRelations extends never
-          ? {} // No relations, return empty object
-          : {
-              [K in keyof TRelations]?: NestedRelationMutation<
-                ExtractRelationInsert<RelationValue<TRelations[K]>>
-              >;
-            }
-        : {}; // Not a record type or unknown, return empty object
+	? {}
+	: IsAny<TRelations> extends true
+		? {} // When TRelations is `any`, don't create index signature
+		: string extends keyof TRelations
+			? {} // TRelations has index signature (e.g., Record<string, ...>), don't add relation fields
+			: [TRelations] extends [Record<string, any>]
+				? keyof TRelations extends never
+					? {} // No relations, return empty object
+					: {
+							[K in keyof TRelations]?: NestedRelationMutation<
+								ExtractRelationInsert<RelationValue<TRelations[K]>>
+							>;
+						}
+				: {}; // Not a record type or unknown, return empty object
 
 /**
  * Global update input with optional nested relation mutations
  */
 export type GlobalUpdateInput<TUpdate = any, TRelations = any> = Prettify<
-  Partial<TUpdate> & GlobalRelationMutations<TRelations>
+	Partial<TUpdate> & GlobalRelationMutations<TRelations>
 >;
 
 /**
@@ -64,25 +64,30 @@ export type GlobalUpdateInput<TUpdate = any, TRelations = any> = Prettify<
  * Type-safe with support for partial selection and relation loading
  */
 export interface GlobalGetOptions<TFields = any, TRelations = any> {
-  /**
-   * Load relations
-   */
-  with?: With<TRelations>;
+	/**
+	 * Load relations
+	 */
+	with?: With<TRelations>;
 
-  /**
-   * Select specific columns only (partial selection)
-   */
-  columns?: Columns<TFields>;
+	/**
+	 * Select specific columns only (partial selection)
+	 */
+	columns?: Columns<TFields>;
 
-  /**
-   * Override locale for this request.
-   */
-  locale?: string;
+	/**
+	 * Override locale for this request.
+	 */
+	locale?: string;
 
-  /**
-   * Disable fallback to default locale when translation is missing.
-   */
-  localeFallback?: boolean;
+	/**
+	 * Disable fallback to default locale when translation is missing.
+	 */
+	localeFallback?: boolean;
+
+	/**
+	 * Workflow stage to read from.
+	 */
+	stage?: string;
 }
 
 /**
@@ -90,41 +95,57 @@ export interface GlobalGetOptions<TFields = any, TRelations = any> {
  * Type-safe with support for relation loading in response
  */
 export interface GlobalUpdateOptions<TRelations = any> {
-  /**
-   * Load relations in the response
-   */
-  with?: With<TRelations>;
+	/**
+	 * Load relations in the response
+	 */
+	with?: With<TRelations>;
 
-  /**
-   * Override locale for this request.
-   */
-  locale?: string;
+	/**
+	 * Override locale for this request.
+	 */
+	locale?: string;
 
-  /**
-   * Disable fallback to default locale when translation is missing.
-   */
-  localeFallback?: boolean;
+	/**
+	 * Disable fallback to default locale when translation is missing.
+	 */
+	localeFallback?: boolean;
+
+	/**
+	 * Target workflow stage for the update.
+	 */
+	stage?: string;
+}
+
+/**
+ * Params for transitioning a global to a different workflow stage.
+ * No data mutation — only stage change + version snapshot.
+ */
+export interface GlobalTransitionStageParams {
+	/** Target workflow stage name */
+	stage: string;
+	/** If set to a future date, schedule the transition instead of executing immediately */
+	scheduledAt?: Date;
 }
 
 export interface GlobalFindVersionsOptions {
-  id?: string;
-  limit?: number;
-  offset?: number;
+	id?: string;
+	limit?: number;
+	offset?: number;
 }
 
 export interface GlobalRevertVersionOptions {
-  id?: string;
-  version?: number;
-  versionId?: string;
+	id?: string;
+	version?: number;
+	versionId?: string;
 }
 
 export interface GlobalVersionRecord {
-  id: string;
-  versionId: string;
-  versionNumber: number;
-  versionOperation: string;
-  versionUserId: string | null;
-  versionCreatedAt: Date;
+	id: string;
+	versionId: string;
+	versionNumber: number;
+	versionOperation: string;
+	versionUserId: string | null;
+	versionCreatedAt: Date;
 }
 
 // ============================================================================
@@ -136,25 +157,25 @@ export interface GlobalVersionRecord {
  * Analogous to CollectionFieldDefinitions in collection/crud/types.ts.
  */
 type GlobalFieldDefinitions<TGlobal> =
-  GlobalState<TGlobal> extends {
-    fieldDefinitions: infer TDefs;
-    options: infer TOptions;
-  }
-    ? TDefs extends Record<string, FieldDefinition<FieldDefinitionState>>
-      ? TOptions extends GlobalOptions
-        ? GlobalFieldDefinitionsWithSystem<TDefs, TOptions>
-        : GlobalFieldDefinitionsWithSystem<TDefs, {}>
-      : TDefs
-    : GlobalState<TGlobal> extends { fieldDefinitions: infer TDefs }
-      ? TDefs
-      : Record<string, never>;
+	GlobalState<TGlobal> extends {
+		fieldDefinitions: infer TDefs;
+		options: infer TOptions;
+	}
+		? TDefs extends Record<string, FieldDefinition<FieldDefinitionState>>
+			? TOptions extends GlobalOptions
+				? GlobalFieldDefinitionsWithSystem<TDefs, TOptions>
+				: GlobalFieldDefinitionsWithSystem<TDefs, {}>
+			: TDefs
+		: GlobalState<TGlobal> extends { fieldDefinitions: infer TDefs }
+			? TDefs
+			: Record<string, never>;
 
 type HasGlobalFieldDefinitions<TDefs> =
-  TDefs extends Record<string, FieldDefinition<FieldDefinitionState>>
-    ? keyof TDefs extends never
-      ? false
-      : true
-    : false;
+	TDefs extends Record<string, FieldDefinition<FieldDefinitionState>>
+		? keyof TDefs extends never
+			? false
+			: true
+		: false;
 
 /**
  * Build GlobalSelect purely from field definitions — no Drizzle dependency.
@@ -162,64 +183,74 @@ type HasGlobalFieldDefinitions<TDefs> =
  * Analogous to CollectionSelectFromFieldDefinitions.
  */
 type GlobalSelectFromFieldDefinitions<TGlobal, TApp> =
-  GlobalFieldDefinitions<TGlobal> extends infer TAllFields
-    ? TAllFields extends Record<string, FieldDefinition<FieldDefinitionState>>
-      ? Prettify<{
-          [K in keyof TAllFields as FieldSelect<
-            TAllFields[K],
-            TApp
-          > extends never
-            ? never
-            : K]: FieldSelect<TAllFields[K], TApp>;
-        }>
-      : GlobalSelectFromInfer<TGlobal>
-    : GlobalSelectFromInfer<TGlobal>;
+	GlobalFieldDefinitions<TGlobal> extends infer TAllFields
+		? TAllFields extends Record<string, FieldDefinition<FieldDefinitionState>>
+			? Prettify<{
+					[K in keyof TAllFields as FieldSelect<
+						TAllFields[K],
+						TApp
+					> extends never
+						? never
+						: K]: FieldSelect<TAllFields[K], TApp>;
+				}>
+			: GlobalSelectFromInfer<TGlobal>
+		: GlobalSelectFromInfer<TGlobal>;
 
 /**
  * App-aware GlobalSelect. Prefers field definitions over $infer.select.
  * Avoids Drizzle's InferSelectModel index signature pollution.
  */
 export type GlobalSelectFromApp<TGlobal, TApp> =
-  HasGlobalFieldDefinitions<GlobalFieldDefinitions<TGlobal>> extends true
-    ? GlobalSelectFromFieldDefinitions<TGlobal, TApp>
-    : GlobalSelectFromInfer<TGlobal>;
+	HasGlobalFieldDefinitions<GlobalFieldDefinitions<TGlobal>> extends true
+		? GlobalSelectFromFieldDefinitions<TGlobal, TApp>
+		: GlobalSelectFromInfer<TGlobal>;
 
 /**
  * Type-safe Global CRUD interface
  * Similar to Collection CRUD but adapted for singleton pattern
  */
 export interface GlobalCRUD<
-  TSelect = any,
-  _TInsert = any,
-  TUpdate = any,
-  TRelations = any,
+	TSelect = any,
+	_TInsert = any,
+	TUpdate = any,
+	TRelations = any,
 > {
-  /**
-   * Get the global record (singleton)
-   * Supports partial selection and relation loading
-   */
-  get<TQuery extends GlobalGetOptions<TSelect, TRelations>>(
-    options?: TQuery,
-    context?: CRUDContext,
-  ): Promise<ApplyQuery<TSelect, TRelations, TQuery> | null>;
+	/**
+	 * Get the global record (singleton)
+	 * Supports partial selection and relation loading
+	 */
+	get<TQuery extends GlobalGetOptions<TSelect, TRelations>>(
+		options?: TQuery,
+		context?: CRUDContext,
+	): Promise<ApplyQuery<TSelect, TRelations, TQuery> | null>;
 
-  /**
-   * Update the global record
-   * Supports loading relations in response and nested relation mutations
-   */
-  update<TQuery extends GlobalUpdateOptions<TRelations>>(
-    data: GlobalUpdateInput<TUpdate, TRelations>,
-    context?: CRUDContext,
-    options?: TQuery,
-  ): Promise<ApplyQuery<TSelect, TRelations, TQuery>>;
+	/**
+	 * Update the global record
+	 * Supports loading relations in response and nested relation mutations
+	 */
+	update<TQuery extends GlobalUpdateOptions<TRelations>>(
+		data: GlobalUpdateInput<TUpdate, TRelations>,
+		context?: CRUDContext,
+		options?: TQuery,
+	): Promise<ApplyQuery<TSelect, TRelations, TQuery>>;
 
-  findVersions(
-    options?: GlobalFindVersionsOptions,
-    context?: CRUDContext,
-  ): Promise<GlobalVersionRecord[]>;
+	findVersions(
+		options?: GlobalFindVersionsOptions,
+		context?: CRUDContext,
+	): Promise<GlobalVersionRecord[]>;
 
-  revertToVersion(
-    options: GlobalRevertVersionOptions,
-    context?: CRUDContext,
-  ): Promise<TSelect>;
+	revertToVersion(
+		options: GlobalRevertVersionOptions,
+		context?: CRUDContext,
+	): Promise<TSelect>;
+
+	/**
+	 * Transition the global to a different workflow stage.
+	 * Only available on globals with workflow enabled.
+	 * No data mutation — creates a version snapshot at the target stage.
+	 */
+	transitionStage(
+		params: GlobalTransitionStageParams,
+		context?: CRUDContext,
+	): Promise<TSelect>;
 }

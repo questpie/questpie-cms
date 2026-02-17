@@ -58,7 +58,7 @@ export interface UploadFile {
 /**
  * Context passed to CRUD operations
  * Extends RequestContext with CRUD-specific options
- * @default accessMode: 'system' - CMS API is backend-only by default
+ * @default accessMode: 'system' - API is backend-only by default
  */
 export type CRUDContext = RequestContext;
 
@@ -744,6 +744,10 @@ export interface FindManyOptionsBase<TFields = any, TRelations = any> {
 	 * Include soft-deleted records (only applies when softDelete is enabled)
 	 */
 	includeDeleted?: boolean;
+	/**
+	 * Workflow stage to read from.
+	 */
+	stage?: string;
 }
 
 export type FindManyOptions<
@@ -783,6 +787,10 @@ export interface FindOneOptionsBase<TFields = any, TRelations = any> {
 	 * Include soft-deleted records (only applies when softDelete is enabled)
 	 */
 	includeDeleted?: boolean;
+	/**
+	 * Workflow stage to read from.
+	 */
+	stage?: string;
 }
 
 export type FindOneOptions<TCollection, TApp> = Omit<
@@ -1010,6 +1018,19 @@ export interface RestoreParams<TId = string> {
  */
 export interface DeleteManyParams<TFields = any, TRelations = any> {
 	where: Where<TFields, TRelations>;
+}
+
+/**
+ * Params for transitioning a record to a different workflow stage.
+ * No data mutation — only stage change + version snapshot.
+ */
+export interface TransitionStageParams<TId = string> {
+	/** Record ID to transition */
+	id: TId;
+	/** Target workflow stage name */
+	stage: string;
+	/** If set to a future date, schedule the transition instead of executing immediately */
+	scheduledAt?: Date;
 }
 
 export interface FindVersionsOptions<TId = string> {
@@ -1261,12 +1282,22 @@ export interface CRUD<
 	): Promise<TSelect>;
 
 	/**
+	 * Transition a record to a different workflow stage.
+	 * Only available on collections with workflow enabled.
+	 * No data mutation — creates a version snapshot at the target stage.
+	 */
+	transitionStage(
+		params: TransitionStageParams<TId>,
+		context?: CRUDContext,
+	): Promise<TSelect>;
+
+	/**
 	 * Upload a single file
 	 * Only available on collections configured with .upload()
 	 *
 	 * @example
 	 * ```ts
-	 * const asset = await cms.api.collections.media.upload(file, context);
+	 * const asset = await app.api.collections.media.upload(file, context);
 	 * console.log(asset.url); // Typed URL
 	 * ```
 	 */
@@ -1283,7 +1314,7 @@ export interface CRUD<
 	 *
 	 * @example
 	 * ```ts
-	 * const assets = await cms.api.collections.media.uploadMany(files, context);
+	 * const assets = await app.api.collections.media.uploadMany(files, context);
 	 * ```
 	 */
 	uploadMany?(

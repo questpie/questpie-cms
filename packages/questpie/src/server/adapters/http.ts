@@ -1,10 +1,10 @@
 /**
  * HTTP Adapter
  *
- * Creates fetch handlers for the CMS HTTP API.
+ * Creates fetch handlers for the app HTTP API.
  */
 
-import type { Questpie } from "../config/cms.js";
+import type { Questpie } from "../config/questpie.js";
 import type { QuestpieConfig } from "../config/types.js";
 import { ApiError } from "../errors/index.js";
 
@@ -35,8 +35,7 @@ import {
 import type { AdapterConfig, AdapterContext, AdapterRoutes } from "./types.js";
 import { handleError, normalizeBasePath } from "./utils/index.js";
 
-function resolveStorageAliasCollection(
-	cms: Questpie<any>,
+function resolveStorageAliasCollection(app: Questpie<any>,
 	config: AdapterConfig,
 ): { collection?: string; error?: string } {
 	const configuredCollection = config.storage?.collection;
@@ -47,7 +46,7 @@ function resolveStorageAliasCollection(
 		return { collection: configuredCollection.trim() };
 	}
 
-	const uploadCollections = Object.entries(cms.getCollections())
+	const uploadCollections = Object.entries(app.getCollections())
 		.filter(([, collection]) => Boolean((collection as any)?.state?.upload))
 		.map(([name]) => name);
 
@@ -74,17 +73,16 @@ function resolveStorageAliasCollection(
  */
 export const createAdapterRoutes = <
 	TConfig extends QuestpieConfig = QuestpieConfig,
->(
-	cms: Questpie<TConfig>,
+>(app: Questpie<TConfig>,
 	config: AdapterConfig<TConfig> = {},
 ): AdapterRoutes => {
-	const authRoute = createAuthRoute(cms);
-	const rpcRoutes = createRpcRoutes(cms, config);
-	const collectionRoutes = createCollectionRoutes(cms, config);
-	const globalRoutes = createGlobalRoutes(cms, config);
-	const storageRoutes = createStorageRoutes(cms, config);
-	const realtimeRoutes = createRealtimeRoutes(cms, config);
-	const searchRoutes = createSearchRoutes(cms, config);
+	const authRoute = createAuthRoute(app);
+	const rpcRoutes = createRpcRoutes(app, config);
+	const collectionRoutes = createCollectionRoutes(app, config);
+	const globalRoutes = createGlobalRoutes(app, config);
+	const storageRoutes = createStorageRoutes(app, config);
+	const realtimeRoutes = createRealtimeRoutes(app, config);
+	const searchRoutes = createSearchRoutes(app, config);
 
 	return {
 		auth: authRoute,
@@ -101,19 +99,18 @@ export const createAdapterRoutes = <
 /**
  * Create the main fetch handler with URL routing
  */
-export const createFetchHandler = (
-	cms: Questpie<any>,
+export const createFetchHandler = (app: Questpie<any>,
 	config: AdapterConfig = {},
 ) => {
-	const routes = createAdapterRoutes(cms, config);
-	const basePath = normalizeBasePath(config.basePath ?? "/cms");
-	const storageAliasCollection = resolveStorageAliasCollection(cms, config);
+	const routes = createAdapterRoutes(app, config);
+	const basePath = normalizeBasePath(config.basePath ?? "/");
+	const storageAliasCollection = resolveStorageAliasCollection(app, config);
 
 	/**
-	 * Helper to create error response with CMS context for i18n
+	 * Helper to create error response with app context for i18n
 	 */
 	const errorResponse = (error: unknown, request: Request): Response => {
-		return handleError(error, { request, cms });
+		return handleError(error, { request, app });
 	};
 
 	return async (
@@ -139,7 +136,7 @@ export const createFetchHandler = (
 			return errorResponse(ApiError.notFound("Route"), request);
 		}
 
-		if (segments[0] === "cms") {
+		if (segments[0] === "questpie") {
 			segments = segments.slice(1);
 		}
 
@@ -279,6 +276,20 @@ export const createFetchHandler = (
 				);
 			}
 
+			if (globalAction === "transition") {
+				if (request.method === "POST") {
+					return routes.globals.transition(
+						request,
+						{ global: globalName },
+						context,
+					);
+				}
+				return errorResponse(
+					ApiError.badRequest("Method not allowed"),
+					request,
+				);
+			}
+
 			if (request.method === "GET") {
 				return routes.globals.get(request, { global: globalName }, context);
 			}
@@ -388,6 +399,19 @@ export const createFetchHandler = (
 		if (action === "revert") {
 			if (request.method === "POST") {
 				return routes.collections.revert(request, { collection, id }, context);
+			}
+
+			return errorResponse(ApiError.badRequest("Method not allowed"), request);
+		}
+
+		// Collection workflow transition
+		if (action === "transition") {
+			if (request.method === "POST") {
+				return routes.collections.transition(
+					request,
+					{ collection, id },
+					context,
+				);
 			}
 
 			return errorResponse(ApiError.badRequest("Method not allowed"), request);

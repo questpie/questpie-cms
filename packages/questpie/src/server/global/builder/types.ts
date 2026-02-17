@@ -10,10 +10,11 @@ import type {
 	InferTableWithColumns,
 	RelationConfig,
 	RelationVariant,
+	WorkflowOptions,
 } from "#questpie/server/collection/builder/types.js";
 import type { BaseRequestContext } from "#questpie/server/config/context.js";
 // Note: any types are intentional for composition flexibility.
-// Users should use typedApp<AppCMS>(), typedDb<AppCMS>(), and typedSession<AppCMS>() for type-safe access.
+// Users should use typedApp<App>(), typedDb<App>(), and typedSession<App>() for type-safe access.
 import type {
 	AccessMode,
 	QuestpieContextExtension,
@@ -74,23 +75,27 @@ export interface GlobalOptions {
 	 * ```
 	 */
 	scoped?: GlobalScopeResolver;
+	/**
+	 * Publishing workflow configuration.
+	 */
+	workflow?: boolean | WorkflowOptions;
 }
 
 /**
  * Context for global hooks.
  *
  * @template TData - The global data type
- * @template TApp - The CMS app type (defaults to any)
+ * @template TApp - The app app type (defaults to any)
  *
  * @example
  * ```ts
  * import { typedApp } from "questpie";
- * import type { AppCMS } from "./cms";
+ * import type { App } from "./questpie";
  *
  * .hooks({
  *   afterUpdate: async ({ app, data }) => {
- *     const cms = typedApp<AppCMS>(app);
- *     await cms.kv.set('settings-cache', data);
+ *     const app = typedApp<App>(app);
+ *     await app.kv.set('settings-cache', data);
  *   }
  * })
  * ```
@@ -100,11 +105,11 @@ export interface GlobalHookContext<TData = any, TApp = any> {
 	data: TData;
 	/** Input data for update operations */
 	input?: any;
-	/** CMS instance - use typedApp<AppCMS>(app) for type-safe access */
+	/** app instance - use typedApp<App>(app) for type-safe access */
 	app: TApp;
 	/**
 	 * Auth session (user + session) from Better Auth.
-	 * Use typedSession<AppCMS>(session) for type-safe access.
+	 * Use typedSession<App>(session) for type-safe access.
 	 * - undefined = session not resolved
 	 * - null = explicitly unauthenticated
 	 * - object = authenticated
@@ -114,7 +119,7 @@ export interface GlobalHookContext<TData = any, TApp = any> {
 	locale?: string;
 	/** Access mode */
 	accessMode?: AccessMode;
-	/** Database client - use typedDb<AppCMS>(db) for type-safe access */
+	/** Database client - use typedDb<App>(db) for type-safe access */
 	db: any;
 }
 
@@ -122,14 +127,14 @@ export interface GlobalHookContext<TData = any, TApp = any> {
  * Access control context for global operations.
  *
  * @template TData - The global data type
- * @template TApp - The CMS app type (defaults to any)
+ * @template TApp - The app app type (defaults to any)
  */
 export interface GlobalAccessContext<TData = any, TApp = any> {
-	/** CMS instance - use typedApp<AppCMS>(app) for type-safe access */
+	/** app instance - use typedApp<App>(app) for type-safe access */
 	app: TApp;
 	/**
 	 * Auth session (user + session) from Better Auth.
-	 * Use typedSession<AppCMS>(session) for type-safe access.
+	 * Use typedSession<App>(session) for type-safe access.
 	 * - undefined = session not resolved
 	 * - null = explicitly unauthenticated
 	 * - object = authenticated
@@ -139,7 +144,7 @@ export interface GlobalAccessContext<TData = any, TApp = any> {
 	data?: TData;
 	/** Input data for update */
 	input?: any;
-	/** Database client - use typedDb<AppCMS>(db) for type-safe access */
+	/** Database client - use typedDb<App>(db) for type-safe access */
 	db: any;
 	/** Current locale */
 	locale?: string;
@@ -148,7 +153,7 @@ export interface GlobalAccessContext<TData = any, TApp = any> {
 /**
  * Hook function type
  * @template TRow - The global data type
- * @template TApp - The CMS app type
+ * @template TApp - The app app type
  */
 export type GlobalHookFunction<TRow = any, TApp = any> = (
 	ctx: GlobalHookContext<TRow, TApp>,
@@ -157,7 +162,7 @@ export type GlobalHookFunction<TRow = any, TApp = any> = (
 /**
  * Global lifecycle hooks
  * @template TRow - The global data type
- * @template TApp - The CMS app type
+ * @template TApp - The app app type
  */
 export interface GlobalHooks<TRow = any, TApp = any> {
 	beforeUpdate?:
@@ -175,7 +180,47 @@ export interface GlobalHooks<TRow = any, TApp = any> {
 	afterChange?:
 		| GlobalHookFunction<TRow, TApp>[]
 		| GlobalHookFunction<TRow, TApp>;
+	/**
+	 * Runs before a workflow stage transition.
+	 * Throw to abort the transition.
+	 */
+	beforeTransition?:
+		| GlobalTransitionHook<TRow, TApp>[]
+		| GlobalTransitionHook<TRow, TApp>;
+	/**
+	 * Runs after a workflow stage transition.
+	 */
+	afterTransition?:
+		| GlobalTransitionHook<TRow, TApp>[]
+		| GlobalTransitionHook<TRow, TApp>;
 }
+
+/**
+ * Context passed to global workflow transition hooks.
+ */
+export interface GlobalTransitionHookContext<TData = any, TApp = any> {
+	/** Global record being transitioned */
+	data: TData;
+	/** Stage the global is transitioning from */
+	fromStage: string;
+	/** Stage the global is transitioning to */
+	toStage: string;
+	/** app instance */
+	app: TApp;
+	/** Auth session */
+	session?: any | null;
+	/** Current locale */
+	locale?: string;
+	/** Database client */
+	db: any;
+}
+
+/**
+ * Hook function for global workflow stage transitions.
+ */
+export type GlobalTransitionHook<TData = any, TApp = any> = (
+	ctx: GlobalTransitionHookContext<TData, TApp>,
+) => Promise<void> | void;
 
 /**
  * Access control function can return:
@@ -191,6 +236,11 @@ export type GlobalAccessRule<TRow = any, TApp = any> =
 export interface GlobalAccess<TRow = any, TApp = any> {
 	read?: GlobalAccessRule<TRow, TApp>;
 	update?: GlobalAccessRule<TRow, TApp>;
+	/**
+	 * Access rule for workflow stage transitions.
+	 * Falls back to `update` if not specified.
+	 */
+	transition?: GlobalAccessRule<TRow, TApp>;
 	/**
 	 * Field-scoped access rules.
 	 * Source-of-truth for per-field authorization in globals.

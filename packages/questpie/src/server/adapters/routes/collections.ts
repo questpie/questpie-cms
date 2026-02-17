@@ -5,7 +5,7 @@
  */
 
 import { introspectCollection } from "../../collection/introspection.js";
-import type { Questpie } from "../../config/cms.js";
+import type { Questpie } from "../../config/questpie.js";
 import type { QuestpieConfig } from "../../config/types.js";
 import { ApiError } from "../../errors/index.js";
 import type { AdapterConfig, AdapterContext } from "../types.js";
@@ -16,8 +16,7 @@ import { handleError, smartResponse } from "../utils/response.js";
 
 export const createCollectionRoutes = <
 	TConfig extends QuestpieConfig = QuestpieConfig,
->(
-	cms: Questpie<TConfig>,
+>(app: Questpie<TConfig>,
 	config: AdapterConfig<TConfig> = {},
 ) => {
 	const errorResponse = (
@@ -25,7 +24,7 @@ export const createCollectionRoutes = <
 		request: Request,
 		locale?: string,
 	): Response => {
-		return handleError(error, { request, cms, locale });
+		return handleError(error, { request, app, locale });
 	};
 
 	return {
@@ -34,23 +33,23 @@ export const createCollectionRoutes = <
 			params: { collection: string },
 			context?: AdapterContext,
 		): Promise<Response> => {
-			const resolved = await resolveContext(cms, request, config, context);
-			const crud = cms.api.collections[params.collection as any];
+			const resolved = await resolveContext(app, request, config, context);
+			const crud = app.api.collections[params.collection as any];
 
 			if (!crud) {
 				return errorResponse(
 					ApiError.notFound("Collection", params.collection),
 					request,
-					resolved.cmsContext.locale,
+					resolved.appContext.locale,
 				);
 			}
 
 			try {
 				const options = parseFindOptions(new URL(request.url));
-				const result = await crud.find(options, resolved.cmsContext);
+				const result = await crud.find(options, resolved.appContext);
 				return smartResponse(result, request);
 			} catch (error) {
-				return errorResponse(error, request, resolved.cmsContext.locale);
+				return errorResponse(error, request, resolved.appContext.locale);
 			}
 		},
 
@@ -59,14 +58,14 @@ export const createCollectionRoutes = <
 			params: { collection: string },
 			context?: AdapterContext,
 		): Promise<Response> => {
-			const resolved = await resolveContext(cms, request, config, context);
-			const crud = cms.api.collections[params.collection as any];
+			const resolved = await resolveContext(app, request, config, context);
+			const crud = app.api.collections[params.collection as any];
 
 			if (!crud) {
 				return errorResponse(
 					ApiError.notFound("Collection", params.collection),
 					request,
-					resolved.cmsContext.locale,
+					resolved.appContext.locale,
 				);
 			}
 
@@ -74,11 +73,11 @@ export const createCollectionRoutes = <
 				const options = parseFindOptions(new URL(request.url));
 				const result = await crud.count(
 					{ where: options.where, includeDeleted: options.includeDeleted },
-					resolved.cmsContext,
+					resolved.appContext,
 				);
 				return smartResponse({ count: result }, request);
 			} catch (error) {
-				return errorResponse(error, request, resolved.cmsContext.locale);
+				return errorResponse(error, request, resolved.appContext.locale);
 			}
 		},
 
@@ -88,14 +87,14 @@ export const createCollectionRoutes = <
 			context?: AdapterContext,
 			input?: unknown,
 		): Promise<Response> => {
-			const resolved = await resolveContext(cms, request, config, context);
-			const crud = cms.api.collections[params.collection as any];
+			const resolved = await resolveContext(app, request, config, context);
+			const crud = app.api.collections[params.collection as any];
 
 			if (!crud) {
 				return errorResponse(
 					ApiError.notFound("Collection", params.collection),
 					request,
-					resolved.cmsContext.locale,
+					resolved.appContext.locale,
 				);
 			}
 
@@ -104,15 +103,15 @@ export const createCollectionRoutes = <
 				return errorResponse(
 					ApiError.badRequest("Invalid JSON body"),
 					request,
-					resolved.cmsContext.locale,
+					resolved.appContext.locale,
 				);
 			}
 
 			try {
-				const result = await crud.create(body, resolved.cmsContext);
+				const result = await crud.create(body, resolved.appContext);
 				return smartResponse(result, request);
 			} catch (error) {
-				return errorResponse(error, request, resolved.cmsContext.locale);
+				return errorResponse(error, request, resolved.appContext.locale);
 			}
 		},
 
@@ -121,30 +120,30 @@ export const createCollectionRoutes = <
 			params: { collection: string; id: string },
 			context?: AdapterContext,
 		): Promise<Response> => {
-			const resolved = await resolveContext(cms, request, config, context);
-			const crud = cms.api.collections[params.collection as any];
+			const resolved = await resolveContext(app, request, config, context);
+			const crud = app.api.collections[params.collection as any];
 
 			if (!crud) {
 				return errorResponse(
 					ApiError.notFound("Collection", params.collection),
 					request,
-					resolved.cmsContext.locale,
+					resolved.appContext.locale,
 				);
 			}
 
 			try {
 				const options = parseFindOneOptions(new URL(request.url), params.id);
-				const result = await crud.findOne(options, resolved.cmsContext);
+				const result = await crud.findOne(options, resolved.appContext);
 				if (!result) {
 					return errorResponse(
 						ApiError.notFound("Record", params.id),
 						request,
-						resolved.cmsContext.locale,
+						resolved.appContext.locale,
 					);
 				}
 				return smartResponse(result, request);
 			} catch (error) {
-				return errorResponse(error, request, resolved.cmsContext.locale);
+				return errorResponse(error, request, resolved.appContext.locale);
 			}
 		},
 
@@ -154,14 +153,14 @@ export const createCollectionRoutes = <
 			context?: AdapterContext,
 			input?: unknown,
 		): Promise<Response> => {
-			const resolved = await resolveContext(cms, request, config, context);
-			const crud = cms.api.collections[params.collection as any];
+			const resolved = await resolveContext(app, request, config, context);
+			const crud = app.api.collections[params.collection as any];
 
 			if (!crud) {
 				return errorResponse(
 					ApiError.notFound("Collection", params.collection),
 					request,
-					resolved.cmsContext.locale,
+					resolved.appContext.locale,
 				);
 			}
 
@@ -170,18 +169,18 @@ export const createCollectionRoutes = <
 				return errorResponse(
 					ApiError.badRequest("Invalid JSON body"),
 					request,
-					resolved.cmsContext.locale,
+					resolved.appContext.locale,
 				);
 			}
 
 			try {
 				const result = await crud.updateById(
 					{ id: params.id as any, data: body },
-					resolved.cmsContext,
+					resolved.appContext,
 				);
 				return smartResponse(result, request);
 			} catch (error) {
-				return errorResponse(error, request, resolved.cmsContext.locale);
+				return errorResponse(error, request, resolved.appContext.locale);
 			}
 		},
 
@@ -190,22 +189,22 @@ export const createCollectionRoutes = <
 			params: { collection: string; id: string },
 			context?: AdapterContext,
 		): Promise<Response> => {
-			const resolved = await resolveContext(cms, request, config, context);
-			const crud = cms.api.collections[params.collection as any];
+			const resolved = await resolveContext(app, request, config, context);
+			const crud = app.api.collections[params.collection as any];
 
 			if (!crud) {
 				return errorResponse(
 					ApiError.notFound("Collection", params.collection),
 					request,
-					resolved.cmsContext.locale,
+					resolved.appContext.locale,
 				);
 			}
 
 			try {
-				await crud.deleteById({ id: params.id as any }, resolved.cmsContext);
+				await crud.deleteById({ id: params.id as any }, resolved.appContext);
 				return smartResponse({ success: true }, request);
 			} catch (error) {
-				return errorResponse(error, request, resolved.cmsContext.locale);
+				return errorResponse(error, request, resolved.appContext.locale);
 			}
 		},
 
@@ -214,14 +213,14 @@ export const createCollectionRoutes = <
 			params: { collection: string; id: string },
 			context?: AdapterContext,
 		): Promise<Response> => {
-			const resolved = await resolveContext(cms, request, config, context);
-			const crud = cms.api.collections[params.collection as any];
+			const resolved = await resolveContext(app, request, config, context);
+			const crud = app.api.collections[params.collection as any];
 
 			if (!crud) {
 				return errorResponse(
 					ApiError.notFound("Collection", params.collection),
 					request,
-					resolved.cmsContext.locale,
+					resolved.appContext.locale,
 				);
 			}
 
@@ -246,11 +245,11 @@ export const createCollectionRoutes = <
 							? { offset: Math.floor(offset) }
 							: {}),
 					},
-					resolved.cmsContext,
+					resolved.appContext,
 				);
 				return smartResponse(result, request);
 			} catch (error) {
-				return errorResponse(error, request, resolved.cmsContext.locale);
+				return errorResponse(error, request, resolved.appContext.locale);
 			}
 		},
 
@@ -260,14 +259,14 @@ export const createCollectionRoutes = <
 			context?: AdapterContext,
 			input?: unknown,
 		): Promise<Response> => {
-			const resolved = await resolveContext(cms, request, config, context);
-			const crud = cms.api.collections[params.collection as any];
+			const resolved = await resolveContext(app, request, config, context);
+			const crud = app.api.collections[params.collection as any];
 
 			if (!crud) {
 				return errorResponse(
 					ApiError.notFound("Collection", params.collection),
 					request,
-					resolved.cmsContext.locale,
+					resolved.appContext.locale,
 				);
 			}
 
@@ -276,7 +275,7 @@ export const createCollectionRoutes = <
 				return errorResponse(
 					ApiError.badRequest("Invalid JSON body"),
 					request,
-					resolved.cmsContext.locale,
+					resolved.appContext.locale,
 				);
 			}
 
@@ -292,11 +291,52 @@ export const createCollectionRoutes = <
 							? { versionId: payload.versionId }
 							: {}),
 					},
-					resolved.cmsContext,
+					resolved.appContext,
 				);
 				return smartResponse(result, request);
 			} catch (error) {
-				return errorResponse(error, request, resolved.cmsContext.locale);
+				return errorResponse(error, request, resolved.appContext.locale);
+			}
+		},
+
+		transition: async (
+			request: Request,
+			params: { collection: string; id: string },
+			context?: AdapterContext,
+			input?: unknown,
+		): Promise<Response> => {
+			const resolved = await resolveContext(app, request, config, context);
+			const crud = app.api.collections[params.collection as any];
+
+			if (!crud) {
+				return errorResponse(
+					ApiError.notFound("Collection", params.collection),
+					request,
+					resolved.appContext.locale,
+				);
+			}
+
+			const body = input !== undefined ? input : await parseRpcBody(request);
+			if (body === null || typeof body !== "object") {
+				return errorResponse(
+					ApiError.badRequest("Invalid JSON body"),
+					request,
+					resolved.appContext.locale,
+				);
+			}
+
+			try {
+				const payload = body as { stage: string };
+				if (!payload.stage || typeof payload.stage !== "string") {
+					throw ApiError.badRequest("Missing required field: stage");
+				}
+				const result = await crud.transitionStage(
+					{ id: params.id as any, stage: payload.stage },
+					resolved.appContext,
+				);
+				return smartResponse(result, request);
+			} catch (error) {
+				return errorResponse(error, request, resolved.appContext.locale);
 			}
 		},
 
@@ -305,25 +345,25 @@ export const createCollectionRoutes = <
 			params: { collection: string; id: string },
 			context?: AdapterContext,
 		): Promise<Response> => {
-			const resolved = await resolveContext(cms, request, config, context);
-			const crud = cms.api.collections[params.collection as any];
+			const resolved = await resolveContext(app, request, config, context);
+			const crud = app.api.collections[params.collection as any];
 
 			if (!crud) {
 				return errorResponse(
 					ApiError.notFound("Collection", params.collection),
 					request,
-					resolved.cmsContext.locale,
+					resolved.appContext.locale,
 				);
 			}
 
 			try {
 				const result = await crud.restoreById(
 					{ id: params.id as any },
-					resolved.cmsContext,
+					resolved.appContext,
 				);
 				return smartResponse(result, request);
 			} catch (error) {
-				return errorResponse(error, request, resolved.cmsContext.locale);
+				return errorResponse(error, request, resolved.appContext.locale);
 			}
 		},
 
@@ -333,14 +373,14 @@ export const createCollectionRoutes = <
 			context?: AdapterContext,
 			input?: unknown,
 		): Promise<Response> => {
-			const resolved = await resolveContext(cms, request, config, context);
-			const crud = cms.api.collections[params.collection as any];
+			const resolved = await resolveContext(app, request, config, context);
+			const crud = app.api.collections[params.collection as any];
 
 			if (!crud) {
 				return errorResponse(
 					ApiError.notFound("Collection", params.collection),
 					request,
-					resolved.cmsContext.locale,
+					resolved.appContext.locale,
 				);
 			}
 
@@ -349,16 +389,16 @@ export const createCollectionRoutes = <
 				return errorResponse(
 					ApiError.badRequest("Invalid JSON body"),
 					request,
-					resolved.cmsContext.locale,
+					resolved.appContext.locale,
 				);
 			}
 
 			try {
 				const { where, data } = body as { where: any; data: any };
-				const result = await crud.update({ where, data }, resolved.cmsContext);
+				const result = await crud.update({ where, data }, resolved.appContext);
 				return smartResponse(result, request);
 			} catch (error) {
-				return errorResponse(error, request, resolved.cmsContext.locale);
+				return errorResponse(error, request, resolved.appContext.locale);
 			}
 		},
 
@@ -368,14 +408,14 @@ export const createCollectionRoutes = <
 			context?: AdapterContext,
 			input?: unknown,
 		): Promise<Response> => {
-			const resolved = await resolveContext(cms, request, config, context);
-			const crud = cms.api.collections[params.collection as any];
+			const resolved = await resolveContext(app, request, config, context);
+			const crud = app.api.collections[params.collection as any];
 
 			if (!crud) {
 				return errorResponse(
 					ApiError.notFound("Collection", params.collection),
 					request,
-					resolved.cmsContext.locale,
+					resolved.appContext.locale,
 				);
 			}
 
@@ -384,16 +424,16 @@ export const createCollectionRoutes = <
 				return errorResponse(
 					ApiError.badRequest("Invalid JSON body"),
 					request,
-					resolved.cmsContext.locale,
+					resolved.appContext.locale,
 				);
 			}
 
 			try {
 				const { where } = body as { where: any };
-				const result = await crud.delete({ where }, resolved.cmsContext);
+				const result = await crud.delete({ where }, resolved.appContext);
 				return smartResponse(result, request);
 			} catch (error) {
-				return errorResponse(error, request, resolved.cmsContext.locale);
+				return errorResponse(error, request, resolved.appContext.locale);
 			}
 		},
 
@@ -402,16 +442,16 @@ export const createCollectionRoutes = <
 			params: { collection: string },
 			context?: AdapterContext,
 		): Promise<Response> => {
-			const resolved = await resolveContext(cms, request, config, context);
+			const resolved = await resolveContext(app, request, config, context);
 
 			// Get collection config directly (not CRUD)
-			const collection = cms.getCollections()[params.collection as any];
+			const collection = app.getCollections()[params.collection as any];
 
 			if (!collection) {
 				return errorResponse(
 					ApiError.notFound("Collection", params.collection),
 					request,
-					resolved.cmsContext.locale,
+					resolved.appContext.locale,
 				);
 			}
 
@@ -419,7 +459,7 @@ export const createCollectionRoutes = <
 				const meta = collection.getMeta();
 				return smartResponse(meta, request);
 			} catch (error) {
-				return errorResponse(error, request, resolved.cmsContext.locale);
+				return errorResponse(error, request, resolved.appContext.locale);
 			}
 		},
 
@@ -428,16 +468,16 @@ export const createCollectionRoutes = <
 			params: { collection: string },
 			context?: AdapterContext,
 		): Promise<Response> => {
-			const resolved = await resolveContext(cms, request, config, context);
+			const resolved = await resolveContext(app, request, config, context);
 
 			// Get collection config directly (not CRUD)
-			const collection = cms.getCollections()[params.collection as any];
+			const collection = app.getCollections()[params.collection as any];
 
 			if (!collection) {
 				return errorResponse(
 					ApiError.notFound("Collection", params.collection),
 					request,
-					resolved.cmsContext.locale,
+					resolved.appContext.locale,
 				);
 			}
 
@@ -446,15 +486,15 @@ export const createCollectionRoutes = <
 				const schema = await introspectCollection(
 					collection,
 					{
-						session: resolved.cmsContext.session,
-						db: cms.db,
-						locale: resolved.cmsContext.locale,
+						session: resolved.appContext.session,
+						db: app.db,
+						locale: resolved.appContext.locale,
 					},
-					cms,
+					app,
 				);
 				return smartResponse(schema, request);
 			} catch (error) {
-				return errorResponse(error, request, resolved.cmsContext.locale);
+				return errorResponse(error, request, resolved.appContext.locale);
 			}
 		},
 	};

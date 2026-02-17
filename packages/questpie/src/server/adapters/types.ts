@@ -4,7 +4,7 @@
  * Type definitions for the HTTP adapter.
  */
 
-import type { Questpie } from "../config/cms.js";
+import type { Questpie } from "../config/questpie.js";
 import type { RequestContext } from "../config/context.js";
 import type { AccessMode, QuestpieConfig } from "../config/types.js";
 import type { RpcRouterTree } from "../rpc/types.js";
@@ -13,7 +13,7 @@ export type ReindexAccessContext<
 	TConfig extends QuestpieConfig = QuestpieConfig,
 > = {
 	request: Request;
-	cms: Questpie<TConfig>;
+	app: Questpie<TConfig>;
 	session?: { user: any; session: any } | null;
 	db: unknown;
 	locale?: string;
@@ -53,20 +53,19 @@ export type AdapterConfig<TConfig extends QuestpieConfig = QuestpieConfig> = {
 	};
 	extendContext?: (params: {
 		request: Request;
-		cms: Questpie<TConfig>;
+		app: Questpie<TConfig>;
 		context: AdapterBaseContext;
 	}) =>
 		| Promise<Record<string, any> | undefined>
 		| Record<string, any>
 		| undefined;
-	getLocale?: (request: Request, cms: Questpie<TConfig>) => string | undefined;
+	getLocale?: (request: Request, app: Questpie<TConfig>) => string | undefined;
 	/**
 	 * Custom session resolver. Returns the session object from Better Auth
 	 * containing both user and session data.
 	 */
 	getSession?: (
-		request: Request,
-		cms: Questpie<TConfig>,
+		request: Request, app: Questpie<TConfig>,
 	) => Promise<{ user: any; session: any } | null>;
 };
 
@@ -75,7 +74,8 @@ export type AdapterContext = {
 	session?: { user: any; session: any } | null;
 	locale?: string;
 	localeFallback?: boolean;
-	cmsContext: RequestContext;
+	stage?: string;
+	appContext: RequestContext;
 };
 
 export type AdapterBaseContext = {
@@ -83,6 +83,7 @@ export type AdapterBaseContext = {
 	session?: { user: any; session: any } | null;
 	locale?: string;
 	localeFallback?: boolean;
+	stage?: string;
 	accessMode: AccessMode;
 };
 

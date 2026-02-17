@@ -7,7 +7,7 @@
 
 import type { HookContext } from "#questpie/server/collection/builder/types.js";
 import type { CRUDContext } from "#questpie/server/collection/crud/types.js";
-import type { Questpie } from "#questpie/server/config/cms.js";
+import type { Questpie } from "#questpie/server/config/questpie.js";
 import { normalizeContext } from "./context.js";
 
 /**
@@ -42,12 +42,12 @@ export interface CreateHookContextParams {
   context: CRUDContext;
   /** Database instance */
   db: any;
-  /** CMS instance */
-  cms?: Questpie<any>;
+  /** app instance */
+  app?: Questpie<any>;
 }
 
 /**
- * Create hook context with full CMS access
+ * Create hook context with full app access
  *
  * @param params - Parameters for creating the hook context
  * @returns HookContext object
@@ -60,7 +60,7 @@ export function createHookContext(
   return {
     data: params.data,
     original: params.original,
-    app: params.cms as any, // CMS instance
+    app: params.app as any, // app instance
     session: normalized.session,
     locale: normalized.locale,
     accessMode: normalized.accessMode,
