@@ -27,7 +27,7 @@ export function CallToAction() {
 					</div>
 					<span className="inline-flex items-center gap-2 border border-primary/20 bg-primary/[0.05] px-3 py-1 font-mono text-[10px] uppercase tracking-[0.22em] text-primary">
 						<span className="h-1.5 w-1.5 bg-primary" />
-						v1 Beta
+						Open Source
 					</span>
 				</motion.div>
 

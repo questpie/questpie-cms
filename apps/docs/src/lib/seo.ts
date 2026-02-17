@@ -4,7 +4,7 @@
 
 export const siteConfig = {
 	name: "QUESTPIE",
-	title: "QUESTPIE - Server-First TypeScript Framework (v1 Beta)",
+	title: "QUESTPIE - Server-First TypeScript Framework",
 	description:
 		"Define your schema once and get a REST API, admin panel, and typed SDK. QUESTPIE is an open-source, server-first TypeScript framework with built-in realtime, composable modules, and full design-system control.",
 	url: "https://questpie.com",

@@ -4,20 +4,9 @@ import { motion } from "motion/react";
 import { useEffect, useState } from "react";
 import { PrismLight as SyntaxHighlighter } from "react-syntax-highlighter";
 import typescript from "react-syntax-highlighter/dist/esm/languages/prism/typescript";
-import coldarkCold from "react-syntax-highlighter/dist/esm/styles/prism/coldark-cold";
-import coldarkDark from "react-syntax-highlighter/dist/esm/styles/prism/coldark-dark";
-import { cn } from "@/lib/utils";
 
 SyntaxHighlighter.registerLanguage("typescript", typescript);
 
-const schemaSnippet = `q.collection("posts")
-  .fields((f) => ({
-    title: f.text(),
-    author: f.relation({ to: "users" }),
-    status: f.select({
-      options: ["draft", "published"],
-    }),
-  }))`;
 
 const rows = [
 	{ id: 1, title: "Homepage Redesign", author: "Alex K.", status: "published" },
@@ -113,7 +102,7 @@ export function Hero() {
 						>
 							<span className="inline-flex items-center gap-2 border border-primary/20 bg-primary/[0.05] px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.22em] text-primary rounded-sm">
 								<Sparkles className="h-3 w-3" />
-								v1 Beta — Open Source
+							Open Source
 							</span>
 						</motion.div>
 
