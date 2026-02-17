@@ -1,13 +1,15 @@
 # @questpie/tanstack-query
 
-Type-safe TanStack React Query integration for QUESTPIE.
+Type-safe TanStack Query option builders for QUESTPIE — collections, globals, RPC procedures, and realtime streaming.
 
 ## Features
 
-- **Query Options Factory** - Pre-built query/mutation options using `queryOptions()` and `mutationOptions()` from TanStack Query
-- **RPC Query Primitives** - Typed `query()` / `mutation()` helpers for `client.rpc.*` procedures
-- **SSR Ready** - Prefetch data on server, hydrate on client
-- **Type-Safe** - Full TypeScript inference from your CMS schema
+- **Query Options Factory** — Pre-built `queryOptions()` and `mutationOptions()` for all CRUD operations
+- **RPC Query Options** — Typed `query()` / `mutation()` builders for standalone RPC procedures with nested router support
+- **Realtime Streaming** — `streamedQuery`-based options for SSE live updates on collections and globals
+- **Batch Operations** — `updateMany` and `deleteMany` mutation builders
+- **SSR Ready** — Prefetch data on the server, hydrate on the client
+- **Full Type Inference** — Types flow from your CMS schema through to query results
 
 ## Installation
 
@@ -19,314 +21,221 @@ bun add @questpie/tanstack-query questpie @tanstack/react-query
 
 ### 1. Create Query Options
 
-```typescript
-// src/lib/queries.ts
+```ts
 import { createClient } from "questpie/client";
 import { createQuestpieQueryOptions } from "@questpie/tanstack-query";
-import type { AppCMS, AppRpc } from "@/cms";
+import type { AppCMS, AppRpc } from "@/questpie/server/cms";
 
 const cmsClient = createClient<AppCMS, AppRpc>({
   baseURL: "http://localhost:3000",
   basePath: "/api/cms",
 });
 
-export const cmsQueries = createQuestpieQueryOptions(cmsClient, {
-  keyPrefix: ["cms"], // Optional: prefix for all query keys
-});
+export const cmsQueries = createQuestpieQueryOptions(cmsClient);
 ```
 
 ### 2. Use in Components
 
-```typescript
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
-import { cmsQueries } from "@/lib/queries"
+```tsx
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { cmsQueries } from "@/lib/queries";
 
 function PostsList() {
-  // Queries
-  const { data: posts } = useQuery(cmsQueries.collections.posts.find({ limit: 10 }))
+  const { data } = useQuery(
+    cmsQueries.collections.posts.find({ limit: 10 })
+  );
 
-  // Mutations
-  const queryClient = useQueryClient()
-
+  const queryClient = useQueryClient();
   const createPost = useMutation({
     ...cmsQueries.collections.posts.create(),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["cms", "collections", "posts"] })
+      queryClient.invalidateQueries({ queryKey: cmsQueries.collections.posts.key() });
     },
-  })
+  });
 
   return (
     <div>
-      {posts?.docs.map((post) => (
-        <div key={post.id}>{post.title}</div>
-      ))}
+      {data?.docs.map((post) => <div key={post.id}>{post.title}</div>)}
       <button onClick={() => createPost.mutate({ title: "New Post" })}>
-        Create Post
+        Create
       </button>
     </div>
-  )
+  );
 }
 ```
 
-## Query Options API
+## Collections
 
-### Collections
-
-```typescript
-// Find many
+```ts
+// Find many (paginated)
 cmsQueries.collections.posts.find({
   where: { published: { eq: true } },
   orderBy: { createdAt: "desc" },
   limit: 10,
   offset: 0,
   with: { author: true },
-});
+})
 
 // Find one
 cmsQueries.collections.posts.findOne({
   where: { id: "post-id" },
-  with: { author: true, comments: true },
-});
+  with: { author: true },
+})
 
-// Create
-cmsQueries.collections.posts.create();
-// Usage: mutation.mutate({ title: "...", content: "..." })
+// Count
+cmsQueries.collections.posts.count({
+  where: { published: { eq: true } },
+})
 
-// Update
-cmsQueries.collections.posts.update();
-// Usage: mutation.mutate({ id: "...", data: { title: "..." } })
+// Create (mutation)
+cmsQueries.collections.posts.create()
 
-// Delete
-cmsQueries.collections.posts.delete();
-// Usage: mutation.mutate({ id: "..." })
+// Update (mutation)
+cmsQueries.collections.posts.update()
 
-// Restore (soft delete)
-cmsQueries.collections.posts.restore();
-// Usage: mutation.mutate({ id: "..." })
+// Delete (mutation)
+cmsQueries.collections.posts.delete()
+
+// Update many (mutation)
+cmsQueries.collections.posts.updateMany()
+
+// Delete many (mutation)
+cmsQueries.collections.posts.deleteMany()
+
+// Restore soft-deleted (mutation)
+cmsQueries.collections.posts.restore()
+
+// Query key for invalidation
+cmsQueries.collections.posts.key()
 ```
 
-### Globals
+## Globals
 
-```typescript
-// Get
-cmsQueries.globals.siteSettings.get();
+```ts
+// Get global value
+cmsQueries.globals.siteSettings.get()
 
-// Update
-cmsQueries.globals.siteSettings.update();
-// Usage: mutation.mutate({ data: { siteName: "..." } })
+// Update global (mutation)
+cmsQueries.globals.siteSettings.update()
+
+// Query key
+cmsQueries.globals.siteSettings.key()
 ```
 
-### Custom Queries
+## RPC
 
-```typescript
-const searchQuery = cmsQueries.custom.query({
-  key: ["search", query],
-  queryFn: () => fetch(`/api/search?q=${query}`).then((r) => r.json()),
-});
+Full type-safe query/mutation options for standalone RPC procedures:
 
-useQuery(searchQuery);
-```
-
-### RPC
-
-```typescript
+```ts
 // Query options from RPC procedure
-const statsQuery = cmsQueries.rpc.dashboard.getStats.query({ period: "week" });
+const { data } = useQuery(
+  cmsQueries.rpc.dashboard.getStats.query({ period: "week" })
+);
 
 // Mutation options from RPC procedure
-const publishPost = useMutation(cmsQueries.rpc.posts.publish.mutation());
-publishPost.mutate({ id: "post_123" });
+const publish = useMutation(
+  cmsQueries.rpc.posts.publish.mutation()
+);
+publish.mutate({ id: "post_123" });
 
-// Stable key helper for invalidation/prefetch
+// Query key for invalidation/prefetch
 queryClient.invalidateQueries({
   queryKey: cmsQueries.rpc.dashboard.getStats.key({ period: "week" }),
 });
+```
+
+## Realtime Streaming
+
+Collection queries support SSE-based live updates via `streamedQuery`:
+
+```ts
+// Enable realtime on a query
+const { data } = useQuery(
+  cmsQueries.collections.posts.find(
+    { limit: 10 },
+    { realtime: true }
+  )
+);
+```
+
+Topic helpers for manual subscription:
+
+```ts
+import { buildCollectionTopic, buildGlobalTopic } from "@questpie/tanstack-query";
+
+const postsTopic = buildCollectionTopic("posts");
+const settingsTopic = buildGlobalTopic("siteSettings");
 ```
 
 ## SSR Prefetching
 
 ### TanStack Start
 
-```typescript
-// src/routes/posts.tsx
-import { createFileRoute } from "@tanstack/react-router"
-import { useSuspenseQuery } from "@tanstack/react-query"
-import { cmsQueries } from "@/lib/queries"
+```tsx
+import { createFileRoute } from "@tanstack/react-router";
+import { useSuspenseQuery } from "@tanstack/react-query";
+import { cmsQueries } from "@/lib/queries";
 
 export const Route = createFileRoute("/posts")({
   loader: async ({ context }) => {
     await context.queryClient.ensureQueryData(
       cmsQueries.collections.posts.find({ limit: 10 })
-    )
+    );
   },
   component: PostsPage,
-})
+});
 
 function PostsPage() {
-  const { data: posts } = useSuspenseQuery(
+  const { data } = useSuspenseQuery(
     cmsQueries.collections.posts.find({ limit: 10 })
-  )
-
+  );
   return (
     <ul>
-      {posts.docs.map((post) => (
-        <li key={post.id}>{post.title}</li>
-      ))}
+      {data.docs.map((post) => <li key={post.id}>{post.title}</li>)}
     </ul>
-  )
+  );
 }
 ```
 
 ### Next.js
 
-```typescript
-// app/posts/page.tsx
-import { HydrationBoundary, dehydrate } from "@tanstack/react-query"
-import { getQueryClient } from "@/lib/query-client"
-import { cmsQueries } from "@/lib/queries"
-import { PostsList } from "./posts-list"
+```tsx
+import { HydrationBoundary, dehydrate } from "@tanstack/react-query";
+import { getQueryClient } from "@/lib/query-client";
+import { cmsQueries } from "@/lib/queries";
 
 export default async function PostsPage() {
-  const queryClient = getQueryClient()
-
+  const queryClient = getQueryClient();
   await queryClient.prefetchQuery(
     cmsQueries.collections.posts.find({ limit: 10 })
-  )
-
+  );
   return (
     <HydrationBoundary state={dehydrate(queryClient)}>
       <PostsList />
     </HydrationBoundary>
-  )
-}
-```
-
-## Optimistic Updates
-
-```typescript
-const queryClient = useQueryClient();
-
-const updatePost = useMutation({
-  ...cmsQueries.collections.posts.update(),
-  onMutate: async ({ id, data }) => {
-    await queryClient.cancelQueries({
-      queryKey: ["cms", "collections", "posts"],
-    });
-
-    const previousPosts = queryClient.getQueryData([
-      "cms",
-      "collections",
-      "posts",
-    ]);
-
-    queryClient.setQueryData(["cms", "collections", "posts"], (old) => ({
-      ...old,
-      docs: old.docs.map((post) =>
-        post.id === id ? { ...post, ...data } : post,
-      ),
-    }));
-
-    return { previousPosts };
-  },
-  onError: (err, variables, context) => {
-    queryClient.setQueryData(
-      ["cms", "collections", "posts"],
-      context?.previousPosts,
-    );
-  },
-  onSettled: () => {
-    queryClient.invalidateQueries({
-      queryKey: ["cms", "collections", "posts"],
-    });
-  },
-});
-```
-
-## Infinite Queries
-
-```typescript
-import { useInfiniteQuery } from "@tanstack/react-query"
-import { cmsClient } from "@/lib/cms-client"
-
-function InfinitePosts() {
-  const { data, fetchNextPage, hasNextPage } = useInfiniteQuery({
-    queryKey: ["cms", "collections", "posts", "infinite"],
-    queryFn: ({ pageParam = 0 }) =>
-      cmsClient.collections.posts.find({
-        limit: 10,
-        offset: pageParam,
-      }),
-    getNextPageParam: (lastPage, allPages) => {
-      const totalFetched = allPages.flatMap((p) => p.docs).length
-      return lastPage.docs.length === 10 ? totalFetched : undefined
-    },
-    initialPageParam: 0,
-  })
-
-  return (
-    <div>
-      {data?.pages.flatMap((page) =>
-        page.docs.map((post) => <div key={post.id}>{post.title}</div>)
-      )}
-      {hasNextPage && (
-        <button onClick={() => fetchNextPage()}>Load More</button>
-      )}
-    </div>
-  )
+  );
 }
 ```
 
 ## Query Key Structure
 
-All query keys follow this structure:
-
-```typescript
+```ts
 // Collections
-[...keyPrefix, "collections", collectionName, "find", options]
-[...keyPrefix, "collections", collectionName, "findOne", options]
+["collections", collectionName, "find", options]
+["collections", collectionName, "findOne", options]
+["collections", collectionName, "count", options]
 
 // Globals
-[...keyPrefix, "globals", globalName, "get", options]
+["globals", globalName, "get"]
 
 // RPC
-[...keyPrefix, "rpc", ...segments, "query", input]
-[...keyPrefix, "rpc", ...segments, "mutation"]
-
-// Custom
-[...keyPrefix, ...customKey]
+["rpc", ...segments, "query", input]
+["rpc", ...segments, "mutation"]
 ```
 
-## TypeScript
+## Documentation
 
-Full type inference from your CMS schema:
-
-```typescript
-import type { CollectionSelect } from "questpie";
-import type { AppCMS, AppRpc } from "@/cms";
-import { createClient } from "questpie/client";
-import { createQuestpieQueryOptions } from "@questpie/tanstack-query";
-
-const cmsClient = createClient<AppCMS, AppRpc>({
-  baseURL: "http://localhost:3000",
-  basePath: "/api/cms",
-});
-
-const cmsQueries = createQuestpieQueryOptions(cmsClient);
-
-// Collection item type
-type Post = CollectionSelect<AppCMS["config"]["collections"]["posts"]>;
-
-// Query result types are automatically inferred
-const { data } = useQuery(cmsQueries.collections.posts.find({ limit: 10 }));
-//    ^? { docs: Post[], totalDocs: number, ... }
-```
-
-## Related Packages
-
-- [`questpie`](../questpie) - Core CMS engine
-- [`@questpie/hono`](../hono) - Hono adapter
-- [`@questpie/elysia`](../elysia) - Elysia adapter
-- [`@questpie/next`](../next) - Next.js adapter
+Full documentation: [https://questpie.com/docs/client/tanstack-query](https://questpie.com/docs/client/tanstack-query)
 
 ## License
 

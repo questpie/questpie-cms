@@ -1,8 +1,16 @@
 # @questpie/openapi
 
-Auto-generate OpenAPI 3.1 spec from QUESTPIE CMS runtime metadata and serve interactive docs via Scalar UI.
+Auto-generate an OpenAPI 3.1 spec from a QUESTPIE CMS instance and serve interactive API docs via Scalar UI.
+
+## Installation
+
+```bash
+bun add @questpie/openapi
+```
 
 ## Usage
+
+Wrap your fetch handler with `withOpenApi` to add `/openapi.json` and `/docs` routes:
 
 ```ts
 import { createFetchHandler } from "questpie";
@@ -20,81 +28,40 @@ const handler = withOpenApi(
   },
 );
 
-// GET /api/cms/openapi.json → spec JSON
+// GET /api/cms/openapi.json → OpenAPI spec
 // GET /api/cms/docs         → Scalar UI
 // Everything else           → CMS routes
 ```
 
-## What gets documented
+## What Gets Documented
 
-- **Collections** — CRUD endpoints (list, create, findOne, update, delete, count, delete-many, restore, upload, schema, meta)
-- **Globals** — get, update, schema
-- **RPC functions** — traverses the RPC router tree, documents input/output from Zod schemas
-- **Auth** — Better Auth endpoints (sign-in, sign-up, session, sign-out)
-- **Search** — full-text search and reindex
+| Category | Endpoints |
+| -------- | --------- |
+| **Collections** | List, create, findOne, update, delete, count, deleteMany, restore, upload, schema, meta |
+| **Globals** | Get, update, schema |
+| **RPC** | All procedures from the RPC router tree, with input/output from Zod schemas |
+| **Auth** | Better Auth endpoints (sign-in, sign-up, session, sign-out) |
+| **Search** | Full-text search and reindex |
 
-## Roadmap
+RPC functions with an explicit `outputSchema` get full request/response documentation. Functions without it fall back to `{ type: "object" }`.
 
-### Phase 2: Automatic output schema inference via Vite plugin
+## Standalone Spec Generation
 
-RPC functions that declare `outputSchema` get full request/response documentation today. Functions without it fall back to `{ type: "object" }`.
-
-Phase 2 will add a **Vite plugin** (+ standalone CLI) that uses `ts-morph` to automatically infer output schemas from handler return types — no manual `outputSchema` needed.
-
-#### How it works
-
-1. Point the plugin at your RPC router file
-2. It uses ts-morph to statically analyze each `fn({ handler })` return type
-3. Converts TS types → JSON Schema
-4. Writes a `.generated.ts` file that the runtime spec generator picks up
-5. In dev mode, re-runs automatically on file change (HMR-friendly)
-
-#### Planned API
+Generate the spec without mounting routes:
 
 ```ts
-// vite.config.ts
-import { questpieOpenApi } from "@questpie/openapi/codegen";
+import { generateOpenApiSpec } from "@questpie/openapi";
 
-export default {
-  plugins: [
-    questpieOpenApi({
-      // Path to the file that exports your RPC router
-      rpcEntry: "./src/questpie/server/cms.ts",
-      // Name of the exported RPC router variable
-      rpcExport: "appRpc",
-      // Where to write generated schemas (auto-imported at runtime)
-      output: "./src/questpie/server/openapi.generated.ts",
-    }),
-  ],
-};
+const spec = generateOpenApiSpec(cms, appRpc, {
+  basePath: "/api/cms",
+  info: { title: "My API", version: "1.0.0" },
+});
 ```
 
-```ts
-// CLI alternative (for non-Vite setups)
-questpie openapi generate \
-  --rpc-entry ./src/questpie/server/cms.ts \
-  --rpc-export appRpc \
-  --output ./src/questpie/server/openapi.generated.ts
-```
+## Documentation
 
-#### Generated output
+Full documentation: [https://questpie.com/docs/client/openapi](https://questpie.com/docs/client/openapi)
 
-```ts
-// openapi.generated.ts (auto-generated, do not edit)
-export const rpcOutputSchemas = {
-  rpc_getActiveBarbers_Output: {
-    type: "array",
-    items: {
-      type: "object",
-      properties: {
-        id: { type: "string" },
-        name: { type: "string" },
-        // ... inferred from handler return type
-      },
-    },
-  },
-  // ...
-};
-```
+## License
 
-The runtime spec generator merges these with any explicit `outputSchema` definitions (explicit always wins).
+MIT

@@ -1,523 +1,211 @@
 # @questpie/admin
 
-**Config-driven, batteries-included admin UI for QUESTPIE CMS**
+Server-driven admin UI for QUESTPIE. Reads your server schema via introspection and generates a complete admin panel — dashboard, table views, form editors, sidebar navigation, block editor — all from the definitions you already wrote on the server.
 
-A fully-featured admin interface using the `qa()` builder pattern for type-safe configuration.
+## How It Works
 
-## Features
+QUESTPIE follows a **server-first** architecture. All schema, layout, and behavior is defined on the server with the `questpie` core package. The admin UI consumes this via introspection — no duplicate config needed on the client.
 
-- **Builder Pattern** - Type-safe `qa()` builder with autocomplete
-- **Config-Driven** - UI auto-generated from builder configuration
-- **Type-Safe** - Full TypeScript inference with module augmentation
-- **Tailwind v4** - Built with Tailwind CSS v4 + shadcn/ui components
-- **Rich Text** - Tiptap editor with toolbar controls
-- **Relations** - Single select, multi-picker with drag-and-drop
-- **Layouts** - Sections, tabs, columns, grids, sidebars
-- **Realtime** - SSE-powered live updates
-- **Versioning** - Built-in version history
-- **i18n Ready** - Localization support for content
+| Layer | Package | Defines |
+| ----- | ------- | ------- |
+| **Server** | `questpie` + `@questpie/admin/server` | Schema, fields, access, hooks, sidebar, dashboard, branding |
+| **Client** | `@questpie/admin/client` | Field renderers, view renderers, component registry, UI overrides |
 
 ## Installation
 
 ```bash
-bun add @questpie/admin questpie @questpie/tanstack-query
-bun add @tanstack/react-query
+bun add @questpie/admin questpie @questpie/tanstack-query @tanstack/react-query
 ```
 
-## Quick Start
+## Server Setup
 
-### 1. Create Admin Builder
+The admin module plugs into the QUESTPIE builder on the server:
 
-```typescript
-// src/admin/builder.ts
-import { qa, adminModule } from "@questpie/admin/client";
-import type { AppCMS } from "./server/cms";
-
-// Create typed builder with admin fields/views
-export const qab = qa<AppCMS>().use(adminModule).toNamespace();
-```
-
-### 2. Define Collection Configs
-
-```typescript
-// src/admin/collections/posts.ts
-import { qab } from "../builder";
-
-export const postsAdmin = qab
-  .collection("posts")
-  .meta({
-    label: "Blog Posts",
-    icon: FileTextIcon, // React component
-  })
-  // Fields with registry callback - ({ r }) gives autocomplete!
-  .fields(({ r }) => ({
-    title: r.text({
-      label: "Title",
-      placeholder: "Post title...",
-      maxLength: 200,
-    }),
-    slug: r.text({
-      label: "Slug",
-    }),
-    content: r.textarea({
-      label: "Content",
-    }),
-    status: r.select({
-      label: "Status",
-      options: [
-        { label: "Draft", value: "draft" },
-        { label: "Published", value: "published" },
-      ],
-    }),
-    publishedAt: r.datetime({
-      label: "Publish Date",
-    }),
-    authorId: r.relation({
-      label: "Author",
-      targetCollection: "users",
-    }),
-  }))
-  // List view with field proxy - ({ v, f }) gives autocomplete!
-  .list(({ v, f }) =>
-    v.table({
-      columns: [f.title, f.status, f.authorId, f.publishedAt],
-    }),
-  )
-  // Form view
-  .form(({ v, f }) =>
-    v.form({
-      sections: [
-        {
-          title: "Content",
-          fields: [f.title, f.slug, f.content],
-        },
-        {
-          title: "Publishing",
-          fields: [f.status, f.publishedAt, f.authorId],
-        },
-      ],
-    }),
-  );
-```
-
-### 3. Build Admin Configuration
-
-```typescript
-// src/admin/builder.ts
-import { qa, adminModule } from "@questpie/admin/client";
-import type { AppCMS } from "./server/cms";
-
-export const admin = qa<AppCMS>().use(adminModule);
-
-// Module augmentation for global type inference
-declare module "@questpie/admin/client" {
-  interface AdminTypeRegistry {
-    cms: AppCMS;
-    admin: typeof admin;
-  }
-}
-```
-
-**Note:** Branding, sidebar, and dashboard are configured server-side via `q().use(adminModule)` from `@questpie/admin/server`.
-
-### 4. Server-Side Configuration
-
-Branding, sidebar, and dashboard are configured on the server:
-
-```typescript
-// src/questpie/server/app.ts
-import { adminModule } from "@questpie/admin/server";
+```ts
+// questpie/server/builder.ts
 import { q } from "questpie";
+import { adminModule } from "@questpie/admin/server";
 
-export const cms = q({ name: "my-app" })
-  .use(adminModule)
-  .branding({ name: "My Admin" })
+export const qb = q.use(adminModule);
+```
+
+All admin configuration is defined server-side using the builder chain:
+
+```ts
+// questpie/server/cms.ts
+import { qb } from "./builder";
+
+export const cms = qb
+  .collections({ posts, pages })
+  .globals({ siteSettings })
+  .branding({ name: { en: "My Admin Panel" } })
   .sidebar(({ s, c }) =>
     s.sidebar({
       sections: [
-        {
-          id: "main",
+        s.section({
+          id: "content",
+          title: { en: "Content" },
           items: [
             { type: "link", label: "Dashboard", href: "/admin", icon: c.icon("ph:house") },
-          ],
-        },
-        {
-          id: "content",
-          label: "Content",
-          icon: c.icon("ph:file-text"),
-          items: [
             { type: "collection", collection: "posts" },
+            { type: "collection", collection: "pages" },
+            { type: "divider" },
+            { type: "global", global: "siteSettings" },
           ],
-        },
+        }),
       ],
     }),
   )
-  .dashboard(({ d, c }) =>
+  .dashboard(({ d, c, a }) =>
     d.dashboard({
+      title: { en: "Dashboard" },
+      actions: [
+        a.create({ collection: "posts", label: { en: "New Post" }, icon: c.icon("ph:plus") }),
+        a.global({ global: "siteSettings", label: { en: "Settings" }, icon: c.icon("ph:gear-six") }),
+      ],
       items: [],
     }),
   )
   .build({ ... });
+
+export type AppCMS = typeof cms;
 ```
 
-### 5. Setup Tailwind CSS
+### Collection Admin Config
 
-In your main CSS file, import admin styles and configure Tailwind to scan the admin package:
+Admin metadata, list views, and form views are defined on the collection itself:
 
-```css
-/* src/styles.css */
-@import "tailwindcss";
-@import "tw-animate-css";
-@import "shadcn/tailwind.css";
-@import "@questpie/admin/styles/index.css";
-
-/* IMPORTANT: Tell Tailwind to scan admin package for utility classes */
-@source "../node_modules/@questpie/admin/dist";
-
-/* Your app's theme variables... */
-```
-
-### 6. Mount in React
-
-```tsx
-// routes/admin.tsx (TanStack Router example)
-import { Admin, AdminLayoutProvider } from "@questpie/admin/client";
-import { Link, Outlet, useLocation } from "@tanstack/react-router";
-import { admin } from "~/admin/builder";
-import { cmsClient } from "~/lib/cms-client";
-import { queryClient } from "~/lib/query-client";
-
-// Create runtime instance
-const adminInstance = Admin.from(admin);
-
-function AdminLayout() {
-  const location = useLocation();
-
-  return (
-    <AdminLayoutProvider
-      admin={adminInstance}
-      client={cmsClient}
-      queryClient={queryClient}
-      LinkComponent={Link}
-      activeRoute={location.pathname}
-      basePath="/admin"
-    >
-      <Outlet />
-    </AdminLayoutProvider>
-  );
-}
-```
-
-## Builder API
-
-### Main Entry Point
-
-```typescript
-import { qa, adminModule } from "@questpie/admin/client";
-import type { AppCMS } from "./server/cms";
-
-// Start from admin module (includes built-in fields/views + user management)
-const admin = qa<AppCMS>().use(adminModule);
-
-// Then use the builder to configure collections
-const postsAdmin = admin.collection("posts").fields(({ r }) => ({
-  title: r.text(),
-  // ...
-}));
-```
-
-**Note:** Branding, sidebar, and dashboard are configured server-side via `q().use(adminModule)` from `@questpie/admin/server`.
-
-### Collection Builder
-
-```typescript
-const postsAdmin = qa
-  .collection("posts")
-  .meta({ label: "Posts", icon: PostIcon })
-  .fields(({ r }) => ({
-    // r = FieldRegistryProxy with autocomplete for registered fields
-    title: r.text({ maxLength: 200 }),
-    content: r.richText(),
-    status: r.select({ options: [...] }),
+```ts
+const posts = qb.collection("posts")
+  .fields((f) => ({
+    title: f.text({ label: "Title", required: true }),
+    content: f.richText({ label: "Content" }),
+    status: f.select({ label: "Status", options: ["draft", "published"] }),
+    cover: f.upload({ to: "assets", mimeTypes: ["image/*"] }),
+    publishedAt: f.date(),
   }))
-  .list(({ v, f }) => v.table({
-    // v = ViewRegistryProxy, f = FieldProxy
-    columns: [f.title, f.status],
+  .title(({ f }) => f.title)
+  .admin(({ c }) => ({
+    label: { en: "Blog Posts" },
+    icon: c.icon("ph:article"),
   }))
-  .form(({ v, f }) => v.form({
-    fields: [f.title, f.content, f.status],
-  }));
-```
-
-### Global Builder
-
-```typescript
-const settingsAdmin = qa
-  .global("settings")
-  .meta({ label: "Site Settings", icon: SettingsIcon })
-  .fields(({ r }) => ({
-    siteName: r.text({ maxLength: 100 }),
-    logo: r.text(), // TODO: image field
-  }))
+  .list(({ v, f }) =>
+    v.table({
+      columns: [f.title, f.status, f.publishedAt],
+    }),
+  )
   .form(({ v, f }) =>
     v.form({
-      fields: [f.siteName, f.logo],
-    }),
-  );
-```
-
-### Sidebar Configuration (Server-side)
-
-```typescript
-import { adminModule } from "@questpie/admin/server";
-import { q } from "questpie";
-
-const cms = q({ name: "app" })
-  .use(adminModule)
-  .sidebar(({ s, c }) =>
-    s.sidebar({
-      sections: [
-        {
-          id: "main",
-          items: [
-            { type: "link", label: "Dashboard", href: "/admin", icon: c.icon("ph:house") },
-          ],
-        },
-        {
-          id: "content",
-          label: "Content",
-          items: [
-            { type: "collection", collection: "posts" },
-            { type: "collection", collection: "pages" },
-            { type: "divider" },
-            { type: "global", global: "settings" },
-          ],
-        },
+      layout: "with-sidebar",
+      sidebar: { position: "right", fields: [f.status, f.publishedAt, f.cover] },
+      fields: [
+        { type: "section", label: "Content", fields: [f.title, f.content] },
       ],
     }),
   );
 ```
 
-**Typed Sidebar (Recommended)**
+### Component References
 
-```typescript
-import type { AppCMS } from "./server/cms";
-import type { SidebarItemForApp } from "@questpie/admin/client";
+The server emits serializable `ComponentReference` objects instead of React elements. Use the `c` factory in admin config callbacks:
 
-const sidebarConfig = qa.sidebar<AppCMS>().section("content", (s) =>
-  s.title("Content").items([
-    { type: "collection", collection: "posts" },
-    { type: "global", global: "settings" },
-  ]),
-);
-
-// Standalone typed items
-const items: SidebarItemForApp<AppCMS>[] = [
-  { type: "collection", collection: "posts" },
-  { type: "global", global: "settings" },
-];
-```
-
-### Server Dashboard Actions (`a` proxy)
-
-When configuring dashboard on the server with `q().use(adminModule)`, use `a` helpers for header actions instead of hardcoded links.
-
-```typescript
-import { adminModule } from "@questpie/admin/server";
-import { q } from "questpie";
-
-const cms = q({ name: "app" })
-  .use(adminModule)
-  .dashboard(({ d, c, a }) =>
-    d.dashboard({
-      title: { en: "Control Panel" },
-      actions: [
-        a.create({
-          id: "new-post",
-          collection: "posts",
-          label: { en: "New Post" },
-          icon: c.icon("ph:plus"),
-          variant: "primary",
-        }),
-        a.global({
-          id: "site-settings",
-          global: "siteSettings",
-          label: { en: "Site Settings" },
-          icon: c.icon("ph:gear-six"),
-        }),
-        a.link({
-          id: "open-site",
-          label: { en: "Open Site" },
-          href: "/",
-          icon: c.icon("ph:arrow-square-out"),
-          variant: "outline",
-        }),
-      ],
-      items: [],
-    }),
-  );
-```
-
-Helpers:
-
-- `a.create({ collection })` -> `/admin/collections/:collection/create`
-- `a.global({ global })` -> `/admin/globals/:global`
-- `a.link({ href })` / `a.action({ href })` -> explicit URL
-
-## Built-in Field Types
-
-The `adminModule` provides these field types:
-
-| Field      | Usage                              | Description                 |
-| ---------- | ---------------------------------- | --------------------------- |
-| `text`     | `r.text({ maxLength })`            | Single-line text input      |
-| `email`    | `r.email()`                        | Email input with validation |
-| `password` | `r.password()`                     | Password input              |
-| `textarea` | `r.textarea({ rows })`             | Multi-line text             |
-| `number`   | `r.number({ min, max })`           | Numeric input               |
-| `checkbox` | `r.checkbox()`                     | Boolean checkbox            |
-| `switch`   | `r.switch()`                       | Toggle switch               |
-| `select`   | `r.select({ options })`            | Dropdown select             |
-| `date`     | `r.date()`                         | Date picker                 |
-| `datetime` | `r.datetime()`                     | Date + time picker          |
-| `relation` | `r.relation({ targetCollection })` | Relation field              |
-| `json`     | `r.json()`                         | JSON editor                 |
-| `richText` | `r.richText()`                     | Rich text editor (Tiptap)   |
-
-## Form Layouts
-
-### Sections
-
-```typescript
-.form(({ v, f }) => v.form({
-  sections: [
-    {
-      title: "Basic Info",
-      description: "Main details",
-      fields: [f.title, f.slug],
-      collapsible: true,
-      defaultOpen: true,
-    },
-    {
-      title: "Content",
-      fields: [f.content],
-    },
-  ],
+```ts
+.admin(({ c }) => ({
+  icon: c.icon("ph:article"),       // → { type: "icon", props: { name: "ph:article" } }
+  badge: c.badge({ text: "New" }),   // → { type: "badge", props: { text: "New" } }
 }))
 ```
 
-### Columns Layout
+Icons use the [Iconify](https://icon-sets.iconify.design/) format with the Phosphor set (`ph:icon-name`).
 
-```typescript
-sections: [
-  {
-    title: "Contact",
-    layout: "columns",
-    columns: 2,
-    fields: [f.firstName, f.lastName, f.email, f.phone],
-  },
-];
-```
+### Form Layouts
 
-### Grid Layout
-
-```typescript
-sections: [
-  {
-    layout: "grid",
-    grid: { columns: 4, gap: 4 },
-    fields: [
-      { field: f.title, span: 4 }, // full width
-      { field: f.price, span: 1 }, // 1/4
-      { field: f.currency, span: 1 }, // 1/4
-      { field: f.stock, span: 2 }, // 2/4
-    ],
-  },
-];
-```
-
-### Tabs
-
-```typescript
+```ts
+// Sections
 .form(({ v, f }) => v.form({
-  tabs: [
-    {
-      id: "content",
-      label: "Content",
-      fields: [f.title, f.content],
-    },
-    {
-      id: "meta",
-      label: "Metadata",
-      fields: [f.seo, f.tags],
-    },
+  fields: [
+    { type: "section", label: "Basic Info", layout: "grid", columns: 2,
+      fields: [f.name, f.email, f.phone, f.city] },
+    { type: "section", label: "Content", fields: [f.body] },
   ],
 }))
-```
 
-### Sidebar Layout
-
-```typescript
+// Sidebar layout
 .form(({ v, f }) => v.form({
   layout: "with-sidebar",
-  sections: [
-    { title: "Content", fields: [f.title, f.content] },
+  sidebar: { position: "right", fields: [f.status, f.image] },
+  fields: [f.title, f.content],
+}))
+
+// Tabs
+.form(({ v, f }) => v.form({
+  tabs: [
+    { id: "content", label: "Content", fields: [f.title, f.body] },
+    { id: "meta", label: "Metadata", fields: [f.seoTitle, f.seoDescription] },
   ],
-  sidebar: {
-    position: "right",
-    width: "300px",
-    fields: [f.status, f.publishedAt],
-  },
 }))
 ```
 
-## Conditional Fields
+### Reactive Fields
 
-```typescript
-.fields(({ r }) => ({
-  status: r.select({
-    options: [
-      { label: "Active", value: "active" },
-      { label: "Cancelled", value: "cancelled" },
-    ],
-  }),
-  // Show only when status is "cancelled"
-  cancellationReason: r.textarea({
-    visible: (values) => values.status === "cancelled",
-    required: (values) => values.status === "cancelled",
-  }),
-  // Readonly unless draft
-  publishedAt: r.datetime({
-    readOnly: (values) => values.status !== "draft",
-  }),
+Server-evaluated reactive behaviors in form config:
+
+```ts
+.form(({ v, f }) => v.form({
+  fields: [
+    {
+      field: f.slug,
+      compute: {
+        handler: ({ data }) => slugify(data.title),
+        deps: ({ data }) => [data.title],
+        debounce: 300,
+      },
+    },
+    { field: f.publishedAt, hidden: ({ data }) => !data.published },
+    { field: f.reason, readOnly: ({ data }) => data.status !== "cancelled" },
+  ],
 }))
 ```
 
-## Relation Fields
+### Dashboard Actions
 
-```typescript
-.fields(({ r }) => ({
-  // Single relation
-  authorId: r.relation({
-    label: "Author",
-    targetCollection: "users",
-  }),
-  // Multiple relations with ordering
-  tags: r.relation({
-    label: "Tags",
-    targetCollection: "tags",
-    type: "multiple",
-    orderable: true,
-  }),
+```ts
+.dashboard(({ d, c, a }) => d.dashboard({
+  actions: [
+    a.create({ collection: "posts", label: { en: "New Post" }, icon: c.icon("ph:plus"), variant: "primary" }),
+    a.global({ global: "siteSettings", label: { en: "Settings" }, icon: c.icon("ph:gear-six") }),
+    a.link({ href: "/", label: { en: "Open Site" }, icon: c.icon("ph:arrow-square-out"), variant: "outline" }),
+  ],
+  items: [
+    { type: "section", items: [
+      { type: "stats", collection: "posts", label: "Posts" },
+    ]},
+  ],
 }))
 ```
 
-## Hooks
+## Client Setup
 
-```typescript
-import {
-  useAdminStore,
-  useAdminContext,
+The client creates a typed admin builder and mounts the admin UI in React:
+
+### 1. Admin Builder
+
+```ts
+// questpie/admin/builder.ts
+import { qa, adminModule } from "@questpie/admin/client";
+import type { AppCMS } from "../server/cms";
+
+export const admin = qa<AppCMS>().use(adminModule);
+```
+
+### 2. Typed Hooks
+
+```ts
+// questpie/admin/hooks.ts
+import { createTypedHooks } from "@questpie/admin/client";
+import type { AppCMS } from "../server/cms";
+
+export const {
   useCollectionList,
   useCollectionItem,
   useCollectionCreate,
@@ -525,164 +213,129 @@ import {
   useCollectionDelete,
   useGlobal,
   useGlobalUpdate,
-  useAuthClient,
-  useAdminRoutes,
-} from "@questpie/admin/client";
-
-// Collection list with pagination
-const { data, isLoading } = useCollectionList("posts", {
-  limit: 10,
-  offset: 0,
-});
-
-// Single item
-const { data: post } = useCollectionItem("posts", id);
-
-// CRUD mutations
-const createPost = useCollectionCreate("posts");
-const updatePost = useCollectionUpdate("posts");
-const deletePost = useCollectionDelete("posts");
-
-// Global data
-const { data: settings } = useGlobal("settings");
-const updateSettings = useGlobalUpdate("settings");
-
-// Admin store
-const { admin, client, basePath } = useAdminStore((s) => ({
-  admin: s.admin,
-  client: s.client,
-  basePath: s.basePath,
-}));
-
-// Auth
-const authClient = useAuthClient();
-const session = authClient.useSession();
-
-// Routes
-const { routes, navigate } = useAdminRoutes();
-navigate({ collection: "posts", action: "create" });
+} = createTypedHooks<AppCMS>();
 ```
 
-## Components
+### 3. Mount in React
 
-```typescript
-import {
-  // Navigation
-  AdminLink,
-  CollectionLink,
-  CollectionCreateLink,
-  CollectionEditLink,
-  GlobalLink,
-  DashboardLink,
+```tsx
+// routes/admin.tsx
+import { AdminRouter } from "@questpie/admin/client";
+import { admin } from "~/questpie/admin/builder";
+import { cmsClient } from "~/lib/cms-client";
+import { queryClient } from "~/lib/query-client";
 
-  // Fields
-  TextField,
-  EmailField,
-  NumberField,
-  SelectField,
-  CheckboxField,
-  SwitchField,
-  DateField,
-  RelationField,
-  JsonField,
+export default function AdminRoute() {
+  return (
+    <AdminRouter
+      admin={admin}
+      client={cmsClient}
+      queryClient={queryClient}
+      basePath="/admin"
+    />
+  );
+}
+```
 
-  // UI (shadcn)
-  Button,
-  Card,
-  Dialog,
-  Sheet,
-  Tabs,
-  Table,
-  // ... 27+ shadcn components
-} from "@questpie/admin/client";
+### 4. Tailwind CSS
+
+Import admin styles and scan the admin package:
+
+```css
+@import "tailwindcss";
+@import "@questpie/admin/styles/index.css";
+
+@source "../node_modules/@questpie/admin/dist";
+```
+
+## Block Editor
+
+The admin includes a full drag-and-drop block editor. Blocks are defined server-side:
+
+```ts
+const heroBlock = qb
+  .block("hero")
+  .admin(({ c }) => ({
+    label: { en: "Hero Section" },
+    icon: c.icon("ph:image"),
+    category: { label: "Sections", icon: c.icon("ph:layout") },
+  }))
+  .fields((f) => ({
+    title: f.text({ required: true }),
+    subtitle: f.textarea(),
+    backgroundImage: f.upload({ to: "assets", mimeTypes: ["image/*"] }),
+  }))
+  .prefetch({ with: { backgroundImage: true } });
+```
+
+Render blocks on the client with `BlockRenderer`:
+
+```tsx
+import { BlockRenderer, createBlockRegistry } from "@questpie/admin/client";
+
+const registry = createBlockRegistry({
+  hero: ({ block }) => (
+    <section style={{ backgroundImage: `url(${block.backgroundImage?.url})` }}>
+      <h1>{block.title}</h1>
+      <p>{block.subtitle}</p>
+    </section>
+  ),
+});
+
+function Page({ blocks }) {
+  return <BlockRenderer blocks={blocks} registry={registry} />;
+}
+```
+
+## Actions System
+
+Collection-level actions with multiple handler types:
+
+| Type | Description |
+| ---- | ----------- |
+| `navigate` | Client-side routing |
+| `api` | HTTP API call |
+| `form` | Dialog with field inputs |
+| `server` | Server-side execution with full app context |
+| `custom` | Arbitrary client-side code |
+
+Actions can be scoped to `header` (list toolbar), `bulk` (selected items), `single` (per-item), or `row`.
+
+## Realtime
+
+SSE-powered live updates are enabled by default. Collection lists and dashboard widgets auto-refresh when data changes.
+
+```ts
+// Disable globally
+<AdminRouter admin={admin} client={client} realtime={false} />
+
+// Disable per collection view
+.list(({ v }) => v.table({ realtime: false }))
 ```
 
 ## Package Exports
 
-```typescript
-// Main client exports (recommended)
-import {
-  qa,
-  Admin,
-  AdminBuilder,
-  adminModule,
-  AdminProvider,
-  useAdminStore,
-  useCollectionList,
-  useAdminRoutes,
-  AdminLayoutProvider,
-  CollectionList,
-  CollectionForm,
-} from "@questpie/admin/client";
+```ts
+// Client (React components, builder, hooks)
+import { qa, adminModule, AdminRouter, createTypedHooks, BlockRenderer, createBlockRegistry } from "@questpie/admin/client";
 
-// Server exports (for backend CMS setup)
-import { adminModule } from "@questpie/admin/server";
+// Server (admin module for QUESTPIE builder)
+import { adminModule, adminRpc } from "@questpie/admin/server";
 
 // Styles
-import "@questpie/admin/client/styles/index.css";
+import "@questpie/admin/styles/index.css";
 ```
 
-## Realtime Invalidation
+## Component Stack
 
-Admin data hooks now support SSE-driven live updates.
+- **Primitives**: `@base-ui/react` (NOT Radix)
+- **Icons**: `@iconify/react` with Phosphor set (`ph:icon-name`)
+- **Styling**: Tailwind CSS v4 + shadcn components
+- **Toast**: `sonner`
 
-- Realtime is enabled by default in `AdminProvider`.
-- You can disable it globally:
+## Documentation
 
-```tsx
-<AdminProvider admin={admin} client={client} realtime={false}>
-  {children}
-</AdminProvider>
-```
-
-- Or configure it explicitly (useful if your API is mounted on a custom path):
-
-```tsx
-<AdminProvider
-  admin={admin}
-  client={client}
-  realtime={{ enabled: true, basePath: "/api/cms", debounceMs: 150 }}
->
-  {children}
-</AdminProvider>
-```
-
-- Snapshot events are applied directly to query cache when possible. If snapshot mapping is not possible, hooks fall back to `invalidateQueries`.
-- `debounceMs` debounces cache apply/invalidation during bursts. Set `0` for strict immediate updates.
-
-- Per-table toggle via view config:
-
-```ts
-defaultViews: {
-	collectionList: {
-		realtime: false,
-	},
-}
-```
-
-- Per-widget toggle via dashboard widget config:
-
-```ts
-widgets: [
-  { type: "stats", id: "orders", collection: "orders", realtime: false },
-];
-```
-
-- Per-table UI toggle is available in the table "View Options" sheet (`Realtime Updates`). The preference is persisted per collection view.
-
-## Styling
-
-Built with Tailwind CSS v4 + shadcn/ui:
-
-- 27+ pre-built components
-- Light/dark theme support
-- oklch color space
-- Customizable via Tailwind tokens
-- Styles scoped under `.questpie-admin`
-
-## Examples
-
-See [tanstack-barbershop](../../examples/tanstack-barbershop) for a complete working example.
+Full documentation: [https://questpie.com/docs/admin](https://questpie.com/docs/admin)
 
 ## License
 
