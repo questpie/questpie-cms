@@ -26,7 +26,7 @@ import type {
 	ServerActionsConfig,
 } from "../../../augmentation.js";
 
-// Type alias for the CMS app
+// Type alias for the app app
 type App = Questpie<any>;
 
 /**
@@ -89,6 +89,7 @@ export function getActionsConfig(
 				"restore",
 				"restoreMany",
 				"duplicate",
+				"transition",
 			],
 			custom: [],
 		};
@@ -155,6 +156,7 @@ export async function executeAction(
 		"restore",
 		"restoreMany",
 		"duplicate",
+		"transition",
 	];
 
 	if (builtinActions.includes(actionId as any)) {
@@ -464,6 +466,55 @@ async function executeBuiltinAction(
 				};
 			}
 
+			case "transition": {
+				if (!itemId) {
+					return {
+						success: false,
+						result: {
+							type: "error",
+							toast: { message: "Item ID is required for transition action" },
+						},
+					};
+				}
+				const stage = data?.stage as string | undefined;
+				if (!stage) {
+					return {
+						success: false,
+						result: {
+							type: "error",
+							toast: {
+								message: "Target stage is required for transition action",
+							},
+						},
+					};
+				}
+				if (collectionCrud?.transitionStage) {
+					await collectionCrud.transitionStage(
+						{ id: itemId, stage },
+						crudContext,
+					);
+				} else {
+					return {
+						success: false,
+						result: {
+							type: "error",
+							toast: {
+								message:
+									"Workflow transitions are not supported for this collection",
+							},
+						},
+					};
+				}
+				return {
+					success: true,
+					result: {
+						type: "success",
+						toast: { message: `Transitioned to "${stage}" successfully` },
+						effects: { invalidate: [collectionSlug] },
+					},
+				};
+			}
+
 			default:
 				return {
 					success: false,
@@ -554,7 +605,7 @@ const getActionsConfigResponseSchema = z
 	.nullable();
 
 // ============================================================================
-// CMS Functions
+// QuestPie Functions
 // ============================================================================
 
 /**
@@ -596,7 +647,7 @@ export const getActionsConfigFn = fn({
 });
 
 /**
- * CMS functions for action execution.
+ * QuestPie functions for action execution.
  * These are registered on the adminModule.
  */
 export const actionFunctions = {

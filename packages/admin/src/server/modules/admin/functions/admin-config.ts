@@ -2,14 +2,14 @@
  * Admin Config Functions
  *
  * Provides server-defined admin configuration (dashboard, sidebar,
- * collection/global metadata) to the client via functions API.
+ * collection/global metadata) to the client via RPC.
  *
  * Filters results by the current user's read access.
  *
  * @example
  * ```ts
  * // Client usage
- * const config = await cms.api.functions.getAdminConfig();
+ * const config = await client.rpc.getAdminConfig({});
  * // { dashboard: {...}, sidebar: {...}, collections: {...}, globals: {...} }
  * ```
  */
@@ -31,6 +31,17 @@ import { introspectBlocks } from "../../../block/introspection.js";
 // Type Helpers
 // ============================================================================
 
+type WorkflowMeta = {
+	enabled: boolean;
+	initialStage: string;
+	stages: Array<{
+		name: string;
+		label?: string;
+		description?: string;
+		transitions?: string[];
+	}>;
+};
+
 type AdminConfigItemMeta = {
 	label?: unknown;
 	description?: unknown;
@@ -38,10 +49,11 @@ type AdminConfigItemMeta = {
 	hidden?: boolean;
 	group?: string;
 	order?: number;
+	workflow?: WorkflowMeta;
 };
 
 /**
- * Helper to get typed CMS app from handler context.
+ * Helper to get typed app from handler context.
  */
 function getApp(ctx: { app: unknown }): Questpie<any> {
 	return ctx.app as Questpie<any>;
@@ -63,8 +75,7 @@ async function hasReadAccess(
 	if (readRule === undefined || readRule === true) return true;
 	if (readRule === false) return false;
 	try {
-		const result = await executeAccessRule(readRule as any, {
-			cms: ctx.app as any,
+		const result = await executeAccessRule(readRule as any, { app: ctx.app as any,
 			db: ctx.db,
 			session: ctx.session,
 			locale: ctx.locale,
@@ -80,17 +91,48 @@ async function hasReadAccess(
 // ============================================================================
 
 /**
+ * Extract workflow metadata from a collection/global state.
+ */
+function extractWorkflowMeta(state: any): WorkflowMeta | undefined {
+	const workflow = state?.options?.workflow;
+	if (!workflow) return undefined;
+
+	const opts = workflow === true ? {} : workflow;
+	const rawStages = opts.stages;
+
+	let stages: WorkflowMeta["stages"];
+	if (!rawStages) {
+		stages = [{ name: "draft" }, { name: "published" }];
+	} else if (Array.isArray(rawStages)) {
+		stages = rawStages.map((name: string) => ({ name }));
+	} else {
+		stages = Object.entries(rawStages).map(([name, options]: [string, any]) => ({
+			name,
+			label: options?.label,
+			description: options?.description,
+			transitions: options?.transitions,
+		}));
+	}
+
+	return {
+		enabled: true,
+		initialStage: opts.initialStage ?? stages[0]?.name ?? "draft",
+		stages,
+	};
+}
+
+/**
  * Extract admin metadata from all registered collections.
  */
-function extractCollectionsMeta(
-	cms: Questpie<any>,
+function extractCollectionsMeta(app: Questpie<any>,
 ): Record<string, AdminConfigItemMeta> {
 	const result: Record<string, AdminConfigItemMeta> = {};
-	const collections = cms.getCollections();
+	const collections = app.getCollections();
 
 	for (const [name, collection] of Object.entries(collections)) {
-		const admin: AdminCollectionConfig | undefined = (collection as any).state
-			?.admin;
+		const state = (collection as any).state;
+		const admin: AdminCollectionConfig | undefined = state?.admin;
+		const workflow = extractWorkflowMeta(state);
 		if (admin) {
 			result[name] = {
 				label: admin.label,
@@ -99,9 +141,10 @@ function extractCollectionsMeta(
 				hidden: admin.hidden,
 				group: admin.group,
 				order: admin.order,
+				...(workflow ? { workflow } : {}),
 			};
 		} else {
-			result[name] = {};
+			result[name] = workflow ? { workflow } : {};
 		}
 	}
 
@@ -111,14 +154,15 @@ function extractCollectionsMeta(
 /**
  * Extract admin metadata from all registered globals.
  */
-function extractGlobalsMeta(
-	cms: Questpie<any>,
+function extractGlobalsMeta(app: Questpie<any>,
 ): Record<string, AdminConfigItemMeta> {
 	const result: Record<string, AdminConfigItemMeta> = {};
-	const globals = cms.getGlobals();
+	const globals = app.getGlobals();
 
 	for (const [name, global] of Object.entries(globals)) {
-		const admin: AdminGlobalConfig | undefined = (global as any).state?.admin;
+		const state = (global as any).state;
+		const admin: AdminGlobalConfig | undefined = state?.admin;
+		const workflow = extractWorkflowMeta(state);
 		if (admin) {
 			result[name] = {
 				label: admin.label,
@@ -127,9 +171,10 @@ function extractGlobalsMeta(
 				hidden: admin.hidden,
 				group: admin.group,
 				order: admin.order,
+				...(workflow ? { workflow } : {}),
 			};
 		} else {
-			result[name] = {};
+			result[name] = workflow ? { workflow } : {};
 		}
 	}
 
@@ -363,8 +408,7 @@ async function processDashboardItems(
 		if (widget.access !== undefined) {
 			const widgetAccessResult =
 				typeof widget.access === "function"
-					? await widget.access({
-							cms: accessCtx.app,
+					? await widget.access({ app: accessCtx.app,
 							db: accessCtx.db,
 							session: accessCtx.session,
 							locale: accessCtx.locale,
@@ -436,8 +480,8 @@ const getAdminConfigOutputSchema = z.object({
  *
  * @example
  * ```ts
- * // In your CMS
- * const cms = q({ name: "my-app" })
+ * // In your app
+ * const app = q({ name: "my-app" })
  *   .use(adminModule)
  *   .dashboard(({ d }) => d.dashboard({
  *     title: { en: "Dashboard" },
@@ -449,7 +493,7 @@ const getAdminConfigOutputSchema = z.object({
  *   .build({ ... });
  *
  * // Client fetches config
- * const config = await cms.api.functions.getAdminConfig();
+ * const config = await client.rpc.getAdminConfig({});
  * ```
  */
 export const getAdminConfig = fn({
@@ -457,14 +501,14 @@ export const getAdminConfig = fn({
 	schema: getAdminConfigSchema,
 	outputSchema: getAdminConfigOutputSchema,
 	handler: async (ctx) => {
-		const cms = getApp(ctx);
-		const state = (cms as any).state || {};
+		const app = getApp(ctx);
+		const state = (app as any).state || {};
 
 		// 1. Compute accessible collections and globals
-		const collections = cms.getCollections();
-		const globals = cms.getGlobals();
+		const collections = app.getCollections();
+		const globals = app.getGlobals();
 		const accessCtx = {
-			app: cms,
+			app: app,
 			session: (ctx as any).session,
 			db: (ctx as any).db,
 			locale: (ctx as any).locale,
@@ -485,8 +529,8 @@ export const getAdminConfig = fn({
 		}
 
 		// 2. Extract and filter metadata
-		const allCollectionsMeta = extractCollectionsMeta(cms);
-		const allGlobalsMeta = extractGlobalsMeta(cms);
+		const allCollectionsMeta = extractCollectionsMeta(app);
+		const allGlobalsMeta = extractGlobalsMeta(app);
 
 		const filteredCollectionsMeta = Object.fromEntries(
 			Object.entries(allCollectionsMeta).filter(([n]) =>
@@ -602,7 +646,7 @@ export const getAdminConfig = fn({
 
 /**
  * Admin config functions group.
- * Add to your CMS via `.functions(adminConfigFunctions)`.
+ * Add to your app RPC router via `rpc().router({ ...adminConfigFunctions })`.
  */
 export const adminConfigFunctions = {
 	getAdminConfig,
