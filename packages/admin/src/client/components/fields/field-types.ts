@@ -250,6 +250,24 @@ export type JsonFieldConfig = Record<string, never>;
 export type RelationDisplayMode = DisplayMode;
 export type RelationDisplayFields = DisplayFields;
 
+export type RelationListCellConfig = {
+	/**
+	 * Table list display mode for relation cells.
+	 * @default "chip"
+	 */
+	display?: "chip" | "avatarChip";
+	/**
+	 * Dot-path to avatar/image field on related record.
+	 * Examples: "image", "avatar.url"
+	 */
+	avatarField?: string;
+	/**
+	 * Dot-path to preferred label field on related record.
+	 * Example: "fullName"
+	 */
+	labelField?: string;
+};
+
 /** Relation field config */
 export type RelationFieldConfig = {
 	/** Target collection name */
@@ -292,6 +310,10 @@ export type RelationFieldConfig = {
 	 * Number of columns for grid/cards layout (only for multiple type)
 	 */
 	gridColumns?: 1 | 2 | 3 | 4;
+	/**
+	 * List table cell rendering config (used when relation appears as a column).
+	 */
+	listCell?: RelationListCellConfig;
 };
 
 /**

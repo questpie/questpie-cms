@@ -52,7 +52,7 @@
  * ```
  */
 
-import type { ReactiveConfig, ReactiveContext } from "questpie";
+import type { ReactiveConfig } from "questpie";
 
 // ============================================================================
 // Shared Admin Options (common across field types)
@@ -286,6 +286,18 @@ export interface RelationFieldAdminMeta extends BaseAdminMeta {
 	allowEdit?: boolean;
 	preload?: boolean;
 	maxItems?: number;
+	/**
+	 * List table cell rendering for relation values.
+	 * - "chip": default text chip
+	 * - "avatarChip": chip with avatar image + label
+	 */
+	listCell?: {
+		display?: "chip" | "avatarChip";
+		/** Dot-path on related record (e.g. "image" or "avatar.url") */
+		avatarField?: string;
+		/** Dot-path for display label override (e.g. "fullName") */
+		labelField?: string;
+	};
 }
 
 /**

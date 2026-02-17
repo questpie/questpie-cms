@@ -17,7 +17,10 @@ import {
 } from "../../../components/ui/tooltip";
 import { useResolveText } from "../../../i18n/hooks";
 import { cn } from "../../../lib/utils";
-import { getRelationItemId, getRelationItemLabel } from "./shared/cell-helpers";
+import {
+	getRelationItemId,
+	getRelationItemLabelWithField,
+} from "./shared/cell-helpers";
 import { RelationChip } from "./shared/relation-chip";
 
 // ============================================================================
@@ -38,9 +41,20 @@ export function RelationCell({
 	fieldDef?: FieldDefinition;
 }) {
 	const resolveText = useResolveText();
-	const targetCollection = fieldDef?.["~options"]?.targetCollection as
-		| string
-		| undefined;
+	const fieldOptions =
+		(fieldDef?.["~options"] as {
+			targetCollection?: string;
+			listCell?: {
+				display?: "chip" | "avatarChip";
+				avatarField?: string;
+				labelField?: string;
+			};
+		}) ?? {};
+	const targetCollection = fieldOptions.targetCollection;
+	const listCellConfig = fieldOptions.listCell;
+	const showAvatar = listCellConfig?.display === "avatarChip";
+	const avatarField = listCellConfig?.avatarField;
+	const labelField = listCellConfig?.labelField;
 
 	// Sheet state
 	const [sheetOpen, setSheetOpen] = React.useState(false);
@@ -85,6 +99,9 @@ export function RelationCell({
 										targetCollection={targetCollection}
 										onClick={handleChipClick}
 										className="shrink-0"
+										showAvatar={showAvatar}
+										avatarField={avatarField}
+										labelField={labelField}
 									/>
 								))}
 								{remainingCount > 0 && (
@@ -102,7 +119,9 @@ export function RelationCell({
 						<TooltipContent side="bottom" align="start" className="p-0 w-56">
 							<div className="max-h-[200px] overflow-y-auto p-2 space-y-1">
 								{value.map((item, idx) => {
-									const label = resolveText(getRelationItemLabel(item));
+									const label = resolveText(
+										getRelationItemLabelWithField(item, labelField),
+									);
 									const id = getRelationItemId(item);
 									const canNavigate = targetCollection && id;
 									const key = id ?? label ?? `item-${idx}`;
@@ -156,6 +175,9 @@ export function RelationCell({
 				item={value}
 				targetCollection={targetCollection}
 				onClick={handleChipClick}
+				showAvatar={showAvatar}
+				avatarField={avatarField}
+				labelField={labelField}
 			/>
 			{/* Detail sheet */}
 			{sheetCollection && sheetItemId && (
@@ -274,7 +296,7 @@ export function ReverseRelationCell({
 									{value.length}
 								</Badge>
 								<span className="text-xs">
-									{resolveText(getRelationItemLabel(value[0]))}
+									{resolveText(getRelationItemLabelWithField(value[0]))}
 									{value.length > 1 && ` +${value.length - 1}`}
 								</span>
 							</span>
@@ -283,7 +305,7 @@ export function ReverseRelationCell({
 					<TooltipContent side="bottom" align="start" className="p-0 w-56">
 						<div className="max-h-[200px] overflow-y-auto p-2 space-y-1">
 							{value.slice(0, 15).map((item, idx) => {
-								const label = resolveText(getRelationItemLabel(item));
+								const label = resolveText(getRelationItemLabelWithField(item));
 								const id = getRelationItemId(item);
 								const canNavigate = sourceCollection && id;
 								const key = id ?? label ?? `item-${idx}`;

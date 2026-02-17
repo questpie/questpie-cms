@@ -9,7 +9,11 @@
 import type * as React from "react";
 import { useResolveText } from "../../../../i18n/hooks";
 import { cn } from "../../../../lib/utils";
-import { getRelationItemId, getRelationItemLabel } from "./cell-helpers";
+import {
+	getRelationItemAvatarUrl,
+	getRelationItemId,
+	getRelationItemLabelWithField,
+} from "./cell-helpers";
 
 export interface RelationChipProps {
 	/**
@@ -32,6 +36,21 @@ export interface RelationChipProps {
 	 * Additional CSS classes
 	 */
 	className?: string;
+
+	/**
+	 * Show avatar thumbnail before label
+	 */
+	showAvatar?: boolean;
+
+	/**
+	 * Dot-path to avatar field on related item (e.g. "image" or "avatar.url")
+	 */
+	avatarField?: string;
+
+	/**
+	 * Dot-path to preferred label field on related item
+	 */
+	labelField?: string;
 }
 
 /**
@@ -43,11 +62,23 @@ export function RelationChip({
 	targetCollection,
 	onClick,
 	className,
+	showAvatar = false,
+	avatarField,
+	labelField,
 }: RelationChipProps) {
 	const resolveText = useResolveText();
-	const label = resolveText(getRelationItemLabel(item));
+	const label = resolveText(getRelationItemLabelWithField(item, labelField));
+	const avatarUrl = getRelationItemAvatarUrl(item, avatarField);
 	const id = getRelationItemId(item);
 	const canInteract = targetCollection && id;
+	const avatar =
+		showAvatar && avatarUrl ? (
+			<img
+				src={avatarUrl}
+				alt={label}
+				className="size-4 rounded-full object-cover border border-border/60"
+			/>
+		) : null;
 
 	const handleClick = (e: React.MouseEvent) => {
 		e.stopPropagation();
@@ -75,6 +106,7 @@ export function RelationChip({
 				onPointerDown={(e) => e.stopPropagation()}
 				className={chipClassName}
 			>
+				{avatar}
 				{label}
 			</a>
 		);
@@ -90,6 +122,7 @@ export function RelationChip({
 				className,
 			)}
 		>
+			{avatar}
 			{label}
 		</span>
 	);
