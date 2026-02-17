@@ -5,14 +5,14 @@ description: Collection find, create, update, delete operations with all options
 
 # CRUD API
 
-Every collection exposes CRUD operations via `cms.api.collections.{name}`. These methods are type-safe — field names, input types, and return types are inferred from your collection definition.
+Every collection exposes CRUD operations via `app.api.collections.{name}`. These methods are type-safe — field names, input types, and return types are inferred from your collection definition.
 
 ## find(options?, context?)
 
 Find multiple records with filtering, sorting, and pagination.
 
 ```ts
-const result = await cms.api.collections.posts.find({
+const result = await app.api.collections.posts.find({
   where: { status: "published" },
   orderBy: { createdAt: "desc" },
   limit: 10,
@@ -32,6 +32,7 @@ const result = await cms.api.collections.posts.find({
 | `with` | `Record<string, boolean \| object>` | Relations to include |
 | `select` | `string[]` | Fields to include (projection) |
 | `includeDeleted` | `boolean` | Include soft-deleted records |
+| `stage` | `string` | Workflow stage to read from (requires `workflow`) |
 
 ### Sorting
 
@@ -93,7 +94,7 @@ orderBy: (table, { asc, desc }) => [
 Find a single record by ID or conditions.
 
 ```ts
-const post = await cms.api.collections.posts.findOne({
+const post = await app.api.collections.posts.findOne({
   where: { id: "post-123" },
   with: { author: true },
 });
@@ -106,6 +107,7 @@ const post = await cms.api.collections.posts.findOne({
 | `where` | `WhereClause` | Filter conditions |
 | `with` | `Record<string, boolean \| object>` | Relations to include |
 | `select` | `string[]` | Fields to include |
+| `stage` | `string` | Workflow stage to read from (requires `workflow`) |
 
 ### Response
 
@@ -116,7 +118,7 @@ Returns `TSelect | null`.
 Count matching records.
 
 ```ts
-const total = await cms.api.collections.posts.count({
+const total = await app.api.collections.posts.count({
   where: { status: "published" },
 });
 ```
@@ -130,7 +132,7 @@ Returns `number`.
 Create a new record.
 
 ```ts
-const post = await cms.api.collections.posts.create({
+const post = await app.api.collections.posts.create({
   title: "Hello World",
   status: "draft",
   authorId: "user-123",
@@ -160,7 +162,7 @@ Returns the created `TSelect` (full record with all computed fields).
 Update a record by ID.
 
 ```ts
-const updated = await cms.api.collections.posts.update({
+const updated = await app.api.collections.posts.update({
   where: { id: "post-123" },
   data: { status: "published" },
 });
@@ -182,7 +184,7 @@ Returns the updated `TSelect`.
 Update multiple records matching a condition.
 
 ```ts
-const updated = await cms.api.collections.posts.updateMany({
+const updated = await app.api.collections.posts.updateMany({
   where: { status: "draft", createdAt: { $lt: "2024-01-01" } },
   data: { status: "archived" },
 });
@@ -197,7 +199,7 @@ Returns `TSelect[]` (array of updated records).
 Delete a record by ID.
 
 ```ts
-await cms.api.collections.posts.delete({
+await app.api.collections.posts.delete({
   where: { id: "post-123" },
 });
 ```
@@ -211,7 +213,7 @@ Returns `{ success: boolean }`.
 Delete multiple records matching a condition.
 
 ```ts
-await cms.api.collections.posts.deleteMany({
+await app.api.collections.posts.deleteMany({
   where: { status: "archived" },
 });
 ```
@@ -220,12 +222,43 @@ await cms.api.collections.posts.deleteMany({
 
 Returns `{ success: boolean; count: number }`.
 
+## transitionStage(params, context?)
+
+Transition a record to a different workflow stage (requires `workflow` enabled). No data is mutated — only a version snapshot at the target stage is created.
+
+```ts
+const result = await app.api.collections.posts.transitionStage(
+  { id: "post-123", stage: "published" },
+  ctx,
+);
+```
+
+### Parameters
+
+| Param | Type | Description |
+|---|---|---|
+| `id` | `string` | Record ID to transition |
+| `stage` | `string` | Target workflow stage name |
+| `scheduledAt` | `Date` (optional) | Schedule the transition for a future time (requires queue adapter) |
+
+### Behavior
+
+- Validates the target stage exists in the workflow config
+- Enforces transition guards (e.g. `draft` can only go to `review`)
+- Checks `access.transition` permission (falls back to `access.update`)
+- Fires `beforeTransition` and `afterTransition` hooks
+- Creates a version snapshot with the new stage
+
+### Response
+
+Returns the transitioned `TSelect`.
+
 ## findVersions(options, context?)
 
 Find version history for a record (requires `versioning: true`).
 
 ```ts
-const versions = await cms.api.collections.posts.findVersions({
+const versions = await app.api.collections.posts.findVersions({
   id: "post-123",
   limit: 10,
 });
@@ -236,7 +269,7 @@ const versions = await cms.api.collections.posts.findVersions({
 Restore a record to a previous version.
 
 ```ts
-await cms.api.collections.posts.revertToVersion({
+await app.api.collections.posts.revertToVersion({
   id: "post-123",
   versionNumber: 3,
 });
@@ -251,6 +284,7 @@ All operations accept an optional context:
   accessMode?: "system" | "user";  // Default: "system"
   session?: Session | null;         // Auth session
   locale?: string;                  // Locale for localized fields
+  stage?: string;                   // Workflow stage for stage-aware reads/writes
   db?: Database;                    // Database client (for transactions)
 }
 ```

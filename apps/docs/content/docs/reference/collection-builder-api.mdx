@@ -104,6 +104,8 @@ Register lifecycle hooks. Each hook can be a single function or an array (execut
 | `afterRead` | After any op returns data | Outside |
 | `beforeDelete` | Before DB delete | Inside |
 | `afterDelete` | After DB delete | Outside |
+| `beforeTransition` | Before workflow stage transition | Inside |
+| `afterTransition` | After workflow stage transition | Inside |
 
 See [Hooks API](/docs/reference/hooks-api) for context types and execution order.
 
@@ -122,7 +124,7 @@ Set access control rules. Each rule can be a boolean, a function returning boole
 })
 ```
 
-**Parameter:** `{ read?, create?, update?, delete? }` — each is `boolean | AccessFunction`.
+**Parameter:** `{ read?, create?, update?, delete?, transition? }` — each is `boolean | AccessFunction`. The `transition` rule controls who can call `transitionStage()` (falls back to `update` when not defined).
 
 See [Access Control](/docs/server/access-control) for details.
 
@@ -135,6 +137,7 @@ Set collection options.
   timestamps: true,      // adds createdAt, updatedAt
   softDelete: true,      // adds deletedAt, restore support
   versioning: true,      // creates version table
+  workflow: true,        // enables staged workflow (defaults: draft -> published)
 })
 ```
 
@@ -145,8 +148,24 @@ Set collection options.
 | `timestamps` | `boolean` | `true` | Add `createdAt` and `updatedAt` columns |
 | `softDelete` | `boolean` | `false` | Add `deletedAt` column, enable `.restore()` |
 | `versioning` | `boolean \| CollectionVersioningOptions` | `false` | Enable version history |
+| `workflow` | `boolean \| WorkflowOptions` | `false` | Enable staged workflow and transition guards |
 
 Versioning options: `{ maxVersions?: number }` to limit stored versions.
+
+Workflow options support quick and explicit configs:
+
+```ts
+.options({
+  workflow: {
+    initialStage: "draft",
+    stages: {
+      draft: { transitions: ["review"] },
+      review: { transitions: ["draft", "published"] },
+      published: {},
+    },
+  },
+})
+```
 
 ### `.validation(options?)`
 
@@ -272,7 +291,7 @@ const extendedPosts = postsCollection.merge(
 
 ## Finalization
 
-Collection builders are passed directly to `q.collections({ ... })` and finalized during top-level CMS `.build(...)`.
+Collection builders are passed directly to `q.collections({ ... })` and finalized during top-level app `.build(...)`.
 
 In app code, prefer this pattern:
 
@@ -281,24 +300,24 @@ const posts = q.collection("posts")
   .fields((f) => ({ ... }))
   .hooks({ ... });
 
-export const cms = q({ name: "app" })
+export const app = q({ name: "app" })
   .collections({ posts })
   .build({ app: { url: process.env.APP_URL! }, db: { url: process.env.DATABASE_URL! } });
 ```
 
 ## Runtime
 
-After CMS build, CRUD operations are available at:
+After app build, CRUD operations are available at:
 
 ```ts
-cms.api.collections.posts.find(options)
-cms.api.collections.posts.findOne(options)
-cms.api.collections.posts.count(options)
-cms.api.collections.posts.create(data)
-cms.api.collections.posts.update(options)
-cms.api.collections.posts.updateMany(options)
-cms.api.collections.posts.delete(options)
-cms.api.collections.posts.deleteMany(options)
+app.api.collections.posts.find(options)
+app.api.collections.posts.findOne(options)
+app.api.collections.posts.count(options)
+app.api.collections.posts.create(data)
+app.api.collections.posts.update(options)
+app.api.collections.posts.updateMany(options)
+app.api.collections.posts.delete(options)
+app.api.collections.posts.deleteMany(options)
 ```
 
 See [CRUD API](/docs/reference/crud-api) for full operation signatures.

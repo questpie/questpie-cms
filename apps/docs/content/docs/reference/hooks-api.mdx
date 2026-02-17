@@ -19,6 +19,8 @@ Reference for all collection hook types, their context parameters, and execution
   afterRead?: HookFn | HookFn[];
   beforeDelete?: HookFn | HookFn[];
   afterDelete?: HookFn | HookFn[];
+  beforeTransition?: TransitionHookFn | TransitionHookFn[];
+  afterTransition?: TransitionHookFn | TransitionHookFn[];
 })
 ```
 
@@ -44,20 +46,20 @@ interface HookContext<TData, TOriginal, TOperation, TApp> {
 | `data` | `TData` | Current record or input data (mutable in before* hooks) |
 | `original` | `TOriginal \| undefined` | Previous record state (update/delete only) |
 | `operation` | `string` | `"create"`, `"update"`, `"delete"`, or `"read"` |
-| `app` | `TApp` | CMS instance — use `getApp<AppCMS>(app)` or `getContext<AppCMS>(ctx)` |
+| `app` | `TApp` | app instance — use `getApp<App>(app)` or `getContext<App>(ctx)` |
 | `session` | `Session \| null` | Authenticated user session |
 | `locale` | `string` | Current locale |
 | `accessMode` | `string` | `"system"` or `"user"` |
-| `db` | `Database` | Database client — use `getDb<AppCMS>(db)` or `getContext<AppCMS>(ctx)` |
+| `db` | `Database` | Database client — use `getDb<App>(db)` or `getContext<App>(ctx)` |
 
 ### Type-Safe Context Pattern
 
 ```ts
 import { getContext } from "questpie";
-import type { AppCMS } from "../cms";
+import type { App } from '../app';
 
 afterChange: async (ctx) => {
-  const { app, db, session } = getContext<AppCMS>(ctx);
+  const { app, db, session } = getContext<App>(ctx);
   // app, db, session are strongly typed here
 }
 ```
@@ -169,6 +171,28 @@ Throw to prevent deletion.
 
 ```ts
 (ctx: { data: TSelect; operation: "delete"; ... }) => void | Promise<void>
+```
+
+### beforeTransition
+
+```ts
+(ctx: { data: TSelect; fromStage: string; toStage: string; app: TApp; session?: Session; db: Database }) => void | Promise<void>
+```
+
+Runs before a workflow stage transition. Throw to abort the transition. Only fires for `transitionStage()` calls (requires `workflow` enabled).
+
+### afterTransition
+
+```ts
+(ctx: { data: TSelect; fromStage: string; toStage: string; app: TApp; session?: Session; db: Database }) => void | Promise<void>
+```
+
+Runs after a workflow stage transition completes. Use for notifications, logging, or side effects.
+
+### Transition Execution Order
+
+```text
+access.transition check → beforeTransition → [create version at target stage] → afterTransition
 ```
 
 ## Related Pages

@@ -5,7 +5,7 @@ description: Intercept create, update, delete, and read operations with typed ho
 
 # Hooks & Lifecycle
 
-Hooks let you inject business logic at specific points in a record's lifecycle — transforming input before validation, computing derived fields, sending notifications after changes, or preventing deletions. Every hook receives a typed context with the record data, the CMS instance, and the current database connection.
+Hooks let you inject business logic at specific points in a record's lifecycle — transforming input before validation, computing derived fields, sending notifications after changes, or preventing deletions. Every hook receives a typed context with the record data, the app instance, and the current database connection.
 
 ## Why This Exists
 
@@ -39,6 +39,12 @@ beforeOperation → [load existing] → beforeDelete → [DB DELETE] → afterDe
 beforeOperation → beforeRead → [DB SELECT] → [resolve relations] → afterRead
 ```
 
+### Transition (Workflow)
+
+```text
+[access.transition check] → beforeTransition → [create version at target stage] → afterTransition
+```
+
 ## Registering Hooks
 
 Use `.hooks()` on a collection builder:
@@ -66,8 +72,8 @@ export const barbers = qb
 
     afterChange: async ({ data, operation, app }) => {
       if (operation === "create") {
-        const cms = getApp(app);
-        cms.logger.info("New barber created", { id: data.id });
+        const app = getApp(app);
+        app.logger.info("New barber created", { id: data.id });
       }
     },
   });
@@ -93,8 +99,8 @@ Runs before any operation. Use for logging, rate limiting, or early rejection.
 
 ```ts
 beforeOperation: async ({ operation, app }) => {
-  const cms = getApp(app);
-  cms.logger.info("Operation starting", { operation });
+  const app = getApp(app);
+  app.logger.info("Operation starting", { operation });
 }
 ```
 
@@ -130,10 +136,10 @@ Runs after create or update, inside the transaction. Use for notifications, queu
 
 ```ts
 afterChange: async ({ data, operation, original, app }) => {
-  const cms = getApp(app);
+  const app = getApp(app);
 
   if (operation === "create") {
-    await cms.queue.sendConfirmation.publish({
+    await app.queue.sendConfirmation.publish({
       appointmentId: data.id,
     });
   }
@@ -142,7 +148,7 @@ afterChange: async ({ data, operation, original, app }) => {
     const prev = original as any;
     const curr = data as any;
     if (prev.status !== curr.status && curr.status === "cancelled") {
-      await cms.queue.sendCancellation.publish({
+      await app.queue.sendCancellation.publish({
         appointmentId: data.id,
       });
     }
@@ -197,12 +203,37 @@ Runs after deletion. Use for cleanup, logging, or cascade operations.
 
 ```ts
 afterDelete: async ({ data, app }) => {
-  const cms = getApp(app);
-  cms.logger.info("Record deleted", { id: data.id });
+  const app = getApp(app);
+  app.logger.info("Record deleted", { id: data.id });
 
   // Clean up related files
   if (data.avatarUrl) {
-    await cms.storage.disk().delete(data.avatarUrl);
+    await app.storage.disk().delete(data.avatarUrl);
+  }
+}
+```
+
+### beforeTransition
+
+Runs before a workflow stage transition. Throw to abort. Only fires for `transitionStage()` calls on collections/globals with `workflow` enabled.
+
+```ts
+beforeTransition: ({ fromStage, toStage, data }) => {
+  if (toStage === "published" && !data.title) {
+    throw new Error("Cannot publish without a title");
+  }
+}
+```
+
+### afterTransition
+
+Runs after a stage transition completes. Use for notifications or side effects.
+
+```ts
+afterTransition: async ({ fromStage, toStage, data, app }) => {
+  const app = getApp(app);
+  if (toStage === "published") {
+    await app.queue.notifySubscribers.publish({ postId: data.id });
   }
 }
 ```
@@ -216,7 +247,7 @@ Every hook receives a context object with these properties:
 | `data` | `TData` | All hooks | Current record or input data |
 | `original` | `TData \| undefined` | afterChange (update) | Previous record state before update |
 | `operation` | `"create" \| "update" \| "delete" \| "read"` | All hooks | Current operation type |
-| `app` | `TApp` | All hooks | CMS instance (use `getApp(app)` for typing) |
+| `app` | `TApp` | All hooks | app instance (use `getApp(app)` for typing) |
 | `session` | `Session \| null` | All hooks | Authenticated user session |
 | `locale` | `string` | All hooks | Current locale |
 | `accessMode` | `"system" \| "user"` | All hooks | Whether this is a system or user-initiated operation |
@@ -226,13 +257,13 @@ Every hook receives a context object with these properties:
 
 ```ts
 import { getApp, getDb } from "questpie";
-import type { AppCMS } from "../cms";
+import type { App } from '../app';
 
 afterChange: async ({ app, db, data }) => {
-  const cms = getApp<AppCMS>(app);
-  const typedDb = getDb<AppCMS>(db);
+  const app = getApp<App>(app);
+  const typedDb = getDb<App>(db);
 
-  await cms.kv.set(`cache:${data.id}`, data, 300);
+  await app.kv.set(`cache:${data.id}`, data, 300);
   await typedDb.execute(sql`UPDATE counters SET value = value + 1`);
 }
 ```
@@ -241,10 +272,10 @@ You can also use one helper call:
 
 ```ts
 import { getContext } from "questpie";
-import type { AppCMS } from "../cms";
+import type { App } from '../app';
 
 afterChange: async (ctx) => {
-  const { app, db, session } = getContext<AppCMS>(ctx);
+  const { app, db, session } = getContext<App>(ctx);
 }
 ```
 
@@ -295,10 +326,10 @@ export const appointments = qb
 
     // Send notifications on create/status change
     afterChange: async ({ data, operation, original, app }) => {
-      const cms = getApp(app);
+      const app = getApp(app);
 
       if (operation === "create") {
-        await cms.queue.sendAppointmentConfirmation.publish({
+        await app.queue.sendAppointmentConfirmation.publish({
           appointmentId: data.id,
           customerId: data.customer,
         });
@@ -308,7 +339,7 @@ export const appointments = qb
         const prev = original as any;
         const curr = data as any;
         if (prev.status !== curr.status && curr.status === "cancelled") {
-          await cms.queue.sendAppointmentCancellation.publish({
+          await app.queue.sendAppointmentCancellation.publish({
             appointmentId: data.id,
           });
         }
@@ -322,7 +353,7 @@ export const appointments = qb
 - **Expensive queries in `afterRead`** — This hook runs for every record in list queries. Keep it lightweight (string formatting, simple computation). Move heavy work to background jobs.
 - **Side effects in `afterChange` without `onAfterCommit`** — If the transaction rolls back, the side effect has already fired. Use `onAfterCommit` for external API calls, emails, and webhooks.
 - **Mutating `data` in `afterRead`** — This is intentional. `afterRead` is the standard place to add computed fields. Just be aware the mutations affect the returned record.
-- **Forgetting `getApp()` cast** — The `app` parameter is untyped by default. Always use `getApp(app)` to get the typed CMS instance with access to `.queue`, `.kv`, `.email`, etc.
+- **Forgetting `getApp()` cast** — The `app` parameter is untyped by default. Always use `getApp(app)` to get the typed app instance with access to `.queue`, `.kv`, `.email`, etc.
 
 ## Related Pages
 

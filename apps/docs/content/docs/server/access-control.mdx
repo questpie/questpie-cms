@@ -23,7 +23,7 @@ API Request → Auth Session extracted → Access rules evaluated
 Two access modes control enforcement:
 
 - **`"user"` mode** — HTTP API requests from clients. All access rules are enforced.
-- **`"system"` mode** — Internal backend calls (hooks, jobs, RPC handlers). Access rules are bypassed. This is the default when calling `cms.api.collections.*` directly.
+- **`"system"` mode** — Internal backend calls (hooks, jobs, RPC handlers). Access rules are bypassed. This is the default when calling `app.api.collections.*` directly.
 
 ## Collection Access
 
@@ -97,9 +97,24 @@ update: ({ session }) => ({
 })
 ```
 
+### Transition Access
+
+For collections with `workflow` enabled, add `access.transition` to control who can transition between stages. If not defined, it falls back to `access.update`:
+
+```ts
+.access({
+  update: () => true,              // anyone can edit
+  transition: ({ session }) => {   // only admins can transition stages
+    return (session?.user as any)?.role === "admin";
+  },
+})
+```
+
+This is useful when editors should be able to modify content but only certain roles can publish or advance the workflow.
+
 ## Global Access
 
-Globals support `read` and `update` operations (no create/delete since globals are singletons):
+Globals support `read`, `update`, and `transition` operations (no create/delete since globals are singletons):
 
 ```ts
 export const siteSettings = qb
@@ -182,7 +197,7 @@ Collection and global access functions receive:
 
 ```ts
 interface AccessContext<TData, TApp> {
-  app: TApp;                     // CMS instance
+  app: TApp;                     // app instance
   session?: Session | null;      // Auth session (user + session data)
   data?: TData;                  // Record being accessed (for update/delete)
   input?: any;                   // Input data (for create/update)
@@ -195,12 +210,12 @@ interface AccessContext<TData, TApp> {
 
 ```ts
 import { getApp, getDb } from "questpie";
-import type { AppCMS } from "../cms";
+import type { App } from '../app';
 
 .access({
   delete: async ({ session, data, app, db }) => {
-    const cms = getApp<AppCMS>(app);
-    const typedDb = getDb<AppCMS>(db);
+    const app = getApp<App>(app);
+    const typedDb = getDb<App>(db);
 
     // Complex check: can't delete if referenced elsewhere
     const refs = await typedDb
@@ -217,20 +232,20 @@ For full context typing in one line:
 
 ```ts
 import { getContext } from "questpie";
-import type { AppCMS } from "../cms";
+import type { App } from '../app';
 
 update: (ctx) => {
-  const { app, db, session } = getContext<AppCMS>(ctx);
+  const { app, db, session } = getContext<App>(ctx);
   return !!session?.user;
 }
 ```
 
 ## Default Access
 
-Set CMS-wide defaults that apply to collections without explicit `.access()`:
+Set app-wide defaults that apply to collections without explicit `.access()`:
 
 ```ts
-const cms = questpie(builder).build({
+const app = questpie(builder).build({
   // ...
   defaultAccess: {
     read: ({ session }) => !!session?.user,
@@ -247,10 +262,10 @@ Collections with `.access()` override the defaults entirely.
 
 ```ts
 // System mode (default for backend calls) — bypasses access control
-const allRecords = await cms.api.collections.posts.find({});
+const allRecords = await app.api.collections.posts.find({});
 
 // User mode — enforces access rules
-const userRecords = await cms.api.collections.posts.find(
+const userRecords = await app.api.collections.posts.find(
   {},
   { accessMode: "user", session: req.session },
 );

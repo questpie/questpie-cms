@@ -48,6 +48,7 @@ Set global options.
 .options({
   timestamps: true,
   versioning: true,
+  workflow: true,
 })
 ```
 
@@ -55,8 +56,24 @@ Set global options.
 |---|---|---|---|
 | `timestamps` | `boolean` | `false` | Add `createdAt` and `updatedAt` |
 | `versioning` | `boolean \| CollectionVersioningOptions` | `false` | Enable version history |
+| `workflow` | `boolean \| WorkflowOptions` | `false` | Enable staged workflow and transition guards |
 
 Note: `softDelete` is not available for globals — they are singletons.
+
+Workflow configuration supports explicit stage transitions:
+
+```ts
+.options({
+  workflow: {
+    initialStage: "draft",
+    stages: {
+      draft: { transitions: ["review"] },
+      review: { transitions: ["draft", "published"] },
+      published: {},
+    },
+  },
+})
+```
 
 ## Behavior
 
@@ -84,6 +101,8 @@ Register lifecycle hooks for the global.
 | `beforeChange` | Before update write | Validate or transform input |
 | `afterChange` | After update write | Side effects (cache invalidation, notifications) |
 | `beforeValidate` | Before Zod validation | Transform input before validation |
+| `beforeTransition` | Before workflow stage transition | Validate or abort transition |
+| `afterTransition` | After workflow stage transition | Side effects (notifications, cache) |
 
 ### `.access(rules)`
 
@@ -97,7 +116,7 @@ Set access control rules.
 })
 ```
 
-**Parameter:** `{ read?, update? }` — each is `boolean | AccessFunction`. Globals only support `read` and `update` (no create/delete — they are singletons).
+**Parameter:** `{ read?, update?, transition? }` — each is `boolean | AccessFunction`. Globals only support `read`, `update`, and `transition` (no create/delete — they are singletons). The `transition` rule controls `transitionStage()` access and falls back to `update` when not defined.
 
 ## Admin Configuration
 
@@ -128,7 +147,7 @@ Configure the edit form layout.
 
 ## Finalization
 
-Global builders are passed directly to `q.globals({ ... })` and finalized during top-level CMS `.build(...)`.
+Global builders are passed directly to `q.globals({ ... })` and finalized during top-level app `.build(...)`.
 
 ## Runtime
 
@@ -136,17 +155,18 @@ After build, global operations are available at:
 
 ```ts
 // Get the current value
-const settings = await cms.api.globals.siteSettings.get();
-const settings = await cms.api.globals.siteSettings.get({ locale: "de" });
+const settings = await app.api.globals.siteSettings.get();
+const settings = await app.api.globals.siteSettings.get({ locale: "de" });
+const reviewSettings = await app.api.globals.siteSettings.get({ stage: "review" });
 
 // Update
-const updated = await cms.api.globals.siteSettings.update({
+const updated = await app.api.globals.siteSettings.update({
   data: { siteName: "New Name" },
 });
 
 // Versions (if enabled)
-const versions = await cms.api.globals.siteSettings.findVersions();
-await cms.api.globals.siteSettings.revertToVersion({ versionNumber: 3 });
+const versions = await app.api.globals.siteSettings.findVersions();
+await app.api.globals.siteSettings.revertToVersion({ versionNumber: 3 });
 ```
 
 The global record is auto-created on first access with default values.

@@ -45,6 +45,109 @@ export const posts = qb
 | `enabled` | `boolean` | `false` | Enable version tracking |
 | `maxVersions` | `number` | `50` | Maximum versions to keep per record. Oldest are pruned automatically. |
 
+## Workflow + Versioning
+
+Versioning works best with staged publishing workflows.
+
+```ts
+.options({
+  versioning: true,
+  workflow: {
+    initialStage: "draft",
+    stages: {
+      draft: { transitions: ["review"] },
+      review: { transitions: ["draft", "published"] },
+      published: {},
+    },
+  },
+})
+```
+
+With workflow enabled:
+
+- Reads can target a stage snapshot (`find({ stage: "review" })`, `findOne({ stage: "published" })`)
+- Writes can target a stage via context (`{ stage: "review" }`) or HTTP query (`?stage=review`)
+- Transition guards enforce allowed next stages from `workflow.stages.*.transitions`
+- Version snapshots persist both target stage and previous stage metadata
+
+### Transitioning Stages
+
+Use `transitionStage()` to move a record between workflow stages without mutating its data:
+
+```ts
+// Move a post from draft to published
+await app.api.collections.posts.transitionStage(
+  { id: "post-123", stage: "published" },
+  ctx,
+);
+```
+
+This creates a new version snapshot at the target stage with the record's current data. If transition guards are defined, the transition is validated against the allowed transitions for the current stage.
+
+#### Via HTTP
+
+```
+POST /questpie/posts/post-123/transition
+Content-Type: application/json
+
+{ "stage": "published" }
+```
+
+For globals:
+
+```
+POST /questpie/globals/siteSettings/transition
+Content-Type: application/json
+
+{ "stage": "published" }
+```
+
+#### Scheduled Transitions
+
+Pass `scheduledAt` to defer a transition to a future time. Requires a queue adapter:
+
+```ts
+await app.api.collections.posts.transitionStage(
+  {
+    id: "post-123",
+    stage: "published",
+    scheduledAt: new Date("2026-03-01T09:00:00Z"),
+  },
+  ctx,
+);
+```
+
+If `scheduledAt` is in the past, the transition executes immediately. If in the future, a `scheduled-transition` job is enqueued and the record is returned unchanged.
+
+### Transition Access Control
+
+Add an `access.transition` rule to control who can transition stages. It falls back to `access.update` when not defined:
+
+```ts
+.access({
+  update: () => true,
+  transition: ({ session }) => session?.user?.role === "admin",
+})
+```
+
+### Transition Hooks
+
+Use `beforeTransition` and `afterTransition` hooks to inject logic around stage changes:
+
+```ts
+.hooks({
+  beforeTransition: ({ fromStage, toStage, data }) => {
+    if (toStage === "published" && !data.title) {
+      throw new Error("Cannot publish without a title");
+    }
+  },
+  afterTransition: async ({ fromStage, toStage, data, app }) => {
+    if (toStage === "published") {
+      await app.queue.notifySubscribers.publish({ postId: data.id });
+    }
+  },
+})
+
 ## How It Works
 
 ```text
@@ -68,6 +171,8 @@ Each version contains:
 | `versionId` | `string` | Unique ID for this version (UUID) |
 | `versionNumber` | `number` | Sequential version number (1, 2, 3...) |
 | `versionOperation` | `string` | `"create"`, `"update"`, or `"delete"` |
+| `versionStage` | `string \| null` | Target workflow stage for this snapshot (when workflow is enabled) |
+| `versionFromStage` | `string \| null` | Previous workflow stage before transition (when workflow is enabled) |
 | `versionUserId` | `string \| null` | User who made the change (from session) |
 | `versionCreatedAt` | `Date` | When this version was created |
 | _...all record fields_ | _varies_ | Complete snapshot of all field values |
@@ -86,7 +191,7 @@ When you enable versioning, QUESTPIE auto-generates:
 Retrieve the version history for a record:
 
 ```ts
-const versions = await cms.api.collections.posts.findVersions({
+const versions = await app.api.collections.posts.findVersions({
   id: "post-123",
   limit: 10,
   offset: 0,
@@ -111,13 +216,13 @@ Restore a record to a previous version:
 
 ```ts
 // Revert by version number
-await cms.api.collections.posts.revertToVersion({
+await app.api.collections.posts.revertToVersion({
   id: "post-123",
   versionNumber: 3,
 });
 
 // Revert by version ID
-await cms.api.collections.posts.revertToVersion({
+await app.api.collections.posts.revertToVersion({
   id: "post-123",
   versionId: "version-uuid-here",
 });
@@ -136,7 +241,7 @@ Reverting:
 For collections with localized fields, `findVersions` supports locale-specific queries:
 
 ```ts
-const versions = await cms.api.collections.posts.findVersions(
+const versions = await app.api.collections.posts.findVersions(
   { id: "post-123" },
   { locale: "de" },
 );
@@ -169,6 +274,8 @@ This happens inside the same transaction as the version creation.
 ## Related Pages
 
 - [Collections](/docs/server/collections) — Collection `.options()` configuration
+- [Access Control](/docs/server/access-control) — `access.transition` permission
+- [Hooks & Lifecycle](/docs/server/hooks-and-lifecycle) — `beforeTransition` / `afterTransition` hooks
 - [Context & Transactions](/docs/server/context-and-transactions) — Transaction behavior
-- [Hooks & Lifecycle](/docs/server/hooks-and-lifecycle) — Hooks run during revert operations
-- [Database & Migrations](/docs/infrastructure/database-and-migrations) — Auto-generated version tables
+- [CRUD API](/docs/reference/crud-api) — `transitionStage()` method reference
+- [Queue & Jobs](/docs/infrastructure/queue-and-jobs) — Scheduled transition job

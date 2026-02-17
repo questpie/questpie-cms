@@ -52,3 +52,13 @@ Panel state is now URL-driven for better shareability and navigation:
 - legacy params remain supported for backward compatibility
 
 Add integration test coverage for adapter versioning routes and extend package docs for the new endpoints and URL-synced panel behavior.
+
+Add workflow stage transitions:
+- `transitionStage()` CRUD method for collections and globals — validates stage, enforces transition guards, creates version snapshot without data mutation
+- `access.transition` permission rule (falls back to `access.update` when not defined)
+- `beforeTransition` / `afterTransition` hooks with `fromStage` and `toStage` context
+- HTTP routes: `POST /:collection/:id/transition` and `POST /globals/:name/transition`
+- Client SDK `transitionStage()` proxy + TanStack Query `transitionStage` mutation builder
+- OpenAPI `POST` transition endpoints (generated only for workflow-enabled collections/globals)
+- Admin built-in `"transition"` action with workflow metadata exposed in config
+- Scheduled transitions via queue job (`scheduledAt` parameter — future dates enqueue, past dates execute immediately)
