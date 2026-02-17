@@ -308,13 +308,21 @@ export default function FormView({
 	const schemaPreview = schema?.admin?.preview;
 	const hasPreview =
 		!!schemaPreview?.hasUrlBuilder && schemaPreview?.enabled !== false;
+	const canUseLivePreview = hasPreview && isEditMode && !!id;
 
 	// Check URL for ?preview=true on mount
 	const [isLivePreviewOpen, setIsLivePreviewOpen] = React.useState(() => {
 		if (typeof window === "undefined") return false;
 		const params = new URLSearchParams(window.location.search);
-		return params.get("preview") === "true" && hasPreview;
+		return params.get("preview") === "true" && canUseLivePreview;
 	});
+
+	// Create mode (or missing id) should never keep preview open
+	React.useEffect(() => {
+		if (!canUseLivePreview && isLivePreviewOpen) {
+			setIsLivePreviewOpen(false);
+		}
+	}, [canUseLivePreview, isLivePreviewOpen]);
 
 	// Sync preview state with URL
 	React.useEffect(() => {
@@ -1041,7 +1049,6 @@ export default function FormView({
 
 	// Generate preview URL via server RPC (url function runs server-side)
 	const [previewUrl, setPreviewUrl] = React.useState<string | null>(null);
-	const previewTimerRef = React.useRef<NodeJS.Timeout | null>(null);
 
 	const updatePreviewUrl = React.useCallback(
 		(record: Record<string, unknown>) => {
@@ -1068,35 +1075,26 @@ export default function FormView({
 	);
 
 	React.useEffect(() => {
-		if (!isLivePreviewOpen || !hasPreview || !client) {
+		if (!isLivePreviewOpen || !canUseLivePreview || !client) {
 			setPreviewUrl(null);
 			return;
 		}
 
-		const schedulePreviewUpdate = (record: Record<string, unknown>) => {
-			if (previewTimerRef.current) {
-				clearTimeout(previewTimerRef.current);
-			}
+		const persistedRecord = transformedItem as Record<string, unknown> | null;
 
-			previewTimerRef.current = setTimeout(() => {
-				updatePreviewUrl(record);
-			}, 300);
-		};
+		if (!persistedRecord) {
+			setPreviewUrl(null);
+			return;
+		}
 
-		const initialValues = (form.getValues() ?? {}) as Record<string, unknown>;
-		schedulePreviewUpdate(initialValues);
-
-		const subscription = form.watch((values) => {
-			schedulePreviewUpdate((values ?? {}) as Record<string, unknown>);
-		});
-
-		return () => {
-			subscription.unsubscribe();
-			if (previewTimerRef.current) {
-				clearTimeout(previewTimerRef.current);
-			}
-		};
-	}, [isLivePreviewOpen, hasPreview, client, form, updatePreviewUrl]);
+		updatePreviewUrl(persistedRecord);
+	}, [
+		isLivePreviewOpen,
+		canUseLivePreview,
+		client,
+		transformedItem,
+		updatePreviewUrl,
+	]);
 
 	// Show skeleton until form data is ready (edit mode only)
 	// This prevents race conditions where form fields render before data is loaded
@@ -1277,7 +1275,7 @@ export default function FormView({
 							{headerActions}
 
 							{/* Live Preview button */}
-							{hasPreview && (
+							{canUseLivePreview && (
 								<Button
 									type="button"
 									variant="outline"
@@ -1451,7 +1449,7 @@ export default function FormView({
 			<div className="w-full">{formContent}</div>
 
 			{/* Live Preview Mode */}
-			{hasPreview && previewUrl && (
+			{canUseLivePreview && previewUrl && (
 				<LivePreviewMode
 					open={isLivePreviewOpen}
 					onClose={() => setIsLivePreviewOpen(false)}
