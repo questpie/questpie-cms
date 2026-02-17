@@ -1,0 +1,140 @@
+---
+title: Search
+description: Full-text search with PostgreSQL FTS, faceted navigation, and vector embeddings
+---
+
+# Search
+
+QUESTPIE includes a search service that indexes collection records for full-text search. The default adapter uses PostgreSQL's built-in FTS and trigram matching. For semantic search, add the pgvector adapter.
+
+## Why This Exists
+
+As your content grows, simple WHERE clauses aren't enough. The search service provides relevance-ranked full-text search, fuzzy matching, faceted navigation, and optional vector embeddings — all indexable per collection.
+
+## Setup
+
+The PostgreSQL search adapter is used by default when search is enabled:
+
+```ts
+import { createPostgresSearchAdapter } from "questpie";
+
+.build({
+  // ...
+  search: {
+    adapter: createPostgresSearchAdapter({
+      trigramThreshold: 0.3,  // fuzzy match threshold
+      ftsWeight: 0.7,         // full-text vs trigram weight
+    }),
+  },
+})
+```
+
+## Making Collections Searchable
+
+Add `.searchable()` to collections that should be indexed:
+
+```ts
+export const posts = qb
+  .collection("posts")
+  .fields((f) => ({
+    title: f.text({ required: true }),
+    content: f.richText({}),
+    category: f.select({ options: [...] }),
+  }))
+  .searchable({
+    content: (record) => `${record.title} ${record.content}`,
+    metadata: (record) => ({ category: record.category }),
+    facets: {
+      category: true,
+      status: { type: "array" },
+    },
+  });
+```
+
+### Configuration
+
+| Option | Type | Description |
+|---|---|---|
+| `content` | `(record) => string` | Text to index for search |
+| `metadata` | `(record) => object` | Filterable metadata |
+| `embeddings` | `async (record, ctx) => number[]` | Vector embeddings (optional) |
+| `facets` | `Record<string, FacetConfig>` | Faceted aggregation fields |
+| `manual` | `boolean` | Disable auto-indexing on CRUD |
+| `title` | `boolean` | Auto-index title field |
+
+## Searching
+
+```ts
+const results = await app.search.search({
+  query: "haircut appointment",
+  collections: ["posts", "services"],
+  limit: 10,
+  mode: "hybrid",            // "lexical" | "semantic" | "hybrid"
+  highlights: true,
+  facets: [{ field: "category" }],
+});
+
+// results.hits: SearchResult[]
+// results.facets: { category: [{ value: "...", count: N }] }
+```
+
+### Search Result
+
+```ts
+interface SearchResult {
+  id: string;
+  collection: string;
+  recordId: string;
+  score: number;              // 0-1 relevance
+  title: string;
+  content?: string;
+  highlights?: { title?: string; content?: string };
+  metadata: Record<string, any>;
+}
+```
+
+## Faceted Search
+
+Facets let you build filter navigation (like e-commerce category filters):
+
+```ts
+const results = await app.search.search({
+  query: "services",
+  facets: [
+    { field: "category", limit: 10 },
+    { field: "priceRange", sortBy: "alpha" },
+  ],
+  filters: { category: "haircut" },  // apply facet filter
+});
+```
+
+## Reindexing
+
+Rebuild the search index for a collection:
+
+```ts
+await app.search.reindex("posts");
+```
+
+The CMS also exposes a reindex endpoint: `POST /api/cms/search/reindex/{collection}`.
+
+## Adapters
+
+### PostgreSQL FTS (Default)
+
+Uses `tsvector`, `ts_rank_cd`, and `pg_trgm` for full-text + fuzzy search. No additional infrastructure needed.
+
+### pgvector
+
+For semantic search with vector embeddings. Requires the `pgvector` PostgreSQL extension and an embedding provider (OpenAI, etc.).
+
+## Common Mistakes
+
+- **Not calling `.searchable()`** — Collections aren't indexed unless you opt in with `.searchable()`.
+- **Heavy `content` functions** — The content function runs on every index operation. Keep it simple.
+- **Missing `pg_trgm` extension** — Fuzzy matching requires the `pg_trgm` PostgreSQL extension. Install it with `CREATE EXTENSION pg_trgm`.
+
+## Related Pages
+
+- [Collections — Searchable](/docs/server/collections#searchable) — Collection-level config
+- [Infrastructure API Reference](/docs/reference/infrastructure-api) — Search method signatures

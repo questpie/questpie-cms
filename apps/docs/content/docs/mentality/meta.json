@@ -1,0 +1,12 @@
+{
+	"title": "Mentality",
+	"defaultOpen": true,
+	"pages": [
+		"index",
+		"single-source-of-truth",
+		"server-first-what-vs-how",
+		"builder-extensions",
+		"registry-first-philosophy",
+		"introspection-contract"
+	]
+}

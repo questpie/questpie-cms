@@ -1,78 +1,44 @@
 /**
  * Blocks Index
  *
- * Exports all block definitions for the barbershop.
- * Organized by category:
- * - Sections: hero, services, team, reviews, cta, booking-cta
- * - Content: text, heading, image-text, stats, hours, contact-info, gallery
- * - Layout: columns, spacer, divider
+ * Exports all block renderers for the barbershop.
  */
 
-// Section blocks
-export { heroBlock } from "./hero";
-export { servicesBlock } from "./services";
-export { servicesFeaturedBlock } from "./services-featured";
-export { teamBlock } from "./team";
-export { barbersFeaturedBlock } from "./barbers-featured";
-export { reviewsBlock } from "./reviews";
-export { reviewsGridBlock } from "./reviews-grid";
-export { ctaBlock } from "./cta";
-export { bookingCtaBlock } from "./booking-cta";
+import { BookingCtaRenderer } from "./booking-cta";
+import { ContactInfoRenderer } from "./contact-info";
+import { CTARenderer } from "./cta";
+import { GalleryRenderer } from "./gallery";
+import { HeadingRenderer } from "./heading";
+import { HeroRenderer } from "./hero";
+import { HoursRenderer } from "./hours";
+import { ImageTextRenderer } from "./image-text";
+import { ColumnsRenderer, DividerRenderer, SpacerRenderer } from "./layout";
+import { ReviewsRenderer } from "./reviews";
+import { ServicesRenderer } from "./services";
+import { StatsRenderer } from "./stats";
+import { TeamRenderer } from "./team";
+import { TextRenderer } from "./text";
 
-// Content blocks
-export { textBlock } from "./text";
-export { headingBlock } from "./heading";
-export { imageTextBlock } from "./image-text";
-export { galleryBlock } from "./gallery";
-export { statsBlock } from "./stats";
-export { hoursBlock } from "./hours";
-export { contactInfoBlock } from "./contact-info";
-
-// Layout blocks
-export { columnsBlock, dividerBlock, spacerBlock } from "./layout";
-
-// Combined export for BlockRenderer
-import { heroBlock } from "./hero";
-import { servicesBlock } from "./services";
-import { servicesFeaturedBlock } from "./services-featured";
-import { teamBlock } from "./team";
-import { barbersFeaturedBlock } from "./barbers-featured";
-import { reviewsBlock } from "./reviews";
-import { reviewsGridBlock } from "./reviews-grid";
-import { ctaBlock } from "./cta";
-import { bookingCtaBlock } from "./booking-cta";
-import { textBlock } from "./text";
-import { headingBlock } from "./heading";
-import { imageTextBlock } from "./image-text";
-import { galleryBlock } from "./gallery";
-import { statsBlock } from "./stats";
-import { hoursBlock } from "./hours";
-import { contactInfoBlock } from "./contact-info";
-import { columnsBlock, dividerBlock, spacerBlock } from "./layout";
-
-export const blocks = {
+export const renderers = {
 	// Sections
-	hero: heroBlock,
-	services: servicesBlock,
-	"services-featured": servicesFeaturedBlock,
-	team: teamBlock,
-	"barbers-featured": barbersFeaturedBlock,
-	reviews: reviewsBlock,
-	"reviews-grid": reviewsGridBlock,
-	cta: ctaBlock,
-	"booking-cta": bookingCtaBlock,
+	hero: HeroRenderer,
+	services: ServicesRenderer,
+	team: TeamRenderer,
+	reviews: ReviewsRenderer,
+	cta: CTARenderer,
+	"booking-cta": BookingCtaRenderer,
 	// Content
-	text: textBlock,
-	heading: headingBlock,
-	"image-text": imageTextBlock,
-	gallery: galleryBlock,
-	stats: statsBlock,
-	hours: hoursBlock,
-	"contact-info": contactInfoBlock,
+	text: TextRenderer,
+	heading: HeadingRenderer,
+	"image-text": ImageTextRenderer,
+	gallery: GalleryRenderer,
+	stats: StatsRenderer,
+	hours: HoursRenderer,
+	"contact-info": ContactInfoRenderer,
 	// Layout
-	columns: columnsBlock,
-	spacer: spacerBlock,
-	divider: dividerBlock,
-} as const;
+	columns: ColumnsRenderer,
+	spacer: SpacerRenderer,
+	divider: DividerRenderer,
+} as any;
 
-export default blocks;
+export default renderers;

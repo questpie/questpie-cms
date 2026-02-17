@@ -8,7 +8,6 @@
 import type React from "react";
 import type { FieldDefinition } from "../../builder/field/field";
 import type { DynamicI18nText } from "../../builder/types/common";
-import type { FormFieldProps } from "./form-field";
 
 // ============================================================================
 // Types
@@ -142,8 +141,8 @@ export interface GetFieldContextParams {
 	form: any;
 	fieldPrefix?: string;
 	locale?: string;
-	/** Collection metadata from backend (for inferring localized fields) */
-	collectionMeta?: { localizedFields?: string[] };
+	/** Entity metadata from backend (for inferring localized fields) */
+	entityMeta?: { localizedFields?: string[] };
 	/**
 	 * Pre-watched form values from useWatch hook.
 	 * If provided, avoids calling form.watch() internally.
@@ -164,7 +163,7 @@ export function getFieldContext({
 	fieldPrefix,
 	locale,
 	formValues: formValuesProp,
-	collectionMeta,
+	entityMeta,
 }: GetFieldContextParams): FieldContext {
 	// Use pre-watched values if provided (preferred), otherwise fall back to form.watch()
 	const formValues = formValuesProp ?? getFormValues(form, fieldPrefix);
@@ -197,7 +196,7 @@ export function getFieldContext({
 	const isLocalized =
 		options.localized !== undefined
 			? !!options.localized
-			: (collectionMeta?.localizedFields?.includes(fieldName) ?? false);
+			: (entityMeta?.localizedFields?.includes(fieldName) ?? false);
 
 	// Resolve dynamic options for select fields
 	const selectOptions = options.options
@@ -278,35 +277,6 @@ export function buildComponentProps(context: FieldContext): RawComponentProps {
 		disabled: context.isDisabled,
 		readOnly: context.isReadOnly,
 		error: context.fieldError,
-		localized: context.isLocalized,
-		locale: context.locale,
-	};
-}
-
-/**
- * Raw form field props with I18nText (needs resolution before passing to components)
- */
-export type RawFormFieldProps = Omit<
-	FormFieldProps,
-	"label" | "description" | "placeholder"
-> & {
-	label?: DynamicI18nText;
-	description?: DynamicI18nText;
-	placeholder?: DynamicI18nText;
-};
-
-/**
- * Build props for FormField component (primitive field types).
- * Returns raw props with I18nText - resolve before passing to FormField.
- */
-export function buildFormFieldProps(context: FieldContext): RawFormFieldProps {
-	return {
-		name: context.fullFieldName,
-		label: context.label,
-		description: context.description,
-		placeholder: context.placeholder,
-		required: context.isRequired,
-		disabled: context.isDisabled || context.isReadOnly,
 		localized: context.isLocalized,
 		locale: context.locale,
 	};

@@ -82,7 +82,11 @@ export interface RealtimeConfig {
   batchSize?: number;
 
   /**
-   * Retention window in days for cleanup jobs.
+   * Retention window in days for time-based outbox cleanup.
+   *
+   * Note: realtime service always performs watermark cleanup based on
+   * min consumed seq for active subscribers. `retentionDays` adds an
+   * additional time-based safety window.
    */
   retentionDays?: number;
 }

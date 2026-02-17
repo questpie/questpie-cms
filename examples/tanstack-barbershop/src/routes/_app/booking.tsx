@@ -33,6 +33,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { client } from "@/lib/cms-client";
 import { getAllBarbers } from "@/lib/getBarbers.function";
 import { getAllServices } from "@/lib/getServices.function";
+import { useTranslation } from "@/lib/providers/locale-provider";
 import { cn } from "@/lib/utils";
 
 // Search params schema
@@ -60,6 +61,7 @@ export const Route = createFileRoute("/_app/booking")({
 type Step = "service" | "barber" | "datetime" | "info" | "success";
 
 function BookingPage() {
+	const { t, locale } = useTranslation();
 	const { services, barbers } = Route.useLoaderData();
 	const search = Route.useSearch();
 
@@ -99,7 +101,7 @@ function BookingPage() {
 	} = useQuery({
 		queryKey: ["slots", selectedBarber?.id, selectedDate, selectedService?.id],
 		queryFn: () =>
-			client.functions.getAvailableTimeSlots({
+			client.rpc.getAvailableTimeSlots({
 				date: format(selectedDate!, "yyyy-MM-dd"),
 				barberId: selectedBarber!.id,
 				serviceId: selectedService!.id,
@@ -115,36 +117,33 @@ function BookingPage() {
 	// Show error toast when slots fail to load
 	React.useEffect(() => {
 		if (isSlotsError) {
-			toast.error("Failed to load available times", {
+			toast.error(t("booking.error.loadSlots"), {
 				description:
-					(slotsError as any)?.message ||
-					"Please try selecting a different date or barber.",
+					(slotsError as any)?.message || t("booking.error.loadSlotsDesc"),
 			});
 		}
-	}, [isSlotsError, slotsError]);
+	}, [isSlotsError, slotsError, t]);
 
 	const bookingMutation = useMutation({
-		mutationFn: (data: any) => client.functions.createBooking(data),
+		mutationFn: (data: any) => client.rpc.createBooking(data),
 		onSuccess: () => {
-			toast.success("Appointment booked successfully!", {
-				description: "We've sent a confirmation to your email.",
+			toast.success(t("booking.error.success"), {
+				description: t("booking.error.successDesc"),
 			});
 			setStep("success");
 		},
 		onError: (error: any) => {
-			toast.error("Failed to book appointment", {
-				description:
-					error?.message ||
-					"Something went wrong. Please try again or contact us.",
+			toast.error(t("booking.error.failed"), {
+				description: error?.message || t("booking.error.failedDesc"),
 			});
 		},
 	});
 
 	// Helpers
 	const formatPrice = (cents: number) => {
-		return new Intl.NumberFormat("en-US", {
+		return new Intl.NumberFormat(locale === "sk" ? "sk-SK" : "en-US", {
 			style: "currency",
-			currency: "USD",
+			currency: "EUR",
 		}).format(cents / 100);
 	};
 
@@ -167,15 +166,15 @@ function BookingPage() {
 
 		// Validation
 		if (!selectedBarber || !selectedService || !selectedTime) {
-			toast.error("Missing information", {
-				description: "Please complete all previous steps before confirming.",
+			toast.error(t("booking.error.missing"), {
+				description: t("booking.error.missingDesc"),
 			});
 			return;
 		}
 
 		if (!customerInfo.name || !customerInfo.email) {
-			toast.error("Required fields missing", {
-				description: "Please fill in your name and email address.",
+			toast.error(t("booking.error.required"), {
+				description: t("booking.error.requiredDesc"),
 			});
 			return;
 		}
@@ -204,10 +203,10 @@ function BookingPage() {
 					</div>
 					<div className="space-y-4">
 						<h1 className="text-4xl font-bold tracking-tight">
-							Booking Confirmed!
+							{t("booking.confirmed.title")}
 						</h1>
 						<p className="text-muted-foreground text-lg">
-							We've received your request. A confirmation email has been sent to{" "}
+							{t("booking.confirmed.message")}{" "}
 							<span className="font-bold text-foreground">
 								{customerInfo.email}
 							</span>
@@ -219,10 +218,10 @@ function BookingPage() {
 							to="/"
 							className="block w-full py-4 bg-foreground text-background font-bold uppercase tracking-widest hover:bg-highlight transition-all"
 						>
-							Return Home
+							{t("booking.returnHome")}
 						</Link>
 						<p className="text-sm text-muted-foreground">
-							Need to change something? Call us at +421 900 000 000
+							{t("booking.needToChange")} +421 900 000 000
 						</p>
 					</div>
 				</div>
@@ -237,11 +236,14 @@ function BookingPage() {
 				<div className="mb-12 flex justify-between items-center">
 					<div className="space-y-1">
 						<h1 className="text-3xl font-bold tracking-tight">
-							Book Appointment
+							{t("booking.title")}
 						</h1>
 						<p className="text-muted-foreground">
-							Step {["service", "barber", "datetime", "info"].indexOf(step) + 1}{" "}
-							of 4
+							{t("booking.stepOf", {
+								current:
+									["service", "barber", "datetime", "info"].indexOf(step) + 1,
+								total: 4,
+							})}
 						</p>
 					</div>
 					{step !== "service" && (
@@ -250,7 +252,7 @@ function BookingPage() {
 							onClick={handleBack}
 							className="gap-2 font-bold uppercase tracking-widest text-xs"
 						>
-							<ArrowLeft className="size-4" /> Back
+							<ArrowLeft className="size-4" /> {t("booking.back")}
 						</Button>
 					)}
 				</div>
@@ -261,7 +263,9 @@ function BookingPage() {
 						{/* STEP 1: SERVICE */}
 						{step === "service" && (
 							<div className="space-y-6 animate-fade-in-up">
-								<h2 className="text-2xl font-bold">Select Service</h2>
+								<h2 className="text-2xl font-bold">
+									{t("booking.selectService")}
+								</h2>
 								<div className="grid grid-cols-1 gap-4">
 									{services.map((service) => (
 										<button
@@ -297,7 +301,9 @@ function BookingPage() {
 						{/* STEP 2: BARBER */}
 						{step === "barber" && (
 							<div className="space-y-6 animate-fade-in-up">
-								<h2 className="text-2xl font-bold">Select Barber</h2>
+								<h2 className="text-2xl font-bold">
+									{t("booking.selectBarber")}
+								</h2>
 								<div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
 									{barbers.map((barber) => (
 										<button
@@ -343,7 +349,9 @@ function BookingPage() {
 							<div className="space-y-8 animate-fade-in-up">
 								<div className="grid grid-cols-1 md:grid-cols-2 gap-8">
 									<div className="space-y-4">
-										<h2 className="text-2xl font-bold">Pick a Date</h2>
+										<h2 className="text-2xl font-bold">
+											{t("booking.selectDate")}
+										</h2>
 										<div className="p-4 bg-card border border-border rounded-none">
 											<Calendar
 												mode="single"
@@ -358,7 +366,9 @@ function BookingPage() {
 									</div>
 
 									<div className="space-y-4">
-										<h2 className="text-2xl font-bold">Select Time</h2>
+										<h2 className="text-2xl font-bold">
+											{t("booking.selectTime")}
+										</h2>
 										{isLoadingSlots ? (
 											<div className="grid grid-cols-3 gap-2">
 												{[...Array(9)].map((_, i) => (
@@ -389,7 +399,7 @@ function BookingPage() {
 											</ScrollArea>
 										) : (
 											<div className="p-8 text-center bg-muted border border-dashed border-border text-muted-foreground italic">
-												No available slots for this day. Try another date.
+												{t("booking.noSlotsForDay")}
 											</div>
 										)}
 									</div>
@@ -402,7 +412,7 @@ function BookingPage() {
 										onClick={handleNext}
 										className="bg-highlight hover:bg-highlight/90 text-highlight-foreground font-bold uppercase tracking-widest h-14 px-12"
 									>
-										Continue <ArrowRight className="ml-2" />
+										{t("booking.next")} <ArrowRight className="ml-2" />
 									</Button>
 								</div>
 							</div>
@@ -414,14 +424,16 @@ function BookingPage() {
 								onSubmit={handleFinalSubmit}
 								className="space-y-8 animate-fade-in-up"
 							>
-								<h2 className="text-2xl font-bold">Your Details</h2>
+								<h2 className="text-2xl font-bold">
+									{t("booking.yourDetails")}
+								</h2>
 								<div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
 									<div className="space-y-2">
 										<Label
 											htmlFor="name"
 											className="font-bold uppercase tracking-wider text-xs"
 										>
-											Full Name
+											{t("booking.name")}
 										</Label>
 										<Input
 											id="name"
@@ -442,7 +454,7 @@ function BookingPage() {
 											htmlFor="email"
 											className="font-bold uppercase tracking-wider text-xs"
 										>
-											Email Address
+											{t("booking.email")}
 										</Label>
 										<Input
 											id="email"
@@ -464,7 +476,7 @@ function BookingPage() {
 											htmlFor="phone"
 											className="font-bold uppercase tracking-wider text-xs"
 										>
-											Phone Number (Optional)
+											{t("booking.phoneOptional")}
 										</Label>
 										<Input
 											id="phone"
@@ -484,7 +496,7 @@ function BookingPage() {
 											htmlFor="notes"
 											className="font-bold uppercase tracking-wider text-xs"
 										>
-											Notes for Barber (Optional)
+											{t("booking.notesForBarber")}
 										</Label>
 										<Input
 											id="notes"
@@ -496,7 +508,7 @@ function BookingPage() {
 												})
 											}
 											className="bg-card h-12 rounded-none border-border"
-											placeholder="Anything we should know?"
+											placeholder={t("booking.notesPlaceholder")}
 										/>
 									</div>
 								</div>
@@ -509,8 +521,8 @@ function BookingPage() {
 										className="w-full bg-highlight hover:bg-highlight/90 text-highlight-foreground font-bold uppercase tracking-widest h-16 text-lg"
 									>
 										{bookingMutation.isPending
-											? "Booking..."
-											: "Confirm Booking"}
+											? t("booking.booking")
+											: t("booking.confirmBooking")}
 									</Button>
 								</div>
 							</form>
@@ -601,8 +613,10 @@ function BookingPage() {
 									)}
 								</CardContent>
 								{selectedService && (
-									<CardFooter className="pt-6 border-t border-border flex justify-between items-center">
-										<span className="font-bold text-lg">Total</span>
+									<CardFooter className="flex justify-between items-center border-t pt-4">
+										<span className="font-bold text-lg">
+											{t("booking.total")}
+										</span>
 										<span className="font-bold text-2xl text-highlight">
 											{formatPrice(selectedService.price)}
 										</span>
@@ -612,12 +626,12 @@ function BookingPage() {
 
 							<div className="p-6 bg-muted/50 border border-border space-y-4">
 								<h3 className="font-bold text-sm uppercase tracking-widest">
-									Our Policy
+									{t("booking.policy.title")}
 								</h3>
 								<ul className="text-xs text-muted-foreground space-y-2 leading-relaxed">
-									<li>• Please arrive 5 minutes before your appointment.</li>
-									<li>• Cancellations must be made at least 24h in advance.</li>
-									<li>• We accept cash and all major credit cards.</li>
+									<li>• {t("booking.policy.arrive")}</li>
+									<li>• {t("booking.policy.cancel")}</li>
+									<li>• {t("booking.policy.payment")}</li>
 								</ul>
 							</div>
 						</div>

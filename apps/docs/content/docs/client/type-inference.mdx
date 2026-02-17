@@ -1,0 +1,164 @@
+---
+title: Type Inference
+description: How types flow from server definitions to client SDK with full autocomplete
+---
+
+# Type Inference
+
+QUESTPIE provides end-to-end type safety from server collection definitions to client SDK calls. When you define a field as `f.text({ required: true })`, the client SDK knows the field is a required string — all the way to your React component.
+
+## Why This Exists
+
+Type-safe CMS APIs prevent entire categories of bugs — wrong field names, missing required fields, incorrect types. QUESTPIE's type inference means you get autocomplete and compile-time errors without writing separate type definitions.
+
+## The Type Flow
+
+```text
+Server: .fields((f) => ({ title: f.text({ required: true }) }))
+  ↓ TypeScript inference
+Server type: { title: string }  (non-optional because required)
+  ↓ typeof cms
+Client: createClient<typeof cms>
+  ↓ Generic propagation
+Client SDK: client.collections.posts.create({ title: string })  ← autocomplete
+```
+
+## Server-Side Types
+
+Collection builders produce inferred types:
+
+```ts
+const posts = qb
+  .collection("posts")
+  .fields((f) => ({
+    title: f.text({ required: true }),      // string (non-optional)
+    description: f.text({}),                 // string | undefined
+    rating: f.number({ min: 0, max: 5 }),   // number | undefined
+    status: f.select({ options: ["draft", "published"] }),  // "draft" | "published" | undefined
+    featured: f.boolean({ defaultValue: false }),  // boolean
+  }));
+
+// Inferred types:
+// Select: { id: string; title: string; description?: string; rating?: number; ... }
+// Insert: { title: string; description?: string; ... }
+// Update: { title?: string; description?: string; ... } (all optional)
+```
+
+### Key Type Exports
+
+```ts
+// Extract types from a collection
+type PostSelect = CollectionSelect<typeof posts>;
+type PostInsert = CollectionInsert<typeof posts>;
+type PostUpdate = CollectionUpdate<typeof posts>;
+
+// Extract types from a global
+type SettingsSelect = GlobalSelect<typeof siteSettings>;
+type SettingsUpdate = GlobalUpdate<typeof siteSettings>;
+```
+
+## Client-Side Types
+
+Pass the CMS type to the client factory:
+
+```ts
+import { createClient } from "questpie/client";
+import type { AppCMS } from "../server/cms";
+
+const client = createClient<AppCMS>({
+  baseURL: "http://localhost:3000",
+  basePath: "/api/cms",
+});
+
+// Full autocomplete for collection names
+client.collections.posts       // ✓ autocomplete
+client.collections.barbers     // ✓ autocomplete
+client.collections.invalid     // ✗ type error
+
+// Full autocomplete for CRUD operations
+const post = await client.collections.posts.create({
+  title: "Hello",       // ✓ required string
+  // missing title →    // ✗ type error
+  status: "draft",      // ✓ "draft" | "published"
+  status: "invalid",    // ✗ type error
+});
+
+// Return types are inferred
+post.title              // string
+post.description        // string | undefined
+post.id                 // string
+```
+
+## TanStack Query Types
+
+The query options factory propagates types through TanStack Query:
+
+```ts
+const cms = createQuestpieQueryOptions<AppCMS>(client);
+
+// useQuery returns typed data
+const { data } = useQuery(cms.collections.posts.find({ limit: 10 }));
+// data: { docs: PostSelect[]; totalDocs: number; ... } | undefined
+
+const { data: post } = useQuery(cms.collections.posts.findOne({ id: "..." }));
+// post: PostSelect | null | undefined
+
+// useMutation has typed variables
+const mutation = useMutation(cms.collections.posts.create());
+mutation.mutate({
+  title: "Hello",     // ✓ typed
+  invalid: true,      // ✗ type error
+});
+```
+
+## Adapter Client Types
+
+Framework adapters merge CMS types with framework route types:
+
+```ts
+// Hono: CMS types + Hono RPC types
+const client = createClientFromHono<AppType, AppCMS>({ ... });
+client.collections.posts.find({ ... });  // CMS typed
+client.api.health.$get();                // Hono typed
+
+// Elysia: CMS types + Eden Treaty types
+const client = createClientFromEden<AppType, AppCMS>({ ... });
+client.collections.posts.find({ ... });  // CMS typed
+client.api.health.get();                 // Eden typed
+```
+
+## RPC Types
+
+RPC procedures are fully typed from server to client:
+
+```ts
+// Server definition
+const getStats = rpc.fn({
+  input: z.object({ period: z.enum(["day", "week", "month"]) }),
+  output: z.object({ total: z.number(), change: z.number() }),
+  handler: async ({ input }) => { ... },
+});
+
+// Client usage — fully typed
+const stats = await client.rpc.dashboard.getStats({ period: "week" });
+// stats: { total: number; change: number }
+
+// TanStack Query
+const { data } = useQuery(
+  cms.rpc.dashboard.getStats.query({ period: "week" }),
+);
+// data: { total: number; change: number } | undefined
+```
+
+## Common Mistakes
+
+- **Not using `typeof cms`** — Pass the actual CMS type, not `any`. `createClient<any>()` compiles but gives no type safety.
+- **Circular imports** — Use `import type` for server types in client code to avoid bundling server code in the client.
+- **Stale types after schema changes** — After changing field definitions, restart the TypeScript server to pick up the new types.
+
+## Related Pages
+
+- [Client Overview](/docs/client) — Client SDK overview
+- [TanStack Query](/docs/client/tanstack-query) — Query options with types
+- [Field Types](/docs/server/field-types) — How field types map to TypeScript types
+- [Collections](/docs/server/collections) — Collection builder type inference

@@ -28,9 +28,14 @@ export interface BuildOrderByClausesOptions {
 /**
  * Build ORDER BY clauses from orderBy option
  *
- * Supports two syntaxes:
+ * Supports three syntaxes:
  * - Object syntax: { field: 'asc' | 'desc' }
+ * - Array syntax: [{ field1: 'desc' }, { field2: 'asc' }]
  * - Function syntax: (table, { asc, desc }) => [asc(table.id)]
+ *
+ * Array syntax and object syntax both support multi-field sorting.
+ * The order of fields determines sort priority - first field is primary sort,
+ * second field is secondary sort, etc.
  *
  * For localized fields, uses COALESCE(current, fallback) for sorting.
  *
@@ -55,6 +60,11 @@ export function buildOrderByClauses(
 			asc: (col: any) => sql`${col} ASC`,
 			desc: (col: any) => sql`${col} DESC`,
 		});
+	}
+
+	// Array syntax: [{ field1: 'desc' }, { field2: 'asc' }]
+	if (Array.isArray(orderBy)) {
+		return orderBy.flatMap((obj) => buildOrderByClauses(obj as any, options));
 	}
 
 	// Object syntax

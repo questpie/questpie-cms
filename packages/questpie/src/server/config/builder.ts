@@ -1,20 +1,32 @@
 import type { BetterAuthOptions } from "better-auth";
 import type { MailAdapter, QueueAdapter } from "#questpie/exports/index.js";
+import { CollectionBuilder } from "#questpie/server/collection/builder/collection-builder.js";
+import type { EmptyCollectionState } from "#questpie/server/collection/builder/types.js";
 import type {
 	BuilderCollectionsMap,
 	BuilderEmailTemplatesMap,
-	BuilderFunctionsMap,
+	BuilderFieldsMap,
 	BuilderGlobalsMap,
 	BuilderJobsMap,
 	QuestpieBuilderState,
 	QuestpieRuntimeConfig,
 } from "#questpie/server/config/builder-types.js";
 import { Questpie } from "#questpie/server/config/cms.js";
+import type { QuestpieBuilderExtensions } from "#questpie/server/config/extensions.js";
 import type {
+	ContextResolver,
+	ContextResolverParams,
 	DbConfig,
 	LocaleConfig,
 	QuestpieConfig,
 } from "#questpie/server/config/types.js";
+import type {
+	FunctionDefinition,
+	JsonFunctionDefinition,
+	RawFunctionDefinition,
+} from "#questpie/server/functions/types.js";
+import { GlobalBuilder } from "#questpie/server/global/builder/global-builder.js";
+import type { EmptyGlobalState } from "#questpie/server/global/builder/types.js";
 import {
 	mergeMessagesIntoConfig,
 	mergeTranslationsConfig,
@@ -27,8 +39,9 @@ import type {
 import {
 	type MergeAuthOptions,
 	mergeAuthOptions,
-} from "#questpie/server/integrated/auth/config.js";
-import type { Migration } from "#questpie/server/migration/types.js";
+} from "#questpie/server/integrated/auth/merge.js";
+import type { EmailTemplateDefinition } from "#questpie/server/integrated/mailer/template.js";
+import type { JobDefinition } from "#questpie/server/integrated/queue/types.js";
 import type {
 	PrettifiedAnyCollectionOrBuilder,
 	PrettifiedAnyGlobalOrBuilder,
@@ -38,25 +51,13 @@ import type {
 	UnsetProperty,
 } from "#questpie/shared/type-utils.js";
 
-type QuestpieFromState<
-	TState extends QuestpieBuilderState<
-		string,
-		any,
-		any,
-		any,
-		any,
-		any,
-		any,
-		any
-	>,
-> = Questpie<
+type QuestpieFromState<TState extends QuestpieBuilderState> = Questpie<
 	Prettify<
 		TypeMerge<
 			QuestpieConfig,
 			{
 				collections: TState["collections"];
 				globals: TState["globals"];
-				functions: TState["functions"];
 				auth: TState["auth"];
 				queue: { jobs: TState["jobs"]; adapter: QueueAdapter };
 				email: { templates: TState["emailTemplates"]; adapter: MailAdapter };
@@ -100,17 +101,9 @@ type QuestpieFromState<
  *   })
  * ```
  */
+// biome-ignore lint/suspicious/noUnsafeDeclarationMerging: Declaration merging is intentional for extension pattern
 export class QuestpieBuilder<
-	TState extends QuestpieBuilderState<
-		string,
-		any,
-		any,
-		any,
-		any,
-		any,
-		any,
-		any
-	> = QuestpieBuilderState,
+	TState extends QuestpieBuilderState = QuestpieBuilderState,
 > {
 	public readonly state: TState;
 	/**
@@ -118,6 +111,11 @@ export class QuestpieBuilder<
 	 * No value at runtime - purely for type inference.
 	 */
 	public declare readonly $inferCms: QuestpieFromState<TState>;
+	/**
+	 * Type-only property for accessing state type in conditional types.
+	 * Used by CollectionBuilder to extract field types.
+	 */
+	public declare readonly $state: TState;
 
 	static empty<TName extends string>(name: TName) {
 		return new QuestpieBuilder({
@@ -126,11 +124,12 @@ export class QuestpieBuilder<
 			globals: {},
 			jobs: {},
 			emailTemplates: {},
-			functions: {},
+			fields: {},
 			auth: {},
 			locale: undefined,
 			migrations: undefined,
 			translations: undefined,
+			contextResolver: undefined,
 			"~messageKeys": undefined,
 		});
 	}
@@ -215,39 +214,6 @@ export class QuestpieBuilder<
 	}
 
 	/**
-	 * Define root RPC functions (as a map for type-safe access)
-	 *
-	 * @example
-	 * ```ts
-	 * .functions({
-	 *   ping: pingFunction,
-	 * })
-	 * ```
-	 */
-	functions<TNewFunctions extends BuilderFunctionsMap>(
-		functions: TNewFunctions,
-	): QuestpieBuilder<
-		SetProperty<
-			TState,
-			"functions",
-			Prettify<
-				TypeMerge<
-					UnsetProperty<TState["functions"], keyof TNewFunctions>,
-					TNewFunctions
-				>
-			>
-		>
-	> {
-		return new QuestpieBuilder({
-			...this.state,
-			functions: {
-				...this.state.functions,
-				...functions,
-			},
-		} as any);
-	}
-
-	/**
 	 * Define jobs (as a map for type-safe access)
 	 *
 	 * @example
@@ -313,6 +279,48 @@ export class QuestpieBuilder<
 	}
 
 	/**
+	 * Register field types for the Field Builder system.
+	 * Fields are available when defining collections with `.fields((f) => ({ ... }))`.
+	 *
+	 * @example
+	 * ```ts
+	 * import { textField, numberField } from "@questpie/server/fields";
+	 *
+	 * const q = questpie({ name: "app" })
+	 *   .fields({
+	 *     text: textField,
+	 *     number: numberField,
+	 *   });
+	 *
+	 * // Now available in collections:
+	 * const posts = collection("posts")
+	 *   .fields((f) => ({
+	 *     title: f.text({ required: true }),
+	 *     views: f.number({ min: 0 }),
+	 *   }));
+	 * ```
+	 */
+	fields<TNewFields extends BuilderFieldsMap>(
+		fields: TNewFields,
+	): QuestpieBuilder<
+		SetProperty<
+			TState,
+			"fields",
+			Prettify<
+				TypeMerge<UnsetProperty<TState["fields"], keyof TNewFields>, TNewFields>
+			>
+		>
+	> {
+		return new QuestpieBuilder({
+			...this.state,
+			fields: {
+				...this.state.fields,
+				...fields,
+			},
+		} as any);
+	}
+
+	/**
 	 * Configure authentication (Better Auth)
 	 * Type-inferrable - affects auth instance type
 	 * Override strategy: Last wins
@@ -352,17 +360,7 @@ export class QuestpieBuilder<
 	auth<const TNewAuth extends BetterAuthOptions>(
 		auth: TNewAuth | ((oldAuth: TState["auth"]) => TNewAuth),
 	): QuestpieBuilder<
-		Prettify<
-			QuestpieBuilderState<
-				TState["name"],
-				TState["collections"],
-				TState["globals"],
-				TState["jobs"],
-				TState["emailTemplates"],
-				TState["functions"],
-				MergeAuthOptions<TState["auth"], TNewAuth>
-			>
-		>
+		SetProperty<TState, "auth", MergeAuthOptions<TState["auth"], TNewAuth>>
 	> {
 		return new QuestpieBuilder({
 			...this.state,
@@ -396,20 +394,59 @@ export class QuestpieBuilder<
 	}
 
 	/**
-	 * Add migrations
-	 * Merges with existing migrations
+	 * Configure custom context extension for all requests.
+	 *
+	 * The resolver function receives request, session, and db, and returns
+	 * custom properties that will be merged into the request context.
+	 * These properties are then available in all access functions, hooks, etc.
+	 *
+	 * Use module augmentation to get type-safe access to your custom properties:
 	 *
 	 * @example
 	 * ```ts
-	 * .migrations([customMigration1, customMigration2])
+	 * // builder.ts
+	 * export const qb = q
+	 *   .use(adminModule)
+	 *   .context(async ({ request, session, db }) => {
+	 *     const propertyId = request.headers.get('x-selected-property')
+	 *
+	 *     // Validate access if needed
+	 *     if (propertyId && session?.user) {
+	 *       const hasAccess = await db.query.propertyMembers.findFirst({
+	 *         where: and(
+	 *           eq(propertyMembers.propertyId, propertyId),
+	 *           eq(propertyMembers.userId, session.user.id)
+	 *         )
+	 *       })
+	 *       if (!hasAccess) {
+	 *         throw new Error('No access to this property')
+	 *       }
+	 *     }
+	 *
+	 *     return { propertyId }
+	 *   })
+	 *
+	 * // types.ts - Module augmentation for type safety
+	 * declare module 'questpie' {
+	 *   interface QuestpieContextExtension {
+	 *     propertyId: string | null
+	 *   }
+	 * }
+	 *
+	 * // In collections - ctx.propertyId is now typed
+	 * .access({
+	 *   read: ({ ctx }) => ctx.propertyId === data.propertyId
+	 * })
 	 * ```
 	 */
-	migrations(
-		migrations: Migration[],
-	): QuestpieBuilder<SetProperty<TState, "migrations", Migration[]>> {
+	context<TContext extends Record<string, any>>(
+		resolver: (params: ContextResolverParams) => Promise<TContext> | TContext,
+	): QuestpieBuilder<
+		SetProperty<TState, "contextResolver", ContextResolver<TContext>>
+	> {
 		return new QuestpieBuilder({
 			...this.state,
-			migrations: [...(this.state.migrations || []), ...migrations],
+			contextResolver: resolver,
 		} as any);
 	}
 
@@ -510,64 +547,62 @@ export class QuestpieBuilder<
 	 * ```
 	 */
 	use<
-		TOtherName extends string,
-		TOtherCollections extends BuilderCollectionsMap,
-		TOtherGlobals extends BuilderGlobalsMap,
-		TOtherJobs extends BuilderJobsMap,
-		TOtherEmailTemplates extends BuilderEmailTemplatesMap,
-		TOtherFunctions extends BuilderFunctionsMap,
-		TOtherAuth extends BetterAuthOptions | Record<never, never>,
-		TOtherMessageKeys extends string,
-	>(
-		other: QuestpieBuilder<
-			QuestpieBuilderState<
-				TOtherName,
-				TOtherCollections,
-				TOtherGlobals,
-				TOtherJobs,
-				TOtherEmailTemplates,
-				TOtherFunctions,
-				TOtherAuth,
-				TOtherMessageKeys
-			>
-		>,
-	): QuestpieBuilder<
+		TOtherState extends {
+			name: string;
+			collections: BuilderCollectionsMap;
+			globals: BuilderGlobalsMap;
+			jobs: BuilderJobsMap;
+			emailTemplates: BuilderEmailTemplatesMap;
+			fields: BuilderFieldsMap;
+			auth: BetterAuthOptions | Record<never, never>;
+			locale?: any;
+			migrations?: any;
+			seeds?: any;
+			translations?: any;
+			"~messageKeys"?: any;
+		},
+	>(other: {
+		readonly state: TOtherState;
+	}): QuestpieBuilder<
 		Prettify<
-			QuestpieBuilderState<
-				TState["name"],
-				TypeMerge<
-					UnsetProperty<TState["collections"], keyof TOtherCollections>,
-					TOtherCollections
-				>,
-				TypeMerge<
-					UnsetProperty<TState["globals"], keyof TOtherGlobals>,
-					TOtherGlobals
-				>,
-				TypeMerge<UnsetProperty<TState["jobs"], keyof TOtherJobs>, TOtherJobs>,
-				TypeMerge<
-					UnsetProperty<TState["emailTemplates"], keyof TOtherEmailTemplates>,
-					TOtherEmailTemplates
-				>,
-				TypeMerge<
-					UnsetProperty<TState["functions"], keyof TOtherFunctions>,
-					TOtherFunctions
-				>,
-				MergeAuthOptions<TState["auth"], TOtherAuth>,
-				| Extract<TState["~messageKeys"], string>
-				| Extract<TOtherMessageKeys, string>
+			TypeMerge<
+				TState,
+				{
+					collections: TypeMerge<
+						UnsetProperty<
+							TState["collections"],
+							keyof TOtherState["collections"]
+						>,
+						TOtherState["collections"]
+					>;
+					globals: TypeMerge<
+						UnsetProperty<TState["globals"], keyof TOtherState["globals"]>,
+						TOtherState["globals"]
+					>;
+					jobs: TypeMerge<
+						UnsetProperty<TState["jobs"], keyof TOtherState["jobs"]>,
+						TOtherState["jobs"]
+					>;
+					emailTemplates: TypeMerge<
+						UnsetProperty<
+							TState["emailTemplates"],
+							keyof TOtherState["emailTemplates"]
+						>,
+						TOtherState["emailTemplates"]
+					>;
+					fields: TypeMerge<
+						UnsetProperty<TState["fields"], keyof TOtherState["fields"]>,
+						TOtherState["fields"]
+					>;
+					auth: MergeAuthOptions<TState["auth"], TOtherState["auth"]>;
+					"~messageKeys":
+						| Extract<TState["~messageKeys"], string>
+						| Extract<TOtherState["~messageKeys"], string>;
+				}
 			>
 		>
 	> {
-		const otherState = (other as any).state as QuestpieBuilderState<
-			TOtherName,
-			TOtherCollections,
-			TOtherGlobals,
-			TOtherJobs,
-			TOtherEmailTemplates,
-			TOtherFunctions,
-			TOtherAuth,
-			TOtherMessageKeys
-		>;
+		const otherState = other.state;
 
 		return new QuestpieBuilder({
 			name: this.state.name, // Keep current name
@@ -587,9 +622,9 @@ export class QuestpieBuilder<
 				...this.state.emailTemplates,
 				...otherState.emailTemplates,
 			},
-			functions: {
-				...this.state.functions,
-				...otherState.functions,
+			fields: {
+				...this.state.fields,
+				...otherState.fields,
 			},
 			auth: mergeAuthOptions(this.state.auth, otherState.auth),
 
@@ -598,11 +633,188 @@ export class QuestpieBuilder<
 				...(this.state.migrations || []),
 				...(otherState.migrations || []),
 			],
+			seeds: [...(this.state.seeds || []), ...(otherState.seeds || [])],
 			translations: mergeTranslationsConfig(
 				this.state.translations,
 				otherState.translations,
 			),
 		} as any);
+	}
+
+	// ============================================================================
+	// Entity Creation Methods
+	// ============================================================================
+
+	/**
+	 * Create a collection builder bound to this Questpie builder.
+	 * The collection has access to all registered field types from `.fields()`.
+	 *
+	 * @example
+	 * ```ts
+	 * import { defaultFields } from "@questpie/server/fields/builtin";
+	 *
+	 * const q = questpie({ name: "app" })
+	 *   .fields(defaultFields);
+	 *
+	 * // Use q.collection() for type-safe field access:
+	 * const posts = q.collection("posts")
+	 *   .fields((f) => ({
+	 *     title: f.text({ required: true }),  // ✅ autocomplete from defaultFields
+	 *     views: f.number({ min: 0 }),
+	 *   }));
+	 *
+	 * const cms = q
+	 *   .collections({ posts })
+	 *   .build({ ... });
+	 * ```
+	 */
+	collection<TName extends string>(
+		name: TName,
+	): CollectionBuilder<
+		EmptyCollectionState<TName, QuestpieBuilder<TState>, TState["fields"]>
+	> {
+		return new CollectionBuilder({
+			name,
+			fields: {},
+			localized: [],
+			virtuals: undefined,
+			relations: {},
+			indexes: {},
+			title: undefined,
+			options: {},
+			hooks: {},
+			access: {},
+			functions: {},
+			searchable: undefined,
+			validation: undefined,
+			output: undefined,
+			upload: undefined,
+			fieldDefinitions: {},
+			"~questpieApp": this,
+			"~fieldTypes": undefined, // Type only - passed via generics
+		}) as any;
+	}
+
+	/**
+	 * Create a global builder bound to this Questpie builder.
+	 * The global has access to all registered field types from `.fields()`.
+	 *
+	 * @example
+	 * ```ts
+	 * import { defaultFields } from "@questpie/server/fields/builtin";
+	 *
+	 * const q = questpie({ name: "app" })
+	 *   .fields(defaultFields);
+	 *
+	 * // Use q.global() for type-safe field access:
+	 * const settings = q.global("settings")
+	 *   .fields((f) => ({
+	 *     siteName: f.text({ required: true }),  // ✅ autocomplete from defaultFields
+	 *     maintenanceMode: f.boolean({ default: false }),
+	 *   }));
+	 *
+	 * const cms = q
+	 *   .globals({ settings })
+	 *   .build({ ... });
+	 * ```
+	 */
+	global<TName extends string>(
+		name: TName,
+	): GlobalBuilder<
+		EmptyGlobalState<TName, QuestpieBuilder<TState>, TState["fields"]>
+	> {
+		return new GlobalBuilder({
+			name,
+			fields: {},
+			localized: [],
+			virtuals: {},
+			relations: {},
+			options: {},
+			hooks: {},
+			access: {},
+			functions: {},
+			fieldDefinitions: undefined,
+			"~questpieApp": this,
+			"~fieldTypes": undefined, // Type only - passed via generics
+		}) as any;
+	}
+
+	// ============================================================================
+	// Factory Methods (passthrough helpers for type-safe definitions)
+	// ============================================================================
+
+	/**
+	 * Define a background job with type-safe payload and handler.
+	 *
+	 * @example
+	 * ```ts
+	 * const sendEmailJob = q.job({
+	 *   name: 'send-email',
+	 *   schema: z.object({
+	 *     to: z.string().email(),
+	 *     subject: z.string(),
+	 *   }),
+	 *   handler: async ({ payload, app }) => {
+	 *     await app.email.send({ to: payload.to, subject: payload.subject, html: '...' });
+	 *   },
+	 * });
+	 *
+	 * const cms = q.jobs({ sendEmail: sendEmailJob }).build({ ... });
+	 * ```
+	 */
+	job<TName extends string, TPayload, TResult = void>(
+		definition: JobDefinition<TPayload, TResult, TName>,
+	): JobDefinition<TPayload, TResult, TName> {
+		return definition;
+	}
+
+	/**
+	 * Define an RPC function with type-safe input/output.
+	 *
+	 * @example
+	 * ```ts
+	 * const getStats = q.fn({
+	 *   schema: z.object({ period: z.enum(['day', 'week', 'month']) }),
+	 *   handler: async ({ input, app }) => {
+	 *     return { visits: 100, orders: 50 };
+	 *   },
+	 * });
+	 *
+	 * const appRpc = rpc().router({ getStats });
+	 * ```
+	 */
+	fn<TInput, TOutput>(
+		definition: JsonFunctionDefinition<TInput, TOutput>,
+	): JsonFunctionDefinition<TInput, TOutput>;
+	fn(definition: RawFunctionDefinition): RawFunctionDefinition;
+	fn(definition: FunctionDefinition): FunctionDefinition {
+		return definition;
+	}
+
+	/**
+	 * Define an email template with type-safe context.
+	 *
+	 * @example
+	 * ```ts
+	 * const welcomeEmail = q.email({
+	 *   name: 'welcome',
+	 *   schema: z.object({ name: z.string(), activationLink: z.string().url() }),
+	 *   render: ({ name, activationLink }) => (
+	 *     <div>
+	 *       <h1>Welcome, {name}!</h1>
+	 *       <a href={activationLink}>Activate</a>
+	 *     </div>
+	 *   ),
+	 *   subject: (ctx) => `Welcome, ${ctx.name}!`,
+	 * });
+	 *
+	 * const cms = q.emailTemplates({ welcome: welcomeEmail }).build({ ... });
+	 * ```
+	 */
+	email<TName extends string, TContext>(
+		definition: EmailTemplateDefinition<TContext, TName>,
+	): EmailTemplateDefinition<TContext, TName> {
+		return definition;
 	}
 
 	/**
@@ -631,7 +843,6 @@ export class QuestpieBuilder<
 			secret: runtimeConfig.secret,
 			collections: this.state.collections,
 			globals: this.state.globals,
-			functions: this.state.functions,
 			locale: this.state.locale,
 			auth: this.state.auth,
 			storage: runtimeConfig.storage,
@@ -653,15 +864,34 @@ export class QuestpieBuilder<
 			logger: runtimeConfig.logger,
 			kv: runtimeConfig.kv,
 			migrations: {
-				migrations: this.state.migrations,
+				migrations: runtimeConfig.migrations || [],
 			},
+			seeds: {
+				seeds: runtimeConfig.seeds || [],
+			},
+			autoMigrate: runtimeConfig.autoMigrate,
+			autoSeed: runtimeConfig.autoSeed,
 			translations: this.state.translations,
+			contextResolver: this.state.contextResolver,
 			defaultAccess: runtimeConfig.defaultAccess,
 		};
 
 		return new Questpie(cmsConfig) as any;
 	}
 }
+
+// =============================================================================
+// Declaration Merging for Extensions
+// =============================================================================
+
+/**
+ * Declaration merging: QuestpieBuilder implements QuestpieBuilderExtensions.
+ *
+ * This allows packages to augment QuestpieBuilderExtensions and have those
+ * methods appear on QuestpieBuilder instances.
+ */
+export interface QuestpieBuilder<TState extends QuestpieBuilderState>
+	extends QuestpieBuilderExtensions {}
 
 /**
  * Helper function to start building a Questpie instance
@@ -705,4 +935,65 @@ export class QuestpieBuilder<
  */
 export function questpie<TName extends string>(config: { name: TName }) {
 	return QuestpieBuilder.empty(config.name);
+}
+
+/**
+ * Type for a callable QuestpieBuilder.
+ * Can be invoked as a function to create new builders, while also having all builder methods.
+ */
+export type CallableQuestpieBuilder<TState extends QuestpieBuilderState> =
+	QuestpieBuilder<TState> &
+		(<TName extends string>(config: {
+			name: TName;
+		}) => QuestpieBuilder<
+			QuestpieBuilderState<TName, {}, {}, {}, {}, {}, never, TState["fields"]>
+		>);
+
+/**
+ * Create a callable QuestpieBuilder that can be both invoked as a function
+ * and used directly as a builder instance.
+ *
+ * When called as a function, it creates a new builder with the same field types.
+ * When used as an object, it provides all builder methods directly.
+ *
+ * @example
+ * ```ts
+ * const q = createCallableBuilder(
+ *   questpie({ name: "base" }).fields(defaultFields)
+ * );
+ *
+ * // Use as builder directly
+ * const posts = q.collection("posts").fields((f) => ({
+ *   title: f.text({ required: true }),
+ * }));
+ *
+ * // Or create new builder with same fields
+ * const myApp = q({ name: "my-app" })
+ *   .collections({ posts })
+ *   .build({ ... });
+ * ```
+ */
+export function createCallableBuilder<TState extends QuestpieBuilderState>(
+	builder: QuestpieBuilder<TState>,
+): CallableQuestpieBuilder<TState> {
+	// Create the callable function
+	const callable = <TName extends string>(config: { name: TName }) => {
+		// Create new builder with same fields but fresh state
+		return QuestpieBuilder.empty(config.name).fields(
+			builder.state.fields,
+		) as any;
+	};
+
+	// Copy all properties and methods from the builder to the callable
+	Object.setPrototypeOf(callable, QuestpieBuilder.prototype);
+	Object.assign(callable, builder);
+
+	// Copy the state property explicitly
+	Object.defineProperty(callable, "state", {
+		value: builder.state,
+		writable: false,
+		enumerable: true,
+	});
+
+	return callable as CallableQuestpieBuilder<TState>;
 }

@@ -1,26 +1,29 @@
 /**
  * Block Item
  *
- * Single draggable block item in the tree.
+ * Single block item with inline editable fields.
+ * Click header to expand/collapse, drag handle for reordering.
  */
 
 "use client";
 
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { CaretDown, CaretRight, DotsSixVertical } from "@phosphor-icons/react";
+import { Icon } from "@iconify/react";
 import * as React from "react";
 import type { BlockNode } from "../../blocks/types.js";
-import { useFocusOptional } from "../../context/focus-context.js";
 import { cn } from "../../lib/utils.js";
+import { Card, CardContent, CardHeader } from "../ui/card.js";
 import {
 	useBlockEditor,
+	useBlockSchema,
 	useIsBlockExpanded,
-	useIsBlockSelected,
 } from "./block-editor-context.js";
+import { BlockFieldsRenderer } from "./block-fields-renderer.js";
+import { BlockInsertButton } from "./block-insert-button.js";
 import { BlockItemDropdownMenu } from "./block-item-menu.js";
 import { BlockTree } from "./block-tree.js";
-import { BlockTypeIcon } from "./block-type-icon.js";
+import { BlockIcon } from "./block-type-icon.js";
 
 // ============================================================================
 // Types
@@ -41,13 +44,16 @@ export type BlockItemProps = {
 // Component
 // ============================================================================
 
-export function BlockItem({ block, level, index, parentId }: BlockItemProps) {
+export function BlockItem({
+	block,
+	level,
+	index: _index,
+	parentId: _parentId,
+}: BlockItemProps) {
 	const { state, actions } = useBlockEditor();
-	const blockDef = state.blocks[block.type];
-	const isSelected = useIsBlockSelected(block.id);
+	const blockSchema = useBlockSchema(block.type);
 	const isExpanded = useIsBlockExpanded(block.id);
-	const canHaveChildren = blockDef?.allowChildren ?? false;
-	const focusContext = useFocusOptional();
+	const canHaveChildren = blockSchema?.allowChildren ?? false;
 
 	// Drag and drop
 	const {
@@ -71,17 +77,18 @@ export function BlockItem({ block, level, index, parentId }: BlockItemProps) {
 
 	// Get block label from values or definition
 	const values = state.content._values[block.id];
-	const blockLabel = getBlockLabel(block, blockDef, values);
+	const blockLabel = getBlockLabel(block, blockSchema, values);
 
 	// Handlers
-	const handleSelect = (e: React.MouseEvent) => {
-		e.stopPropagation();
-		focusContext?.clearFocus();
-		actions.selectBlock(block.id);
-	};
-
 	const handleToggleExpand = (e: React.MouseEvent) => {
-		e.stopPropagation();
+		// Don't toggle if clicking on drag handle or actions
+		const target = e.target as HTMLElement;
+		if (
+			target.closest("[data-drag-handle]") ||
+			target.closest("[data-actions-menu]")
+		) {
+			return;
+		}
 		actions.toggleExpanded(block.id);
 	};
 
@@ -93,91 +100,141 @@ export function BlockItem({ block, level, index, parentId }: BlockItemProps) {
 		actions.removeBlock(block.id);
 	}, [actions, block.id]);
 
+	// Keyboard handler for header
+	const handleKeyDown = (e: React.KeyboardEvent) => {
+		if (e.key === "Enter" || e.key === " ") {
+			e.preventDefault();
+			actions.toggleExpanded(block.id);
+		}
+	};
+
+	const isRoot = level === 0;
+
 	return (
 		<div
 			ref={setNodeRef}
 			style={style}
-			className={cn("group/item relative", isDragging && "opacity-50")}
+			className={cn("relative", isDragging && "opacity-50")}
 		>
 			{/* Drop indicator line */}
 			{showDropIndicator && (
 				<div className="absolute -top-0.5 left-0 right-0 z-10 h-0.5 bg-primary" />
 			)}
 
-			{/* Block row */}
-			<div
-				role="button"
-				tabIndex={0}
+			{/* Block card */}
+			<Card
 				className={cn(
-					"flex min-w-[200px] cursor-pointer items-center gap-1.5 rounded-md px-2 py-1.5 transition-colors",
-					"hover:bg-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-primary",
-					isSelected && "bg-accent ring-2 ring-primary",
-					showDropIndicator && "ring-1 ring-primary/30",
+					"overflow-hidden transition-shadow p-0 gap-0",
 				)}
-				onClick={handleSelect}
-				onKeyDown={(e) => {
-					if (e.key === "Enter" || e.key === " ") {
-						e.preventDefault();
-						handleSelect(e as unknown as React.MouseEvent);
-					}
-				}}
 			>
-				{/* Drag handle */}
-				<button
-					type="button"
-					className="cursor-grab opacity-0 transition-opacity group-hover/item:opacity-100 active:cursor-grabbing"
-					{...attributes}
-					{...listeners}
+				{/* Header - clickable to expand/collapse */}
+				<CardHeader
+					role="button"
+					tabIndex={0}
+					className={cn(
+						"group flex flex-row items-center gap-2 px-3 py-2 cursor-pointer select-none",
+						"hover:bg-muted/50 transition-colors",
+						"focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset",
+					)}
+					onClick={handleToggleExpand}
+					onKeyDown={handleKeyDown}
 				>
-					<DotsSixVertical className="h-4 w-4 text-muted-foreground" />
-				</button>
-
-				{/* Expand/collapse for layout blocks */}
-				{canHaveChildren ? (
+					{/* Drag handle */}
 					<button
 						type="button"
-						onClick={handleToggleExpand}
-						className="p-0.5 text-muted-foreground hover:text-foreground"
+						data-drag-handle
+						className="cursor-grab active:cursor-grabbing p-1 -ml-1 rounded hover:bg-muted"
+						{...attributes}
+						{...listeners}
+						onClick={(e) => e.stopPropagation()}
 					>
-						{isExpanded ? (
-							<CaretDown className="h-4 w-4" />
-						) : (
-							<CaretRight className="h-4 w-4" />
-						)}
+						<Icon
+							icon="ph:dots-six-vertical"
+							className="h-4 w-4 text-muted-foreground"
+						/>
 					</button>
-				) : null}
 
-				{/* Block icon */}
-				<BlockTypeIcon
-					type={block.type}
-					className="h-4 w-4 shrink-0 text-muted-foreground"
-				/>
+					{/* Expand/collapse icon */}
+					<div className="text-muted-foreground">
+						<Icon
+							icon={"ph:caret-right"}
+							className={cn(
+								"h-4 w-4 transition-transform duration-150 ease-in-out",
+								isExpanded && "rotate-90",
+							)}
+						/>
+					</div>
 
-				{/* Block label */}
-				<span className="flex-1 min-w-0 truncate text-sm">{blockLabel}</span>
-
-				{/* Actions */}
-				<div className="flex items-center">
-					<BlockItemDropdownMenu
-						blockId={block.id}
-						canHaveChildren={canHaveChildren}
-						onDuplicate={handleDuplicate}
-						onRemove={handleRemove}
-						className={cn(
-							"h-8 w-8 sm:h-7 sm:w-7 transition-opacity",
-							"opacity-100 sm:opacity-0 sm:group-hover/item:opacity-100",
-						)}
+					{/* Block icon */}
+					<BlockIcon
+						icon={blockSchema?.admin?.icon}
+						size={14}
+						className={isRoot ? "text-foreground" : "text-muted-foreground"}
 					/>
-				</div>
-			</div>
 
-			{/* Children */}
+					{/* Block label */}
+					<div className="flex-1 min-w-0 flex items-baseline gap-2">
+						<span
+							className={cn(
+								"text-sm font-medium truncate",
+								isRoot ? "text-foreground" : "text-foreground/90",
+							)}
+						>
+							{blockLabel}
+						</span>
+						{/* Show preview text if available */}
+						{values && (
+							<span className="text-xs text-muted-foreground truncate hidden sm:inline">
+								{getPreviewText(values)}
+							</span>
+						)}
+					</div>
+
+					{/* Actions menu */}
+					<div data-actions-menu>
+						<BlockItemDropdownMenu
+							blockId={block.id}
+							canHaveChildren={canHaveChildren}
+							onDuplicate={handleDuplicate}
+							onRemove={handleRemove}
+							className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity"
+						/>
+					</div>
+				</CardHeader>
+
+				{/* Body with inline fields - only when expanded */}
+				{isExpanded && blockSchema && (
+					<CardContent className={cn("p-3", !isRoot && "py-2")}>
+						<BlockFieldsRenderer blockId={block.id} blockSchema={blockSchema} />
+					</CardContent>
+				)}
+			</Card>
+
+			{/* Children with rail */}
+			{canHaveChildren && isExpanded && block.children.length > 0 && (
+				<div className="relative">
+					{/* Rail line */}
+					<div className="absolute left-3 top-0 bottom-0 w-px bg-border" />
+					<div className="pl-8 pt-2 space-y-2">
+						<BlockTree
+							blocks={block.children}
+							level={level + 1}
+							parentId={block.id}
+						/>
+					</div>
+				</div>
+			)}
+
+			{/* Add child button - only for blocks that can have children */}
 			{canHaveChildren && isExpanded && (
-				<div className="ml-4 mt-1 border-l border-border/40 pl-3">
-					<BlockTree
-						blocks={block.children}
-						level={level + 1}
-						parentId={block.id}
+				<div className="pl-8 relative mt-2">
+					<div className="absolute left-3 -top-2 w-px h-[calc(50%+8px)] bg-border" />
+					{/* Horizontal rail connector */}
+					<div className="absolute left-3 top-1/2 w-5 h-px bg-border" />
+					<BlockInsertButton
+						position={{ parentId: block.id, index: block.children.length }}
+						variant="rail"
+						parentLabel={blockLabel}
 					/>
 				</div>
 			)}
@@ -189,11 +246,11 @@ export function BlockItem({ block, level, index, parentId }: BlockItemProps) {
 // Helpers
 // ============================================================================
 
-import type { BlockDefinition } from "../../builder/block/types.js";
+import type { BlockSchema } from "#questpie/admin/server";
 
 function getBlockLabel(
 	block: BlockNode,
-	blockDef: BlockDefinition | undefined,
+	blockSchema: BlockSchema | undefined,
 	values: Record<string, unknown> | undefined,
 ): string {
 	// Try to get meaningful label from values
@@ -205,17 +262,11 @@ function getBlockLabel(
 	}
 
 	// Fall back to block type label
-	if (blockDef?.label) {
-		const label = blockDef.label;
-
+	const label = blockSchema?.admin?.label;
+	if (label) {
 		// Handle string directly
 		if (typeof label === "string") {
 			return label;
-		}
-
-		// Handle function (not ideal but return type name)
-		if (typeof label === "function") {
-			return block.type.charAt(0).toUpperCase() + block.type.slice(1);
 		}
 
 		// Handle key-based translation object
@@ -224,7 +275,7 @@ function getBlockLabel(
 		}
 
 		// Handle I18nLocaleMap - use English or first available
-		const localeLabel = (label as Record<string, string>).en;
+		const localeLabel = label.en;
 		if (localeLabel) {
 			return localeLabel;
 		}
@@ -236,4 +287,23 @@ function getBlockLabel(
 
 	// Fall back to type name
 	return block.type.charAt(0).toUpperCase() + block.type.slice(1);
+}
+
+function getPreviewText(values: Record<string, unknown>): string {
+	// Extract a short preview from common fields
+	const previewFields = [
+		"subtitle",
+		"description",
+		"text",
+		"caption",
+		"summary",
+	];
+	for (const field of previewFields) {
+		const value = values[field];
+		if (value && typeof value === "string") {
+			const text = value.slice(0, 60);
+			return text.length < (value as string).length ? `${text}...` : text;
+		}
+	}
+	return "";
 }

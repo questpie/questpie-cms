@@ -1,0 +1,175 @@
+---
+title: Global Builder API
+description: Global-level methods — singleton fields, hooks, access, versioning, and form configuration
+---
+
+# Global Builder API
+
+`GlobalBuilder` defines a singleton document — a single record with no list view, only a form. Created via `q.global(name)`.
+
+```ts
+const siteSettings = q.global("siteSettings")
+  .fields((f) => ({
+    siteName: f.text({ required: true }),
+    logo: f.upload(),
+    description: f.textarea(),
+    maintenanceMode: f.boolean().default(false),
+  }))
+  .access({
+    read: true,
+    update: ({ session }) => session?.user?.role === "admin",
+  });
+```
+
+All methods are chainable and return a new builder instance.
+
+## Schema
+
+### `.fields(factory)`
+
+Define the global's fields using the field builder proxy.
+
+```ts
+.fields((f) => ({
+  siteName: f.text({ required: true }),
+  logo: f.upload(),
+  footerText: f.richText(),
+  socialLinks: f.json<{ platform: string; url: string }[]>(),
+}))
+```
+
+**Parameter:** `(f: FieldBuilderProxy) => Record<string, FieldBuilder>` — same field proxy as collections.
+
+### `.options(options)`
+
+Set global options.
+
+```ts
+.options({
+  timestamps: true,
+  versioning: true,
+})
+```
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `timestamps` | `boolean` | `false` | Add `createdAt` and `updatedAt` |
+| `versioning` | `boolean \| CollectionVersioningOptions` | `false` | Enable version history |
+
+Note: `softDelete` is not available for globals — they are singletons.
+
+## Behavior
+
+### `.hooks(hooks)`
+
+Register lifecycle hooks for the global.
+
+```ts
+.hooks({
+  afterChange: async ({ data, app }) => {
+    await app.kv.delete("site-settings-cache");
+  },
+  afterRead: ({ data }) => {
+    data.logoUrl = data.logo?.url;
+  },
+})
+```
+
+**Parameter:** Object with optional keys:
+
+| Hook | Runs | Description |
+|---|---|---|
+| `beforeRead` | Before get operation | Modify query behavior |
+| `afterRead` | After data is loaded | Transform output, add computed fields |
+| `beforeChange` | Before update write | Validate or transform input |
+| `afterChange` | After update write | Side effects (cache invalidation, notifications) |
+| `beforeValidate` | Before Zod validation | Transform input before validation |
+
+### `.access(rules)`
+
+Set access control rules.
+
+```ts
+.access({
+  read: true,                    // public read
+  update: ({ session }) =>       // admin-only update
+    session?.user?.role === "admin",
+})
+```
+
+**Parameter:** `{ read?, update? }` — each is `boolean | AccessFunction`. Globals only support `read` and `update` (no create/delete — they are singletons).
+
+### `.functions(fns)`
+
+Register RPC functions scoped to this global.
+
+```ts
+.functions({
+  resetToDefaults: q.fn({
+    handler: async ({ app }) => {
+      return app.api.globals.siteSettings.update({
+        data: { siteName: "My Site", maintenanceMode: false },
+      });
+    },
+  }),
+})
+```
+
+## Admin Configuration
+
+### `.admin(config)`
+
+General admin panel configuration.
+
+```ts
+.admin({
+  label: "Site Settings",
+  icon: "ph:gear",
+  group: "Settings",
+})
+```
+
+### `.form(config)`
+
+Configure the edit form layout.
+
+```ts
+.form({
+  layout: [
+    { fields: ["siteName", "logo", "description"], label: "General" },
+    { fields: ["maintenanceMode"], label: "Advanced" },
+  ],
+})
+```
+
+## Finalization
+
+Global builders are passed directly to `q.globals({ ... })` and finalized during top-level CMS `.build(...)`.
+
+## Runtime
+
+After build, global operations are available at:
+
+```ts
+// Get the current value
+const settings = await cms.api.globals.siteSettings.get();
+const settings = await cms.api.globals.siteSettings.get({ locale: "de" });
+
+// Update
+const updated = await cms.api.globals.siteSettings.update({
+  data: { siteName: "New Name" },
+});
+
+// Versions (if enabled)
+const versions = await cms.api.globals.siteSettings.findVersions();
+await cms.api.globals.siteSettings.revertToVersion({ versionNumber: 3 });
+```
+
+The global record is auto-created on first access with default values.
+
+## Related Pages
+
+- [Globals](/docs/server/globals) — Conceptual guide
+- [Field API](/docs/reference/field-api) — Field types and options
+- [Hooks API](/docs/reference/hooks-api) — Hook context types
+- [Access Control](/docs/server/access-control) — Access rule details

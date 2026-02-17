@@ -9,7 +9,15 @@ import {
 import type { Questpie } from "questpie";
 import type { QuestpieClient } from "questpie/client";
 import type { RegisteredCMS, RegisteredGlobalNames } from "../builder/registry";
-import { selectClient, selectContentLocale, useAdminStore } from "../runtime";
+import {
+	selectClient,
+	selectContentLocale,
+	useAdminStore,
+} from "../runtime";
+
+type GlobalRealtimeOptions = {
+	realtime?: boolean;
+};
 
 // ============================================================================
 // Type Helpers
@@ -46,23 +54,28 @@ export function useGlobal<K extends ResolvedGlobalNames>(
 	globalName: K,
 	options?: any,
 	queryOptions?: Omit<UseQueryOptions, "queryKey" | "queryFn">,
+	realtimeOptions?: GlobalRealtimeOptions,
 ): any {
 	const client = useAdminStore(selectClient);
 	const contentLocale = useAdminStore(selectContentLocale);
-	const keyPrefix = ["questpie", "globals"] as const;
-	const queryOpts = createQuestpieQueryOptions(
-		client as any,
-		{
-			keyPrefix,
-			locale: contentLocale,
-		} as any,
+	const queryOpts = createQuestpieQueryOptions(client as any, {
+		keyPrefix: ["questpie", "globals"],
+		locale: contentLocale,
+	});
+
+	const globalOptions = {
+		...options,
+		locale: contentLocale,
+	};
+
+	// Pass realtime option to query options builder - this uses streamedQuery internally
+	const baseQuery = (queryOpts as any).globals[globalName as string].get(
+		globalOptions as any,
+		{ realtime: realtimeOptions?.realtime },
 	);
 
 	return useQuery({
-		...(queryOpts as any).globals[globalName as string].get({
-			...options,
-			locale: contentLocale,
-		} as any),
+		...baseQuery,
 		...queryOptions,
 	});
 }
@@ -86,14 +99,10 @@ export function useGlobalUpdate<K extends ResolvedGlobalNames>(
 	const client = useAdminStore(selectClient);
 	const contentLocale = useAdminStore(selectContentLocale);
 	const queryClient = useQueryClient();
-	const keyPrefix = ["questpie", "globals"] as const;
-	const queryOpts = createQuestpieQueryOptions(
-		client as any,
-		{
-			keyPrefix,
-			locale: contentLocale,
-		} as any,
-	);
+	const queryOpts = createQuestpieQueryOptions(client as any, {
+		keyPrefix: ["questpie", "globals"],
+		locale: contentLocale,
+	});
 
 	const globalQueryKey = queryOpts.key([
 		"globals",
@@ -105,9 +114,6 @@ export function useGlobalUpdate<K extends ResolvedGlobalNames>(
 	return useMutation({
 		...(queryOpts as any).globals[globalName as string].update(),
 		onSuccess: (data: any, variables: any, context: any) => {
-			queryClient.invalidateQueries({
-				queryKey: globalQueryKey,
-			});
 			(mutationOptions?.onSuccess as any)?.(data, variables, context);
 		},
 		onSettled: (data: any, error: any, variables: any, context: any) => {

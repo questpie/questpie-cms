@@ -10,6 +10,7 @@ import { toast } from "sonner";
 
 import { useCollectionItem } from "../../../hooks/use-collection";
 import { type Asset, useUpload } from "../../../hooks/use-upload";
+import { useUploadCollection } from "../../../hooks/use-upload-collection";
 import { useTranslation } from "../../../i18n/hooks";
 import { MediaPickerDialog } from "../../media/media-picker-dialog";
 import { Button } from "../../ui/button";
@@ -55,13 +56,14 @@ export function ImagePopover({
 		null,
 	);
 	const { upload } = useUpload();
-	const collection = imageCollection ?? "assets";
+	const { collection, collections: availableUploadCollections } =
+		useUploadCollection(imageCollection);
 	const showMediaLibrary = enableMediaLibrary ?? true;
 	const { data: selectedAsset } = useCollectionItem(
-		collection,
+		collection || "",
 		selectedAssetId || "",
 		undefined,
-		{ enabled: !!selectedAssetId },
+		{ enabled: !!collection && !!selectedAssetId },
 	);
 
 	const handleInsertImageUrl = React.useCallback(() => {
@@ -87,13 +89,21 @@ export function ImagePopover({
 				if (onImageUpload) {
 					url = await onImageUpload(file);
 				} else {
+					if (!collection) {
+						throw new Error(
+							availableUploadCollections.length > 1
+								? `Multiple upload collections are available (${availableUploadCollections.join(", ")}). Configure rich-text imageCollection to choose one.`
+								: "No upload collection is configured for rich-text image uploads.",
+						);
+					}
+
 					const sanitizedName = sanitizeFilename(file.name);
 					const uploadFile =
 						sanitizedName === file.name
 							? file
 							: new File([file], sanitizedName, { type: file.type });
 					const uploadedAsset = (await upload(uploadFile, {
-						collection,
+						to: collection,
 					})) as Asset;
 					url = uploadedAsset?.url;
 					if (!url) {
@@ -119,7 +129,16 @@ export function ImagePopover({
 				event.target.value = "";
 			}
 		},
-		[collection, editor, imageAlt, onImageUpload, onOpenChange, t, upload],
+		[
+			collection,
+			availableUploadCollections,
+			editor,
+			imageAlt,
+			onImageUpload,
+			onOpenChange,
+			t,
+			upload,
+		],
 	);
 
 	React.useEffect(() => {
@@ -203,7 +222,11 @@ export function ImagePopover({
 									size="xs"
 									variant="outline"
 									onClick={() => fileInputRef.current?.click()}
-									disabled={disabled || uploadingImage}
+									disabled={
+										disabled ||
+										uploadingImage ||
+										(!onImageUpload && !collection)
+									}
 								>
 									{uploadingImage
 										? t("editor.uploading")
@@ -215,7 +238,7 @@ export function ImagePopover({
 										size="xs"
 										variant="outline"
 										onClick={() => setIsPickerOpen(true)}
-										disabled={disabled}
+										disabled={disabled || !collection}
 									>
 										{t("editor.browseLibrary")}
 									</Button>

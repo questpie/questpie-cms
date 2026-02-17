@@ -9,12 +9,12 @@
  * these collections along with auth, assets, and setup functions.
  */
 
-export {
-  savedViewsCollection,
-  type FilterOperator,
-  type FilterRule,
-  type SortConfig,
-  type ViewConfiguration,
-} from "./collections/saved-views.collection.js";
-
 export { adminPreferencesCollection } from "./collections/admin-preferences.collection.js";
+export { locksCollection } from "./collections/locks.collection.js";
+export {
+	type FilterOperator,
+	type FilterRule,
+	type SortConfig,
+	savedViewsCollection,
+	type ViewConfiguration,
+} from "./collections/saved-views.collection.js";

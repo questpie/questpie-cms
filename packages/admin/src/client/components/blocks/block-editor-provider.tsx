@@ -7,8 +7,8 @@
 "use client";
 
 import * as React from "react";
+import type { BlockSchema } from "#questpie/admin/server";
 import type { BlockContent, BlockNode } from "../../blocks/types.js";
-import type { BlockDefinition } from "../../builder/block/types.js";
 import {
 	type BlockEditorActions,
 	BlockEditorContextProvider,
@@ -21,7 +21,7 @@ import {
 	getDefaultValues,
 	type InsertPosition,
 	insertBlockInTree,
-	moveBlockInTree,
+	reorderBlockInTree,
 	removeBlockFromTree,
 } from "./utils/tree-utils.js";
 
@@ -34,8 +34,8 @@ export type BlockEditorProviderProps = {
 	value: BlockContent;
 	/** Change handler */
 	onChange: (content: BlockContent) => void;
-	/** Registered blocks */
-	blocks: Record<string, BlockDefinition>;
+	/** Registered blocks (from server introspection) */
+	blocks: Record<string, BlockSchema>;
 	/** Allowed block types (optional filter) */
 	allowedBlocks?: string[];
 	/** Current locale */
@@ -121,7 +121,12 @@ export function BlockEditorProvider({
 					children: [],
 				};
 
-				const newValues = getDefaultValues(blockDef.fields);
+				const newValues = getDefaultValues(
+					blockDef.fields as Record<
+						string,
+						{ "~options"?: { defaultValue?: unknown } }
+					>,
+				);
 
 				onChange({
 					_tree: insertBlockInTree(value._tree, newBlock, position),
@@ -181,29 +186,11 @@ export function BlockEditorProvider({
 				}
 			},
 
-			// Reorder
-			moveBlock: (id, toPosition) => {
-				// Don't allow moving into itself or its children
-				const block = findBlockById(value._tree, id);
-				if (!block) return;
-
-				// Check if target parent is a child of the block being moved
-				if (toPosition.parentId) {
-					const isChildOfSelf = findBlockById(
-						block.children,
-						toPosition.parentId,
-					);
-					if (isChildOfSelf || toPosition.parentId === id) {
-						if (process.env.NODE_ENV !== "production") {
-							console.warn("Cannot move block into itself or its children");
-						}
-						return;
-					}
-				}
-
+			// Reorder (same-parent only, uses arrayMove for correct index handling)
+			moveBlock: (_id, parentId, fromIndex, toIndex) => {
 				onChange({
 					...value,
-					_tree: moveBlockInTree(value._tree, id, toPosition),
+					_tree: reorderBlockInTree(value._tree, parentId, fromIndex, toIndex),
 				});
 			},
 

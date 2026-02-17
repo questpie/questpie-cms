@@ -9,8 +9,8 @@ export type TipTapNode = {
 	type: string;
 	content?: TipTapNode[];
 	text?: string;
-	marks?: Array<{ type: string; attrs?: Record<string, unknown> }>;
-	attrs?: Record<string, unknown>;
+	marks?: Array<{ type: string; attrs?: Record<string, any> }>;
+	attrs?: Record<string, any>;
 };
 
 export type TipTapDoc = {
@@ -60,21 +60,21 @@ const defaultStyles: RichTextStyles = {
 	heading5: "text-base font-semibold mb-2",
 	heading6: "text-sm font-semibold mb-2",
 	blockquote: "border-l-4 border-gray-300 pl-4 italic my-4",
-	codeBlock: "bg-gray-100 rounded p-4 font-mono text-sm my-4 overflow-x-auto",
+	codeBlock: "bg-muted rounded p-4 font-mono text-sm my-4 overflow-x-auto",
 	bulletList: "list-disc list-inside mb-4",
 	orderedList: "list-decimal list-inside mb-4",
 	listItem: "mb-1",
-	link: "text-blue-600 hover:text-blue-800 underline",
+	link: "text-primary hover:text-primary/80 underline",
 	image: "my-4 rounded-lg",
 	tableWrapper: "my-4 overflow-x-auto",
 	table: "w-full border-collapse",
 	tableRow: "border-b",
-	tableCell: "border border-gray-200 px-3 py-2 align-top",
-	tableHeader: "border border-gray-200 px-3 py-2 text-left font-semibold",
-	horizontalRule: "my-4 border-t border-gray-300",
+	tableCell: "border border-border px-3 py-2 align-top",
+	tableHeader: "border border-border px-3 py-2 text-left font-semibold",
+	horizontalRule: "my-4 border-t border-border",
 	bold: "font-bold",
 	italic: "italic",
-	code: "bg-gray-100 rounded px-1 py-0.5 font-mono text-sm",
+	code: "bg-muted rounded px-1 py-0.5 font-mono text-sm",
 	strike: "line-through",
 	underline: "underline",
 };

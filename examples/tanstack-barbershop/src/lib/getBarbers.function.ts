@@ -1,37 +1,28 @@
 import { notFound } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
-import { getRequestHeaders } from "@tanstack/react-start/server";
-import { client } from "@/lib/cms-client";
-
-function getLocaleFromCookie(cookieHeader?: string): "en" | "sk" {
-	if (!cookieHeader) return "en";
-	const match = cookieHeader.match(/barbershop-locale=([^;]+)/);
-	return match?.[1] === "sk" ? "sk" : "en";
-}
+import { cms, createServerContext } from "@/lib/server-helpers";
 
 export const getBarber = createServerFn({ method: "GET" })
 	.inputValidator((data: { slug: string; locale?: string }) => data)
 	.handler(async ({ data }) => {
-		const headers = getRequestHeaders();
-		const cookie = headers.get("cookie");
-		const locale = data.locale || getLocaleFromCookie(cookie || undefined);
+		const ctx = await createServerContext(data.locale);
 
-		// Find barber by slug (include relations)
-		const barber = await client.collections.barbers.findOne({
-			where: { slug: data.slug },
-			locale,
-			with: {
-				avatar: true,
-				services: true,
+		const barber = await cms.api.collections.barbers.findOne(
+			{
+				where: { slug: data.slug },
+				with: {
+					avatar: true,
+					services: {
+						where: { isActive: true },
+					},
+				},
 			},
-		});
+			ctx,
+		);
 
 		if (!barber) {
 			throw notFound();
 		}
-
-		const services = Array.isArray(barber.services) ? barber.services : [];
-		const activeServices = services.filter((service) => service.isActive);
 
 		return {
 			barber: {
@@ -40,16 +31,10 @@ export const getBarber = createServerFn({ method: "GET" })
 				email: barber.email,
 				phone: barber.phone,
 				bio: barber.bio,
-				avatar: (barber.avatar as any)?.url || null,
+				avatar: (barber.avatar as any)?.url ?? null,
 				isActive: barber.isActive,
 				specialties: barber.specialties,
-				services: activeServices.map((s) => ({
-					id: s.id,
-					name: s.name,
-					description: s.description,
-					price: s.price,
-					duration: s.duration,
-				})),
+				services: barber.services,
 				socialLinks: barber.socialLinks,
 				workingHours: barber.workingHours,
 			},
@@ -59,14 +44,15 @@ export const getBarber = createServerFn({ method: "GET" })
 export const getAllBarbers = createServerFn({ method: "GET" })
 	.inputValidator((data: { locale?: string } | undefined) => data)
 	.handler(async ({ data }) => {
-		const headers = getRequestHeaders();
-		const cookie = headers.get("cookie");
-		const locale = data?.locale || getLocaleFromCookie(cookie || undefined);
-		const result = await client.collections.barbers.find({
-			where: { isActive: true },
-			locale,
-			with: { avatar: true },
-		});
+		const ctx = await createServerContext(data?.locale);
+
+		const result = await cms.api.collections.barbers.find(
+			{
+				where: { isActive: true },
+				with: { avatar: true },
+			},
+			ctx,
+		);
 
 		return {
 			barbers: result.docs.map((b) => ({
@@ -74,7 +60,7 @@ export const getAllBarbers = createServerFn({ method: "GET" })
 				name: b.name,
 				slug: b.slug,
 				bio: b.bio,
-				avatar: (b.avatar as any)?.url || null,
+				avatar: (b.avatar as any)?.url ?? null,
 				specialties: b.specialties,
 			})),
 		};

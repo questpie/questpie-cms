@@ -2,32 +2,28 @@
  * Team Block (Barbers)
  *
  * Grid of team members with photos.
- * Design: Portrait images with minimal info overlay.
+ * Supports both automatic fetch and manual selection modes.
  */
 
 import { ArrowRight, User } from "@phosphor-icons/react";
-import type { BlockRendererProps } from "@questpie/admin/client";
-import { client } from "../../../lib/cms-client";
+import { RichTextRenderer, type TipTapDoc } from "@questpie/admin/client";
+import { useTranslation } from "../../../lib/providers/locale-provider";
 import { cn } from "../../../lib/utils";
-import { builder } from "../builder";
+import type { BlockProps } from "./types";
 
 type Barber = {
 	id: string;
 	name: string;
 	slug: string;
-	avatar: string | null;
+	bio: TipTapDoc | null;
+	avatar: { id: string; url: string; filename: string } | null;
 	specialties: string[] | null;
 };
 
-type TeamValues = {
-	title: string;
-	subtitle: string;
-	columns: "2" | "3" | "4";
-	limit: number;
-};
-
-function TeamRenderer({ values, data }: BlockRendererProps<TeamValues>) {
-	const { barbers = [] } = (data as { barbers: Barber[] }) || {};
+export function TeamRenderer({ values, data }: BlockProps<"team">) {
+	const { t } = useTranslation();
+	const barbers = (data?.barbers ?? []) as Barber[];
+	const showBio = values.showBio ?? false;
 
 	const columnsClass = {
 		"2": "md:grid-cols-2",
@@ -62,10 +58,15 @@ function TeamRenderer({ values, data }: BlockRendererProps<TeamValues>) {
 							style={{ animationDelay: `${i * 100}ms` }}
 						>
 							{/* Photo */}
-							<div className="aspect-[3/4] bg-muted mb-4 overflow-hidden relative">
-								{barber.avatar ? (
+							<div
+								className={cn(
+									"bg-muted mb-4 overflow-hidden relative",
+									showBio ? "aspect-square rounded-lg" : "aspect-[3/4]",
+								)}
+							>
+								{barber.avatar?.url ? (
 									<img
-										src={barber.avatar}
+										src={barber.avatar.url}
 										alt={barber.name}
 										className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
 									/>
@@ -80,14 +81,43 @@ function TeamRenderer({ values, data }: BlockRendererProps<TeamValues>) {
 							</div>
 
 							{/* Info */}
-							<div className="space-y-1">
+							<div className="space-y-2">
 								<h3 className="text-xl font-semibold group-hover:text-highlight transition-colors">
 									{barber.name}
 								</h3>
+
+								{/* Bio (when showBio is enabled) */}
+								{showBio && barber.bio && (
+									<div className="line-clamp-2">
+										<RichTextRenderer
+											content={barber.bio}
+											styles={{
+												doc: "",
+												paragraph: "text-muted-foreground text-sm",
+											}}
+										/>
+									</div>
+								)}
+
+								{/* Specialties */}
 								{barber.specialties && barber.specialties.length > 0 && (
-									<p className="text-sm text-muted-foreground">
-										{barber.specialties.slice(0, 3).join(" · ")}
-									</p>
+									<div className="flex flex-wrap gap-2">
+										{barber.specialties.slice(0, 3).map((specialty, idx) => (
+											<span
+												key={idx}
+												className={cn(
+													"text-sm",
+													showBio
+														? "px-3 py-1 bg-muted rounded-full"
+														: "text-muted-foreground",
+												)}
+											>
+												{showBio
+													? specialty
+													: (idx > 0 ? " · " : "") + specialty}
+											</span>
+										))}
+									</div>
 								)}
 							</div>
 						</a>
@@ -96,7 +126,7 @@ function TeamRenderer({ values, data }: BlockRendererProps<TeamValues>) {
 
 				{barbers.length === 0 && (
 					<p className="text-center text-muted-foreground py-12">
-						No team members available
+						{t("blocks.team.empty")}
 					</p>
 				)}
 
@@ -107,7 +137,7 @@ function TeamRenderer({ values, data }: BlockRendererProps<TeamValues>) {
 							href="/barbers"
 							className="inline-flex items-center gap-2 text-sm font-medium text-foreground hover:text-highlight transition-colors group"
 						>
-							Meet the full team
+							{t("blocks.team.viewAll")}
 							<ArrowRight className="size-4 transition-transform group-hover:translate-x-1" />
 						</a>
 					</div>
@@ -116,55 +146,3 @@ function TeamRenderer({ values, data }: BlockRendererProps<TeamValues>) {
 		</section>
 	);
 }
-
-export const teamBlock = builder
-	.block("team")
-	.label({ en: "Team", sk: "Tím" })
-	.description({
-		en: "Display team members",
-		sk: "Zobrazenie členov tímu",
-	})
-	.icon("Users")
-	.category("sections")
-	.fields(({ r }) => ({
-		title: r.text({
-			label: { en: "Title", sk: "Titulok" },
-			localized: true,
-		}),
-		subtitle: r.textarea({
-			label: { en: "Subtitle", sk: "Podtitulok" },
-			localized: true,
-		}),
-		columns: r.select({
-			label: { en: "Columns", sk: "Stĺpce" },
-			options: [
-				{ value: "2", label: "2" },
-				{ value: "3", label: "3" },
-				{ value: "4", label: "4" },
-			],
-			defaultValue: "3",
-		}),
-		limit: r.number({
-			label: { en: "Max Members", sk: "Max členov" },
-			defaultValue: 6,
-			min: 1,
-			max: 12,
-		}),
-	}))
-	.prefetch(async ({ values, locale }) => {
-		const result = await client.collections.barbers.find({
-			locale,
-			with: { avatar: true },
-		});
-		const limit = (values.limit as number) || 6;
-		const barbers = result.docs
-			.filter((barber) => barber.isActive)
-			.slice(0, limit)
-			.map((barber) => ({
-				...barber,
-				avatar: (barber.avatar as any)?.url || null,
-			}));
-		return { barbers };
-	})
-	.renderer(TeamRenderer)
-	.build();

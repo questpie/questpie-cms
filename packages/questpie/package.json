@@ -74,13 +74,6 @@
 			"optional": true
 		}
 	},
-	"exports": {
-		".": "./dist/index.mjs",
-		"./cli": "./dist/cli.mjs",
-		"./client": "./dist/client.mjs",
-		"./shared": "./dist/shared.mjs",
-		"./package.json": "./package.json"
-	},
 	"imports": {
 		"#questpie/*": "./src/*"
 	},
@@ -91,10 +84,17 @@
 			"./cli": "./dist/cli.mjs",
 			"./client": "./dist/client.mjs",
 			"./shared": "./dist/shared.mjs",
-			"./package.json": "./package.json"
+			"./*": "./*"
 		}
 	},
 	"main": "./dist/index.mjs",
 	"module": "./dist/index.mjs",
-	"types": "./dist/index.d.mts"
+	"types": "./dist/index.d.mts",
+	"exports": {
+		".": "./src/exports/index.ts",
+		"./cli": "./src/exports/cli.ts",
+		"./client": "./src/exports/client.ts",
+		"./shared": "./src/exports/shared.ts",
+		"./*": "./*"
+	}
 }

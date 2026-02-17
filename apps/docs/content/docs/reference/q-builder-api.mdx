@@ -1,0 +1,385 @@
+---
+title: q Builder API
+description: Core server builder — all chainable methods, entity factories, and build configuration
+---
+
+# q Builder API
+
+`q()` creates the top-level server builder. All schema definitions, modules, and runtime configuration flow through this builder. It is immutable — every method returns a new builder instance with updated state.
+
+## Creating a Builder
+
+```ts
+import { q } from "questpie";
+
+const cms = q({ name: "my-app" });
+```
+
+The `name` parameter identifies your application in logs and database prefixes.
+
+## Chainable Configuration Methods
+
+### `.collections(map)`
+
+Register collections as a named map. Keys become the collection slugs and API paths.
+
+```ts
+.collections({
+  posts: postsCollection,
+  users: usersCollection,
+})
+```
+
+**Parameter:** `Record<string, CollectionBuilder>` — map of collection names to collection builders.
+
+### `.globals(map)`
+
+Register globals as a named map.
+
+```ts
+.globals({
+  siteSettings: siteSettingsGlobal,
+  navigation: navigationGlobal,
+})
+```
+
+**Parameter:** `Record<string, GlobalBuilder>` — map of global names to global builders.
+
+### `.fields(map)`
+
+Register custom field type definitions. These become available on the `f` proxy in `.fields((f) => ...)`.
+
+```ts
+.fields({
+  color: colorFieldDefinition,
+  geoPoint: geoPointFieldDefinition,
+})
+```
+
+**Parameter:** `Record<string, FieldDefinition>` — map of field type names to definitions.
+
+### `.jobs(map)`
+
+Register background job definitions.
+
+```ts
+.jobs({
+  sendConfirmation: sendConfirmationJob,
+  generateReport: generateReportJob,
+})
+```
+
+**Parameter:** `Record<string, JobDefinition>` — map of job names to definitions created with `q.job()`.
+
+### `.emailTemplates(map)`
+
+Register email template definitions.
+
+```ts
+.emailTemplates({
+  welcome: welcomeTemplate,
+  passwordReset: passwordResetTemplate,
+})
+```
+
+**Parameter:** `Record<string, EmailTemplateDefinition>` — map of template names to definitions created with `q.email()`.
+
+### `.auth(config)`
+
+Configure authentication via Better Auth.
+
+```ts
+.auth({
+  emailAndPassword: { enabled: true },
+  socialProviders: {
+    google: {
+      clientId: process.env.GOOGLE_CLIENT_ID!,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+    },
+  },
+})
+```
+
+Also accepts a function for merging with existing auth config:
+
+```ts
+.auth((existing) => ({
+  ...existing,
+  emailAndPassword: { enabled: true },
+}))
+```
+
+**Parameter:** `BetterAuthOptions | ((current) => BetterAuthOptions)`
+
+### `.locale(config)`
+
+Configure localization.
+
+```ts
+.locale({
+  locales: [
+    { code: "en", label: "English" },
+    { code: "de", label: "Deutsch" },
+    { code: "sk", label: "Slovenčina" },
+  ],
+  defaultLocale: "en",
+})
+```
+
+**Parameter:** `{ locales: string[]; defaultLocale: string }`
+
+### `.branding(config)` _(with `@questpie/admin/server`)_
+
+Configure admin branding on the server builder.
+
+```ts
+import { adminModule } from "@questpie/admin/server";
+
+q({ name: "app" })
+  .use(adminModule)
+  .branding({
+    name: { en: "My Admin" },
+    logo: "/logo.svg",
+  })
+```
+
+This method is added by the admin server module. It is not part of bare `q()`.
+
+### `.adminLocale(config)` _(with `@questpie/admin/server`)_
+
+Configure admin UI locales (interface language), separately from content locales.
+
+```ts
+import { adminModule } from "@questpie/admin/server";
+
+q({ name: "app" })
+  .use(adminModule)
+  .adminLocale({
+    locales: ["en", "sk"],
+    defaultLocale: "en",
+  })
+```
+
+Use `.locale()` for content language; use `.adminLocale()` for admin UI language.
+
+### `.messages(messages, options?)`
+
+Add backend translation messages. These power `cms.t()` for type-safe translations.
+
+```ts
+.messages({
+  en: { greeting: "Hello {{name}}" },
+  de: { greeting: "Hallo {{name}}" },
+}, { fallbackLocale: "en" })
+```
+
+**Parameter:** `Record<string, Record<string, string>>`, options: `{ fallbackLocale?: string }`
+
+### `.migrations(migrations)`
+
+Add database migrations.
+
+```ts
+import { migrations } from "./migrations";
+
+.migrations(migrations)
+```
+
+**Parameter:** `Migration[]` — array of migration objects.
+
+### `.use(module)`
+
+Compose another builder's state into this one. This is the core extension mechanism — packages like `@questpie/admin` expose a module builder that you `.use()`.
+
+```ts
+import { adminModule } from "@questpie/admin/server";
+
+q({ name: "app" })
+  .use(adminModule)
+  .collections({ ... })
+```
+
+When two builders define the same key, the last `.use()` wins. Fields, collections, globals, jobs, and email templates are merged by name.
+
+**Parameter:** `{ readonly state: BuilderState }` — any builder or module.
+
+## Entity Factory Methods
+
+### `q.collection(name)`
+
+Create a new `CollectionBuilder`.
+
+```ts
+const posts = q.collection("posts")
+  .fields((f) => ({
+    title: f.text({ required: true }),
+    status: f.select({
+      options: ["draft", "published"],
+      required: true,
+      defaultValue: "draft",
+    }),
+  }));
+```
+
+**Returns:** `CollectionBuilder`
+
+### `q.global(name)`
+
+Create a new `GlobalBuilder`.
+
+```ts
+const settings = q.global("siteSettings")
+  .fields((f) => ({
+    siteName: f.text({ required: true }),
+    logo: f.upload(),
+  }));
+```
+
+**Returns:** `GlobalBuilder`
+
+### `q.job(definition)`
+
+Define a background job.
+
+```ts
+const sendConfirmation = q.job({
+  name: "sendConfirmation",
+  schema: z.object({
+    appointmentId: z.string(),
+    customerEmail: z.string().email(),
+  }),
+  handler: async ({ payload, app }) => {
+    await app.email.sendTemplate({
+      template: "appointmentConfirmation",
+      to: payload.customerEmail,
+      context: { appointmentId: payload.appointmentId },
+    });
+  },
+});
+```
+
+**Returns:** `JobDefinition<TPayload, TResult, TName>`
+
+### `q.fn(definition)`
+
+Define an RPC function.
+
+```ts
+const getAvailableSlots = q.fn({
+  schema: z.object({ barberId: z.string(), date: z.string() }),
+  handler: async ({ input, app }) => {
+    // ...
+    return slots;
+  },
+});
+```
+
+Supports two modes:
+- **JSON function** — `schema` + `handler`, input/output validated
+- **Raw function** — `handler` only, receives raw `Request`, returns `Response`
+
+**Returns:** `FunctionDefinition`
+
+### `q.email(definition)`
+
+Define an email template.
+
+```ts
+const welcome = q.email({
+  name: "welcome",
+  subject: "Welcome to {{siteName}}",
+  render: ({ context }) => (
+    <div>Welcome, {context.userName}!</div>
+  ),
+});
+```
+
+**Returns:** `EmailTemplateDefinition<TContext, TName>`
+
+## Type-Safe Handler Contexts
+
+After build, export `AppCMS` once and reuse it in hooks/access/RPC/jobs:
+
+```ts
+export const cms = q({ name: "app" })
+  .collections({ posts })
+  .build({ app: { url: process.env.APP_URL! }, db: { url: process.env.DATABASE_URL! } });
+
+export type AppCMS = typeof cms;
+```
+
+Then in handlers:
+
+```ts
+import { getContext } from "questpie";
+import type { AppCMS } from "../cms";
+
+afterChange: async (ctx) => {
+  const { app, db, session } = getContext<AppCMS>(ctx);
+}
+```
+
+## Build
+
+### `.build(runtimeConfig)`
+
+Finalize the builder into a runnable CMS instance.
+
+```ts
+const cms = q({ name: "app" })
+  .use(adminModule)
+  .collections({ posts, users })
+  .globals({ siteSettings })
+  .build({
+    app: { url: process.env.APP_URL! },
+    db: { url: process.env.DATABASE_URL! },
+    storage: { driver: s3Driver(...) },
+    email: { adapter: smtpAdapter(...) },
+    queue: { adapter: pgBossAdapter(...) },
+    search: createPostgresSearchAdapter(),
+    kv: { adapter: memoryKVAdapter() },
+    logger: { level: "info" },
+    realtime: { adapter: pgNotifyAdapter },
+  });
+```
+
+**Parameter:** `QuestpieRuntimeConfig` with:
+
+| Field | Required | Description |
+|---|---|---|
+| `app.url` | Yes | Public URL of the application |
+| `db.url` | Yes | PostgreSQL connection string |
+| `storage` | No | Storage config (`driver` for custom storage) |
+| `email` | No | Email adapter (default: console) |
+| `queue` | No | Queue adapter (default: pg-boss) |
+| `search` | No | Search adapter instance |
+| `kv` | No | KV adapter (default: in-memory) |
+| `logger` | No | Logger config (`level`, `pretty`, optional adapter) |
+| `realtime` | No | Realtime adapter (default: none) |
+
+**Returns:** `Questpie<TConfig>` — the runtime CMS instance with typed access to all APIs.
+
+## Runtime Instance
+
+After `.build()`, the CMS instance exposes:
+
+```ts
+cms.api.collections.posts.find(...)    // CRUD
+cms.api.globals.siteSettings.get()     // Globals
+cms.queue.sendConfirmation.publish(...) // Jobs
+cms.email.sendTemplate(...)            // Email
+cms.storage.disk()                     // Storage
+cms.search.search(...)                 // Search
+cms.kv.get(...)                        // KV
+cms.logger.info(...)                   // Logger
+cms.t("greeting", { name: "World" })   // i18n
+cms.migrate()                          // Run migrations
+```
+
+## Related Pages
+
+- [Collection Builder API](/docs/reference/collection-builder-api) — Collection methods
+- [Global Builder API](/docs/reference/global-builder-api) — Global methods
+- [Field API](/docs/reference/field-api) — Field definitions
+- [Modules & Extensions](/docs/server/modules-and-extensions) — `.use()` pattern
+- [Type-Safe Contexts](/docs/server/type-safe-contexts) — Typed app/db/session patterns in handlers

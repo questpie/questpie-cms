@@ -26,6 +26,7 @@ export {
 	selectContentLocale,
 	selectNavigate,
 	selectNavigation,
+	selectRealtime,
 	selectSetContentLocale,
 	useAdminStore,
 	// Utilities
@@ -44,6 +45,8 @@ export {
 	useActionHelpers,
 	useActions,
 } from "./use-action";
+// Admin config hook
+export { useAdminConfig } from "./use-admin-config";
 // Admin preferences hooks
 export {
 	type AdminPreference,
@@ -81,11 +84,18 @@ export {
 	useCollectionList,
 	useCollectionUpdate,
 } from "./use-collection";
+// Collection fields hook (schema -> field definitions)
+export { useCollectionFields } from "./use-collection-fields";
 // Collection meta hook
 export {
 	getCollectionMetaQueryKey,
 	useCollectionMeta,
 } from "./use-collection-meta";
+// Collection schema hook (full introspection)
+export {
+	getCollectionSchemaQueryKey,
+	useCollectionSchema,
+} from "./use-collection-schema";
 // Collection validation hooks
 export {
 	type CollectionValidationResult,
@@ -109,6 +119,27 @@ export {
 } from "./use-field-hooks";
 // Global hooks
 export { useGlobal, useGlobalUpdate } from "./use-global";
+export { useGlobalFields } from "./use-global-fields";
+export {
+	getGlobalMetaQueryKey,
+	useGlobalMeta,
+	useSuspenseGlobalMeta,
+} from "./use-global-meta";
+export { getGlobalSchemaQueryKey, useGlobalSchema } from "./use-global-schema";
+// Lock hooks (collaborative editing)
+export {
+	getLockUser,
+	getLockUserId,
+	LOCK_DURATION_MS,
+	type LockInfo,
+	type LockUser,
+	type UseLockOptions,
+	type UseLockResult,
+	type UseLocksOptions,
+	type UseLocksResult,
+	useLock,
+	useLocks,
+} from "./use-locks";
 // Prefill params hook
 export {
 	buildPrefillUrl,
@@ -116,7 +147,6 @@ export {
 	parsePrefillParamsFromUrl,
 	usePrefillParams,
 } from "./use-prefill-params";
-// Prefill params hook
 // Saved views hooks
 export {
 	useDeleteSavedView,
@@ -124,6 +154,37 @@ export {
 	useSaveView,
 	useUpdateSavedView,
 } from "./use-saved-views";
+// Search hooks
+export {
+	type PopulatedSearchResult,
+	type SearchFacetDefinition,
+	type SearchFacetResult,
+	type SearchFacetValue,
+	type SearchMeta,
+	type SearchResponse,
+	type UseGlobalSearchOptions,
+	type UseSearchOptions,
+	useDebouncedValue,
+	useGlobalSearch,
+	useReindex,
+	useSearch,
+} from "./use-search";
+// Server actions hook
+export {
+	mergeServerActions,
+	type UseServerActionsOptions,
+	type UseServerActionsReturn,
+	useServerActions,
+} from "./use-server-actions";
+// Server validation hooks (AJV-based, uses server JSON Schema)
+export {
+	type ServerValidationResult,
+	type UseServerValidationOptions,
+	useGlobalServerValidation,
+	usePreferServerValidation,
+	useServerValidation,
+	type ValidationMode,
+} from "./use-server-validation";
 // Setup status hook
 export { type SetupStatus, useSetupStatus } from "./use-setup-status";
 // Upload hook
@@ -135,7 +196,11 @@ export {
 	type UseUploadReturn,
 	useUpload,
 } from "./use-upload";
-
+export {
+	resolveUploadCollection,
+	type UploadCollectionResolution,
+	useUploadCollection,
+} from "./use-upload-collection";
 // Validation error map hook
 export {
 	createAdminZodErrorMap,
@@ -143,18 +208,3 @@ export {
 } from "./use-validation-error-map";
 // View state hook
 export { useViewState } from "./use-view-state";
-// Search hooks
-export {
-	useDebouncedValue,
-	useGlobalSearch,
-	useReindex,
-	useSearch,
-	type PopulatedSearchResult,
-	type SearchFacetDefinition,
-	type SearchFacetResult,
-	type SearchFacetValue,
-	type SearchMeta,
-	type SearchResponse,
-	type UseGlobalSearchOptions,
-	type UseSearchOptions,
-} from "./use-search";

@@ -7,6 +7,7 @@
 import { ArrowRight, Clock } from "@phosphor-icons/react";
 import { createFileRoute } from "@tanstack/react-router";
 import { getAllServices } from "@/lib/getServices.function";
+import { useTranslation } from "@/lib/providers/locale-provider";
 
 export const Route = createFileRoute("/_app/services")({
 	loader: async () => {
@@ -18,11 +19,12 @@ export const Route = createFileRoute("/_app/services")({
 
 function ServicesPage() {
 	const { services } = Route.useLoaderData();
+	const { t, locale } = useTranslation();
 
 	const formatPrice = (cents: number) => {
-		return new Intl.NumberFormat("en-US", {
+		return new Intl.NumberFormat(locale === "sk" ? "sk-SK" : "en-US", {
 			style: "currency",
-			currency: "USD",
+			currency: "EUR",
 		}).format(cents / 100);
 	};
 
@@ -31,11 +33,10 @@ function ServicesPage() {
 			<div className="container max-w-5xl mx-auto">
 				<header className="mb-16 text-center max-w-2xl mx-auto">
 					<h1 className="text-4xl md:text-5xl font-bold tracking-tight mb-4">
-						Our Services
+						{t("services.title")}
 					</h1>
 					<p className="text-xl text-muted-foreground">
-						Premium grooming services tailored to your style. We combine
-						traditional techniques with modern aesthetics.
+						{t("services.subtitle")}
 					</p>
 				</header>
 
@@ -46,10 +47,10 @@ function ServicesPage() {
 							className="group p-8 border border-border bg-card hover:border-highlight/30 transition-all duration-300 animate-fade-in-up"
 							style={{ animationDelay: `${i * 50}ms` }}
 						>
-							{service.image?.url && (
+							{(service.image as any)?.url && (
 								<div className="mb-6 aspect-[4/3] overflow-hidden border border-border bg-muted">
 									<img
-										src={service.image.url}
+										src={(service.image as any).url}
 										alt={service.name}
 										className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
 									/>
@@ -73,14 +74,14 @@ function ServicesPage() {
 							<div className="flex items-center justify-between mt-auto pt-6 border-t border-border">
 								<div className="flex items-center gap-2 text-muted-foreground font-medium">
 									<Clock weight="bold" className="size-5" />
-									{service.duration} minutes
+									{service.duration} {t("services.minutes")}
 								</div>
 
 								<a
 									href={`/booking?service=${service.id}`}
 									className="inline-flex items-center gap-2 font-bold text-highlight group/link"
 								>
-									Book Now
+									{t("services.bookNow")}
 									<ArrowRight className="size-4 transition-transform group-hover/link:translate-x-1" />
 								</a>
 							</div>
@@ -90,7 +91,9 @@ function ServicesPage() {
 
 				{services.length === 0 && (
 					<div className="text-center py-20 bg-muted/30 border border-dashed border-border">
-						<p className="text-xl text-muted-foreground">No services found.</p>
+						<p className="text-xl text-muted-foreground">
+							{t("services.empty")}
+						</p>
 					</div>
 				)}
 			</div>

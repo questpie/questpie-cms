@@ -7,11 +7,13 @@
 
 import type * as React from "react";
 import { useMemo } from "react";
+import type { ComponentReference } from "#questpie/admin/server";
 import type {
 	DateFilterConfig,
 	DateFilterPreset,
 } from "../../builder/types/widget-types";
 import { useCollectionCount } from "../../hooks/use-collection";
+import { useServerWidgetData } from "../../hooks/use-server-widget-data";
 import { useResolveText } from "../../i18n/hooks";
 import { cn, formatCollectionName } from "../../lib/utils";
 import { WidgetCard } from "../../views/dashboard/widget-card";
@@ -21,18 +23,27 @@ import { StatsWidgetSkeleton } from "./widget-skeletons";
  * Stats widget config (local type for component props)
  */
 export type StatsWidgetConfig = {
+	id: string;
 	collection: string;
 	label?: string;
+	realtime?: boolean;
 	/** Static filter (evaluated at build time) */
 	filter?: Record<string, any>;
 	/** Dynamic filter function (evaluated at render time) */
 	filterFn?: () => Record<string, any>;
 	/** Date filter preset (evaluated at render time) */
 	dateFilter?: DateFilterConfig;
-	/** Icon component or name */
-	icon?: React.ComponentType<{ className?: string }> | string;
+	/** Icon component or server-defined reference */
+	icon?:
+		| React.ComponentType<{ className?: string }>
+		| ComponentReference
+		| string;
 	/** Color variant for the stat card */
 	variant?: "default" | "primary" | "success" | "warning" | "danger";
+	/** Server has a fetchFn for this widget */
+	hasFetchFn?: boolean;
+	/** Refresh interval in ms */
+	refreshInterval?: number;
 };
 
 /**
@@ -133,18 +144,18 @@ function getDateRange(preset: DateFilterPreset): { gte: Date; lte: Date } {
 const variantStyles = {
 	default: "",
 	primary: "border-primary/30 bg-primary/5",
-	success: "border-green-500/30 bg-green-500/5",
-	warning: "border-yellow-500/30 bg-yellow-500/5",
-	danger: "border-red-500/30 bg-red-500/5",
+	success: "border-success/30 bg-success/5",
+	warning: "border-warning/30 bg-warning/5",
+	danger: "border-destructive/30 bg-destructive/5",
 };
 
 // Variant styles for the value text
 const variantValueStyles = {
 	default: "",
 	primary: "text-primary",
-	success: "text-green-600 dark:text-green-400",
-	warning: "text-yellow-600 dark:text-yellow-400",
-	danger: "text-red-600 dark:text-red-400",
+	success: "text-success",
+	warning: "text-warning",
+	danger: "text-destructive",
 };
 
 /**
@@ -165,7 +176,16 @@ export default function StatsWidget({ config }: StatsWidgetProps) {
 		dateFilter,
 		icon: Icon,
 		variant = "default",
+		realtime,
+		hasFetchFn,
+		refreshInterval,
 	} = config;
+
+	// Server-side data fetching (when hasFetchFn is true)
+	const serverQuery = useServerWidgetData<{ count: number }>(config.id, {
+		enabled: !!hasFetchFn,
+		refreshInterval,
+	});
 
 	// Build the final filter - evaluated at render time
 	const computedFilter = useMemo(() => {
@@ -194,30 +214,33 @@ export default function StatsWidget({ config }: StatsWidgetProps) {
 	}, [filter, filterFn, dateFilter]);
 
 	// Fetch count using dedicated count endpoint (more efficient than fetching all docs)
+	const collectionQuery = useCollectionCount(
+		collection as any,
+		computedFilter ? { where: computedFilter } : undefined,
+		undefined,
+		{ realtime },
+	);
+
+	// Use server data or client data
 	const {
-		data: count = 0,
+		data: rawData,
 		isLoading,
 		error,
 		refetch,
-	} = useCollectionCount(
-		collection as any,
-		computedFilter ? { where: computedFilter } : undefined,
-	);
+	} = hasFetchFn ? serverQuery : collectionQuery;
+
+	const count = hasFetchFn
+		? ((rawData as { count: number } | undefined)?.count ?? 0)
+		: ((rawData as number | undefined) ?? 0);
 
 	const displayLabel = label
 		? resolveText(label)
 		: formatCollectionName(collection);
 
-	// Resolve icon - only use if it's a component, not a string
-	const IconComponent =
-		Icon && typeof Icon !== "string"
-			? (Icon as React.ComponentType<{ className?: string }>)
-			: undefined;
-
 	return (
 		<WidgetCard
 			title={displayLabel}
-			icon={IconComponent}
+			icon={Icon}
 			isLoading={isLoading}
 			loadingSkeleton={<StatsWidgetSkeleton />}
 			error={

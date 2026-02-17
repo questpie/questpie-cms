@@ -6,33 +6,24 @@
  */
 
 import { Envelope, MapPin, Phone } from "@phosphor-icons/react";
-import type { BlockRendererProps } from "@questpie/admin/client";
+import { useTranslation } from "../../../lib/providers/locale-provider";
 import { cn } from "../../../lib/utils";
-import { builder } from "../builder";
-import { client } from "../../../lib/cms-client";
+import type { BlockProps } from "./types";
 
-type ContactInfoValues = {
-	title?: string;
-	showMap: boolean;
-};
-
-type ContactInfoPrefetchedData = {
-	shopName?: string;
-	contactEmail?: string;
-	contactPhone?: string;
-	address?: string;
-	city?: string;
-	zipCode?: string;
-	country?: string;
-	mapEmbedUrl?: string;
-};
-
-function ContactInfoRenderer({
+export function ContactInfoRenderer({
 	values,
 	data,
-}: BlockRendererProps<ContactInfoValues>) {
-	const contactData = (data as ContactInfoPrefetchedData) || {};
-	const fullAddress = [contactData?.address, contactData?.city, contactData?.zipCode, contactData?.country]
+}: BlockProps<"contact-info">) {
+	const { t } = useTranslation();
+	const contactPhone = data?.contactPhone as string | undefined;
+	const contactEmail = data?.contactEmail as string | undefined;
+	const mapEmbedUrl = data?.mapEmbedUrl as string | undefined;
+	const fullAddress = [
+		data?.address as string | undefined,
+		data?.city as string | undefined,
+		data?.zipCode as string | undefined,
+		data?.country as string | undefined,
+	]
 		.filter(Boolean)
 		.join(", ");
 
@@ -48,44 +39,48 @@ function ContactInfoRenderer({
 				<div
 					className={cn(
 						"grid gap-8",
-						values.showMap && contactData?.mapEmbedUrl
+						values.showMap && data?.mapEmbedUrl
 							? "grid-cols-1 lg:grid-cols-2"
 							: "max-w-2xl mx-auto",
 					)}
 				>
 					{/* Contact Info Cards */}
 					<div className="space-y-6">
-						{contactData?.contactPhone && (
+						{contactPhone && (
 							<div className="flex items-start gap-4 p-6 bg-card border rounded-lg">
 								<Phone
 									className="size-6 text-highlight flex-shrink-0 mt-1"
 									weight="bold"
 								/>
 								<div>
-									<h3 className="font-semibold mb-1">Phone</h3>
+									<h3 className="font-semibold mb-1">
+										{t("blocks.contact.phone")}
+									</h3>
 									<a
-										href={`tel:${contactData.contactPhone}`}
+										href={`tel:${contactPhone}`}
 										className="text-muted-foreground hover:text-foreground transition-colors"
 									>
-										{contactData.contactPhone}
+										{contactPhone}
 									</a>
 								</div>
 							</div>
 						)}
 
-						{contactData?.contactEmail && (
+						{contactEmail && (
 							<div className="flex items-start gap-4 p-6 bg-card border rounded-lg">
 								<Envelope
 									className="size-6 text-highlight flex-shrink-0 mt-1"
 									weight="bold"
 								/>
 								<div>
-									<h3 className="font-semibold mb-1">Email</h3>
+									<h3 className="font-semibold mb-1">
+										{t("blocks.contact.email")}
+									</h3>
 									<a
-										href={`mailto:${contactData.contactEmail}`}
+										href={`mailto:${contactEmail}`}
 										className="text-muted-foreground hover:text-foreground transition-colors"
 									>
-										{contactData.contactEmail}
+										{contactEmail}
 									</a>
 								</div>
 							</div>
@@ -98,7 +93,9 @@ function ContactInfoRenderer({
 									weight="bold"
 								/>
 								<div>
-									<h3 className="font-semibold mb-1">Address</h3>
+									<h3 className="font-semibold mb-1">
+										{t("blocks.contact.address")}
+									</h3>
 									<p className="text-muted-foreground">{fullAddress}</p>
 								</div>
 							</div>
@@ -106,10 +103,10 @@ function ContactInfoRenderer({
 					</div>
 
 					{/* Map */}
-					{values.showMap && contactData?.mapEmbedUrl && (
+					{values.showMap && mapEmbedUrl && (
 						<div className="rounded-lg overflow-hidden border bg-muted aspect-square lg:aspect-auto">
 							<iframe
-								src={contactData.mapEmbedUrl}
+								src={mapEmbedUrl}
 								width="100%"
 								height="100%"
 								style={{ border: 0, minHeight: "400px" }}
@@ -125,39 +122,3 @@ function ContactInfoRenderer({
 		</section>
 	);
 }
-
-export const contactInfoBlock = builder
-	.block("contact-info")
-	.label({ en: "Contact Info", sk: "Kontaktné údaje" })
-	.description({
-		en: "Contact information with map",
-		sk: "Kontaktné informácie s mapou",
-	})
-	.icon("AddressBook")
-	.category("content")
-	.fields(({ r }) => ({
-		title: r.text({
-			label: { en: "Title (optional)", sk: "Nadpis (voliteľný)" },
-			localized: true,
-			defaultValue: { en: "Get in Touch", sk: "Kontaktujte nás" },
-		}),
-		showMap: r.checkbox({
-			label: { en: "Show Map", sk: "Zobraziť mapu" },
-			defaultValue: true,
-		}),
-	}))
-	.prefetch(async () => {
-		const settings = await client.globals.siteSettings.get();
-		return {
-			shopName: settings?.shopName,
-			contactEmail: settings?.contactEmail,
-			contactPhone: settings?.contactPhone,
-			address: settings?.address,
-			city: settings?.city,
-			zipCode: settings?.zipCode,
-			country: settings?.country,
-			mapEmbedUrl: settings?.mapEmbedUrl,
-		};
-	})
-	.renderer(ContactInfoRenderer)
-	.build();

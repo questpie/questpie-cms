@@ -28,16 +28,16 @@
 		"questpie": "^1.0.0"
 	},
 	"exports": {
-		".": {
-			"import": "./dist/server.mjs",
-			"types": "./dist/server.d.mts"
-		},
-		"./client": {
-			"import": "./dist/client.mjs",
-			"types": "./dist/client.d.mts"
-		}
+		"./client": "./src/client.ts",
+		"./server": "./src/server.ts",
+		"./package.json": "./package.json"
 	},
 	"publishConfig": {
-		"access": "public"
+		"access": "public",
+		"exports": {
+			"./client": "./dist/client.mjs",
+			"./server": "./dist/server.mjs",
+			"./package.json": "./package.json"
+		}
 	}
 }

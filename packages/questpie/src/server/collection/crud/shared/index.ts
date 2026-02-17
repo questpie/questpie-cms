@@ -15,6 +15,24 @@ export {
 	validateFieldsWriteAccess,
 } from "./access-control.js";
 export { getDb, type NormalizedContext, normalizeContext } from "./context.js";
+// TState-based field extraction (new approach)
+export {
+	extractFieldNamesByLocation,
+	extractLocalizedFieldNames,
+	extractMainFieldNames,
+	extractNestedLocalizationSchema,
+	extractNestedLocalizationSchemas,
+	extractVirtualFieldNames,
+	hasLocalizedFields,
+	hasNestedLocalizedFields,
+	hasVirtualFields,
+	mergeFieldsByLocation,
+	type NestedArraySchema,
+	type NestedBlocksSchema,
+	type NestedLocalizationSchema,
+	type NestedObjectSchema,
+	splitFieldsByLocation,
+} from "./field-extraction.js";
 export { resolveFieldKey } from "./field-resolver.js";
 export {
 	type CreateHookContextParams,
@@ -52,11 +70,7 @@ export {
 } from "./nested-i18n-merge.js";
 
 // Nested i18n split utilities
-export {
-	autoSplitNestedI18n,
-	isI18nValueWrapper,
-	type SplitResult,
-} from "./nested-i18n-split.js";
+export { type SplitResult, splitByNestedSchema } from "./nested-i18n-split.js";
 
 // Path utilities for nested object manipulation
 export { isPlainObject } from "./path-utils.js";

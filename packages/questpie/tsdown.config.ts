@@ -8,7 +8,13 @@ export default defineConfig({
   dts: true,
   shims: true,
   external: ["bun"],
-  exports: true,
+  unbundle: true,
+  exports: {
+    // Export all files including internal chunks so TypeScript can resolve
+    // type references from internal .d.mts files
+    all: true,
+    devExports: true,
+  },
   onSuccess: async () => {
     // Make CLI executable
     const { chmod } = await import("node:fs/promises");

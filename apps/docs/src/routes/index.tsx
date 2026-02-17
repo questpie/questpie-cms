@@ -1,22 +1,32 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { HomeLayout } from "fumadocs-ui/layouts/home";
-import { AdminExperience } from "@/components/landing/AdminExperience";
-import { Examples } from "@/components/landing/Examples";
+import { AdminShowcase } from "@/components/landing/AdminShowcase";
+import { CallToAction } from "@/components/landing/CallToAction";
+import { Composability } from "@/components/landing/Composability";
 import { Features } from "@/components/landing/Features";
 import { Footer } from "@/components/landing/Footer";
 import { Frameworks } from "@/components/landing/Frameworks";
 import { Hero } from "@/components/landing/Hero";
-import { getRandomHeadlineIndex } from "@/components/landing/headlines";
 import { Navbar } from "@/components/landing/Navbar";
-import { Philosophy } from "@/components/landing/Philosophy";
-import { Stack } from "@/components/landing/Stack";
-import { UseCases } from "@/components/landing/UseCases";
+import { NumbersStrip } from "@/components/landing/NumbersStrip";
+import { RealtimeDemo } from "@/components/landing/RealtimeDemo";
+import { SchemaToEverything } from "@/components/landing/SchemaToEverything";
 import { baseOptions } from "@/lib/layout.shared";
-import { generateJsonLd, generateMeta, siteConfig } from "@/lib/seo";
+import {
+	generateJsonLd,
+	generateLinks,
+	generateMeta,
+	siteConfig,
+} from "@/lib/seo";
 
 export const Route = createFileRoute("/")({
 	component: Home,
 	head: () => ({
+		links: generateLinks({
+			url: siteConfig.url,
+			includeIcons: false,
+			includePreconnect: false,
+		}),
 		meta: generateMeta({
 			title: siteConfig.title,
 			description: siteConfig.description,
@@ -29,11 +39,6 @@ export const Route = createFileRoute("/")({
 			},
 		],
 	}),
-	loader: () => {
-		return {
-			headlineIndex: getRandomHeadlineIndex(),
-		};
-	},
 	headers: () => ({
 		"Cache-Control":
 			"public, max-age=86400, s-maxage=86400, stale-while-revalidate=604800",
@@ -43,49 +48,38 @@ export const Route = createFileRoute("/")({
 });
 
 function Home() {
-	const { headlineIndex } = Route.useLoaderData();
-
 	return (
 		<HomeLayout {...baseOptions()} nav={{ component: <Navbar /> }}>
-			<div className="flex flex-col min-h-screen text-foreground font-sans selection:bg-primary/20 selection:text-primary">
-				{/* Background Grid - more subtle with fade overlay */}
-				<div className="fixed inset-0 bg-grid-quest opacity-[0.02] pointer-events-none z-0" />
-				{/* Subtle gradient overlay to soften grid visibility */}
-				<div className="fixed inset-0 bg-gradient-to-b from-background/30 via-transparent to-background/30 pointer-events-none z-0" />
+			<div className="flex flex-col min-h-screen bg-background text-foreground font-sans selection:bg-primary/20 selection:text-primary relative overflow-hidden">
+				{/* Global grid pattern */}
+				<div
+					className="fixed inset-0 pointer-events-none opacity-[0.07]"
+					style={{
+						backgroundImage:
+							"linear-gradient(oklch(0.5984 0.3015 310.74 / 0.5) 1px, transparent 1px), linear-gradient(90deg, oklch(0.5984 0.3015 310.74 / 0.5) 1px, transparent 1px)",
+						backgroundSize: "64px 64px",
+					}}
+				/>
 
-				{/* Layout Guide Lines */}
-				<div className="fixed inset-0 pointer-events-none z-[1] flex justify-center px-4">
-					<div className="w-full max-w-7xl h-full border-x border-border/30 relative">
-						<div className="absolute top-0 bottom-0 left-1/4 w-px bg-border/10 hidden md:block" />
-						<div className="absolute top-0 bottom-0 left-2/4 w-px bg-border/10 hidden md:block" />
-						<div className="absolute top-0 bottom-0 left-3/4 w-px bg-border/10 hidden md:block" />
+				{/* Global ambient glow — top */}
+				<div className="hidden dark:block fixed top-0 left-1/2 -translate-x-1/2 w-[1000px] h-[600px] pointer-events-none bg-[radial-gradient(ellipse,_oklch(0.5984_0.3015_310.74_/_0.12)_0%,_transparent_70%)]" />
 
-						{/* Crosshairs */}
-						<div className="absolute top-24 -left-1.5 w-3 h-3 text-border/40 font-mono text-[10px] flex items-center justify-center">
-							+
-						</div>
-						<div className="absolute top-24 -right-1.5 w-3 h-3 text-border/40 font-mono text-[10px] flex items-center justify-center">
-							+
-						</div>
-						<div className="absolute bottom-24 -left-1.5 w-3 h-3 text-border/40 font-mono text-[10px] flex items-center justify-center">
-							+
-						</div>
-						<div className="absolute bottom-24 -right-1.5 w-3 h-3 text-border/40 font-mono text-[10px] flex items-center justify-center">
-							+
-						</div>
-					</div>
-				</div>
+				{/* Global ambient glow — mid */}
+				<div className="hidden dark:block fixed top-[50%] left-1/2 -translate-x-1/2 w-[800px] h-[500px] pointer-events-none bg-[radial-gradient(ellipse,_oklch(0.5984_0.3015_310.74_/_0.06)_0%,_transparent_70%)]" />
 
-				{/* Main Content */}
-				<main className="flex-1 relative z-10">
-					<Hero headlineIndex={headlineIndex} />
-					<AdminExperience />
-					<Stack />
+				{/* Global ambient glow — bottom */}
+				<div className="hidden dark:block fixed bottom-0 left-1/2 -translate-x-1/2 w-[1000px] h-[600px] pointer-events-none bg-[radial-gradient(ellipse,_oklch(0.5984_0.3015_310.74_/_0.1)_0%,_transparent_70%)]" />
+
+				<main className="flex-1 relative">
+					<Hero />
+					<NumbersStrip />
+					<SchemaToEverything />
+					<AdminShowcase />
 					<Features />
-					<Philosophy />
+					<RealtimeDemo />
+					<Composability />
 					<Frameworks />
-					<Examples />
-					<UseCases />
+					<CallToAction />
 				</main>
 
 				<Footer />

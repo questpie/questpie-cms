@@ -9,9 +9,9 @@ import type { QuestpieConfig, StorageVisibility } from "../../config/types.js";
 import { ApiError } from "../../errors/index.js";
 import { verifySignedUrlToken } from "../../integrated/storage/signed-url.js";
 import type { AdapterConfig, AdapterContext, UploadFile } from "../types.js";
-import { handleError, smartResponse } from "../utils/response.js";
-import { resolveUploadFile } from "../utils/request.js";
 import { resolveContext } from "../utils/context.js";
+import { resolveUploadFile } from "../utils/request.js";
+import { handleError, smartResponse } from "../utils/response.js";
 
 export const createStorageRoutes = <
   TConfig extends QuestpieConfig = QuestpieConfig,
@@ -77,7 +77,7 @@ export const createStorageRoutes = <
 
       try {
         // Use the collection's upload method which handles validation and storage
-        const crud = cms.api.collections[collection as any];
+        const crud = cms.api.collections[collection as any] as any;
         if (!crud?.upload) {
           return errorResponse(
             ApiError.badRequest(
@@ -159,7 +159,15 @@ export const createStorageRoutes = <
           );
         }
 
-        const secret = cms.config.secret || "questpie-default-secret";
+        const secret = cms.config.secret;
+        if (!secret) {
+          return errorResponse(
+            ApiError.internal(
+              "Storage secret not configured. Set 'secret' in your CMS config to serve private files.",
+            ),
+            request,
+          );
+        }
         const payload = await verifySignedUrlToken(token, secret);
 
         if (!payload) {
@@ -186,6 +194,12 @@ export const createStorageRoutes = <
           (record as any)?.mimeType ||
           "application/octet-stream";
 
+        // Sanitize filename to prevent header injection
+        const rawFilename = (record as any)?.filename;
+        const sanitizedFilename = rawFilename
+          ? rawFilename.replace(/[\r\n"\\]/g, "_")
+          : null;
+
         return new Response(fileBuffer.buffer as ArrayBuffer, {
           status: 200,
           headers: {
@@ -195,8 +209,8 @@ export const createStorageRoutes = <
               visibility === "public"
                 ? "public, max-age=31536000, immutable"
                 : "private, no-cache",
-            ...((record as any)?.filename && {
-              "Content-Disposition": `inline; filename="${(record as any).filename}"`,
+            ...(sanitizedFilename && {
+              "Content-Disposition": `inline; filename="${sanitizedFilename}"`,
             }),
           },
         });

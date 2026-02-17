@@ -1,7 +1,14 @@
 import type { z } from "zod";
-// Note: any, any, and any are deprecated.
-// Users should use getApp<AppCMS>(), getDb<AppCMS>(), and getSession<AppCMS>() instead.
-import type { QueueAdapter } from "./adapter.js";
+// Note: any types are intentional for composition flexibility.
+// Users should use typedApp<AppCMS>(), typedDb<AppCMS>(), and typedSession<AppCMS>() for type-safe access.
+import type {
+	QueueAdapter,
+	QueueAdapterCapabilities,
+	QueueListenOptions,
+	QueuePushConsumerHandler,
+	QueueRunOnceOptions,
+	QueueRunOnceResult,
+} from "./adapter.js";
 
 // Re-export QueueAdapter for external use
 export type { QueueAdapter } from "./adapter.js";
@@ -18,14 +25,14 @@ export type { QueueAdapter } from "./adapter.js";
  *
  * @example
  * ```ts
- * import { getApp } from "questpie";
+ * import { typedApp } from "questpie";
  * import type { AppCMS } from "./cms";
  *
  * const sendEmailJob = q.job({
  *   name: 'send-email',
  *   schema: z.object({ to: z.string(), subject: z.string() }),
  *   handler: async ({ payload, app }) => {
- *     const cms = getApp<AppCMS>(app);
+ *     const cms = typedApp<AppCMS>(app);
  *     await cms.email.send({
  *       to: payload.to,
  *       subject: payload.subject,
@@ -38,17 +45,17 @@ export type { QueueAdapter } from "./adapter.js";
 export interface JobHandlerArgs<TPayload = any, TApp = any> {
 	/** Validated job payload */
 	payload: TPayload;
-	/** CMS instance - use getApp<AppCMS>(app) for type-safe access */
+	/** CMS instance - use typedApp<AppCMS>(app) for type-safe access */
 	app: TApp;
 	/**
 	 * Auth session (user + session) - typically undefined for background jobs.
 	 * May be set if job was scheduled from authenticated request context.
-	 * Use getSession<AppCMS>(session) for type-safe access.
+	 * Use typedSession<AppCMS>(session) for type-safe access.
 	 */
 	session?: any | null;
 	/** Current locale */
 	locale?: string;
-	/** Database client - use getDb<AppCMS>(db) for type-safe access */
+	/** Database client - use typedDb<AppCMS>(db) for type-safe access */
 	db: any;
 }
 
@@ -208,6 +215,34 @@ export interface QueueConfig<
 	adapter: QueueAdapter;
 }
 
+export interface QueueListenRuntimeOptions extends QueueListenOptions {
+	/**
+	 * Register automatic graceful shutdown handlers for worker process.
+	 * @default true
+	 */
+	gracefulShutdown?: boolean;
+
+	/**
+	 * Process signals that trigger graceful shutdown.
+	 * @default ["SIGINT", "SIGTERM"]
+	 */
+	shutdownSignals?: string[];
+
+	/**
+	 * Max time to wait for queue adapter stop before forcing exit (ms).
+	 * @default 10000
+	 */
+	shutdownTimeoutMs?: number;
+}
+
+export interface QueueRegisterSchedulesOptions {
+	jobs?: string[];
+}
+
+export interface QueueListenHandle {
+	stop: () => Promise<void>;
+}
+
 /**
  * Typesafe queue client for publishing jobs
  */
@@ -237,6 +272,38 @@ export type QueueClient<TJobs extends Record<string, JobDefinition<any, any>>> =
 			unschedule: () => Promise<void>;
 		};
 	} & {
+		/**
+		 * Adapter capabilities exposed to runtime.
+		 */
+		capabilities: QueueAdapterCapabilities;
+
+		/**
+		 * Start long-running queue consumers.
+		 */
+		listen: (options?: QueueListenRuntimeOptions) => Promise<QueueListenHandle>;
+
+		/**
+		 * Process one bounded batch of jobs.
+		 */
+		runOnce: (options?: QueueRunOnceOptions) => Promise<QueueRunOnceResult>;
+
+		/**
+		 * Register recurring cron schedules declared in job options.
+		 */
+		registerSchedules: (
+			options?: QueueRegisterSchedulesOptions,
+		) => Promise<void>;
+
+		/**
+		 * Stop all running queue consumers and adapter.
+		 */
+		stop: () => Promise<void>;
+
+		/**
+		 * Create push consumer handler (for runtimes like Cloudflare Queues).
+		 */
+		createPushConsumer: () => QueuePushConsumerHandler;
+
 		/**
 		 * Access to underlying Queue Adapter
 		 */

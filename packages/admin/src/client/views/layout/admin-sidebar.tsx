@@ -5,17 +5,10 @@
  * Automatically reads from AdminProvider context when props are not provided.
  */
 
-import {
-	CaretDownIcon,
-	CaretUpDown,
-	Check,
-	Globe,
-	SignOut,
-	User,
-	UserCircle,
-} from "@phosphor-icons/react";
+import { Icon } from "@iconify/react";
 import * as React from "react";
-import type { IconComponent } from "../../builder/types/common";
+import { toast } from "sonner";
+import { ComponentRenderer } from "../../components/component-renderer";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -46,10 +39,11 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "../../components/ui/tooltip";
+import { useAdminConfig } from "../../hooks/use-admin-config";
 import { useAuthClientSafe } from "../../hooks/use-auth";
 import { useSessionState } from "../../hooks/use-current-user";
 import { useResolveText, useTranslation } from "../../i18n/hooks";
-import { cn } from "../../lib/utils";
+import { cn, formatLabel } from "../../lib/utils";
 import {
 	selectAdmin,
 	selectBasePath,
@@ -132,15 +126,172 @@ export interface AdminSidebarProps {
 	}) => React.ReactNode;
 
 	/**
-	 * Custom footer content
+	 * Custom footer content (replaces entire footer including UserFooter)
 	 */
 	footer?: React.ReactNode;
+
+	/**
+	 * Content to render after the brand header.
+	 * Perfect for scope/tenant pickers in multi-tenant apps.
+	 *
+	 * @example
+	 * ```tsx
+	 * <AdminSidebar
+	 *   afterBrand={<ScopePicker collection="properties" />}
+	 * />
+	 * ```
+	 */
+	afterBrand?: React.ReactNode;
+
+	/**
+	 * Content to render before the user footer.
+	 * Useful for additional actions or quick links.
+	 *
+	 * @example
+	 * ```tsx
+	 * <AdminSidebar
+	 *   beforeFooter={
+	 *     <Button variant="outline" className="w-full">
+	 *       Need Help?
+	 *     </Button>
+	 *   }
+	 * />
+	 * ```
+	 */
+	beforeFooter?: React.ReactNode;
 
 	/**
 	 * Use framework-specific active link props (e.g., TanStack Router's activeProps)
 	 * @default true
 	 */
 	useActiveProps?: boolean;
+}
+
+// ============================================================================
+// Helpers
+// ============================================================================
+
+/**
+ * Extract typed props from untyped sidebar config items.
+ * Server sidebar items come as plain objects without strict typing.
+ */
+function getSidebarItemProps(item: unknown) {
+	const i = item as Record<string, any>;
+	return {
+		collection: i.collection as string | undefined,
+		global: i.global as string | undefined,
+		pageId: i.pageId as string | undefined,
+		label: i.label as string | undefined,
+		icon: i.icon as NavigationItem["icon"] | undefined,
+		href: i.href as string | undefined,
+	};
+}
+
+// ============================================================================
+// Internal Hook - Build navigation from server config
+// ============================================================================
+
+/**
+ * Build NavigationGroup[] from server sidebar config, using server
+ * collection/global metadata for labels/icons and local navigation
+ * only for page items (which are client-only).
+ */
+function useServerNavigation(): NavigationGroup[] | undefined {
+	const { data: serverConfig } = useAdminConfig();
+	const storeNavigation = useAdminStore((s) => s.navigation);
+	const basePath = useAdminStore(selectBasePath);
+
+	return React.useMemo(() => {
+		const sections = serverConfig?.sidebar?.sections;
+		if (!sections?.length) return undefined;
+
+		// Build a lookup map from local navigation for page items only
+		const pageMap = new Map<string, NavigationItem>();
+		for (const group of storeNavigation ?? []) {
+			for (const element of group.items ?? []) {
+				if (element.type !== "divider" && "id" in element) {
+					const navItem = element as NavigationItem;
+					if (navItem.type === "page") {
+						pageMap.set(navItem.id, navItem);
+					}
+				}
+			}
+		}
+
+		// Convert a sidebar item to a navigation element
+		function convertItem(item: any): NavigationElement | undefined {
+			const props = getSidebarItemProps(item);
+			switch (item.type) {
+				case "collection": {
+					const collectionName = props.collection!;
+					const meta = serverConfig?.collections?.[collectionName];
+					return {
+						id: `collection:${collectionName}`,
+						label: props.label ?? meta?.label ?? formatLabel(collectionName),
+						href: `${basePath}/collections/${collectionName}`,
+						icon: props.icon ?? meta?.icon,
+						type: "collection" as const,
+						order: 0,
+					};
+				}
+
+				case "global": {
+					const globalName = props.global!;
+					const meta = serverConfig?.globals?.[globalName];
+					return {
+						id: `global:${globalName}`,
+						label: props.label ?? meta?.label ?? formatLabel(globalName),
+						href: `${basePath}/globals/${globalName}`,
+						icon: props.icon ?? meta?.icon,
+						type: "global" as const,
+						order: 0,
+					};
+				}
+
+				case "page": {
+					const found = pageMap.get(`page:${props.pageId}`);
+					if (!found) return undefined;
+					return {
+						...found,
+						label: props.label ?? found.label,
+						icon: props.icon ?? found.icon,
+					};
+				}
+
+				case "link":
+					return {
+						id: `link:${props.href}`,
+						label: props.label ?? "",
+						href: props.href!,
+						icon: props.icon,
+						type: "link" as const,
+						order: 0,
+					};
+
+				case "divider":
+					return { type: "divider" as const };
+
+				default:
+					return undefined;
+			}
+		}
+
+		// Convert a section to a navigation group (recursive for nested sections)
+		function convertSection(section: any): NavigationGroup {
+			return {
+				id: section.id,
+				label: section.title,
+				icon: section.icon,
+				collapsed: section.collapsed,
+				items: (section.items ?? [])
+					.map(convertItem)
+					.filter((i: any): i is NavigationElement => i !== undefined),
+				sections: section.sections?.map(convertSection),
+			};
+		}
+
+		return sections.map(convertSection);
+	}, [serverConfig, storeNavigation, basePath]);
 }
 
 // ============================================================================
@@ -155,6 +306,9 @@ function useSidebarProps(props: {
 	const storeNavigation = useAdminStore((s) => s.navigation);
 	const storeBrandName = useAdminStore((s) => s.brandName);
 
+	// Try server-driven navigation
+	const serverNavigation = useServerNavigation();
+
 	// If props provided, use them (props take priority)
 	if (props.navigation !== undefined && props.brandName !== undefined) {
 		return {
@@ -164,7 +318,7 @@ function useSidebarProps(props: {
 	}
 
 	return {
-		navigation: props.navigation ?? storeNavigation ?? [],
+		navigation: props.navigation ?? serverNavigation ?? storeNavigation ?? [],
 		brandName: props.brandName ?? storeBrandName ?? "Admin",
 	};
 }
@@ -174,20 +328,38 @@ function useSidebarProps(props: {
 // ============================================================================
 
 /**
- * Render an IconComponent (handles lazy loading)
+ * Render an icon - handles ComponentReference and React components.
+ *
+ * @example
+ * ```tsx
+ * // React component
+ * <RenderIcon icon={UsersIcon} />
+ *
+ * // Server-defined reference
+ * <RenderIcon icon={{ type: "icon", props: { name: "ph:users" } }} />
+ * ```
  */
-function RenderIcon(props: { icon: IconComponent; className?: string }) {
-	// // Handle different icon types
-	// if (typeof icon === "function") {
-	// 	// Check if it's a lazy component or regular component
-	// 	const IconComp = icon as React.ComponentType<{ className?: string }>;
-	// 	return (
-	// 		<Suspense fallback={<span className={cn("size-4", className)} />}>
-	// 			<IconComp className={cn("size-4 shrink-0", className)} />
-	// 		</Suspense>
-	// 	);
-	// }
-	return <props.icon className={cn("size-4 shrink-0", props.className)} />;
+function RenderIcon(props: {
+	icon: NavigationItem["icon"];
+	className?: string;
+}) {
+	const { icon, className } = props;
+
+	if (!icon) {
+		return null;
+	}
+
+	if (typeof icon === "object" && icon !== null && "type" in icon) {
+		return (
+			<ComponentRenderer
+				reference={icon as any}
+				additionalProps={{ className: cn("size-4 shrink-0", className) }}
+			/>
+		);
+	}
+
+	const IconComp = icon as React.ComponentType<{ className?: string }>;
+	return <IconComp className={cn("size-4 shrink-0", className)} />;
 }
 
 function QuestpieSymbol({ className }: { className?: string }) {
@@ -237,6 +409,7 @@ function isRouteActive(
 	activeRoute: string | undefined,
 	itemHref: string,
 	basePath: string,
+	exact = false,
 ) {
 	if (!activeRoute) {
 		return false;
@@ -250,14 +423,17 @@ function isRouteActive(
 		return false;
 	}
 
+	// Exact match
 	if (normalizedActive === normalizedItem) {
 		return true;
 	}
 
-	if (normalizedItem === normalizedBase) {
+	// For exact mode or base path (dashboard), don't match prefixes
+	if (exact || normalizedItem === normalizedBase) {
 		return false;
 	}
 
+	// Prefix match for non-exact items
 	return normalizedActive.startsWith(`${normalizedItem}/`);
 }
 
@@ -307,10 +483,15 @@ function NavItem({
 
 	const label = resolveText(item.label);
 
+	// Dashboard and external links should use exact matching
+	// Collections and globals should use prefix matching
+	const shouldUseExact =
+		item.type === "dashboard" || item.type === "link" || item.type === "page";
+
 	const linkActiveProps = useActiveProps
 		? {
 				activeProps: { className: menuButtonActiveStyles },
-				activeOptions: { exact: true },
+				activeOptions: { exact: shouldUseExact },
 			}
 		: {};
 
@@ -371,6 +552,7 @@ function NavGroup({
 	renderNavItem,
 	basePath,
 	useActiveProps,
+	depth = 0,
 }: {
 	group: NavigationGroup;
 	activeRoute?: string;
@@ -378,6 +560,7 @@ function NavGroup({
 	renderNavItem?: AdminSidebarProps["renderNavItem"];
 	basePath: string;
 	useActiveProps: boolean;
+	depth?: number;
 }) {
 	// Track collapsed state for sections that support it
 	const [isCollapsed, setIsCollapsed] = React.useState(
@@ -385,6 +568,10 @@ function NavGroup({
 	);
 	const resolveText = useResolveText();
 	const groupLabel = resolveText(group.label);
+
+	const items = group.items ?? [];
+	const sections = group.sections ?? [];
+	const hasContent = items.length > 0 || sections.length > 0;
 
 	return (
 		<SidebarGroup>
@@ -395,6 +582,7 @@ function NavGroup({
 						"gap-2 px-3 mt-2",
 						group.collapsed !== undefined &&
 							"cursor-pointer hover:text-sidebar-foreground",
+						depth > 0 && "pl-6",
 					)}
 					onClick={
 						group.collapsed !== undefined
@@ -405,7 +593,8 @@ function NavGroup({
 					{group.icon && <RenderIcon icon={group.icon} className="size-3.5" />}
 					<span className="flex-1 font-mono  text-left">{groupLabel}</span>
 					{group.collapsed !== undefined && (
-						<CaretDownIcon
+						<Icon
+							icon="ph:caret-down"
 							className={cn(
 								"size-3.5 transition-transform",
 								isCollapsed && "-rotate-90",
@@ -415,34 +604,62 @@ function NavGroup({
 				</SidebarGroupLabel>
 			)}
 
-			{/* Section items (hidden when collapsed) */}
-			{!isCollapsed && (
-				<SidebarGroupContent>
-					<SidebarMenu>
-						{group.items.map((element, elementIndex) => {
-							// Handle dividers
-							if (!isNavigationItem(element)) {
+			{/* Section content (hidden when collapsed) */}
+			{!isCollapsed && hasContent && (
+				<SidebarGroupContent className={cn(depth > 0 && "pl-3")}>
+					{/* Items */}
+					{items.length > 0 && (
+						<SidebarMenu>
+							{items.map((element, elementIndex) => {
+								// Handle dividers
+								if (!isNavigationItem(element)) {
+									return (
+										<SidebarSeparator
+											key={`${group.id ?? groupLabel ?? "group"}-divider-${elementIndex}`}
+											className="my-2"
+										/>
+									);
+								}
+
+								// Handle navigation items
+								// Dashboard and links use exact matching, collections/globals use prefix
+								const shouldUseExact =
+									element.type === "dashboard" ||
+									element.type === "link" ||
+									element.type === "page";
+
 								return (
-									<SidebarSeparator
-										key={`${group.id ?? groupLabel ?? "group"}-divider-${elementIndex}`}
-										className="my-2"
+									<NavItem
+										key={element.id}
+										item={element}
+										isActive={isRouteActive(
+											activeRoute,
+											element.href,
+											basePath,
+											shouldUseExact,
+										)}
+										LinkComponent={LinkComponent}
+										renderNavItem={renderNavItem}
+										useActiveProps={useActiveProps}
 									/>
 								);
-							}
+							})}
+						</SidebarMenu>
+					)}
 
-							// Handle navigation items
-							return (
-								<NavItem
-									key={element.id}
-									item={element}
-									isActive={isRouteActive(activeRoute, element.href, basePath)}
-									LinkComponent={LinkComponent}
-									renderNavItem={renderNavItem}
-									useActiveProps={useActiveProps}
-								/>
-							);
-						})}
-					</SidebarMenu>
+					{/* Nested sections */}
+					{sections.map((subSection) => (
+						<NavGroup
+							key={subSection.id}
+							group={subSection}
+							activeRoute={activeRoute}
+							LinkComponent={LinkComponent}
+							renderNavItem={renderNavItem}
+							basePath={basePath}
+							useActiveProps={useActiveProps}
+							depth={depth + 1}
+						/>
+					))}
 				</SidebarGroupContent>
 			)}
 		</SidebarGroup>
@@ -518,9 +735,9 @@ function UserFooter() {
 			closeSidebarOnMobile();
 			navigate(`${basePath}/login`);
 		} catch (error) {
-			console.error("Logout failed:", error);
+			toast.error(t("auth.logoutFailed"));
 		}
-	}, [authClient, navigate, basePath, closeSidebarOnMobile]);
+	}, [authClient, navigate, basePath, closeSidebarOnMobile, t]);
 
 	// Handle navigate to user profile
 	const handleMyAccount = React.useCallback(() => {
@@ -559,7 +776,7 @@ function UserFooter() {
 							)}
 						>
 							<div className="flex size-8 shrink-0 items-center justify-center bg-sidebar-primary/10 text-sidebar-primary border border-sidebar-primary/20">
-								<User className="size-4" weight="bold" />
+								<Icon icon="ph:user-bold" className="size-4" />
 							</div>
 							{!collapsed && (
 								<>
@@ -571,7 +788,10 @@ function UserFooter() {
 											{displayEmail}
 										</span>
 									</div>
-									<CaretUpDown className="ml-auto size-3.5 text-sidebar-foreground/40" />
+									<Icon
+										icon="ph:caret-up-down"
+										className="ml-auto size-3.5 text-sidebar-foreground/40"
+									/>
 								</>
 							)}
 						</DropdownMenuTrigger>
@@ -594,14 +814,14 @@ function UserFooter() {
 							<DropdownMenuSeparator />
 							{/* My Account - link to user detail */}
 							<DropdownMenuItem onClick={handleMyAccount}>
-								<UserCircle className="size-4" />
+								<Icon icon="ph:user-circle" className="size-4" />
 								{t("auth.myAccount")}
 							</DropdownMenuItem>
 							{/* UI Language Switcher */}
 							{hasMultipleUiLocales && (
 								<DropdownMenuSub>
 									<DropdownMenuSubTrigger>
-										<Globe />
+										<Icon icon="ph:globe" />
 										{t("locale.uiLanguage")}
 									</DropdownMenuSubTrigger>
 									<DropdownMenuPortal>
@@ -624,7 +844,10 @@ function UserFooter() {
 													</span>
 													<span className="flex-1">{locale.label}</span>
 													{locale.code === uiLocale && (
-														<Check className="size-4 text-primary" />
+														<Icon
+															icon="ph:check"
+															className="size-4 text-primary"
+														/>
 													)}
 												</DropdownMenuItem>
 											))}
@@ -634,7 +857,7 @@ function UserFooter() {
 							)}
 							<DropdownMenuSeparator />
 							<DropdownMenuItem variant="destructive" onClick={handleLogout}>
-								<SignOut className="size-4" />
+								<Icon icon="ph:sign-out" className="size-4" />
 								{t("auth.logout")}
 							</DropdownMenuItem>
 						</DropdownMenuContent>
@@ -681,6 +904,8 @@ export function AdminSidebar({
 	renderBrand,
 	renderNavItem,
 	footer,
+	afterBrand,
+	beforeFooter,
 	useActiveProps = true,
 }: AdminSidebarProps): React.ReactElement {
 	// Resolve navigation and brandName from props or store
@@ -762,6 +987,13 @@ export function AdminSidebar({
 				</SidebarMenu>
 			</SidebarHeader>
 
+			{/* After Brand Slot - for scope pickers, etc */}
+			{afterBrand && !collapsed && (
+				<div className="px-3 py-2 border-b border-sidebar-border/50">
+					{afterBrand}
+				</div>
+			)}
+
 			{/* Navigation */}
 			<SidebarContent>
 				{navigation.map((group, index) => (
@@ -776,6 +1008,13 @@ export function AdminSidebar({
 					/>
 				))}
 			</SidebarContent>
+
+			{/* Before Footer Slot - for additional actions */}
+			{beforeFooter && !collapsed && (
+				<div className="px-3 py-2 border-t border-sidebar-border/50">
+					{beforeFooter}
+				</div>
+			)}
 
 			{/* Footer */}
 			{footer ?? <UserFooter />}

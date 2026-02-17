@@ -2,11 +2,12 @@
  * Cards Display - card grid with image, title, subtitle, meta
  */
 
-import { Pencil, X } from "@phosphor-icons/react";
+import { Icon } from "@iconify/react";
 import * as React from "react";
 import { useResolveText } from "../../../../i18n/hooks";
 import { CollectionEditLink } from "../../../admin-link";
 import { Button } from "../../../ui/button";
+import { Skeleton } from "../../../ui/skeleton";
 import {
 	formatCellValue,
 	formatColumnHeader,
@@ -14,6 +15,45 @@ import {
 	getItemDisplayValue,
 	type RelationDisplayProps,
 } from "./types";
+
+const gridCols = {
+	1: "grid-cols-1",
+	2: "grid-cols-1 sm:grid-cols-2",
+	3: "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3",
+	4: "grid-cols-1 sm:grid-cols-2 lg:grid-cols-4",
+};
+
+function CardsSkeleton({
+	count = 3,
+	gridColumns = 2,
+	hasImage = false,
+}: {
+	count?: number;
+	gridColumns?: 1 | 2 | 3 | 4;
+	hasImage?: boolean;
+}) {
+	const skeletonKeys = React.useMemo(
+		() => Array.from({ length: count }, () => crypto.randomUUID()),
+		[count],
+	);
+
+	return (
+		<div className={`grid gap-4 ${gridCols[gridColumns]}`}>
+			{skeletonKeys.map((key) => (
+				<div
+					key={key}
+					className="rounded-lg border border-border/60 bg-card/30 backdrop-blur-sm overflow-hidden"
+				>
+					{hasImage && <Skeleton className="aspect-video w-full" />}
+					<div className="p-3 space-y-2">
+						<Skeleton className="h-5 w-3/4 rounded" />
+						<Skeleton className="h-4 w-1/2 rounded" />
+					</div>
+				</div>
+			))}
+		</div>
+	);
+}
 
 export function CardsDisplay({
 	items,
@@ -23,6 +63,8 @@ export function CardsDisplay({
 	fields,
 	gridColumns = 2,
 	linkToDetail = false,
+	isLoading = false,
+	loadingCount = 3,
 }: RelationDisplayProps) {
 	const resolveText = useResolveText();
 	const getTitle = (item: any) =>
@@ -40,12 +82,16 @@ export function CardsDisplay({
 			.filter((m) => m.value !== "-");
 	};
 
-	const gridCols = {
-		1: "grid-cols-1",
-		2: "grid-cols-1 sm:grid-cols-2",
-		3: "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3",
-		4: "grid-cols-1 sm:grid-cols-2 lg:grid-cols-4",
-	};
+	// Show skeleton when loading and no items
+	if (isLoading && items.length === 0) {
+		return (
+			<CardsSkeleton
+				count={loadingCount}
+				gridColumns={gridColumns}
+				hasImage={!!fields?.image}
+			/>
+		);
+	}
 
 	return (
 		<div className={`grid gap-4 ${gridCols[gridColumns]}`}>
@@ -91,7 +137,7 @@ export function CardsDisplay({
 												}}
 												aria-label="Edit item"
 											>
-												<Pencil className="size-3" />
+												<Icon icon="ph:pencil" className="size-3" />
 											</Button>
 										)}
 										{actions?.onRemove && (
@@ -107,7 +153,7 @@ export function CardsDisplay({
 												}}
 												aria-label="Remove item"
 											>
-												<X className="size-3" />
+												<Icon icon="ph:x" className="size-3" />
 											</Button>
 										)}
 									</div>

@@ -1,0 +1,211 @@
+---
+title: Registry API
+description: Field, view, component, and widget registry types, resolution, and extension
+---
+
+# Registry API
+
+Registries map server-defined identifiers to client-side React components. The admin panel uses four registries to render the UI dynamically based on introspection data.
+
+## Registry Types
+
+| Registry | Key | Value | Purpose |
+|---|---|---|---|
+| **Field** | Field `type` string | React component + config | Render field inputs and displays |
+| **View** | View ID | React component + kind | Render list/edit views |
+| **Component** | Component name | React component | Render dynamic UI elements |
+| **Widget** | Widget name | React component | Render dashboard widgets |
+
+## Field Registry
+
+### Entry Type
+
+```ts
+interface FieldRegistryEntry {
+  type: string;
+  component: React.ComponentType<FieldRendererProps>;
+  config?: Record<string, unknown>;
+  displayComponent?: React.ComponentType<FieldDisplayProps>;
+}
+```
+
+### FieldRendererProps
+
+```ts
+interface FieldRendererProps {
+  field: FieldDefinitionMeta;    // Field metadata from introspection
+  value: unknown;                // Current field value
+  onChange: (value: unknown) => void;
+  disabled?: boolean;
+  readOnly?: boolean;
+  error?: string;
+  config?: Record<string, unknown>;
+}
+```
+
+### Built-in Field Types
+
+| Type | Component | Description |
+|---|---|---|
+| `text` | `TextFieldRenderer` | Single-line text input |
+| `textarea` | `TextareaFieldRenderer` | Multi-line text input |
+| `email` | `EmailFieldRenderer` | Email input with validation |
+| `url` | `UrlFieldRenderer` | URL input with validation |
+| `number` | `NumberFieldRenderer` | Numeric input with min/max |
+| `boolean` | `BooleanFieldRenderer` | Toggle/checkbox |
+| `date` | `DateFieldRenderer` | Date picker |
+| `datetime` | `DatetimeFieldRenderer` | Date + time picker |
+| `time` | `TimeFieldRenderer` | Time picker |
+| `select` | `SelectFieldRenderer` | Dropdown/multi-select |
+| `json` | `JsonFieldRenderer` | JSON editor |
+| `object` | `ObjectFieldRenderer` | Nested field group |
+| `array` | `ArrayFieldRenderer` | Repeatable item list |
+| `relation` | `RelationFieldRenderer` | Relation picker (chips/list/grid) |
+| `upload` | `UploadFieldRenderer` | File upload with preview |
+| `richText` | `RichTextFieldRenderer` | Tiptap editor |
+| `blocks` | `BlocksFieldRenderer` | Block editor with drag-and-drop |
+
+### Registration
+
+```ts
+qa<AppCMS>().fields({
+  color: {
+    type: "color",
+    component: ColorFieldRenderer,
+  },
+})
+```
+
+## View Registry
+
+### Entry Type
+
+```ts
+interface ViewRegistryEntry {
+  kind: "list" | "edit";
+  component: React.ComponentType<ViewProps>;
+  label?: string;
+  icon?: string;
+}
+```
+
+### Built-in Views
+
+| ID | Kind | Description |
+|---|---|---|
+| `defaultTableView` | `list` | Data table with sorting, filtering, pagination |
+| `defaultFormView` | `edit` | Form with field layout, tabs, sidebar |
+
+### Registration
+
+```ts
+qa<AppCMS>().views({
+  kanban: {
+    kind: "list",
+    component: KanbanView,
+    label: "Kanban Board",
+    icon: "ph:kanban",
+  },
+})
+```
+
+## Component Registry
+
+### Entry Type
+
+```ts
+interface ComponentRegistryEntry {
+  component: React.ComponentType<any>;
+}
+```
+
+### ComponentReference
+
+Server-side admin config references components via serializable objects:
+
+```ts
+interface ComponentReference {
+  component: string;    // Registry key
+  props?: Record<string, unknown>;
+}
+```
+
+### Resolution
+
+```tsx
+import { ComponentRenderer } from "@questpie/admin/client";
+
+// In JSX — resolves "statusBadge" from component registry
+<ComponentRenderer reference={{ component: "statusBadge", props: { status } }} />
+```
+
+### Registration
+
+```ts
+qa<AppCMS>().components({
+  statusBadge: {
+    component: ({ status }) => (
+      <span className={`badge badge-${status}`}>{status}</span>
+    ),
+  },
+})
+```
+
+## Widget Registry
+
+### Entry Type
+
+```ts
+interface WidgetRegistryEntry {
+  component: React.ComponentType<WidgetProps>;
+  label?: string;
+  icon?: string;
+}
+```
+
+### Built-in Widgets
+
+| ID | Description |
+|---|---|
+| `stats` | Stat card with value, label, trend |
+| `progress` | Progress bar with percentage |
+| `timeline` | Activity/event timeline |
+
+### Registration
+
+```ts
+qa<AppCMS>().widgets({
+  recentActivity: {
+    component: RecentActivityWidget,
+    label: "Recent Activity",
+    icon: "ph:clock",
+  },
+})
+```
+
+## Resolution Flow
+
+All registries follow the same pattern:
+
+1. **Server** emits metadata via introspection (field types, view IDs, component references)
+2. **Admin panel** receives the metadata as serializable JSON
+3. **Registry** looks up the key and returns the matching React component
+4. **Renderer** passes props (value, config, context) to the component
+
+This decoupling means the server never imports React — it only emits strings and config objects.
+
+## Extending Registries
+
+To add a custom field type end-to-end:
+
+1. Define the field on the server: `field(...)` with `getMetadata()` returning `{ type: "myType" }`
+2. Register the field type on `q`: `.fields({ myType: myFieldDefinition })`
+3. Register the renderer on `qa`: `.fields({ myType: { type: "myType", component: MyRenderer } })`
+
+## Related Pages
+
+- [Registries Overview](/docs/admin/registries-overview) — Conceptual guide
+- [Field Renderer Registry](/docs/admin/field-renderer-registry) — Field renderers in detail
+- [View Registry](/docs/admin/view-registry-list-and-form) — View details
+- [Component Registry](/docs/admin/component-registry) — Component resolution
+- [qa Builder API](/docs/reference/qa-builder-api) — Registration methods

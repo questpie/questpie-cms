@@ -5,7 +5,7 @@
  * Supports wrapper modes (flat, collapsible) and layout modes (stack, inline, grid).
  */
 
-import { CaretDown, CaretRight } from "@phosphor-icons/react";
+import { Icon } from "@iconify/react";
 import * as React from "react";
 
 import type { FieldDefinition } from "../../builder/field/field";
@@ -13,7 +13,6 @@ import { createFieldRegistryProxy } from "../../builder/proxies";
 import { useResolveText } from "../../i18n/hooks";
 import { cn } from "../../lib/utils";
 import { selectAdmin, useAdminStore } from "../../runtime";
-import { FormField } from "../../views/collection/form-field";
 import type { BaseFieldProps, ObjectFieldConfig } from "./field-types";
 import { gridColumnClasses } from "./field-utils";
 import { FieldWrapper } from "./field-wrapper";
@@ -51,38 +50,50 @@ function NestedFieldRenderer({
 }: NestedFieldRendererProps) {
 	const resolveText = useResolveText();
 	const fullName = `${parentName}.${fieldName}`;
-	const fieldType = fieldDef.name;
 	const options = fieldDef["~options"] || {};
 
-	// For nested object fields, render recursively
-	if (fieldType === "object" && options.fields) {
+	// Get the component from the field definition (registry-based)
+	// Cast to ComponentType since MaybeLazyComponent includes lazy variants
+	const Component = fieldDef.field?.component as
+		| React.ComponentType<any>
+		| undefined;
+
+	if (!Component) {
+		// Fallback error display if no component found
 		return (
-			<ObjectField
-				name={fullName}
-				label={resolveText(options.label)}
-				description={resolveText(options.description)}
-				fields={options.fields}
-				wrapper={options.wrapper}
-				layout={options.layout}
-				columns={options.columns}
-				defaultCollapsed={options.defaultCollapsed}
-				disabled={disabled}
-				required={options.required}
-			/>
+			<div className="text-sm text-destructive">
+				No component for field type: {fieldDef.name}
+			</div>
 		);
 	}
 
-	// For other fields, use FormField
+	// Strip UI-specific options that are handled by FieldWrapper
+	const {
+		label,
+		description,
+		placeholder,
+		required,
+		disabled: optionsDisabled,
+		readOnly,
+		hidden,
+		localized,
+		locale,
+		...fieldSpecificOptions
+	} = options;
+
+	// Render using the component from the field registry
 	return (
-		<FormField
+		<Component
 			name={fullName}
-			label={resolveText(options.label)}
-			description={resolveText(options.description)}
-			placeholder={resolveText(options.placeholder)}
-			required={options.required}
-			disabled={disabled || options.disabled}
-			type={fieldType as any}
-			options={options.options}
+			label={resolveText(label)}
+			description={resolveText(description)}
+			placeholder={resolveText(placeholder)}
+			required={required}
+			disabled={disabled || optionsDisabled}
+			readOnly={readOnly}
+			localized={localized}
+			locale={locale}
+			{...fieldSpecificOptions}
 		/>
 	);
 }
@@ -183,9 +194,9 @@ export function ObjectField({
 				>
 					<div className="flex items-center gap-2">
 						{isCollapsed ? (
-							<CaretRight className="h-4 w-4" />
+							<Icon icon="ph:caret-right" className="h-4 w-4" />
 						) : (
-							<CaretDown className="h-4 w-4" />
+							<Icon icon="ph:caret-down" className="h-4 w-4" />
 						)}
 						<span className="font-medium">{resolveText(label ?? name)}</span>
 						{required && <span className="text-destructive">*</span>}

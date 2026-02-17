@@ -2,15 +2,16 @@
  * Blocks Field Component
  *
  * Form field for editing block content using the visual block editor.
+ * Block definitions are fetched from server introspection API.
  */
 
 "use client";
 
 import * as React from "react";
 import { useFormContext, useWatch } from "react-hook-form";
+import type { BlockSchema } from "#questpie/admin/server";
 import type { BlockContent } from "../../../blocks/types.js";
 import { EMPTY_BLOCK_CONTENT, isBlockContent } from "../../../blocks/types.js";
-import type { BlockDefinition } from "../../../builder/block/types.js";
 import type { BaseFieldProps } from "../../../builder/types/common.js";
 import {
 	Card,
@@ -18,6 +19,7 @@ import {
 	CardHeader,
 	CardTitle,
 } from "../../../components/ui/card.js";
+import { useAdminConfig } from "../../../hooks/use-admin-config.js";
 import { BlockEditorLayout } from "../../blocks/block-editor-layout.js";
 import { BlockEditorProvider } from "../../blocks/block-editor-provider.js";
 import { countBlocks } from "../../blocks/utils/tree-utils.js";
@@ -37,11 +39,7 @@ export type BlocksFieldConfig<TAllowed extends string = string> = {
 	maxBlocks?: number;
 };
 
-export type BlocksFieldProps = BaseFieldProps &
-	BlocksFieldConfig & {
-		/** Registered block definitions (passed from admin context) */
-		blocks?: Record<string, BlockDefinition>;
-	};
+export type BlocksFieldProps = BaseFieldProps & BlocksFieldConfig;
 
 /**
  * Blocks field component.
@@ -61,10 +59,10 @@ export function BlocksField({
 	allowedBlocks,
 	minBlocks,
 	maxBlocks,
-	blocks = {},
 }: BlocksFieldProps) {
 	const form = useFormContext();
 	const watchedContent = useWatch({ control: form.control, name });
+	const { data: adminConfig } = useAdminConfig();
 
 	// Ensure we have valid block content
 	const content: BlockContent = isBlockContent(watchedContent)
@@ -73,8 +71,11 @@ export function BlocksField({
 			? value
 			: EMPTY_BLOCK_CONTENT;
 
+	// Get blocks from server introspection
+	const blocks = adminConfig?.blocks ?? {};
+
 	// Filter blocks by allowed list
-	const filteredBlocks = React.useMemo(() => {
+	const filteredBlocks = React.useMemo<Record<string, BlockSchema>>(() => {
 		if (!allowedBlocks || allowedBlocks.length === 0) {
 			return blocks;
 		}

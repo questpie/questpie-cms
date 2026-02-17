@@ -1,0 +1,369 @@
+---
+title: Context & Transactions
+description: Request context, database transactions, and the onAfterCommit pattern
+---
+
+# Context & Transactions
+
+Every CRUD operation in QUESTPIE runs within a context that carries the authenticated session, locale, access mode, and database connection. Write operations (create, update, delete) run inside database transactions by default. The `onAfterCommit` utility lets you defer side effects until after the transaction successfully commits.
+
+## Why This Exists
+
+When a hook sends an email and the database write fails, the email is already sent — but the record doesn't exist. Transactions solve the data consistency problem, and `onAfterCommit` solves the side-effect timing problem. The context system makes session, locale, and database connection available everywhere without explicit passing.
+
+## Request Context
+
+Every API request creates a context object that flows through access control, hooks, and CRUD operations:
+
+```ts
+interface RequestContext {
+  session?: { user: User; session: Session } | null;
+  locale?: string;
+  defaultLocale?: string;
+  localeFallback?: boolean;
+  accessMode?: "system" | "user";
+  db?: Database;
+}
+```
+
+| Property | Default | Description |
+|---|---|---|
+| `session` | `null` | Authenticated user from Better Auth |
+| `locale` | `defaultLocale` | Current locale for localized fields |
+| `defaultLocale` | `"en"` | Fallback locale |
+| `localeFallback` | `true` | Fall back to default locale for missing translations |
+| `accessMode` | `"system"` | `"system"` bypasses access control; `"user"` enforces it |
+| `db` | CMS database | Database client (may be overridden with a transaction) |
+
+### Passing Context to CRUD
+
+```ts
+// System mode (default) — no access control
+const posts = await cms.api.collections.posts.find({});
+
+// User mode — enforces access rules
+const posts = await cms.api.collections.posts.find(
+  { where: { status: "published" } },
+  {
+    accessMode: "user",
+    session: req.session,
+    locale: "de",
+  },
+);
+```
+
+### Context Normalization
+
+The CMS normalizes context with defaults:
+
+```ts
+// Input context
+{ locale: undefined, accessMode: undefined }
+
+// Normalized to
+{ locale: "en", accessMode: "system", defaultLocale: "en" }
+```
+
+## Context Helpers
+
+QUESTPIE provides two categories of context utilities:
+
+### Type Helpers (compile-time only)
+
+These add TypeScript types without any runtime effect. Use them to get type-safe access to context values:
+
+```ts
+import { typedApp, typedDb, typedSession, typedContext } from "questpie";
+import type { AppCMS } from "../cms";
+
+.hooks({
+  afterChange: async ({ app, db, session }) => {
+    const cms = typedApp<AppCMS>(app);
+    const typedDatabase = typedDb<AppCMS>(db);
+    const typedSess = typedSession<AppCMS>(session);
+
+    await cms.kv.set("cache:key", "value");
+    await typedDatabase.execute(sql`SELECT 1`);
+  },
+})
+
+// Or type everything at once
+.access({
+  read: (ctx) => {
+    const { app, db, session } = typedContext<AppCMS>(ctx);
+    return !!session?.user;
+  },
+})
+```
+
+### Context Access (runtime)
+
+These actually retrieve context from AsyncLocalStorage at runtime:
+
+```ts
+import { getContext, tryGetContext, runWithContext } from "questpie";
+
+// Get context (throws if not in scope)
+const { db, session, locale } = getContext<AppCMS>();
+
+// Safe access (returns undefined if not in scope)
+const ctx = tryGetContext();
+if (ctx?.locale) {
+  // Use locale
+}
+
+// Run code within a context scope
+await runWithContext({ app: cms, session, db, locale: "sk" }, async () => {
+  // Inside here, getContext() works
+});
+```
+
+### Automatic Context Propagation
+
+Context automatically propagates through nested API calls via AsyncLocalStorage. This means locale and accessMode are inherited without explicit passing:
+
+```ts
+// Outer call sets locale
+await cms.api.collections.pages.find({}, { locale: "sk" });
+
+// Inside hooks or nested calls, locale is inherited automatically
+.hooks({
+  afterRead: async ({ app }) => {
+    const cms = typedApp<AppCMS>(app);
+    
+    // This automatically uses locale: "sk" from parent context
+    const related = await cms.api.collections.posts.find({
+      where: { featured: true },
+    });
+    // No need to pass { locale: "sk" } - it's inherited!
+  },
+})
+```
+
+This is especially useful for:
+- Block prefetch hooks fetching related data
+- Custom functions calling multiple collections
+- Hooks querying other entities
+
+### createContext
+
+Create a context for programmatic CMS operations:
+
+```ts
+const ctx = await cms.createContext({
+  accessMode: "system",
+  locale: "en",
+});
+
+const result = await cms.api.collections.posts.find({}, ctx);
+```
+
+## Transactions
+
+### Automatic Transactions
+
+All write operations (create, update, delete) run inside a database transaction automatically:
+
+```text
+BEGIN → access control → hooks → DB write → version → afterChange hook → COMMIT
+                                                                        ↓ (on error)
+                                                                      ROLLBACK
+```
+
+### Manual Transactions
+
+Use `withTransaction` for multi-step operations that must be atomic:
+
+```ts
+import { withTransaction, typedApp } from "questpie";
+
+handler: async ({ input, app }) => {
+  const cms = typedApp<AppCMS>(app);
+
+  return withTransaction(cms.db, async (tx) => {
+    // Create order — uses the transaction
+    const order = await cms.api.collections.orders.create(
+      { cartId: input.cartId, status: "pending" },
+      { db: tx },
+    );
+
+    // Deduct inventory — same transaction
+    for (const item of order.items) {
+      await cms.api.collections.products.updateById(
+        { id: item.productId, data: { stock: sql`stock - ${item.qty}` } },
+        { db: tx },
+      );
+    }
+
+    return order;
+  });
+  // If any step fails, everything rolls back
+}
+```
+
+### Nested Transactions
+
+Nested `withTransaction` calls reuse the parent transaction — no savepoints. This means CRUD calls inside hooks automatically participate in the outer transaction:
+
+```ts
+withTransaction(db, async (tx) => {
+  await cms.api.collections.posts.create(data, { db: tx });
+  // The create operation's internal hooks run with the same tx
+  // If the hook calls another CRUD operation, it also uses tx
+});
+```
+
+### Transaction Utilities
+
+```ts
+import { isInTransaction, getCurrentTransaction } from "questpie";
+
+// Check if currently inside a transaction
+if (isInTransaction()) {
+  const tx = getCurrentTransaction();
+}
+```
+
+## onAfterCommit
+
+The most important pattern for side effects in transactional hooks. `onAfterCommit` queues a callback that runs only after the enclosing transaction successfully commits:
+
+```ts
+import { onAfterCommit, typedApp } from "questpie";
+
+.hooks({
+  afterChange: async ({ data, app }) => {
+    const cms = typedApp<AppCMS>(app);
+
+    // This runs INSIDE the transaction — data is consistent
+    await cms.kv.delete(`cache:${data.id}`);
+
+    // This runs AFTER the transaction commits
+    onAfterCommit(async () => {
+      // Safe to send external notifications now
+      await cms.queue.sendNotification.publish({
+        recordId: data.id,
+      });
+
+      await fetch("https://webhook.site/...", {
+        method: "POST",
+        body: JSON.stringify(data),
+      });
+    });
+  },
+})
+```
+
+### Why onAfterCommit Matters
+
+Without `onAfterCommit`:
+
+```text
+BEGIN
+  → create record
+  → afterChange hook sends email ← email sent!
+  → another operation fails
+ROLLBACK  ← record doesn't exist, but email was already sent
+```
+
+With `onAfterCommit`:
+
+```text
+BEGIN
+  → create record
+  → afterChange hook queues email via onAfterCommit
+  → another operation fails
+ROLLBACK  ← record doesn't exist, email callback is discarded
+
+— OR —
+
+BEGIN
+  → create record
+  → afterChange hook queues email via onAfterCommit
+  → all operations succeed
+COMMIT  ← email callback fires now
+```
+
+### Behavior Outside Transactions
+
+If `onAfterCommit` is called outside a transaction, the callback executes immediately:
+
+```ts
+// Outside any transaction — runs immediately
+onAfterCommit(async () => {
+  console.log("This runs right away");
+});
+```
+
+## Real-World Example: Booking Checkout
+
+```ts
+import { withTransaction, onAfterCommit, typedApp } from "questpie";
+
+const processBooking = rpc.fn({
+  input: z.object({
+    barberId: z.string(),
+    serviceId: z.string(),
+    scheduledAt: z.string(),
+    customerEmail: z.string(),
+  }),
+  handler: async ({ input, app }) => {
+    const cms = typedApp<AppCMS>(app);
+
+    return withTransaction(cms.db, async (tx) => {
+      // 1. Verify barber availability
+      const existing = await cms.api.collections.appointments.find(
+        {
+          where: {
+            barberId: input.barberId,
+            scheduledAt: input.scheduledAt,
+            status: { $ne: "cancelled" },
+          },
+        },
+        { db: tx },
+      );
+
+      if (existing.length > 0) {
+        throw new ApiError("Time slot is already booked", 409);
+      }
+
+      // 2. Create appointment
+      const appointment = await cms.api.collections.appointments.create(
+        {
+          barberId: input.barberId,
+          serviceId: input.serviceId,
+          scheduledAt: input.scheduledAt,
+          status: "confirmed",
+        },
+        { db: tx },
+      );
+
+      // 3. Queue notifications AFTER commit
+      onAfterCommit(async () => {
+        await cms.queue.sendAppointmentConfirmation.publish({
+          appointmentId: appointment.id,
+          customerEmail: input.customerEmail,
+        });
+      });
+
+      return appointment;
+    });
+  },
+});
+```
+
+## Common Mistakes
+
+- **Confusing `typed*` with `get*`** — `typedApp()` only adds types, `getContext()` actually retrieves from storage.
+- **Sending emails/webhooks inside transactions** — If the transaction rolls back, the email is already sent. Always use `onAfterCommit` for external side effects.
+- **Assuming savepoint behavior** — Nested `withTransaction` calls reuse the parent transaction. There are no independent nested transactions.
+- **Forgetting `{ db: tx }` in nested CRUD calls** — When calling CRUD inside `withTransaction`, pass the transaction via context. Otherwise the operation creates its own transaction.
+- **Long-running transactions** — Keep transactions short. Move heavy computation outside the transaction and use `onAfterCommit` for slow operations.
+
+## Related Pages
+
+- [Type-Safe Contexts](/docs/server/type-safe-contexts) — Full type helper reference
+- [Hooks & Lifecycle](/docs/server/hooks-and-lifecycle) — Hook context includes `db` and transaction
+- [Access Control](/docs/server/access-control) — Access checks within context
+- [Database & Migrations](/docs/infrastructure/database-and-migrations) — Database connection setup
+- [Queue & Jobs](/docs/infrastructure/queue-and-jobs) — Deferring work with `onAfterCommit`

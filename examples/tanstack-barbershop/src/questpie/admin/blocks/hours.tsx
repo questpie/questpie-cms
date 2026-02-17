@@ -5,43 +5,25 @@
  * Design: Simple, scannable layout with day/hours pairs.
  */
 
-import type { BlockRendererProps } from "@questpie/admin/client";
+import { useTranslation } from "../../../lib/providers/locale-provider";
 import { cn } from "../../../lib/utils";
-import { builder } from "../builder";
-import { client } from "../../../lib/cms-client";
+import type { BlockProps } from "./types";
 
-type HoursValues = {
-	title?: string;
-	showClosed: boolean;
-};
+type BusinessHoursDay = { isOpen: boolean; start: string; end: string };
+type BusinessHours = Record<string, BusinessHoursDay | undefined>;
 
-type HoursPrefetchedData = {
-	businessHours?: {
-		monday?: { isOpen: boolean; start: string; end: string };
-		tuesday?: { isOpen: boolean; start: string; end: string };
-		wednesday?: { isOpen: boolean; start: string; end: string };
-		thursday?: { isOpen: boolean; start: string; end: string };
-		friday?: { isOpen: boolean; start: string; end: string };
-		saturday?: { isOpen: boolean; start: string; end: string };
-		sunday?: { isOpen: boolean; start: string; end: string };
-	};
-};
-
-function HoursRenderer({
-	values,
-	data,
-}: BlockRendererProps<HoursValues>) {
-	const hoursData = (data as HoursPrefetchedData) || {};
-	const businessHours = hoursData?.businessHours;
+export function HoursRenderer({ values, data }: BlockProps<"hours">) {
+	const { t } = useTranslation();
+	const businessHours = data?.businessHours as BusinessHours | undefined;
 
 	const days = [
-		{ key: "monday", label: "Monday" },
-		{ key: "tuesday", label: "Tuesday" },
-		{ key: "wednesday", label: "Wednesday" },
-		{ key: "thursday", label: "Thursday" },
-		{ key: "friday", label: "Friday" },
-		{ key: "saturday", label: "Saturday" },
-		{ key: "sunday", label: "Sunday" },
+		{ key: "monday", labelKey: "day.monday" },
+		{ key: "tuesday", labelKey: "day.tuesday" },
+		{ key: "wednesday", labelKey: "day.wednesday" },
+		{ key: "thursday", labelKey: "day.thursday" },
+		{ key: "friday", labelKey: "day.friday" },
+		{ key: "saturday", labelKey: "day.saturday" },
+		{ key: "sunday", labelKey: "day.sunday" },
 	] as const;
 
 	return (
@@ -54,7 +36,7 @@ function HoursRenderer({
 				)}
 				<div className="rounded-lg border bg-card p-6">
 					<dl className="space-y-3">
-						{days.map(({ key, label }) => {
+						{days.map(({ key, labelKey }) => {
 							const hours = businessHours?.[key];
 							const isOpen = hours?.isOpen ?? false;
 							const shouldShow = values.showClosed || isOpen;
@@ -66,16 +48,18 @@ function HoursRenderer({
 									key={key}
 									className="flex items-center justify-between py-2 border-b last:border-b-0"
 								>
-									<dt className="font-medium text-foreground">{label}</dt>
+									<dt className="font-medium text-foreground">{t(labelKey)}</dt>
 									<dd
 										className={cn(
 											"text-sm",
-											isOpen ? "text-muted-foreground" : "text-muted-foreground/60",
+											isOpen
+												? "text-muted-foreground"
+												: "text-muted-foreground/60",
 										)}
 									>
 										{isOpen && hours
 											? `${hours.start} - ${hours.end}`
-											: "Closed"}
+											: t("blocks.hours.closed")}
 									</dd>
 								</div>
 							);
@@ -86,32 +70,3 @@ function HoursRenderer({
 		</section>
 	);
 }
-
-export const hoursBlock = builder
-	.block("hours")
-	.label({ en: "Business Hours", sk: "Otváracie hodiny" })
-	.description({
-		en: "Display shop opening hours",
-		sk: "Zobrazí otváracie hodiny",
-	})
-	.icon("Clock")
-	.category("content")
-	.fields(({ r }) => ({
-		title: r.text({
-			label: { en: "Title", sk: "Nadpis" },
-			localized: true,
-			defaultValue: { en: "Opening Hours", sk: "Otváracie hodiny" },
-		}),
-		showClosed: r.checkbox({
-			label: { en: "Show Closed Days", sk: "Zobraziť zatvorené dni" },
-			defaultValue: true,
-		}),
-	}))
-	.prefetch(async () => {
-		const settings = await client.globals.siteSettings.get();
-		return {
-			businessHours: settings?.businessHours,
-		};
-	})
-	.renderer(HoursRenderer)
-	.build();

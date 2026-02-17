@@ -1,4 +1,4 @@
-import { MagnifyingGlass, SpinnerGap, X } from "@phosphor-icons/react";
+import { Icon } from "@iconify/react";
 import * as React from "react";
 import { cn } from "../../lib/utils";
 import {
@@ -83,9 +83,15 @@ export function SearchInput({
     <InputGroup className={cn("bg-transparent", containerClassName)}>
       <InputGroupAddon align="inline-start">
         {isLoading ? (
-          <SpinnerGap className="size-4 animate-spin text-muted-foreground" />
+          <Icon
+            icon="ph:spinner-gap"
+            className="size-4 animate-spin text-muted-foreground"
+          />
         ) : (
-          <MagnifyingGlass className="size-4 text-muted-foreground" />
+          <Icon
+            icon="ph:magnifying-glass"
+            className="size-4 text-muted-foreground"
+          />
         )}
       </InputGroupAddon>
 
@@ -104,7 +110,7 @@ export function SearchInput({
               size="icon-xs"
               className="text-muted-foreground hover:text-foreground"
             >
-              <X className="size-3" />
+              <Icon icon="ph:x" className="size-3" />
             </InputGroupButton>
           )}
           {showShortcut && <Kbd>{shortcut}</Kbd>}

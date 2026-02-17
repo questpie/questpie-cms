@@ -45,8 +45,6 @@ export * from "./adapter";
 export * from "./hooks";
 // Re-export default English messages for admin UI
 export { adminMessages } from "./messages";
-// Re-export all language bundles for optional import
-export * from "./messages/index";
 export * from "./simple";
 export * from "./types";
 export * from "./utils";

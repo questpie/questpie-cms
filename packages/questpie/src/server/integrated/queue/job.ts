@@ -3,9 +3,9 @@ import type { JobDefinition } from "./types.js";
 /**
  * Define a typesafe job.
  *
- * @example Basic usage (use getApp<AppCMS>() for type safety)
+ * @example Basic usage (use typedApp<AppCMS>() for type safety)
  * ```ts
- * import { getApp } from "questpie";
+ * import { typedApp } from "questpie";
  * import type { AppCMS } from "./cms";
  *
  * const sendEmailJob = job({
@@ -16,7 +16,7 @@ import type { JobDefinition } from "./types.js";
  *     body: z.string(),
  *   }),
  *   handler: async ({ payload, app }) => {
- *     const cms = getApp<AppCMS>(app);
+ *     const cms = typedApp<AppCMS>(app);
  *     await cms.email.send({
  *       to: payload.to,
  *       subject: payload.subject,

@@ -1,0 +1,58 @@
+---
+title: Mentality
+description: Core architecture principles — server-first design, single source of truth, registries, and introspection
+---
+
+# Mentality
+
+QUESTPIE is easiest to use when you treat it as an architecture, not a UI package. Understanding the core principles will help you make better design decisions and avoid common pitfalls.
+
+## The Core Principle
+
+**Server defines WHAT. Client defines HOW.**
+
+The server declares what exists — collections, fields, relations, access rules, hooks, sidebar items, dashboard widgets. The client decides how to render those declarations — which React component to use, what colors to apply, how forms are laid out.
+
+This separation means:
+- No schema drift between backend and admin UI
+- No hardcoded rendering assumptions in server code
+- Your design system stays independent from server internals
+- Multiple clients (admin, mobile, API consumers) can consume the same server schema
+
+## Five Principles
+
+### 1. Single Source of Truth
+
+Every piece of your data model is defined once and derived everywhere. A field definition on the server automatically produces: a database column, a Zod validation schema, query operators, admin form input, table column, and API documentation.
+
+### 2. Server-First (WHAT vs HOW)
+
+Server code is declarative — it describes what the system does, not how it looks. The `admin()`, `list()`, and `form()` methods on collections emit metadata, not React components. The admin panel reads that metadata and resolves it through registries.
+
+### 3. Builder Extensions (.use())
+
+Everything composes through `.use()`. The admin module, authentication, custom field types — they're all builder extensions that merge state. No monkey-patching, no global singletons.
+
+### 4. Registry-First Philosophy
+
+The admin panel doesn't hardcode components. It resolves field types, views, and components through registries. To change how a field renders, you register a new renderer — you don't fork the framework.
+
+### 5. Introspection Contract
+
+The server exposes its full schema via an introspection endpoint. The admin panel reads this at runtime to build navigation, forms, tables, and dashboards. Adding a new collection to the server automatically adds it to the admin UI.
+
+## Deep Dives
+
+- [Single Source of Truth](/docs/mentality/single-source-of-truth) — Define once, derive everywhere
+- [Server-First: WHAT vs HOW](/docs/mentality/server-first-what-vs-how) — The split between server and client
+- [Builder Extensions](/docs/mentality/builder-extensions) — `.use()` composition and module pattern
+- [Registry-First Philosophy](/docs/mentality/registry-first-philosophy) — Resolve behavior from registries
+- [Introspection Contract](/docs/mentality/introspection-contract) — How server metadata becomes client UI
+
+## Canonical Reference
+
+Use the TanStack Barbershop example as a practical demonstration of these principles:
+
+- `examples/tanstack-barbershop/src/questpie/server/cms.ts` — server builder with `.use(adminModule)`
+- `examples/tanstack-barbershop/src/questpie/server/collections/` — server-defined collections with admin metadata
+- `examples/tanstack-barbershop/src/questpie/admin/builder.ts` — client builder that resolves server contracts

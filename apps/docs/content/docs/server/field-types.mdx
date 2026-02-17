@@ -1,0 +1,434 @@
+---
+title: Field Types
+description: Complete catalog of built-in field types and their configuration
+---
+
+# Field Types
+
+QUESTPIE ships with a rich set of semantic field types. Each type knows its database column, validation schema, query operators, and admin rendering metadata. The admin module extends the base set with content-specific types like rich text, blocks, and uploads.
+
+## Why Semantic Fields
+
+Instead of raw database columns, QUESTPIE uses semantic field definitions. `f.email()` isn't just a varchar — it carries email validation, email-specific operators, and tells the admin to render an email input. This single definition flows through the entire stack.
+
+## Text Fields
+
+### `f.text(config)`
+
+Single-line text input. Maps to `varchar` in PostgreSQL.
+
+```ts
+title: f.text({
+  label: { en: "Title" },
+  required: true,
+  maxLength: 255,
+  minLength: 1,
+  localized: true,
+  meta: { admin: { placeholder: "Enter title..." } },
+})
+```
+
+| Option | Type | Description |
+|---|---|---|
+| `maxLength` | `number` | Maximum character length |
+| `minLength` | `number` | Minimum character length |
+| `pattern` | `string` | Regex pattern for validation |
+| `localized` | `boolean` | Store in i18n table per locale |
+
+### `f.textarea(config)`
+
+Multi-line text input. Maps to `text` (unlimited length) in PostgreSQL.
+
+```ts
+description: f.textarea({
+  label: { en: "Description" },
+  localized: true,
+  maxLength: 5000,
+})
+```
+
+Same options as `f.text()`, but renders as a multi-line textarea in admin.
+
+### `f.email(config)`
+
+Email address field. Maps to `varchar` with email validation.
+
+```ts
+email: f.email({
+  label: { en: "Email Address" },
+  required: true,
+  maxLength: 255,
+  meta: { admin: { placeholder: "user@example.com" } },
+})
+```
+
+### `f.url(config)`
+
+URL field. Maps to `varchar` with URL validation.
+
+```ts
+website: f.url({
+  label: { en: "Website" },
+  meta: { admin: { placeholder: "https://..." } },
+})
+```
+
+## Numeric Fields
+
+### `f.number(config)`
+
+Numeric value. Maps to `integer` or `decimal` depending on config.
+
+```ts
+price: f.number({
+  label: { en: "Price (cents)" },
+  required: true,
+  min: 0,
+  max: 1000000,
+})
+
+rating: f.number({
+  label: { en: "Rating" },
+  min: 1,
+  max: 5,
+})
+```
+
+| Option | Type | Description |
+|---|---|---|
+| `min` | `number` | Minimum value |
+| `max` | `number` | Maximum value |
+
+## Boolean
+
+### `f.boolean(config)`
+
+True/false toggle. Maps to `boolean` in PostgreSQL.
+
+```ts
+isActive: f.boolean({
+  label: { en: "Active" },
+  default: true,
+  required: true,
+  meta: { admin: { displayAs: "switch" } },
+})
+```
+
+The admin renders this as a checkbox by default. Set `meta.admin.displayAs: "switch"` for a toggle switch.
+
+## Date & Time Fields
+
+### `f.date(config)`
+
+Date without time. Maps to `date` in PostgreSQL.
+
+```ts
+birthDate: f.date({
+  label: { en: "Date of Birth" },
+})
+```
+
+### `f.datetime(config)`
+
+Date with time. Maps to `timestamp with time zone` in PostgreSQL.
+
+```ts
+scheduledAt: f.datetime({
+  label: { en: "Scheduled At" },
+  required: true,
+})
+```
+
+### `f.time(config)`
+
+Time only. Maps to `time` in PostgreSQL.
+
+```ts
+start: f.time({
+  label: { en: "Start Time" },
+  meta: { admin: { placeholder: "09:00" } },
+})
+```
+
+## Selection
+
+### `f.select(config)`
+
+Dropdown or radio selection. Maps to `varchar` (single) or `jsonb` (multiple).
+
+```ts
+status: f.select({
+  label: { en: "Status" },
+  required: true,
+  default: "draft",
+  options: [
+    { value: "draft", label: { en: "Draft" } },
+    { value: "published", label: { en: "Published" } },
+    { value: "archived", label: { en: "Archived" } },
+  ],
+})
+
+// Multiple selection
+tags: f.select({
+  label: { en: "Tags" },
+  multiple: true,
+  options: [
+    { value: "featured", label: { en: "Featured" } },
+    { value: "breaking", label: { en: "Breaking" } },
+    { value: "opinion", label: { en: "Opinion" } },
+  ],
+})
+```
+
+| Option | Type | Description |
+|---|---|---|
+| `options` | `Array<{ value, label }>` | Available choices |
+| `multiple` | `boolean` | Allow multiple selections |
+| `default` | `string \| string[]` | Default value(s) |
+
+## Structured Data
+
+### `f.json(config)`
+
+Arbitrary JSON data. Maps to `jsonb` in PostgreSQL.
+
+```ts
+metadata: f.json({
+  label: { en: "Metadata" },
+  schema: z.object({
+    color: z.string().optional(),
+    priority: z.number().optional(),
+  }),
+})
+```
+
+| Option | Type | Description |
+|---|---|---|
+| `schema` | `ZodSchema` | Optional Zod schema for validation |
+
+### `f.object(config)`
+
+Structured nested object. Maps to `jsonb` in PostgreSQL with typed sub-fields.
+
+```ts
+workingHours: f.object({
+  label: { en: "Working Hours" },
+  meta: { admin: { wrapper: "collapsible", layout: "grid" } },
+  fields: () => ({
+    monday: f.object({
+      label: { en: "Monday" },
+      meta: { admin: { layout: "inline" } },
+      fields: () => ({
+        isOpen: f.boolean({ label: { en: "Open" }, default: true }),
+        start: f.time({ label: { en: "Start" } }),
+        end: f.time({ label: { en: "End" } }),
+      }),
+    }),
+    tuesday: f.object({ ... }),
+    // ...
+  }),
+})
+```
+
+| Option | Type | Description |
+|---|---|---|
+| `fields` | `() => Record<string, Field>` | Nested field definitions |
+| `meta.admin.wrapper` | `"flat" \| "card" \| "collapsible"` | Admin display wrapper |
+| `meta.admin.layout` | `"stack" \| "grid" \| "inline"` | Admin layout |
+| `meta.admin.columns` | `number` | Grid columns (with `layout: "grid"`) |
+
+### `f.array(config)`
+
+Array of items. Maps to `jsonb` in PostgreSQL.
+
+```ts
+socialLinks: f.array({
+  label: { en: "Social Links" },
+  maxItems: 5,
+  meta: {
+    admin: {
+      orderable: true,
+      mode: "inline",
+      itemLabel: "Social link",
+    },
+  },
+  of: f.object({
+    label: { en: "Social Link" },
+    fields: () => ({
+      platform: f.select({
+        label: { en: "Platform" },
+        options: [
+          { value: "instagram", label: "Instagram" },
+          { value: "facebook", label: "Facebook" },
+          { value: "twitter", label: "Twitter" },
+        ],
+      }),
+      url: f.url({ label: { en: "URL" } }),
+    }),
+  }),
+})
+
+// Simple string array
+specialties: f.array({
+  label: { en: "Specialties" },
+  of: f.text({ label: { en: "Specialty" } }),
+  localized: true,
+})
+```
+
+| Option | Type | Description |
+|---|---|---|
+| `of` | `FieldDefinition` | Item field definition |
+| `minItems` | `number` | Minimum array length |
+| `maxItems` | `number` | Maximum array length |
+| `meta.admin.orderable` | `boolean` | Drag-and-drop reordering |
+| `meta.admin.mode` | `"inline" \| "modal" \| "drawer"` | Admin editing mode |
+| `meta.admin.itemLabel` | `string` | Label for items |
+
+## Relations
+
+### `f.relation(config)`
+
+Reference to another collection. See [Relations](/docs/server/relations) for full details.
+
+```ts
+// belongsTo (foreign key)
+author: f.relation({
+  to: "users",
+  label: { en: "Author" },
+  required: true,
+  onDelete: "cascade",
+})
+
+// hasMany through junction
+services: f.relation({
+  to: "services",
+  hasMany: true,
+  through: "barberServices",
+  sourceField: "barber",
+  targetField: "service",
+  label: { en: "Services" },
+})
+```
+
+## Content Fields (Admin Module)
+
+These fields are added by the admin module (`@questpie/admin/server`).
+
+### `f.upload(config)`
+
+File upload reference. Creates a foreign key to an upload collection (typically `assets`).
+
+```ts
+avatar: f.upload({
+  to: "assets",
+  label: { en: "Profile Photo" },
+  mimeTypes: ["image/*"],
+  maxSize: 5_000_000,
+  meta: {
+    admin: {
+      accept: "image/*",
+      previewVariant: "compact",  // "card" | "compact" | "thumbnail"
+    },
+  },
+})
+```
+
+| Option | Type | Description |
+|---|---|---|
+| `to` | `string` | Upload collection name (usually `"assets"`) |
+| `mimeTypes` | `string[]` | Allowed MIME types |
+| `maxSize` | `number` | Max file size in bytes |
+
+### `f.richText(config)`
+
+Rich text editor. Maps to `jsonb` storing structured content (TipTap/ProseMirror format).
+
+```ts
+bio: f.richText({
+  label: { en: "Biography" },
+  localized: true,
+})
+```
+
+The admin renders a full WYSIWYG editor with toolbar, slash commands, and image support.
+
+### `f.blocks(config)`
+
+Block-based content editor. Maps to `jsonb` storing an array of typed blocks.
+
+```ts
+content: f.blocks({
+  label: { en: "Content" },
+  localized: true,
+})
+```
+
+Blocks are defined separately using the block builder and registered via `.blocks()`. See [Blocks System](/docs/admin/blocks-system).
+
+## Common Field Options
+
+All field types support these base options:
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `label` | `I18nText` | — | Display label: `{ en: "Name", sk: "Meno" }` |
+| `description` | `I18nText` | — | Help text shown below the field |
+| `required` | `boolean` | `false` | NOT NULL in DB, required in input |
+| `nullable` | `boolean` | — | Explicitly allow null |
+| `default` | `T \| () => T` | — | Default value or factory |
+| `input` | `boolean \| "optional"` | `true` | Include in create/update input |
+| `output` | `boolean` | `true` | Include in query output |
+| `localized` | `boolean` | `false` | Store per locale in i18n table |
+| `meta` | `object` | — | Arbitrary metadata (admin hints, etc.) |
+| `access` | `FieldAccess` | — | Field-level access rules |
+| `hooks` | `FieldHooks` | — | Field-level lifecycle callbacks |
+| `virtual` | `boolean \| SQL` | — | No DB column, or computed SQL |
+
+## Custom Field Types
+
+You can register custom field types through the builder:
+
+```ts
+import { field } from "questpie/server/fields";
+import { varchar } from "drizzle-orm/pg-core";
+import { z } from "zod";
+
+const slugField = field<{ maxLength?: number }, string>()({
+  type: "slug",
+  _value: undefined as unknown as string,
+  toColumn: (name, config) =>
+    varchar(name, { length: config.maxLength ?? 255 }),
+  toZodSchema: (config) =>
+    z.string().max(config.maxLength ?? 255).regex(/^[a-z0-9-]+$/),
+  getOperators: () => ({
+    column: { eq: (col, val) => eq(col, val) },
+    jsonb: {},
+  }),
+  getMetadata: () => ({ type: "slug" }),
+});
+
+// Register in builder
+const qb = q.fields({ slug: slugField });
+
+// Use in collections
+.fields((f) => ({
+  slug: f.slug({ maxLength: 100 }),
+}))
+```
+
+See [Custom Field Type guide](/docs/guides/custom-field-type) for a complete walkthrough.
+
+## Common Mistakes
+
+- **Using `f.json()` when `f.object()` is better** — `f.object()` gives you typed sub-fields with admin form rendering. `f.json()` is for truly unstructured data.
+- **Forgetting `localized: true`** — Without it, the field stores a single value. With it, the field stores one value per locale in a separate i18n table.
+- **Setting `required` on relations without `onDelete`** — A required relation with `onDelete: "restrict"` (default) prevents deleting the related record. Use `"cascade"` or `"set null"` as appropriate.
+
+## Related Pages
+
+- [Field Builder](/docs/server/field-builder) — How the `.fields()` callback works
+- [Relations](/docs/server/relations) — All relation types
+- [Reactive Fields](/docs/server/reactive-fields) — compute, hidden, readOnly, disabled
+- [Custom Field Type](/docs/guides/custom-field-type) — Build your own field type
+- [Field API Reference](/docs/reference/field-api) — Complete type signatures

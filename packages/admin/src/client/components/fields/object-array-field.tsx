@@ -5,7 +5,7 @@
  * Similar to EmbeddedCollectionField but with inline field definitions.
  */
 
-import { CaretDown, CaretUp, Pencil, Plus, Trash } from "@phosphor-icons/react";
+import { Icon } from "@iconify/react";
 import * as React from "react";
 import { useFieldArray, useFormContext, useWatch } from "react-hook-form";
 import type { FieldDefinition } from "../../builder/field/field";
@@ -13,7 +13,6 @@ import { createFieldRegistryProxy } from "../../builder/proxies";
 import { useResolveText, useTranslation } from "../../i18n/hooks";
 import { cn } from "../../lib/utils";
 import { selectAdmin, useAdminStore } from "../../runtime";
-import { FormField } from "../../views/collection/form-field";
 import { Button } from "../ui/button";
 import {
 	Dialog,
@@ -70,19 +69,47 @@ function ItemFieldRenderer({
 }: ItemFieldRendererProps) {
 	const resolveText = useResolveText();
 	const fullName = `${parentName}.${fieldName}`;
-	const fieldType = fieldDef.name;
 	const options = fieldDef["~options"] || {};
 
+	// Get the component from the field definition (registry-based)
+	const Component = fieldDef.field?.component as
+		| React.ComponentType<any>
+		| undefined;
+
+	if (!Component) {
+		return (
+			<div className="text-sm text-destructive">
+				No component for field type: {fieldDef.name}
+			</div>
+		);
+	}
+
+	// Strip UI-specific options that are handled separately
+	const {
+		label,
+		description,
+		placeholder,
+		required,
+		disabled: optionsDisabled,
+		readOnly,
+		hidden,
+		localized,
+		locale,
+		...fieldSpecificOptions
+	} = options;
+
 	return (
-		<FormField
+		<Component
 			name={fullName}
-			label={resolveText(options.label)}
-			description={resolveText(options.description)}
-			placeholder={resolveText(options.placeholder)}
-			required={options.required}
-			disabled={disabled || options.disabled}
-			type={fieldType as any}
-			options={options.options}
+			label={resolveText(label)}
+			description={resolveText(description)}
+			placeholder={resolveText(placeholder)}
+			required={required}
+			disabled={disabled || optionsDisabled}
+			readOnly={readOnly}
+			localized={localized}
+			locale={locale}
+			{...fieldSpecificOptions}
 		/>
 	);
 }
@@ -324,7 +351,7 @@ export function ObjectArrayField({
 														title="Move up"
 														aria-label="Move item up"
 													>
-														<CaretUp className="h-3 w-3" />
+														<Icon icon="ph:caret-up" className="h-3 w-3" />
 													</Button>
 													<Button
 														type="button"
@@ -336,7 +363,7 @@ export function ObjectArrayField({
 														title="Move down"
 														aria-label="Move item down"
 													>
-														<CaretDown className="h-3 w-3" />
+														<Icon icon="ph:caret-down" className="h-3 w-3" />
 													</Button>
 												</>
 											)}
@@ -354,7 +381,7 @@ export function ObjectArrayField({
 													title={t("common.edit")}
 													aria-label={t("common.edit")}
 												>
-													<Pencil className="h-3 w-3" />
+													<Icon icon="ph:pencil" className="h-3 w-3" />
 												</Button>
 											)}
 											{canRemove && (
@@ -368,7 +395,7 @@ export function ObjectArrayField({
 													title={t("common.remove")}
 													aria-label={t("common.remove")}
 												>
-													<Trash className="h-3 w-3" />
+													<Icon icon="ph:trash" className="h-3 w-3" />
 												</Button>
 											)}
 										</div>
@@ -388,7 +415,7 @@ export function ObjectArrayField({
 					onClick={handleAdd}
 					disabled={disabled}
 				>
-					<Plus className="h-4 w-4" />
+					<Icon icon="ph:plus" className="h-4 w-4" />
 					{addLabel}
 				</Button>
 			)}

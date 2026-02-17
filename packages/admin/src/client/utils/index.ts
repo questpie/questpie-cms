@@ -25,11 +25,6 @@ export {
 	withQuery,
 } from "./routes";
 
-export {
-	type WrapLocalizedOptions,
-	wrapLocalizedNestedValues,
-} from "./wrap-localized";
-
 /**
  * Utility functions for admin package
  */

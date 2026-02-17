@@ -9,7 +9,7 @@ import {
 	type ValidationMessage,
 	validationMessagesEN,
 } from "#questpie/shared/i18n/index.js";
-import { backendMessagesEN } from "./messages/en.js";
+import { messages } from "./messages/index.js";
 
 // ============================================================================
 // Types
@@ -36,7 +36,7 @@ export type MessageValue = string | PluralMessages;
 // Re-export new structure
 // ============================================================================
 
-export { backendMessagesEN, backendMessagesSK } from "./messages/index.js";
+export { messages } from "./messages/index.js";
 
 // ============================================================================
 // Combined Messages (backwards compatibility)
@@ -46,11 +46,11 @@ export { backendMessagesEN, backendMessagesSK } from "./messages/index.js";
  * Convert shared validation messages to backend MessageValue format
  */
 function convertValidationMessages(
-	messages: Record<string, ValidationMessage>,
+	msgs: Record<string, ValidationMessage>,
 ): Record<string, MessageValue> {
 	const result: Record<string, MessageValue> = {};
 
-	for (const [key, value] of Object.entries(messages)) {
+	for (const [key, value] of Object.entries(msgs)) {
 		if (typeof value === "string") {
 			result[key] = value;
 		} else {
@@ -72,13 +72,13 @@ function convertValidationMessages(
  * All English messages for backend (backend + validation combined)
  *
  * Use this when you need all messages including validation.
- * Use `backendMessagesEN` if you only need backend-specific messages.
+ * Use `messages.en` if you only need backend-specific messages.
  */
 export const allBackendMessagesEN: Record<string, MessageValue> = {
 	// Shared validation messages (from questpie/shared)
 	...convertValidationMessages(validationMessagesEN),
 	// Backend-specific messages
-	...backendMessagesEN,
+	...messages.en,
 };
 
 // ============================================================================
@@ -99,9 +99,13 @@ export function getBackendMessages(
 		return { ...allBackendMessagesEN, ...customMessages[locale] };
 	}
 
-	// For now, only English is bundled
-	if (locale === "en") {
-		return allBackendMessagesEN;
+	// Check bundled messages
+	const bundledMessages = messages[locale as keyof typeof messages];
+	if (bundledMessages) {
+		return {
+			...convertValidationMessages(validationMessagesEN),
+			...bundledMessages,
+		};
 	}
 
 	// Fallback to English

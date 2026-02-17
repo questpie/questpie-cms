@@ -52,16 +52,6 @@ function trackDependencies<T>(
 	return { result, deps: [...new Set(deps)] }; // dedupe
 }
 
-/**
- * Execute a function with tracked values (for computing)
- */
-export function computeWithTracking<T>(
-	values: Record<string, any>,
-	computeFn: (values: Record<string, any>) => T,
-): TrackingResult<T> {
-	return trackDependencies(values, computeFn);
-}
-
 // ============================================================================
 // Types
 // ============================================================================
@@ -372,10 +362,12 @@ export function useFieldHooks({
 			if (compute) return;
 
 			// Set the value first
+			// Note: shouldValidate is false to avoid blocking on complex fields like richText
+			// Validation will still happen on form submit
 			form.setValue(fullFieldName, value, {
 				shouldDirty: true,
 				shouldTouch: true,
-				shouldValidate: true,
+				shouldValidate: false,
 			});
 
 			// Then call user's onChange if provided

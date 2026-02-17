@@ -89,40 +89,35 @@ export function computeDefaultColumns(
 		return defaultCols;
 	}
 
-	// No configured columns - auto-detect defaults
+	// No configured columns - show ALL fields by default
+	// This ensures users see everything when no explicit column config is provided
 	const defaultCols: string[] = [titleColumn];
 
 	if (!fields || Object.keys(fields).length === 0) {
 		return defaultCols;
 	}
 
-	// Get content fields (non-system, non-excluded types)
-	const contentFields = Object.entries(fields)
-		.filter(([key, fieldDef]) => {
-			// Skip system fields
-			if (SYSTEM_FIELDS.has(key)) return false;
+	// Add all content fields (non-system fields first, then system fields)
+	const contentFields: string[] = [];
+	const systemFields: string[] = [];
 
-			// Skip the title field if we're already showing it
-			if (useTitleField && key === titleFieldName) return false;
+	for (const [key, fieldDef] of Object.entries(fields)) {
+		// Skip the title field if we're already showing it
+		if (useTitleField && key === titleFieldName) continue;
 
-			// Skip complex field types
-			const fieldType = fieldDef?.name ?? "text";
-			if (EXCLUDED_DEFAULT_FIELD_TYPES.has(fieldType)) return false;
+		if (SYSTEM_FIELDS.has(key)) {
+			systemFields.push(key);
+		} else {
+			contentFields.push(key);
+		}
+	}
 
-			return true;
-		})
-		.map(([key]) => key);
-
-	// Add up to MAX_DEFAULT_CONTENT_FIELDS content fields
-	const selectedContentFields = contentFields.slice(
-		0,
-		MAX_DEFAULT_CONTENT_FIELDS,
-	);
-	defaultCols.push(...selectedContentFields);
+	// Add all content fields
+	defaultCols.push(...contentFields);
 
 	// Add createdAt at the end if timestamps enabled (from meta or field existence)
 	const hasTimestamps = options?.meta?.timestamps ?? !!fields.createdAt;
-	if (hasTimestamps && fields.createdAt) {
+	if (hasTimestamps && fields.createdAt && !defaultCols.includes("createdAt")) {
 		defaultCols.push("createdAt");
 	}
 

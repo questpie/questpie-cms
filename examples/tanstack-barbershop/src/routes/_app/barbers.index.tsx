@@ -5,9 +5,10 @@
  */
 
 import { ArrowRight, User } from "@phosphor-icons/react";
-import { createFileRoute } from "@tanstack/react-router";
 import { RichTextRenderer, type TipTapDoc } from "@questpie/admin/client";
+import { createFileRoute } from "@tanstack/react-router";
 import { getAllBarbers } from "@/lib/getBarbers.function";
+import { useTranslation } from "@/lib/providers/locale-provider";
 
 export const Route = createFileRoute("/_app/barbers/")({
 	loader: async () => {
@@ -19,17 +20,17 @@ export const Route = createFileRoute("/_app/barbers/")({
 
 function BarbersPage() {
 	const { barbers } = Route.useLoaderData();
+	const { t } = useTranslation();
 
 	return (
 		<div className="py-20 px-6">
 			<div className="container max-w-6xl mx-auto">
 				<header className="mb-16 text-center max-w-2xl mx-auto">
 					<h1 className="text-4xl md:text-5xl font-bold tracking-tight mb-4">
-						Meet Our Team
+						{t("barbers.title")}
 					</h1>
 					<p className="text-xl text-muted-foreground">
-						Our master barbers are dedicated to the craft of traditional
-						grooming and modern styling.
+						{t("barbers.subtitle")}
 					</p>
 				</header>
 
@@ -57,7 +58,7 @@ function BarbersPage() {
 
 								<div className="absolute bottom-0 left-0 right-0 p-6 translate-y-full group-hover:translate-y-0 transition-transform duration-500 bg-gradient-to-t from-black/80 to-transparent">
 									<span className="text-white font-bold inline-flex items-center gap-2">
-										View Profile <ArrowRight className="size-4" />
+										{t("barbers.viewProfile")} <ArrowRight className="size-4" />
 									</span>
 								</div>
 							</div>
@@ -88,7 +89,9 @@ function BarbersPage() {
 
 				{barbers.length === 0 && (
 					<div className="text-center py-20 bg-muted/30 border border-dashed border-border">
-						<p className="text-xl text-muted-foreground">No barbers found.</p>
+						<p className="text-xl text-muted-foreground">
+							{t("barbers.empty")}
+						</p>
 					</div>
 				)}
 			</div>

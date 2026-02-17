@@ -11,14 +11,16 @@
  * - Responsive: Popover on desktop, Drawer on mobile
  */
 
-import { Plus } from "@phosphor-icons/react";
+import { Icon } from "@iconify/react";
 import { createQuestpieQueryOptions } from "@questpie/tanstack-query";
 import { useQueryClient } from "@tanstack/react-query";
 import type { Questpie } from "questpie";
 import * as React from "react";
 import { toast } from "sonner";
+import { useAdminConfig } from "../../hooks/use-admin-config";
 import { useResolveText, useTranslation } from "../../i18n/hooks";
-import { selectAdmin, selectClient, useAdminStore } from "../../runtime";
+import { selectClient, useAdminStore } from "../../runtime";
+import { resolveIconElement } from "../component-renderer";
 import { SelectSingle } from "../primitives/select-single";
 import type { SelectOption } from "../primitives/types";
 import { ResourceSheet } from "../sheets/resource-sheet";
@@ -179,13 +181,10 @@ export function RelationPicker<T extends Questpie<any>>({
 		string | undefined
 	>();
 
-	// Get admin config for target collection
-	const admin = useAdminStore(selectAdmin);
-	const collections = admin?.getCollections() ?? {};
-	const targetConfig = collections[targetCollection];
-	const CollectionIcon = (targetConfig as any)?.icon as
-		| React.ComponentType<{ className?: string }>
-		| undefined;
+	// Get admin config for target collection from server
+	const { data: serverConfig } = useAdminConfig();
+	const targetConfig = serverConfig?.collections?.[targetCollection];
+	const collectionIconRef = (targetConfig as any)?.icon;
 	const displayColumns = React.useMemo(() => {
 		if (columns && columns.length > 0) return columns;
 		if (display === "table" && targetConfig) {
@@ -208,6 +207,9 @@ export function RelationPicker<T extends Questpie<any>>({
 	const [fetchedItems, setFetchedItems] = React.useState<Map<string, any>>(
 		() => new Map(),
 	);
+
+	// Track loading state for items
+	const [isLoadingItems, setIsLoadingItems] = React.useState(false);
 
 	// Load options from server with search
 	const loadOptions = React.useCallback(
@@ -251,9 +253,9 @@ export function RelationPicker<T extends Questpie<any>>({
 						label: renderOption
 							? String(renderOption(item))
 							: item._title || item.id || "",
-						icon: CollectionIcon ? (
-							<CollectionIcon className="size-3.5 text-muted-foreground" />
-						) : undefined,
+						icon: resolveIconElement(collectionIconRef, {
+							className: "size-3.5 text-muted-foreground",
+						}),
 					}));
 			} catch (error) {
 				console.error("Failed to load relation options:", error);
@@ -267,7 +269,7 @@ export function RelationPicker<T extends Questpie<any>>({
 			filter,
 			selectedIds,
 			renderOption,
-			CollectionIcon,
+			collectionIconRef,
 		],
 	);
 
@@ -304,19 +306,30 @@ export function RelationPicker<T extends Questpie<any>>({
 
 	// Fetch selected items on mount for display
 	React.useEffect(() => {
-		if (!client || !selectedIds.length) return;
+		if (!client || !selectedIds.length) {
+			setIsLoadingItems(false);
+			return;
+		}
 
 		// Fetch any selected items that we don't have in cache
 		const missingIds = selectedIds.filter((id) => !fetchedItems.has(id));
-		if (missingIds.length === 0) return;
+		if (missingIds.length === 0) {
+			setIsLoadingItems(false);
+			return;
+		}
+
+		setIsLoadingItems(true);
+
+		let cancelled = false;
 
 		(async () => {
 			try {
 				for (const id of missingIds) {
+					if (cancelled) return;
 					const response = await (client as any).collections[
 						targetCollection
 					].findOne({ where: { id } });
-					if (response) {
+					if (!cancelled && response) {
 						// Immutable update - spread prev and add new entry
 						setFetchedItems((prev) => new Map([...prev, [id, response]]));
 					}
@@ -324,8 +337,16 @@ export function RelationPicker<T extends Questpie<any>>({
 			} catch (error) {
 				console.error("Failed to fetch selected items:", error);
 				toast.error("Failed to load selected items");
+			} finally {
+				if (!cancelled) {
+					setIsLoadingItems(false);
+				}
 			}
 		})();
+
+		return () => {
+			cancelled = true;
+		};
 	}, [client, targetCollection, selectedIds, fetchedItems]);
 
 	// Get selected items from cache
@@ -396,9 +417,9 @@ export function RelationPicker<T extends Questpie<any>>({
 						htmlFor={name}
 						className="text-sm font-medium flex items-center gap-1.5"
 					>
-						{CollectionIcon && (
-							<CollectionIcon className="size-3.5 text-muted-foreground" />
-						)}
+						{resolveIconElement(collectionIconRef, {
+							className: "size-3.5 text-muted-foreground",
+						})}
 						{resolvedLabel}
 						{required && <span className="text-destructive">*</span>}
 						{maxItems && (
@@ -412,12 +433,12 @@ export function RelationPicker<T extends Questpie<any>>({
 			)}
 
 			{/* Selected Items Display */}
-			{selectedItems && selectedItems.length > 0 && (
+			{(selectedItems.length > 0 || isLoadingItems) && (
 				<RelationItemsDisplay
 					display={display}
 					items={selectedItems}
 					collection={targetCollection}
-					collectionIcon={CollectionIcon}
+					collectionIcon={collectionIconRef}
 					editable={!readOnly && !disabled}
 					orderable={orderable && !readOnly && !disabled}
 					columns={displayColumns}
@@ -426,6 +447,8 @@ export function RelationPicker<T extends Questpie<any>>({
 					renderItem={renderItem}
 					actions={displayActions}
 					collectionConfig={targetConfig as any}
+					isLoading={isLoadingItems}
+					loadingCount={selectedIds.length || 3}
 				/>
 			)}
 
@@ -470,13 +493,13 @@ export function RelationPicker<T extends Questpie<any>>({
 						title={createLabel}
 						aria-label={createLabel}
 					>
-						<Plus className="h-4 w-4" />
+						<Icon icon="ph:plus" className="h-4 w-4" />
 					</Button>
 				</div>
 			)}
 
-			{/* Empty State */}
-			{selectedIds.length === 0 && (
+			{/* Empty State - only show when not loading */}
+			{selectedIds.length === 0 && !isLoadingItems && (
 				<div className="rounded-lg border border-dashed p-4 text-center">
 					<p className="text-sm text-muted-foreground">
 						{resolvedPlaceholder || emptyLabel}

@@ -1,7 +1,7 @@
 /**
  * Slovak Backend Messages
  */
-export const backendMessagesSK = {
+export default {
 	// General errors
 	"error.notFound": "Záznam nebol nájdený",
 	"error.notFound.withId": "{{resource}} nebol nájdený: {{id}}",

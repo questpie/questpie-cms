@@ -38,17 +38,55 @@ export const sk = {
 	"booking.success.backHome": "Späť na domov",
 	"booking.error.slotTaken": "Tento termín už nie je dostupný",
 	"booking.error.generic": "Niečo sa pokazilo. Skúste to znova.",
+	"booking.stepOf": "Krok {current} z {total}",
+	"booking.policy.title": "Naše pravidlá",
+	"booking.policy.arrive": "Prosím príďte 5 minút pred termínom.",
+	"booking.policy.cancel": "Zrušenie musí byť vykonané aspoň 24h vopred.",
+	"booking.policy.payment": "Prijímame hotovosť a všetky bežné platobné karty.",
+	"booking.total": "Celkom",
+	"booking.service": "Služba",
+	"booking.barber": "Holič",
+	"booking.appointment": "Termín",
+	"booking.selectServiceToStart": "Vyberte službu pre začatie",
+	"booking.phoneOptional": "Telefón (voliteľné)",
+	"booking.notesForBarber": "Poznámky pre holiča (voliteľné)",
+	"booking.notesPlaceholder": "Je niečo, čo by sme mali vedieť?",
+	"booking.booking": "Rezervujem...",
+	"booking.confirmBooking": "Potvrdiť rezerváciu",
+	"booking.noSlotsForDay":
+		"Pre tento deň nie sú dostupné žiadne termíny. Skúste iný dátum.",
+	"booking.confirmed.title": "Rezervácia potvrdená!",
+	"booking.confirmed.message":
+		"Prijali sme vašu žiadosť. Potvrdzujúci email bol odoslaný na",
+	"booking.returnHome": "Späť na domov",
+	"booking.needToChange": "Potrebujete niečo zmeniť? Zavolajte nám na",
+	"booking.error.loadSlots": "Nepodarilo sa načítať dostupné časy",
+	"booking.error.loadSlotsDesc": "Skúste vybrať iný dátum alebo holiča.",
+	"booking.error.success": "Termín bol úspešne rezervovaný!",
+	"booking.error.successDesc": "Poslali sme potvrdenie na váš email.",
+	"booking.error.failed": "Nepodarilo sa rezervovať termín",
+	"booking.error.failedDesc":
+		"Niečo sa pokazilo. Skúste to znova alebo nás kontaktujte.",
+	"booking.error.missing": "Chýbajúce informácie",
+	"booking.error.missingDesc": "Prosím dokončite všetky predchádzajúce kroky.",
+	"booking.error.required": "Chýbajú povinné polia",
+	"booking.error.requiredDesc": "Prosím vyplňte meno a emailovú adresu.",
 
 	// Services
 	"services.title": "Naše služby",
-	"services.subtitle": "Kvalitné služby prispôsobené vášmu štýlu",
+	"services.subtitle":
+		"Prémiové služby prispôsobené vášmu štýlu. Kombinujeme tradičné techniky s modernou estetikou.",
 	"services.duration": "{duration} min",
+	"services.minutes": "minút",
 	"services.book": "Rezervovať službu",
+	"services.bookNow": "Rezervovať",
 	"services.viewAll": "Zobraziť všetky služby",
+	"services.empty": "Žiadne služby nenájdené.",
 
 	// Barbers
-	"barbers.title": "Náš tím",
-	"barbers.subtitle": "Šikovní profesionáli venovaní vášmu vzhľadu",
+	"barbers.title": "Spoznajte náš tím",
+	"barbers.subtitle":
+		"Naši majstri holiči sa venujú umeniu tradičného holenia a moderného stylingu.",
 	"barbers.viewProfile": "Zobraziť profil",
 	"barbers.bookWith": "Rezervovať u {name}",
 	"barbers.available": "Dostupný",
@@ -58,6 +96,7 @@ export const sk = {
 	"barbers.about": "O mne",
 	"barbers.services": "Ponúkané služby",
 	"barbers.reviews": "Recenzie",
+	"barbers.empty": "Žiadni holiči nenájdení.",
 
 	// Reviews
 	"reviews.title": "Čo hovoria klienti",
@@ -133,4 +172,18 @@ export const sk = {
 	"cta.contactUs": "Kontaktujte nás",
 	"cta.viewServices": "Zobraziť služby",
 	"cta.meetTeam": "Spoznajte tím",
+
+	// Blocks
+	"blocks.team.viewAll": "Spoznajte celý tím",
+	"blocks.team.empty": "Žiadni členovia tímu",
+	"blocks.services.viewAll": "Zobraziť všetky služby",
+	"blocks.services.empty": "Žiadne služby k dispozícii",
+	"blocks.reviews.empty": "Zatiaľ žiadne recenzie",
+	"blocks.reviews.anonymous": "Anonymný",
+	"blocks.gallery.empty": "Žiadne obrázky",
+	"blocks.hours.closed": "Zatvorené",
+	"blocks.contact.phone": "Telefón",
+	"blocks.contact.email": "Email",
+	"blocks.contact.address": "Adresa",
+	"blocks.contact.getDirections": "Navigovať",
 } as const;

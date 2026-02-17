@@ -1,0 +1,168 @@
+---
+title: Custom View Type
+description: Create custom list or edit views and register them through the admin builder
+---
+
+# Custom View Type
+
+Custom views let you replace the default table or form with your own component. Views are registry entries — the admin panel resolves them by ID, not by hardcoded imports.
+
+## When to Use Custom Views
+
+- **Kanban board** instead of a table for task-like collections
+- **Calendar view** for date-heavy collections (appointments, events)
+- **Split view** with form on one side and preview on the other
+- **Gallery view** for image-heavy collections (media, products)
+
+## Step 1: Create the View Component
+
+A list view receives the collection config and data:
+
+```tsx
+// admin/views/kanban-view.tsx
+import { useCollectionData } from "@questpie/admin/client";
+
+interface KanbanViewProps {
+  collection: CollectionConfig;
+}
+
+export function KanbanView({ collection }: KanbanViewProps) {
+  const { data, isLoading } = useCollectionData(collection.name);
+
+  if (isLoading) return <div>Loading...</div>;
+
+  // Group records by status field
+  const statuses = ["todo", "in-progress", "done"];
+  const groups = statuses.map((status) => ({
+    status,
+    items: data?.docs.filter((doc) => doc.status === status) ?? [],
+  }));
+
+  return (
+    <div className="flex gap-4 p-4">
+      {groups.map(({ status, items }) => (
+        <div key={status} className="flex-1 min-w-[250px]">
+          <h3 className="font-semibold mb-3 capitalize">{status}</h3>
+          <div className="space-y-2">
+            {items.map((item) => (
+              <div
+                key={item.id}
+                className="p-3 bg-card rounded border cursor-pointer hover:border-primary"
+                onClick={() => {
+                  // Navigate to edit view
+                  window.location.href = `/admin/collections/${collection.name}/${item.id}`;
+                }}
+              >
+                <p className="font-medium">{item.title ?? item.name ?? item.id}</p>
+                <p className="text-sm text-muted-foreground">
+                  {new Date(item.createdAt).toLocaleDateString()}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+```
+
+## Step 2: Register the View
+
+```ts
+import { qa, adminModule } from "@questpie/admin/client";
+import { KanbanView } from "./views/kanban-view";
+
+export const admin = qa<AppCMS>()
+  .use(adminModule)
+  .views({
+    kanban: {
+      kind: "list",
+      component: KanbanView,
+      label: "Kanban",
+      icon: "ph:kanban",
+    },
+  });
+```
+
+The `kind` determines where the view appears:
+- `"list"` — appears as an option in the collection list page
+- `"edit"` — appears as an option in the record edit page
+
+## Step 3: Reference from Server (Optional)
+
+If you want a collection to default to your custom view:
+
+```ts
+.list({
+  defaultView: "kanban",
+})
+```
+
+Without this, the default table view is used and users can switch to kanban from the view selector.
+
+## Custom Edit View Example
+
+```tsx
+// admin/views/split-form-view.tsx
+export function SplitFormView({ collection, record }: EditViewProps) {
+  return (
+    <div className="grid grid-cols-2 gap-4">
+      <div className="p-4">
+        {/* Form fields */}
+        <DefaultFormFields collection={collection} record={record} />
+      </div>
+      <div className="p-4 border-l">
+        {/* Preview or sidebar content */}
+        <iframe src={`/preview/${record.slug}`} className="w-full h-full" />
+      </div>
+    </div>
+  );
+}
+```
+
+Register:
+
+```ts
+.views({
+  splitForm: {
+    kind: "edit",
+    component: SplitFormView,
+    label: "Split View",
+    icon: "ph:columns",
+  },
+})
+```
+
+## View Props
+
+### List View Props
+
+```ts
+interface ListViewProps {
+  collection: CollectionConfig;   // Collection metadata from introspection
+}
+```
+
+### Edit View Props
+
+```ts
+interface EditViewProps {
+  collection: CollectionConfig;
+  record: Record<string, unknown> | null;  // null for create
+  isCreate: boolean;
+}
+```
+
+## Design Guidelines
+
+- Keep view IDs stable — they become part of the introspection contract
+- Reuse built-in hooks (`useCollectionData`, `useCollectionMutation`) for data fetching
+- Support the same URL parameters as built-in views (sorting, pagination, filters) for consistency
+- Test with empty collections and large datasets
+
+## Related Pages
+
+- [View Registry](/docs/admin/view-registry-list-and-form) — Built-in views
+- [Registry API](/docs/reference/registry-api) — View registry type
+- [qa Builder API](/docs/reference/qa-builder-api) — `.views()` method

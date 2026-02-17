@@ -1,0 +1,15 @@
+{
+	"title": "Client SDK",
+	"defaultOpen": true,
+	"pages": [
+		"index",
+		"tanstack-query",
+		"realtime-streaming",
+		"type-inference",
+		"adapters-overview",
+		"hono-adapter",
+		"elysia-adapter",
+		"nextjs-adapter",
+		"openapi"
+	]
+}

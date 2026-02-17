@@ -5,25 +5,47 @@
  * Renders global settings form with sections, tabs, sidebar, validation.
  */
 
-import { Check, SpinnerGap } from "@phosphor-icons/react";
+import { Icon } from "@iconify/react";
 import { QuestpieClientError } from "questpie/client";
 import * as React from "react";
 import { FormProvider, useForm } from "react-hook-form";
 import { toast } from "sonner";
-import type { GlobalBuilderState } from "../../builder/global/types";
-import type { ComponentRegistry } from "../../builder/types/field-types";
+import type {
+	ComponentRegistry,
+	FormViewConfig,
+} from "../../builder/types/field-types";
+import type { GlobalBuilderState } from "../../builder/types/global-types";
 import { LocaleSwitcher } from "../../components/locale-switcher";
 import { Button } from "../../components/ui/button";
-import { useGlobal, useGlobalUpdate } from "../../hooks/use-global";
+import { useGlobal, useGlobalUpdate } from "../../hooks";
+import { useGlobalFields } from "../../hooks/use-global-fields";
+import { useReactiveFields } from "../../hooks/use-reactive-fields";
+import { useGlobalServerValidation } from "../../hooks/use-server-validation";
 import { useResolveText, useTranslation } from "../../i18n/hooks";
-import {
-	selectAdmin,
-	useAdminStore,
-	useSafeContentLocales,
-	useScopedLocale,
-} from "../../runtime";
-import { wrapLocalizedNestedValues } from "../../utils/wrap-localized";
+import { useSafeContentLocales, useScopedLocale } from "../../runtime";
 import { AutoFormFields } from "../collection/auto-form-fields";
+
+// ============================================================================
+// Helper Functions
+// ============================================================================
+
+/**
+ * Extract reactive configs from global schema fields.
+ * Used to determine which fields have server-side reactive behaviors.
+ */
+function extractReactiveConfigs(schema: any): Record<string, any> {
+	if (!schema?.fields) return {};
+
+	const configs: Record<string, any> = {};
+
+	for (const [fieldName, fieldDef] of Object.entries(schema.fields)) {
+		if ((fieldDef as any).reactive) {
+			configs[fieldName] = (fieldDef as any).reactive;
+		}
+	}
+
+	return configs;
+}
 
 // ============================================================================
 // Types
@@ -43,6 +65,11 @@ export interface GlobalFormViewProps {
 	 * Accepts GlobalBuilderState or any compatible config object
 	 */
 	config?: Partial<GlobalBuilderState> | Record<string, any>;
+
+	/**
+	 * View-specific configuration from registry/schema
+	 */
+	viewConfig?: FormViewConfig;
 
 	/**
 	 * Navigate function for routing
@@ -95,54 +122,28 @@ export interface GlobalFormViewProps {
 
 /**
  * GlobalFormView - Default form-based edit view for globals
- *
- * Features:
- * - Auto-generates form fields from global config
- * - Supports tabs, sections, and sidebar layout
- * - Keyboard shortcut (Cmd+S) to save
- * - Field-level validation errors from API
- * - Same layout and UX as collection FormView
- *
- * @example
- * ```tsx
- * // Used automatically via router when navigating to /admin/globals/:name
- * // Can also be used directly:
- * <GlobalFormView
- *   global="siteSettings"
- *   config={siteSettingsConfig}
- *   navigate={navigate}
- *   basePath="/admin"
- * />
- * ```
  */
 export default function GlobalFormView({
 	global: globalName,
 	config,
-	navigate,
-	basePath = "/admin",
+	viewConfig,
 	registry,
-	allGlobalsConfig,
 	showMeta = true,
 	headerActions,
 	onSuccess,
 	onError,
-}: GlobalFormViewProps): React.ReactElement {
+}: GlobalFormViewProps) {
 	const { t } = useTranslation();
 	const resolveText = useResolveText();
-	const admin = useAdminStore(selectAdmin);
+
+	const { data: globalData, isLoading: dataLoading } = useGlobal(globalName);
+	const { fields: schemaFields } = useGlobalFields(globalName);
+
 	const { locale: contentLocale, setLocale: setContentLocale } =
 		useScopedLocale();
 	const contentLocales = useSafeContentLocales();
 	const localeOptions = contentLocales?.locales ?? [];
 
-	// Fetch global data
-	const {
-		data: globalData,
-		isLoading,
-		error: fetchError,
-	} = useGlobal(globalName, { localeFallback: false });
-
-	// Update mutation
 	const updateMutation = useGlobalUpdate(globalName, {
 		onSuccess: (data) => {
 			toast.success(t("toast.saveSuccess"));
@@ -153,8 +154,12 @@ export default function GlobalFormView({
 		},
 	});
 
+	// Get validation resolver - uses server JSON Schema for validation
+	const { resolver } = useGlobalServerValidation(globalName);
+
 	const form = useForm({
 		defaultValues: (globalData ?? {}) as any,
+		resolver,
 	});
 
 	// Reset form when data loads
@@ -164,19 +169,35 @@ export default function GlobalFormView({
 		}
 	}, [form, globalData]);
 
+	// Extract reactive configs from schema for server-side reactive handlers
+	const reactiveConfigs = React.useMemo(
+		() => extractReactiveConfigs(schemaFields),
+		[schemaFields],
+	);
+
+	// Use reactive fields hook for server-side compute/hidden/readOnly/disabled
+	useReactiveFields({
+		collection: globalName,
+		mode: "global",
+		reactiveConfigs,
+		enabled: !dataLoading && Object.keys(reactiveConfigs).length > 0,
+		debounce: 300,
+	});
+
+	const resolvedConfig = React.useMemo(() => {
+		if (!viewConfig) return config;
+
+		return {
+			...(config ?? {}),
+			form: viewConfig,
+		};
+	}, [config, viewConfig]);
+
 	const onSubmit = React.useCallback(
 		async (data: any) => {
-			// Transform nested localized values with $i18n wrappers
-			const transformedData = config?.fields
-				? wrapLocalizedNestedValues(data, {
-						fields: config.fields,
-						blocks: admin.state.blocks,
-					})
-				: data;
-
 			try {
 				const result = await updateMutation.mutateAsync({
-					data: transformedData,
+					data,
 				});
 				if (result) {
 					form.reset(result as any);
@@ -211,7 +232,7 @@ export default function GlobalFormView({
 				);
 			}
 		},
-		[updateMutation, form, t, config?.fields, admin.state.blocks],
+		[updateMutation, form, t],
 	);
 
 	// Keyboard shortcut: Cmd+S to save
@@ -239,111 +260,70 @@ export default function GlobalFormView({
 		});
 	};
 
-	if (isLoading) {
+	if (dataLoading) {
 		return (
-			<div className="w-full">
-				<div className="flex h-64 items-center justify-center text-muted-foreground">
-					<SpinnerGap className="size-6 animate-spin" />
-				</div>
+			<div className="flex h-64 items-center justify-center text-muted-foreground">
+				<Icon icon="ph:spinner-gap" className="size-6 animate-spin" />
 			</div>
 		);
 	}
 
-	if (fetchError) {
-		return (
-			<div className="w-full">
-				<div className="rounded-lg border border-destructive/20 bg-destructive/5 p-6">
-					<h2 className="text-lg font-semibold text-destructive">
-						{t("toast.loadFailed")}
-					</h2>
-					<p className="mt-2 text-sm text-muted-foreground">
-						{fetchError.message}
-					</p>
-				</div>
-			</div>
-		);
-	}
-
-	const title = resolveText(config?.label, globalName);
-	const description = resolveText(config?.description);
+	const globalLabel = resolveText(
+		(resolvedConfig as any)?.label ?? schemaFields?._globalLabel,
+		globalName,
+	);
 
 	return (
-		<div className="w-full">
-			<FormProvider {...form}>
-				<form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-					{/* Header - Title, Meta & Actions */}
-					<div className="flex items-start justify-between">
-						<div>
-							<div className="flex items-center gap-3 flex-wrap">
-								<h1 className="text-2xl md:text-3xl font-extrabold tracking-tight">
-									{title}
-								</h1>
-								{localeOptions.length > 0 && (
-									<LocaleSwitcher
-										locales={localeOptions}
-										value={contentLocale}
-										onChange={setContentLocale}
-									/>
-								)}
-							</div>
-							{description && (
-								<p className="mt-1 text-sm text-muted-foreground">
-									{description}
-								</p>
-							)}
-							{/* Metadata - inline below title */}
-							{showMeta && globalData && (
-								<p className="mt-1 text-xs text-muted-foreground font-mono flex items-center gap-2 flex-wrap">
-									{(globalData as any).createdAt && (
-										<>
-											<span className="opacity-60">{t("form.created")} </span>
-											<span>{formatDate((globalData as any).createdAt)}</span>
-										</>
-									)}
-									{(globalData as any).updatedAt && (
-										<>
-											<span className="opacity-40">·</span>
-											<span>
-												<span className="opacity-60">{t("form.updated")} </span>
-												{formatDate((globalData as any).updatedAt)}
-											</span>
-										</>
-									)}
-								</p>
+		<FormProvider {...form}>
+			<form onSubmit={form.handleSubmit(onSubmit)} className="w-full space-y-4">
+				{/* Header - Title & Actions */}
+				<div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+					<div className="min-w-0 flex-1">
+						<div className="flex items-center gap-3">
+							<h1 className="text-2xl md:text-3xl font-extrabold tracking-tight">
+								{globalLabel}
+							</h1>
+							{localeOptions.length > 0 && (
+								<LocaleSwitcher
+									locales={localeOptions}
+									value={contentLocale}
+									onChange={setContentLocale}
+								/>
 							)}
 						</div>
-
-						<div className="flex items-center gap-2">
-							{headerActions}
-							<Button
-								type="submit"
-								disabled={isSubmitting || !form.formState.isDirty}
-								className="gap-2"
-							>
-								{isSubmitting ? (
-									<>
-										<SpinnerGap className="size-4 animate-spin" />
-										{t("common.loading")}
-									</>
-								) : (
-									<>
-										<Check size={16} />
-										{t("common.save")}
-									</>
-								)}
-							</Button>
-						</div>
+						{showMeta && globalData?.updatedAt && (
+							<p className="mt-1 text-xs text-muted-foreground">
+								{t("form.lastUpdated")}: {formatDate(globalData.updatedAt)}
+							</p>
+						)}
 					</div>
 
-					{/* Main Content - Form Fields */}
-					<AutoFormFields
-						collection={globalName as any}
-						config={config as any}
-						registry={registry}
-						allCollectionsConfig={allGlobalsConfig as any}
-					/>
-				</form>
-			</FormProvider>
-		</div>
+					<div className="flex items-center gap-2 shrink-0">
+						{headerActions}
+						<Button type="submit" disabled={isSubmitting} className="gap-2">
+							{isSubmitting ? (
+								<>
+									<Icon icon="ph:spinner-gap" className="size-4 animate-spin" />
+									{t("common.loading")}
+								</>
+							) : (
+								<>
+									<Icon icon="ph:check" width={16} height={16} />
+									{t("common.save")}
+								</>
+							)}
+						</Button>
+					</div>
+				</div>
+
+				{/* Main Content - Form Fields */}
+				<AutoFormFields
+					collection={globalName}
+					mode="global"
+					config={resolvedConfig}
+					registry={registry}
+				/>
+			</form>
+		</FormProvider>
 	);
 }

@@ -1,6 +1,6 @@
 # Documentation Structure
 
-Proposed clean structure for QuestPie documentation.
+Proposed clean structure for QUESTPIE documentation.
 
 ## Directory Layout
 

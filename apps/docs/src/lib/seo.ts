@@ -1,268 +1,298 @@
 /**
- * SEO configuration and helpers for QUESTPIE CMS documentation
+ * SEO configuration and helpers for QUESTPIE docs + landing
  */
 
 export const siteConfig = {
-  name: "QUESTPIE CMS",
-  title: "QUESTPIE CMS - Type-Safe Headless CMS",
-  description:
-    "A powerful, type-safe headless CMS built with Drizzle ORM, Better Auth, pg-boss, and Flydrive. Just PostgreSQL, native libraries, not abstractions.",
-  url: "https://questpie.com",
-  ogImage: "/og-image.svg",
-  twitterHandle: "@questpie",
-  githubUrl: "https://github.com/AnomalyInnovations/questpie-cms",
-  keywords: [
-    "headless cms",
-    "typescript cms",
-    "drizzle orm",
-    "postgresql cms",
-    "better auth",
-    "pg-boss",
-    "flydrive",
-    "hono",
-    "elysia",
-    "next.js",
-    "tanstack",
-    "type-safe",
-    "api cms",
-    "content management",
-    "developer cms",
-  ],
+	name: "QUESTPIE",
+	title: "QUESTPIE - Server-First TypeScript Framework (v1 Beta)",
+	description:
+		"Define your schema once and get a REST API, admin panel, and typed SDK. QUESTPIE is an open-source, server-first TypeScript framework with built-in realtime, composable modules, and full design-system control.",
+	url: "https://questpie.com",
+	ogImage: "/og-image.svg",
+	twitterHandle: "@questpie",
+	githubUrl: "https://github.com/questpie/questpie-cms",
+	keywords: [
+		"questpie",
+		"server-first cms",
+		"typescript cms",
+		"headless cms",
+		"field builder",
+		"registry-first",
+		"typed rpc",
+		"reactive forms",
+		"admin framework",
+		"hono",
+		"elysia",
+		"nextjs cms",
+		"drizzle orm",
+		"postgres cms",
+		"content architecture",
+	],
 } as const;
 
 export type SeoProps = {
-  title?: string;
-  description?: string;
-  url?: string;
-  image?: string;
-  type?: "website" | "article";
-  noIndex?: boolean;
+	title?: string;
+	description?: string;
+	url?: string;
+	image?: string;
+	type?: "website" | "article";
+	noIndex?: boolean;
+	keywords?: string[];
+	publishedTime?: string;
+	modifiedTime?: string;
 };
 
+export function absoluteUrl(path: string): string {
+	if (path.startsWith("http://") || path.startsWith("https://")) return path;
+	if (path.startsWith("/")) return `${siteConfig.url}${path}`;
+	return `${siteConfig.url}/${path}`;
+}
+
 /**
- * Generate meta tags for a page
+ * Generate meta tags for a page.
  */
 export function generateMeta(props: SeoProps = {}) {
-  const {
-    title = siteConfig.title,
-    description = siteConfig.description,
-    url = siteConfig.url,
-    image = siteConfig.ogImage,
-    type = "website",
-    noIndex = false,
-  } = props;
+	const {
+		title = siteConfig.title,
+		description = siteConfig.description,
+		url = siteConfig.url,
+		image = siteConfig.ogImage,
+		type = "website",
+		noIndex = false,
+		keywords,
+		publishedTime,
+		modifiedTime,
+	} = props;
 
-  const fullTitle =
-    title === siteConfig.title ? title : `${title} | ${siteConfig.name}`;
-  const fullImageUrl = image.startsWith("http")
-    ? image
-    : `${siteConfig.url}${image}`;
+	const fullTitle =
+		title === siteConfig.title ? title : `${title} | ${siteConfig.name}`;
+	const canonical = absoluteUrl(url);
+	const fullImageUrl = absoluteUrl(image);
+	const mergedKeywords = Array.from(
+		new Set([...(keywords ?? []), ...siteConfig.keywords]),
+	);
 
-  const meta: Array<Record<string, string>> = [
-    // Basic
-    { title: fullTitle },
-    { name: "description", content: description },
-    { name: "keywords", content: siteConfig.keywords.join(", ") },
+	const robotsContent = noIndex
+		? "noindex, nofollow"
+		: "index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1";
 
-    // Robots
-    ...(noIndex
-      ? [{ name: "robots", content: "noindex, nofollow" }]
-      : [{ name: "robots", content: "index, follow" }]),
+	const meta: Array<Record<string, string>> = [
+		{ title: fullTitle },
+		{ name: "description", content: description },
+		{ name: "keywords", content: mergedKeywords.join(", ") },
+		{ name: "robots", content: robotsContent },
+		{ name: "author", content: siteConfig.name },
+		{ name: "publisher", content: siteConfig.name },
+		{ name: "application-name", content: siteConfig.name },
+		{ name: "theme-color", content: "#a732ee" },
+		{ name: "color-scheme", content: "light dark" },
 
-    // Open Graph
-    { property: "og:type", content: type },
-    { property: "og:site_name", content: siteConfig.name },
-    { property: "og:title", content: fullTitle },
-    { property: "og:description", content: description },
-    { property: "og:url", content: url },
-    { property: "og:image", content: fullImageUrl },
-    { property: "og:image:width", content: "1200" },
-    { property: "og:image:height", content: "630" },
-    {
-      property: "og:image:alt",
-      content: `${siteConfig.name} - ${description}`,
-    },
-    { property: "og:locale", content: "en_US" },
+		{ property: "og:type", content: type },
+		{ property: "og:site_name", content: siteConfig.name },
+		{ property: "og:title", content: fullTitle },
+		{ property: "og:description", content: description },
+		{ property: "og:url", content: canonical },
+		{ property: "og:image", content: fullImageUrl },
+		{ property: "og:image:width", content: "1200" },
+		{ property: "og:image:height", content: "630" },
+		{
+			property: "og:image:alt",
+			content: `${siteConfig.name} - ${description}`,
+		},
+		{ property: "og:locale", content: "en_US" },
 
-    // Twitter Card
-    { name: "twitter:card", content: "summary_large_image" },
-    { name: "twitter:site", content: siteConfig.twitterHandle },
-    { name: "twitter:creator", content: siteConfig.twitterHandle },
-    { name: "twitter:title", content: fullTitle },
-    { name: "twitter:description", content: description },
-    { name: "twitter:image", content: fullImageUrl },
-    {
-      name: "twitter:image:alt",
-      content: `${siteConfig.name} - ${description}`,
-    },
+		{ name: "twitter:card", content: "summary_large_image" },
+		{ name: "twitter:site", content: siteConfig.twitterHandle },
+		{ name: "twitter:creator", content: siteConfig.twitterHandle },
+		{ name: "twitter:title", content: fullTitle },
+		{ name: "twitter:description", content: description },
+		{ name: "twitter:image", content: fullImageUrl },
+		{
+			name: "twitter:image:alt",
+			content: `${siteConfig.name} - ${description}`,
+		},
+		{ name: "twitter:url", content: canonical },
 
-    // Additional SEO
-    { name: "author", content: siteConfig.name },
-    { name: "generator", content: "TanStack Start" },
-    { name: "theme-color", content: "#02012B" },
-    { name: "color-scheme", content: "dark light" },
-    { name: "format-detection", content: "telephone=no" },
+		{ name: "apple-mobile-web-app-capable", content: "yes" },
+		{ name: "apple-mobile-web-app-status-bar-style", content: "default" },
+		{ name: "apple-mobile-web-app-title", content: siteConfig.name },
+	];
 
-    // Apple
-    { name: "apple-mobile-web-app-capable", content: "yes" },
-    {
-      name: "apple-mobile-web-app-status-bar-style",
-      content: "black-translucent",
-    },
-    { name: "apple-mobile-web-app-title", content: siteConfig.name },
-  ];
+	if (type === "article") {
+		if (publishedTime) {
+			meta.push({ property: "article:published_time", content: publishedTime });
+		}
+		if (modifiedTime) {
+			meta.push({ property: "article:modified_time", content: modifiedTime });
+		}
+	}
 
-  return meta;
+	return meta;
 }
 
 /**
- * Generate links for a page (favicon, canonical, etc.)
+ * Generate link tags (canonical, favicon, css, etc.)
  */
-export function generateLinks(props: { url?: string; cssUrl?: string } = {}) {
-  const { url = siteConfig.url, cssUrl } = props;
+export function generateLinks(
+	props: {
+		url?: string;
+		cssUrl?: string;
+		includeCanonical?: boolean;
+		includeIcons?: boolean;
+		includePreconnect?: boolean;
+	} = {},
+) {
+	const {
+		url = siteConfig.url,
+		cssUrl,
+		includeCanonical = true,
+		includeIcons = true,
+		includePreconnect = true,
+	} = props;
 
-  const links: Array<Record<string, string>> = [
-    // Canonical
-    { rel: "canonical", href: url },
+	const links: Array<Record<string, string>> = [
+		...(includeCanonical ? [{ rel: "canonical", href: absoluteUrl(url) }] : []),
+		...(includeIcons
+			? [
+					{
+						rel: "icon",
+						type: "image/svg+xml",
+						href: "/symbol/Q-symbol-dark-pink.svg",
+					},
+					{
+						rel: "icon",
+						type: "image/svg+xml",
+						href: "/symbol/Q-symbol-white-pink.svg",
+						media: "(prefers-color-scheme: dark)",
+					},
+					{ rel: "apple-touch-icon", href: "/symbol/Q-symbol-dark-pink.svg" },
+				]
+			: []),
+		...(includePreconnect
+			? [
+					{ rel: "preconnect", href: "https://fonts.googleapis.com" },
+					{ rel: "dns-prefetch", href: "https://fonts.googleapis.com" },
+					{ rel: "dns-prefetch", href: "https://github.com" },
+				]
+			: []),
+	];
 
-    // Favicons
-    {
-      rel: "icon",
-      type: "image/svg+xml",
-      href: "/symbol/Q-symbol-dark-pink.svg",
-    },
-    {
-      rel: "icon",
-      type: "image/svg+xml",
-      href: "/symbol/Q-symbol-white-pink.svg",
-      media: "(prefers-color-scheme: dark)",
-    },
-    { rel: "apple-touch-icon", href: "/symbol/Q-symbol-dark-pink.svg" },
+	if (cssUrl) {
+		links.push({ rel: "stylesheet", href: cssUrl });
+	}
 
-    // Preconnect for performance
-    { rel: "preconnect", href: "https://fonts.googleapis.com" },
-    { rel: "dns-prefetch", href: "https://fonts.googleapis.com" },
-
-    // Manifest (if we add one later)
-    // { rel: 'manifest', href: '/manifest.json' },
-  ];
-
-  if (cssUrl) {
-    links.push({ rel: "stylesheet", href: cssUrl });
-  }
-
-  return links;
+	return links;
 }
 
 /**
- * JSON-LD structured data for the website
+ * JSON-LD for landing + website entity.
  */
 export function generateJsonLd(props: SeoProps = {}) {
-  const { title = siteConfig.title, description = siteConfig.description } =
-    props;
+	const {
+		title = siteConfig.title,
+		description = siteConfig.description,
+		url = siteConfig.url,
+	} = props;
 
-  return {
-    "@context": "https://schema.org",
-    "@graph": [
-      // Organization
-      {
-        "@type": "Organization",
-        "@id": `${siteConfig.url}/#organization`,
-        name: siteConfig.name,
-        url: siteConfig.url,
-        logo: {
-          "@type": "ImageObject",
-          url: `${siteConfig.url}/logo/Questpie-dark-pink.svg`,
-        },
-        sameAs: [siteConfig.githubUrl],
-      },
-      // WebSite
-      {
-        "@type": "WebSite",
-        "@id": `${siteConfig.url}/#website`,
-        url: siteConfig.url,
-        name: siteConfig.name,
-        description: siteConfig.description,
-        publisher: {
-          "@id": `${siteConfig.url}/#organization`,
-        },
-        potentialAction: {
-          "@type": "SearchAction",
-          target: {
-            "@type": "EntryPoint",
-            urlTemplate: `${siteConfig.url}/docs?q={search_term_string}`,
-          },
-          "query-input": "required name=search_term_string",
-        },
-      },
-      // SoftwareApplication
-      {
-        "@type": "SoftwareApplication",
-        name: siteConfig.name,
-        description: description,
-        applicationCategory: "DeveloperApplication",
-        operatingSystem: "Any",
-        offers: {
-          "@type": "Offer",
-          price: "0",
-          priceCurrency: "USD",
-        },
-        author: {
-          "@id": `${siteConfig.url}/#organization`,
-        },
-        programmingLanguage: ["TypeScript", "JavaScript"],
-        runtimePlatform: ["Node.js", "Bun"],
-      },
-      // WebPage (for current page)
-      {
-        "@type": "WebPage",
-        "@id": `${siteConfig.url}/#webpage`,
-        url: siteConfig.url,
-        name: title,
-        description: description,
-        isPartOf: {
-          "@id": `${siteConfig.url}/#website`,
-        },
-        about: {
-          "@id": `${siteConfig.url}/#organization`,
-        },
-      },
-    ],
-  };
+	const canonical = absoluteUrl(url);
+
+	return {
+		"@context": "https://schema.org",
+		"@graph": [
+			{
+				"@type": "Organization",
+				"@id": `${siteConfig.url}/#organization`,
+				name: siteConfig.name,
+				url: siteConfig.url,
+				logo: {
+					"@type": "ImageObject",
+					url: `${siteConfig.url}/logo/Questpie-dark-pink.svg`,
+				},
+				sameAs: [siteConfig.githubUrl],
+			},
+			{
+				"@type": "WebSite",
+				"@id": `${siteConfig.url}/#website`,
+				name: siteConfig.name,
+				url: siteConfig.url,
+				description: siteConfig.description,
+				inLanguage: "en-US",
+				potentialAction: {
+					"@type": "SearchAction",
+					target: `${siteConfig.url}/docs?q={search_term_string}`,
+					"query-input": "required name=search_term_string",
+				},
+			},
+			{
+				"@type": "SoftwareApplication",
+				"@id": `${siteConfig.url}/#software`,
+				name: siteConfig.name,
+				applicationCategory: "DeveloperApplication",
+				operatingSystem: "Any",
+				description,
+				url: siteConfig.url,
+				codeRepository: siteConfig.githubUrl,
+				programmingLanguage: ["TypeScript", "JavaScript"],
+				runtimePlatform: ["Bun", "Node.js"],
+				offers: {
+					"@type": "Offer",
+					price: "0",
+					priceCurrency: "USD",
+				},
+			},
+			{
+				"@type": "WebPage",
+				"@id": `${canonical}#webpage`,
+				name: title,
+				description,
+				url: canonical,
+				isPartOf: { "@id": `${siteConfig.url}/#website` },
+				about: { "@id": `${siteConfig.url}/#software` },
+			},
+		],
+	};
 }
 
 /**
- * Generate JSON-LD for documentation pages
+ * JSON-LD for documentation pages.
  */
 export function generateDocsJsonLd(props: {
-  title: string;
-  description: string;
-  url: string;
-  dateModified?: string;
+	title: string;
+	description: string;
+	url: string;
+	dateModified?: string;
 }) {
-  return {
-    "@context": "https://schema.org",
-    "@type": "TechArticle",
-    headline: props.title,
-    description: props.description,
-    url: props.url,
-    dateModified: props.dateModified || new Date().toISOString(),
-    author: {
-      "@type": "Organization",
-      name: siteConfig.name,
-      url: siteConfig.url,
-    },
-    publisher: {
-      "@type": "Organization",
-      name: siteConfig.name,
-      logo: {
-        "@type": "ImageObject",
-        url: `${siteConfig.url}/logo/Questpie-dark-pink.svg`,
-      },
-    },
-    mainEntityOfPage: {
-      "@type": "WebPage",
-      "@id": props.url,
-    },
-  };
+	const canonical = absoluteUrl(props.url);
+
+	const jsonLd: Record<string, unknown> = {
+		"@context": "https://schema.org",
+		"@type": "TechArticle",
+		headline: props.title,
+		description: props.description,
+		url: canonical,
+		inLanguage: "en-US",
+		author: {
+			"@type": "Organization",
+			name: siteConfig.name,
+			url: siteConfig.url,
+		},
+		publisher: {
+			"@type": "Organization",
+			name: siteConfig.name,
+			logo: {
+				"@type": "ImageObject",
+				url: `${siteConfig.url}/logo/Questpie-dark-pink.svg`,
+			},
+		},
+		mainEntityOfPage: {
+			"@type": "WebPage",
+			"@id": canonical,
+		},
+	};
+
+	if (props.dateModified) {
+		jsonLd.dateModified = props.dateModified;
+	}
+
+	return jsonLd;
 }

@@ -1,27 +1,24 @@
-import { collection, questpie } from "../../src/server/index.js";
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
-import {
-  boolean,
-  integer,
-  jsonb,
-  text,
-  timestamp,
-  varchar,
-} from "drizzle-orm/pg-core";
+import { defaultFields } from "../../src/server/fields/builtin/defaults.js";
+import type { JsonValue } from "../../src/server/fields/builtin/json.js";
+import { questpie } from "../../src/server/index.js";
 import { buildMockApp } from "../utils/mocks/mock-app-builder";
 import { createTestContext } from "../utils/test-context";
 import { runTestDbMigrations } from "../utils/test-db";
 
-const testModule = questpie({ name: "test-module" }).collections({
-  content: collection("content")
-    .fields({
-      title: varchar("title", { length: 255 }).notNull(),
-      description: text("description"),
-      richContent: jsonb("rich_content"),
-      isPublished: boolean("is_published").default(false),
-      viewCount: integer("view_count").default(0),
-      publishedAt: timestamp("published_at", { mode: "date" }),
-    })
+const q = questpie({ name: "test-module" }).fields(defaultFields);
+
+const testModule = q.collections({
+  content: q
+    .collection("content")
+    .fields((f) => ({
+      title: f.text({ required: true, maxLength: 255 }),
+      description: f.textarea(),
+      richContent: f.json(),
+      isPublished: f.boolean({ default: false }),
+      viewCount: f.number({ default: 0 }),
+      publishedAt: f.datetime(),
+    }))
     .options({
       timestamps: true,
     }),
@@ -193,7 +190,7 @@ describe("collection field types", () => {
       const ctx = createTestContext();
       // Use cms.api.collections.content directly
 
-      const complex = {
+      const complex: JsonValue = {
         blocks: [
           { type: "heading", level: 1, text: "Title" },
           { type: "paragraph", text: "Content" },

@@ -1,0 +1,109 @@
+---
+title: Next.js Adapter
+description: Integrate QUESTPIE with Next.js App Router route handlers
+---
+
+# Next.js Adapter
+
+The Next.js adapter generates route handlers for the App Router's catch-all route pattern. All CMS endpoints are handled by a single `[...slug]` route.
+
+## Server Setup
+
+```ts
+// app/api/cms/[...slug]/route.ts
+import { questpieNextRouteHandlers } from "@questpie/next";
+import { cms, appRpc } from "@/questpie/cms";
+
+export const { GET, POST, PATCH, DELETE, PUT, OPTIONS, HEAD } =
+  questpieNextRouteHandlers(cms, {
+    basePath: "/api/cms",
+    rpc: appRpc,
+  });
+```
+
+### `questpieNextRouteHandlers(cms, config)`
+
+Returns an object with HTTP method handlers (`GET`, `POST`, `PATCH`, `DELETE`, `PUT`, `OPTIONS`, `HEAD`) suitable for Next.js route handler exports.
+
+### Alternative: Single Handler
+
+For more control, use `questpieNext` which returns a single request handler:
+
+```ts
+import { questpieNext } from "@questpie/next";
+
+const handler = questpieNext(cms, {
+  basePath: "/api/cms",
+  rpc: appRpc,
+});
+
+export async function GET(request: Request) {
+  return handler(request);
+}
+
+export async function POST(request: Request) {
+  return handler(request);
+}
+
+// ... etc
+```
+
+## Client Setup
+
+Next.js doesn't have a framework-specific typed client. Use the core `createClient`:
+
+```ts
+import { createClient } from "questpie/client";
+import type { AppCMS } from "@/questpie/cms";
+
+const client = createClient<AppCMS>({
+  baseURL: process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000",
+  basePath: "/api/cms",
+});
+
+// Collections
+const posts = await client.collections.posts.find({ limit: 10 });
+
+// Globals
+const settings = await client.globals.siteSettings.get();
+```
+
+### With TanStack Query
+
+```ts
+import { createQuestpieQueryOptions } from "@questpie/tanstack-query";
+
+const cms = createQuestpieQueryOptions(client);
+
+// In a component
+const { data } = useQuery(cms.collections.posts.find({ limit: 10 }));
+```
+
+## Configuration
+
+The adapter configuration is the same as `createFetchHandler` — see [Adapters Overview](/docs/client/adapters-overview).
+
+## File Structure
+
+```
+app/
+  api/
+    cms/
+      [...slug]/
+        route.ts    ← All CMS routes handled here
+  questpie/
+    cms.ts          ← CMS builder and config
+    client.ts       ← Client instance
+```
+
+## Common Mistakes
+
+- **Wrong route path** — The catch-all route must be at `app/api/cms/[...slug]/route.ts` (matching the `basePath`). If `basePath` is `/api/cms`, the file must be at that path.
+- **Missing method exports** — Export all HTTP methods. If you only export `GET` and `POST`, PATCH and DELETE requests will 405.
+- **Server-side vs client-side** — The `createClient` call should use a full URL. For server components, use the server's internal URL; for client components, use the public URL.
+
+## Related Pages
+
+- [Adapters Overview](/docs/client/adapters-overview) — How adapters work
+- [TanStack Query](/docs/client/tanstack-query) — Using the client with TanStack Query
+- [Client Overview](/docs/client) — Client SDK overview

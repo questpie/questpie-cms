@@ -9,13 +9,17 @@
  * - Virtual fields
  */
 
-import { type UseQueryOptions, useQuery } from "@tanstack/react-query";
+import {
+	type UseQueryOptions,
+	useQuery,
+	useSuspenseQuery,
+} from "@tanstack/react-query";
+import type { Questpie } from "questpie";
 import type { CollectionMeta } from "questpie/client";
 import type {
-  RegisteredCMS,
-  RegisteredCollectionNames,
+	RegisteredCMS,
+	RegisteredCollectionNames,
 } from "../builder/registry";
-import type { Questpie } from "questpie";
 import { selectClient, useAdminStore } from "../runtime";
 
 // ============================================================================
@@ -26,7 +30,7 @@ import { selectClient, useAdminStore } from "../runtime";
  * Resolved collection names (string if not registered)
  */
 type ResolvedCollectionNames =
-  RegisteredCMS extends Questpie<any> ? RegisteredCollectionNames : string;
+	RegisteredCMS extends Questpie<any> ? RegisteredCollectionNames : string;
 
 // ============================================================================
 // Hook
@@ -56,21 +60,21 @@ type ResolvedCollectionNames =
  * ```
  */
 export function useCollectionMeta<K extends ResolvedCollectionNames>(
-  collection: K,
-  queryOptions?: Omit<UseQueryOptions<CollectionMeta>, "queryKey" | "queryFn">,
+	collection: K,
+	queryOptions?: Omit<UseQueryOptions<CollectionMeta>, "queryKey" | "queryFn">,
 ) {
-  const client = useAdminStore(selectClient);
+	const client = useAdminStore(selectClient);
 
-  return useQuery<CollectionMeta>({
-    queryKey: ["questpie", "collections", collection, "meta"],
-    queryFn: async () => {
-      return (client as any).collections[collection].meta();
-    },
-    // Meta rarely changes, cache aggressively
-    staleTime: 5 * 60 * 1000, // 5 minutes
-    gcTime: 30 * 60 * 1000, // 30 minutes (formerly cacheTime)
-    ...queryOptions,
-  });
+	return useQuery<CollectionMeta>({
+		queryKey: ["questpie", "collections", collection, "meta"],
+		queryFn: async () => {
+			return (client as any).collections[collection].meta();
+		},
+		// Meta rarely changes, cache aggressively
+		staleTime: 5 * 60 * 1000, // 5 minutes
+		gcTime: 30 * 60 * 1000, // 30 minutes (formerly cacheTime)
+		...queryOptions,
+	});
 }
 
 /**
@@ -78,5 +82,72 @@ export function useCollectionMeta<K extends ResolvedCollectionNames>(
  * Useful for prefetching or invalidation
  */
 export function getCollectionMetaQueryKey(collection: string) {
-  return ["questpie", "collections", collection, "meta"] as const;
+	return ["questpie", "collections", collection, "meta"] as const;
+}
+
+// ============================================================================
+// Query Options Factory
+// ============================================================================
+
+/**
+ * Query options factory for collection metadata.
+ * Can be used with TanStack Query's prefetching in loaders or with useSuspenseQuery.
+ *
+ * @example
+ * ```ts
+ * // In TanStack Start loader
+ * export const Route = createFileRoute("/admin/collections/:name")({
+ *   loader: async ({ context, params }) => {
+ *     await context.queryClient.ensureQueryData(
+ *       getCollectionMetaQueryOptions(params.name, context.client)
+ *     );
+ *   },
+ * });
+ * ```
+ */
+export function getCollectionMetaQueryOptions(collection: string, client: any) {
+	return {
+		queryKey: getCollectionMetaQueryKey(collection),
+		queryFn: async (): Promise<CollectionMeta> => {
+			return client.collections[collection].meta();
+		},
+		staleTime: 5 * 60 * 1000, // 5 minutes
+		gcTime: 30 * 60 * 1000, // 30 minutes
+	};
+}
+
+// ============================================================================
+// Suspense Hook
+// ============================================================================
+
+/**
+ * Suspense-enabled hook to fetch collection metadata.
+ *
+ * Uses useSuspenseQuery so the component will suspend until data is loaded.
+ * Must be used within a Suspense boundary.
+ *
+ * @example
+ * ```tsx
+ * function TableViewInner({ collection }: Props) {
+ *   // This will suspend until meta is loaded
+ *   const { data: meta } = useSuspenseCollectionMeta(collection);
+ *
+ *   // meta is guaranteed to be defined here
+ *   const titleField = meta.title.fieldName;
+ * }
+ *
+ * // Wrap with Suspense
+ * <Suspense fallback={<Loading />}>
+ *   <TableViewInner collection="posts" />
+ * </Suspense>
+ * ```
+ */
+export function useSuspenseCollectionMeta<K extends ResolvedCollectionNames>(
+	collection: K,
+) {
+	const client = useAdminStore(selectClient);
+
+	return useSuspenseQuery<CollectionMeta>(
+		getCollectionMetaQueryOptions(collection, client),
+	);
 }

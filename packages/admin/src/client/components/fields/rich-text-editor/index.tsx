@@ -57,7 +57,6 @@ export function RichTextEditor({
 	error,
 	localized,
 	locale,
-	outputFormat = "json",
 	extensions,
 	preset,
 	features,
@@ -78,6 +77,8 @@ export function RichTextEditor({
 	const [linkOpen, setLinkOpen] = React.useState(false);
 	const [imageOpen, setImageOpen] = React.useState(false);
 	const lastEmittedValueRef = React.useRef<OutputValue | undefined>(undefined);
+	// Track pending value when editor is not ready yet (race condition fix)
+	const pendingValueRef = React.useRef<OutputValue | undefined>(undefined);
 
 	// Resolved feature flags with preset support
 	const resolvedFeatures = React.useMemo(() => {
@@ -124,7 +125,7 @@ export function RichTextEditor({
 		editable: !disabled && !readOnly,
 		onUpdate: ({ editor: currentEditor }) => {
 			if (disabled || readOnly) return;
-			const nextValue = getOutput(currentEditor, outputFormat);
+			const nextValue = getOutput(currentEditor);
 			lastEmittedValueRef.current = nextValue as OutputValue;
 			onChange?.(nextValue);
 		},
@@ -140,15 +141,26 @@ export function RichTextEditor({
 		editor.setEditable(isEditable);
 	}, [editor, isEditable]);
 
-	// Sync external value changes
+	// Sync external value changes with pending value handling
+	// This fixes race condition where value arrives before editor is ready
 	React.useEffect(() => {
-		if (!editor) return;
-		if (value === undefined) return;
-		if (isSameValue(value, lastEmittedValueRef.current)) {
+		// If value changed but editor not ready, store as pending
+		if (!editor) {
+			if (value !== undefined && !isSameValue(value, pendingValueRef.current)) {
+				pendingValueRef.current = value as OutputValue;
+			}
 			return;
 		}
-		lastEmittedValueRef.current = value as OutputValue;
-		editor.commands.setContent(value ?? "", false);
+
+		// Editor is ready - apply pending value first, then current value
+		const valueToApply = pendingValueRef.current ?? value;
+		pendingValueRef.current = undefined; // Clear pending after use
+
+		if (valueToApply === undefined) return;
+		if (isSameValue(valueToApply, lastEmittedValueRef.current)) return;
+
+		lastEmittedValueRef.current = valueToApply as OutputValue;
+		editor.commands.setContent(valueToApply ?? "", false);
 	}, [editor, value]);
 
 	// Character count
@@ -225,7 +237,13 @@ export function RichTextEditor({
 				)}
 
 				{/* Editor Content */}
-				<EditorContent editor={editor} id={name} />
+				{editor ? (
+					<EditorContent editor={editor} id={name} />
+				) : (
+					<div className="flex min-h-[120px] items-center justify-center text-muted-foreground text-sm">
+						Loading editor...
+					</div>
+				)}
 
 				{/* Character Count */}
 				{allowCharacterCount && showCharacterCount && (

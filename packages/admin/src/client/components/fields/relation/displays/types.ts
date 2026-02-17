@@ -3,8 +3,18 @@
  */
 
 import type * as React from "react";
+import type { ComponentReference } from "#questpie/admin/server";
 import type { FieldDefinition } from "../../../../builder/field/field";
+import { formatLabel } from "../../../../lib/utils";
 import { DefaultCell } from "../../../../views/collection/cells";
+
+/**
+ * Icon type that can be a React component or a server-defined ComponentReference
+ */
+export type IconType =
+	| React.ComponentType<{ className?: string }>
+	| ComponentReference
+	| undefined;
 
 /**
  * Display mode for relation items
@@ -52,9 +62,9 @@ export interface RelationDisplayProps {
 	collection: string;
 
 	/**
-	 * Collection icon component
+	 * Collection icon (React component or server ComponentReference)
 	 */
-	collectionIcon?: React.ComponentType<{ className?: string }>;
+	collectionIcon?: IconType;
 
 	/**
 	 * Action handlers
@@ -100,6 +110,16 @@ export interface RelationDisplayProps {
 	 * Collection config for cell rendering (enables proper cell components)
 	 */
 	collectionConfig?: CollectionFieldsConfig;
+
+	/**
+	 * Whether items are being loaded
+	 */
+	isLoading?: boolean;
+
+	/**
+	 * Number of skeleton items to show when loading
+	 */
+	loadingCount?: number;
 }
 
 /**
@@ -114,10 +134,7 @@ export function getItemDisplayValue(item: any): string {
  */
 export function formatColumnHeader(column: string): string {
 	if (column === "_title") return "Name";
-	return column
-		.replace(/([A-Z])/g, " $1")
-		.replace(/^./, (str) => str.toUpperCase())
-		.trim();
+	return formatLabel(column);
 }
 
 /**

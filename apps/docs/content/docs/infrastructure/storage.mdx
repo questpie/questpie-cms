@@ -1,0 +1,99 @@
+---
+title: Storage
+description: File storage with local filesystem, S3, and signed URLs
+---
+
+# Storage
+
+QUESTPIE includes file storage built on [flydrive](https://flydrive.dev/). By default, files are stored on the local filesystem. For production, plug in S3, Azure Blob, or Google Cloud Storage via a custom driver.
+
+## Why This Exists
+
+Upload fields (`f.upload()`) need somewhere to store files. Instead of wiring storage manually, QUESTPIE provides a unified storage layer with signed URLs for private files and automatic URL generation for public files.
+
+## Default Configuration
+
+With no storage configuration, files are stored locally at `./uploads`:
+
+```ts
+.build({
+  app: { url: "http://localhost:3000" },
+  db: { url: process.env.DATABASE_URL },
+  storage: {
+    basePath: "/api/cms",  // URL prefix for file access
+  },
+  secret: process.env.SECRET,  // used for signed URL tokens
+})
+```
+
+## Configuration Options
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `storage.basePath` | `string` | `"/cms"` | URL path prefix for file endpoints |
+| `storage.location` | `string` | `"./uploads"` | Local filesystem path |
+| `storage.driver` | `DriverContract` | `FSDriver` | Custom storage driver |
+| `storage.signedUrlExpiration` | `number` | `3600` | Signed URL TTL in seconds |
+| `secret` | `string` | — | Secret for HMAC-SHA256 signed URL tokens |
+
+## File URLs
+
+Files get URLs based on their visibility:
+
+- **Public files** — Direct URL: `{app.url}{basePath}/storage/{key}`
+- **Private files** — Signed URL with HMAC token: `{app.url}{basePath}/storage/{key}?token={hmac}`
+
+Signed URLs expire after `signedUrlExpiration` seconds.
+
+## Upload Collections
+
+Upload fields reference an upload collection (typically `assets`). The admin module auto-creates this collection with `key`, `filename`, `mimeType`, `size`, `visibility` fields and generates `url` in the read response.
+
+```ts
+// In your collection
+avatar: f.upload({
+  to: "assets",
+  label: { en: "Profile Photo" },
+  mimeTypes: ["image/*"],
+  maxSize: 5_000_000,
+})
+```
+
+## Custom Storage Driver
+
+For production, provide a flydrive-compatible driver:
+
+```ts
+import { S3Client } from "@aws-sdk/client-s3";
+import { S3Driver } from "flydrive-s3";
+
+const s3Client = new S3Client({
+  region: process.env.AWS_REGION,
+  credentials: {
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
+  },
+});
+
+.build({
+  // ...
+  storage: {
+    driver: new S3Driver({
+      client: s3Client,
+      bucket: process.env.S3_BUCKET!,
+    }),
+  },
+})
+```
+
+## Common Mistakes
+
+- **Missing `secret`** — Without a secret, signed URLs can't be generated for private files. Always set this in production.
+- **Wrong `basePath`** — The storage `basePath` must match your CMS mount path so file URLs resolve correctly.
+- **Not creating the uploads directory** — The default `FSDriver` expects `./uploads` to exist. Create it or configure a different `location`.
+
+## Related Pages
+
+- [Field Types — Upload](/docs/server/field-types#fuploadconfig) — Upload field configuration
+- [Media & Uploads](/docs/admin/media-and-uploads) — Admin media management UI
+- [File Uploads Guide](/docs/guides/file-uploads-and-storage) — S3 setup walkthrough

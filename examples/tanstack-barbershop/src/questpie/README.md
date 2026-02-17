@@ -1,6 +1,6 @@
-# QuestPie Configuration
+# QUESTPIE Configuration
 
-This directory contains the QuestPie CMS configuration for the Barbershop example.
+This directory contains the QUESTPIE CMS configuration for the Barbershop example.
 
 ## Structure
 
@@ -19,16 +19,12 @@ questpie/
       index.ts
 
   admin/               # Admin UI (qa builder)
-    admin.ts           # Main admin config + module augmentation
+    builder.ts         # Main admin builder with module augmentation
     collections/       # Collection UI configs
       barbers.ts
       services.ts
       appointments.ts
       reviews.ts
-    sidebar.ts         # Sidebar navigation
-    dashboard.ts       # Dashboard widgets
-
-  builder.ts           # Shared qa namespace with typed CMS
 ```
 
 ## Module Augmentation Pattern
@@ -56,15 +52,13 @@ declare module "questpie" {
 }
 ```
 
-### Admin (`/admin/admin.ts`)
+### Admin (`/admin/builder.ts`)
 
 ```typescript
 import { qa, adminModule } from "@questpie/admin/client";
 import type { AppCMS } from "../server/cms";
 
-export const admin = qa()
-  .use(adminModule)
-  .collections({ barbers: barbersAdmin, ... });
+export const admin = qa<AppCMS>().use(adminModule);
 
 // Module augmentation for type-safe hooks
 declare module "@questpie/admin/client" {
@@ -220,17 +214,14 @@ const barbers = builder.collection("barbers").fields(({ r }) => ({ ... }));
 
 ```typescript
 // routes/admin.tsx
-import { Admin, AdminLayoutProvider } from "@questpie/admin/client";
-import { admin } from "~/questpie/admin/admin";
+import { AdminLayoutProvider } from "@questpie/admin/client";
+import { admin } from "~/questpie/admin/builder";
 import { client } from "~/lib/cms-client";
-
-// Create Admin runtime instance
-const adminInstance = Admin.from(admin as any);
 
 function AdminLayout() {
   return (
     <AdminLayoutProvider
-      admin={adminInstance}
+      admin={admin}
       client={client}
       basePath="/admin"
     >
@@ -264,7 +255,7 @@ function BarbersList() {
 
 ## I18n (Internationalization)
 
-QuestPie supports full i18n for both backend messages and admin UI.
+QUESTPIE supports full i18n for both backend messages and admin UI.
 
 ### Backend Messages (`/server/cms.ts`)
 
@@ -301,32 +292,22 @@ export const cms = q({ name: "barbershop" })
 // => "Rezervácia vytvorená na 2024-01-20"
 ```
 
-### Admin UI Messages (`/admin/admin.ts`)
+### Admin UI Messages
 
-Add custom translated labels for the admin interface:
+Admin UI translations are configured server-side via `.adminLocale()` and fetched by the client:
 
 ```typescript
-const adminMessages = {
-  en: {
-    "barbershop.welcome": "Welcome to Barbershop Admin",
-    "barbershop.todaysAppointments": "Today's Appointments",
-    "collection.barbers.title": "Barbers",
-  },
-  sk: {
-    "barbershop.welcome": "Vitajte v Barbershop Admin",
-    "barbershop.todaysAppointments": "Dnešné rezervácie",
-    "collection.barbers.title": "Holiči",
-  },
-} as const;
-
-export const admin = builder
-  .locale({
+// server/cms.ts
+export const cms = q({ name: "barbershop" })
+  .use(adminModule)
+  .adminLocale({
     default: "en",
     supported: ["en", "sk"],
   })
-  .messages(adminMessages)
-  .collections({ ... });
+  .build({ ... });
 ```
+
+The client automatically fetches these translations via RPC (`useServerTranslations` prop on `AdminLayoutProvider`).
 
 ### Using Translations in Components
 
@@ -356,7 +337,7 @@ function WelcomeBanner() {
 
 ### Locale Separation
 
-QuestPie separates two types of locales:
+QUESTPIE separates two types of locales:
 
 - **UI Locale** (`uiLocale`) - Admin interface language
 - **Content Locale** (`contentLocale`) - CMS content language (for `_i18n` tables)

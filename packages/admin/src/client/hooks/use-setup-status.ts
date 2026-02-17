@@ -41,7 +41,7 @@ export function useSetupStatus() {
     queryKey: ["questpie", "setup-status"],
     queryFn: async () => {
       try {
-        const result = await (client as any).functions.isSetupRequired({});
+        const result = await (client as any).rpc.isSetupRequired({});
         return { required: result.required };
       } catch {
         // If the function doesn't exist, setup is not required

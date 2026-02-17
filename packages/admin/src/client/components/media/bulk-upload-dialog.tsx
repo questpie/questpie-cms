@@ -14,28 +14,30 @@
  * @example
  * ```tsx
  * <BulkUploadDialog
- *   collection="assets"
+ *   collection="media"
  *   onClose={() => setOpen(false)}
  *   onSuccess={() => queryClient.invalidateQueries()}
  * />
  * ```
  */
 
+import { Icon } from "@iconify/react";
 import * as React from "react";
-import { Trash, CheckCircle, WarningCircle, X } from "@phosphor-icons/react";
 import { toast } from "sonner";
+import { type Asset, useUpload } from "../../hooks/use-upload";
+import { useUploadCollection } from "../../hooks/use-upload-collection";
+import { useTranslation } from "../../i18n/hooks";
 import { cn } from "../../lib/utils";
-import { useUpload, type Asset } from "../../hooks/use-upload";
+import { Dropzone } from "../primitives/dropzone";
 import { Button } from "../ui/button";
 import {
 	ResponsiveDialog,
 	ResponsiveDialogContent,
-	ResponsiveDialogHeader,
-	ResponsiveDialogTitle,
 	ResponsiveDialogDescription,
 	ResponsiveDialogFooter,
+	ResponsiveDialogHeader,
+	ResponsiveDialogTitle,
 } from "../ui/responsive-dialog";
-import { Dropzone } from "../primitives/dropzone";
 
 // ============================================================================
 // Types
@@ -44,7 +46,6 @@ import { Dropzone } from "../primitives/dropzone";
 export interface BulkUploadDialogProps {
 	/**
 	 * Target collection
-	 * @default "assets"
 	 */
 	collection?: string;
 
@@ -116,14 +117,18 @@ function FileItem({ file, onRemove }: FileItemProps) {
 	const statusIcon = {
 		pending: null,
 		uploading: null,
-		success: <CheckCircle weight="fill" className="size-5 text-green-600" />,
-		error: <WarningCircle weight="fill" className="size-5 text-destructive" />,
+		success: (
+			<Icon icon="ph:check-circle-fill" className="size-5 text-success" />
+		),
+		error: (
+			<Icon icon="ph:warning-circle-fill" className="size-5 text-destructive" />
+		),
 	};
 
 	const statusColor = {
 		pending: "text-muted-foreground",
 		uploading: "text-primary",
-		success: "text-green-600",
+		success: "text-success",
 		error: "text-destructive",
 	};
 
@@ -132,7 +137,7 @@ function FileItem({ file, onRemove }: FileItemProps) {
 			className={cn(
 				"flex items-start gap-3 rounded-lg border p-3",
 				file.status === "error" && "border-destructive/50 bg-destructive/5",
-				file.status === "success" && "border-green-600/50 bg-green-600/5",
+				file.status === "success" && "border-success/50 bg-success/5",
 			)}
 		>
 			{/* File info */}
@@ -185,7 +190,7 @@ function FileItem({ file, onRemove }: FileItemProps) {
 					onClick={onRemove}
 					className="text-muted-foreground hover:text-destructive shrink-0"
 				>
-					<X weight="bold" />
+					<Icon icon="ph:x-bold" />
 				</Button>
 			)}
 		</div>
@@ -197,11 +202,16 @@ function FileItem({ file, onRemove }: FileItemProps) {
 // ============================================================================
 
 export function BulkUploadDialog({
-	collection = "assets",
+	collection,
 	onClose,
 	onSuccess,
 }: BulkUploadDialogProps) {
 	const { uploadMany } = useUpload();
+	const { t } = useTranslation();
+	const {
+		collection: resolvedCollection,
+		collections: availableUploadCollections,
+	} = useUploadCollection(collection);
 
 	// State
 	const [files, setFiles] = React.useState<FileUploadState[]>([]);
@@ -213,8 +223,7 @@ export function BulkUploadDialog({
 	const uploadedFiles = files.filter((f) => f.status === "success");
 	const failedFiles = files.filter((f) => f.status === "error");
 	const canUpload = pendingFiles.length > 0 && !isUploading;
-	const allComplete =
-		hasFiles && pendingFiles.length === 0 && !isUploading;
+	const allComplete = hasFiles && pendingFiles.length === 0 && !isUploading;
 
 	// Handle file drop
 	const handleDrop = (droppedFiles: File[]) => {
@@ -242,7 +251,20 @@ export function BulkUploadDialog({
 	const handleUploadAll = async () => {
 		if (!canUpload) return;
 
+		if (!resolvedCollection) {
+			toast.error(
+				availableUploadCollections.length > 1
+					? `Multiple upload collections are available (${availableUploadCollections.join(", ")}). Specify collection for bulk upload.`
+					: "No upload collection is configured for bulk upload.",
+			);
+			return;
+		}
+
 		setIsUploading(true);
+
+		// Track counts during upload to avoid stale state issues
+		let successCount = 0;
+		let failureCount = 0;
 
 		try {
 			// Get pending files
@@ -267,7 +289,7 @@ export function BulkUploadDialog({
 				try {
 					// Upload file
 					const asset = await uploadMany([file], {
-						collection,
+						to: resolvedCollection,
 						onProgress: (progress) => {
 							setFiles((prev) =>
 								prev.map((f, idx) =>
@@ -290,6 +312,7 @@ export function BulkUploadDialog({
 								: f,
 						),
 					);
+					successCount++;
 				} catch (err) {
 					// Mark as error
 					const errorMessage =
@@ -302,24 +325,18 @@ export function BulkUploadDialog({
 								: f,
 						),
 					);
+					failureCount++;
 				}
 			}
 
-			// Show success toast
-			const successCount = files.filter((f) => f.status === "success").length;
-			const failureCount = files.filter((f) => f.status === "error").length;
-
+			// Show success toast using tracked counts (not stale state)
 			if (successCount > 0) {
-				toast.success(
-					`${successCount} file${successCount !== 1 ? "s" : ""} uploaded successfully`,
-				);
+				toast.success(t("upload.bulkSuccess", { count: successCount }));
 				onSuccess?.();
 			}
 
 			if (failureCount > 0) {
-				toast.error(
-					`${failureCount} file${failureCount !== 1 ? "s" : ""} failed to upload`,
-				);
+				toast.error(t("upload.bulkError", { count: failureCount }));
 			}
 		} finally {
 			setIsUploading(false);
@@ -329,7 +346,7 @@ export function BulkUploadDialog({
 	// Handle close
 	const handleClose = () => {
 		if (isUploading) {
-			toast.warning("Please wait for uploads to complete");
+			toast.warning(t("upload.waitForComplete"));
 			return;
 		}
 		onClose();
@@ -345,22 +362,30 @@ export function BulkUploadDialog({
 		<ResponsiveDialog open onOpenChange={handleClose}>
 			<ResponsiveDialogContent className="flex max-h-[90vh] flex-col sm:max-w-2xl">
 				<ResponsiveDialogHeader>
-					<ResponsiveDialogTitle>Upload Files</ResponsiveDialogTitle>
+					<ResponsiveDialogTitle>{t("upload.bulkTitle")}</ResponsiveDialogTitle>
 					<ResponsiveDialogDescription>
-						Add multiple files to your media library
+						{t("upload.bulkDescription")}
 					</ResponsiveDialogDescription>
 				</ResponsiveDialogHeader>
 
 				{/* Content */}
 				<div className="flex-1 space-y-4 overflow-y-auto">
+					{!resolvedCollection && (
+						<div className="rounded-lg border border-warning/40 bg-warning/5 p-3 text-sm text-warning">
+							{availableUploadCollections.length > 1
+								? `Multiple upload collections are available (${availableUploadCollections.join(", ")}). Pass the collection prop to choose one.`
+								: "No upload collection is configured for bulk upload."}
+						</div>
+					)}
+
 					{/* Dropzone */}
 					{!allComplete && (
 						<Dropzone
 							onDrop={handleDrop}
 							multiple={true}
-							disabled={isUploading}
-							label="Drop files here or click to browse"
-							hint="Upload multiple files at once"
+							disabled={isUploading || !resolvedCollection}
+							label={t("upload.dropzone")}
+							hint={t("upload.bulkHint")}
 						/>
 					)}
 
@@ -369,13 +394,13 @@ export function BulkUploadDialog({
 						<div className="space-y-2">
 							<div className="flex items-center justify-between">
 								<p className="text-sm font-medium">
-									Files ({files.length})
+									{t("upload.filesCount", { count: files.length })}
 								</p>
 								{uploadedFiles.length > 0 && (
 									<p className="text-muted-foreground text-xs">
-										{uploadedFiles.length} uploaded
+										{t("upload.uploadedCount", { count: uploadedFiles.length })}
 										{failedFiles.length > 0 &&
-											`, ${failedFiles.length} failed`}
+											`, ${t("upload.failedCount", { count: failedFiles.length })}`}
 									</p>
 								)}
 							</div>
@@ -402,7 +427,7 @@ export function BulkUploadDialog({
 					{allComplete ? (
 						<>
 							<Button variant="outline" onClick={handleDone}>
-								Done
+								{t("common.close")}
 							</Button>
 						</>
 					) : (
@@ -412,13 +437,13 @@ export function BulkUploadDialog({
 								onClick={handleClose}
 								disabled={isUploading}
 							>
-								Cancel
+								{t("common.cancel")}
 							</Button>
 							<Button
 								onClick={handleUploadAll}
-								disabled={!canUpload || isUploading}
+								disabled={!canUpload || isUploading || !resolvedCollection}
 							>
-								{isUploading ? "Uploading..." : "Upload"}{" "}
+								{isUploading ? t("upload.uploading") : t("common.upload")}{" "}
 								{pendingFiles.length > 0 && `(${pendingFiles.length})`}
 							</Button>
 						</>

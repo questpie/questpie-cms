@@ -14,6 +14,7 @@ import { useResolveText } from "../../../i18n/hooks";
 import type { I18nText } from "../../../i18n/types";
 import type {
 	CollectionFieldsConfig,
+	IconType,
 	RelationDisplayFields,
 	RelationDisplayMode,
 	RelationDisplayProps,
@@ -42,9 +43,9 @@ export interface RelationItemsDisplayProps {
 	collection: string;
 
 	/**
-	 * Collection icon component
+	 * Collection icon (React component or server ComponentReference)
 	 */
-	collectionIcon?: React.ComponentType<{ className?: string }>;
+	collectionIcon?: IconType;
 
 	/**
 	 * Action handlers
@@ -95,6 +96,16 @@ export interface RelationItemsDisplayProps {
 	 * Collection config for cell rendering (enables proper cell components in table mode)
 	 */
 	collectionConfig?: CollectionFieldsConfig;
+
+	/**
+	 * Whether items are being loaded
+	 */
+	isLoading?: boolean;
+
+	/**
+	 * Number of skeleton items to show when loading
+	 */
+	loadingCount?: number;
 }
 
 export function RelationItemsDisplay({
@@ -112,18 +123,14 @@ export function RelationItemsDisplay({
 	renderItem,
 	emptyMessage = "No items",
 	collectionConfig,
+	isLoading = false,
+	loadingCount,
 }: RelationItemsDisplayProps) {
 	const resolveText = useResolveText();
 	const resolvedEmptyMessage = resolveText(emptyMessage ?? "No items");
-	// Empty state
-	if (!items || items.length === 0) {
-		return (
-			<div className="rounded-lg border border-dashed p-4 text-center">
-				<p className="text-sm text-muted-foreground">{resolvedEmptyMessage}</p>
-			</div>
-		);
-	}
 
+	// Show loading state (skeletons) when loading
+	// Pass to display components so they can render skeletons
 	const displayProps: RelationDisplayProps = {
 		items,
 		collection,
@@ -137,7 +144,18 @@ export function RelationItemsDisplay({
 		linkToDetail,
 		renderItem,
 		collectionConfig,
+		isLoading,
+		loadingCount,
 	};
+
+	// Empty state - only show when not loading and no items
+	if (!isLoading && (!items || items.length === 0)) {
+		return (
+			<div className="rounded-lg border border-dashed p-4 text-center">
+				<p className="text-sm text-muted-foreground">{resolvedEmptyMessage}</p>
+			</div>
+		);
+	}
 
 	switch (display) {
 		case "chips":

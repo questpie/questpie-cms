@@ -1,0 +1,42 @@
+---
+title: Registry-First Philosophy
+description: Resolve fields, views, and components from registries instead of hardcoded branches
+---
+
+# Registry-First Philosophy
+
+In QUESTPIE, runtime behavior should come from registries and builder state, not hardcoded type branches.
+
+## Principle
+
+- server emits serializable references
+- client resolves references using registered implementations
+
+## Why this exists
+
+- extensibility without patching core runtime branches
+- custom design systems and custom view types stay possible
+- fewer hidden assumptions in runtime code
+
+## Good pattern
+
+```ts
+// Server
+icon: c.icon("ph:users");
+// -> serialized as { type: "icon", props: { name: "ph:users" } }
+```
+
+```ts
+// Client
+// Resolve component by registry key + props
+```
+
+## Anti-patterns
+
+- special-casing a specific type string in runtime path logic
+- fallbacking to hardcoded collection names like `assets`
+- rendering built-in views directly instead of registry lookup
+
+## Practical rule
+
+When introducing new field/view/component behavior, add it to registry contracts first. Runtime should stay generic.

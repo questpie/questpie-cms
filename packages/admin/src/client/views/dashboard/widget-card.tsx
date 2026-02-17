@@ -5,9 +5,10 @@
  * Provides consistent styling, header actions, and loading/error states.
  */
 
-import { ArrowClockwise, ArrowsOutSimple } from "@phosphor-icons/react";
+import { Icon } from "@iconify/react";
 import type * as React from "react";
 import type { WidgetAction, WidgetCardVariant } from "../../builder";
+import { resolveIconElement } from "../../components/component-renderer";
 import { Button } from "../../components/ui/button";
 import {
 	Card,
@@ -17,6 +18,12 @@ import {
 	CardHeader,
 	CardTitle,
 } from "../../components/ui/card";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuTrigger,
+} from "../../components/ui/dropdown-menu";
 import { Skeleton } from "../../components/ui/skeleton";
 import { cn } from "../../lib/utils";
 
@@ -30,7 +37,7 @@ export interface WidgetCardProps {
 	/** Widget description */
 	description?: string;
 	/** Widget icon */
-	icon?: React.ComponentType<{ className?: string }>;
+	icon?: WidgetAction["icon"];
 	/** Card visual variant */
 	variant?: WidgetCardVariant;
 	/** Loading state (initial load) */
@@ -114,7 +121,7 @@ function WidgetCardError({
 				{onRetry && (
 					<CardAction>
 						<Button variant="ghost" size="icon-xs" onClick={onRetry}>
-							<ArrowClockwise className="h-3.5 w-3.5" />
+							<Icon icon="ph:arrow-clockwise" className="h-3.5 w-3.5" />
 						</Button>
 					</CardAction>
 				)}
@@ -148,7 +155,7 @@ function WidgetCardError({
 export function WidgetCard({
 	title,
 	description,
-	icon: Icon,
+	icon,
 	variant = "default",
 	isLoading,
 	isRefreshing,
@@ -191,7 +198,7 @@ export function WidgetCard({
 	}
 
 	const hasHeader =
-		title || description || Icon || onRefresh || onExpand || actions?.length;
+		title || description || icon || onRefresh || onExpand || actions?.length;
 
 	return (
 		<Card
@@ -200,7 +207,9 @@ export function WidgetCard({
 			{hasHeader && (
 				<CardHeader>
 					<div className="flex items-center gap-2">
-						{Icon && <Icon className="h-4 w-4 text-muted-foreground" />}
+						{resolveIconElement(icon, {
+							className: "h-4 w-4 text-muted-foreground",
+						})}
 						<div className="flex-1 min-w-0">
 							{title && (
 								<CardTitle className="text-sm font-medium truncate">
@@ -217,19 +226,51 @@ export function WidgetCard({
 					{(onRefresh || onExpand || actions?.length) && (
 						<CardAction>
 							<div className="flex items-center gap-1">
-								{actions?.map((action) => (
-									<Button
-										key={action.id}
-										variant="ghost"
-										size="icon-xs"
-										onClick={action.onClick}
-										title={action.label}
-									>
-										{action.icon && typeof action.icon !== "string" && (
-											<action.icon className="h-3.5 w-3.5" />
+								{/* Show first action directly, rest in dropdown on small widgets */}
+								{actions && actions.length > 0 && (
+									<>
+										{/* First action always visible */}
+										<Button
+											key={actions[0].id}
+											variant="ghost"
+											size="icon-xs"
+											onClick={actions[0].onClick}
+											title={actions[0].label}
+										>
+											{resolveIconElement(actions[0].icon, {
+												className: "h-3.5 w-3.5",
+											})}
+										</Button>
+										{/* Additional actions in dropdown */}
+										{actions.length > 1 && (
+											<DropdownMenu>
+												<DropdownMenuTrigger
+													render={
+														<Button variant="ghost" size="icon-xs">
+															<Icon
+																icon="ph:dots-three-vertical"
+																className="h-3.5 w-3.5"
+															/>
+														</Button>
+													}
+												/>
+												<DropdownMenuContent align="end">
+													{actions.slice(1).map((action) => (
+														<DropdownMenuItem
+															key={action.id}
+															onClick={action.onClick}
+														>
+															{resolveIconElement(action.icon, {
+																className: "h-3.5 w-3.5 mr-2",
+															})}
+															{action.label}
+														</DropdownMenuItem>
+													))}
+												</DropdownMenuContent>
+											</DropdownMenu>
 										)}
-									</Button>
-								))}
+									</>
+								)}
 								{onRefresh && (
 									<Button
 										variant="ghost"
@@ -238,7 +279,8 @@ export function WidgetCard({
 										title="Refresh"
 										disabled={isRefreshing}
 									>
-										<ArrowClockwise
+										<Icon
+											icon="ph:arrow-clockwise"
 											className={cn(
 												"h-3.5 w-3.5",
 												isRefreshing && "animate-spin",
@@ -253,7 +295,7 @@ export function WidgetCard({
 										onClick={onExpand}
 										title="Expand"
 									>
-										<ArrowsOutSimple className="h-3.5 w-3.5" />
+										<Icon icon="ph:arrows-out-simple" className="h-3.5 w-3.5" />
 									</Button>
 								)}
 							</div>

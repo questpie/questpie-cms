@@ -21,7 +21,7 @@
  * ```
  */
 
-import { Check } from "@phosphor-icons/react";
+import { Icon } from "@iconify/react";
 import * as React from "react";
 import type { Asset } from "../../hooks/use-upload";
 import { cn } from "../../lib/utils";
@@ -87,10 +87,10 @@ function getAssetTypeColor(mimeType?: string): string {
 
 	const type = mimeType.toLowerCase();
 
-	if (type.startsWith("image/")) return "bg-blue-500/10";
-	if (type.startsWith("video/")) return "bg-purple-500/10";
-	if (type.startsWith("audio/")) return "bg-pink-500/10";
-	if (type === "application/pdf") return "bg-red-500/10";
+	if (type.startsWith("image/")) return "bg-info/10";
+	if (type.startsWith("video/")) return "bg-primary/10";
+	if (type.startsWith("audio/")) return "bg-success/10";
+	if (type === "application/pdf") return "bg-destructive/10";
 
 	return "bg-muted";
 }
@@ -208,7 +208,9 @@ function AssetItem({
 							: "border-white bg-black/20 backdrop-blur-sm group-hover:bg-black/40",
 					)}
 				>
-					{selected && <Check weight="bold" className="size-3 text-white" />}
+					{selected && (
+						<Icon icon="ph:check-bold" className="size-3 text-white" />
+					)}
 				</div>
 			)}
 

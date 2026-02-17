@@ -22,11 +22,12 @@
  * ```
  */
 
-import { FunnelSimple, MagnifyingGlass } from "@phosphor-icons/react";
+import { Icon } from "@iconify/react";
 import * as React from "react";
 import { toast } from "sonner";
 import { useCollectionList } from "../../hooks/use-collection";
 import type { Asset } from "../../hooks/use-upload";
+import { useUploadCollection } from "../../hooks/use-upload-collection";
 import { AssetPreview } from "../primitives/asset-preview";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
@@ -86,7 +87,6 @@ export interface MediaPickerDialogProps {
 
 	/**
 	 * Target collection
-	 * @default "assets"
 	 */
 	collection?: string;
 }
@@ -114,8 +114,13 @@ export function MediaPickerDialog({
 	accept,
 	onSelect,
 	maxItems,
-	collection = "assets",
+	collection,
 }: MediaPickerDialogProps) {
+	const {
+		collection: resolvedCollection,
+		collections: availableUploadCollections,
+	} = useUploadCollection(collection);
+
 	// State
 	const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set());
 	const [searchQuery, setSearchQuery] = React.useState("");
@@ -168,7 +173,7 @@ export function MediaPickerDialog({
 
 	// Fetch assets
 	const { data, isLoading } = useCollectionList(
-		collection,
+		resolvedCollection || "",
 		{
 			where,
 			search: trimmedSearch || undefined,
@@ -176,11 +181,14 @@ export function MediaPickerDialog({
 			orderBy: { createdAt: "desc" },
 		},
 		{
-			enabled: open,
+			enabled: open && !!resolvedCollection,
 		},
 	);
 
-	const assets = (data?.docs || []) as Asset[];
+	const assets = React.useMemo(
+		() => (data?.docs || []) as Asset[],
+		[data?.docs],
+	);
 	const previewAsset = React.useMemo(
 		() => assets.find((asset) => asset.id === previewAssetId) ?? null,
 		[assets, previewAssetId],
@@ -195,17 +203,20 @@ export function MediaPickerDialog({
 			setPreviewAssetId(null);
 			return;
 		}
+	}, [open]);
 
-		if (!previewAssetId && assets.length > 0) {
+	// Auto-select first asset for preview
+	React.useEffect(() => {
+		if (!open || assets.length === 0) return;
+
+		if (!previewAssetId) {
 			setPreviewAssetId(assets[0].id);
 			return;
 		}
 
-		if (previewAssetId && assets.length > 0) {
-			const stillExists = assets.some((asset) => asset.id === previewAssetId);
-			if (!stillExists) {
-				setPreviewAssetId(assets[0].id);
-			}
+		const stillExists = assets.some((asset) => asset.id === previewAssetId);
+		if (!stillExists) {
+			setPreviewAssetId(assets[0].id);
 		}
 	}, [open, assets, previewAssetId]);
 
@@ -222,6 +233,15 @@ export function MediaPickerDialog({
 
 	// Handle select button click
 	const handleSelect = () => {
+		if (!resolvedCollection) {
+			toast.error(
+				availableUploadCollections.length > 1
+					? `Multiple upload collections are available (${availableUploadCollections.join(", ")}). Specify the collection for MediaPickerDialog.`
+					: "No upload collection is configured for media library.",
+			);
+			return;
+		}
+
 		if (selectedIds.size === 0) {
 			toast.error("Please select at least one asset");
 			return;
@@ -258,13 +278,21 @@ export function MediaPickerDialog({
 				</SheetHeader>
 
 				<div className="flex flex-1 flex-col gap-4 overflow-hidden px-6 pb-6">
+					{!resolvedCollection && (
+						<div className="rounded-lg border border-warning/40 bg-warning/5 p-3 text-sm text-warning">
+							{availableUploadCollections.length > 1
+								? `Multiple upload collections are available (${availableUploadCollections.join(", ")}). Pass the collection prop to choose one.`
+								: "No upload collection is configured for media library."}
+						</div>
+					)}
+
 					{/* Filters */}
 					<div className="flex flex-col gap-3 border-b pb-4 sm:flex-row">
 						{/* Search input */}
 						<div className="relative flex-1">
-							<MagnifyingGlass
+							<Icon
+								icon="ph:magnifying-glass-bold"
 								className="text-muted-foreground absolute left-3 top-1/2 size-4 -translate-y-1/2"
-								weight="bold"
 							/>
 							<Input
 								type="text"
@@ -283,7 +311,7 @@ export function MediaPickerDialog({
 							>
 								<SelectTrigger className="w-full sm:w-[180px]">
 									<div className="flex items-center gap-2">
-										<FunnelSimple weight="bold" className="size-4" />
+										<Icon icon="ph:funnel-simple-bold" className="size-4" />
 										<SelectValue />
 									</div>
 								</SelectTrigger>

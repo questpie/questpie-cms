@@ -1,6 +1,4 @@
 import { q } from "questpie";
-import { boolean, jsonb, varchar } from "drizzle-orm/pg-core";
-import type { ViewConfiguration } from "../../../../shared/types/saved-views.types.js";
 
 // Re-export types from shared
 export type {
@@ -37,22 +35,29 @@ export type {
  */
 export const savedViewsCollection = q
   .collection("admin_saved_views")
-  .fields({
+  .fields((f) => ({
     // User who owns this saved view
-    userId: varchar("user_id", { length: 255 }).notNull(),
+    userId: f.text({ required: true, maxLength: 255, label: "User ID" }),
 
     // Target collection for this view
-    collectionName: varchar("collection_name", { length: 255 }).notNull(),
+    collectionName: f.text({
+      required: true,
+      maxLength: 255,
+      label: "Collection Name",
+    }),
 
     // Display name for the view
-    name: varchar("name", { length: 255 }).notNull(),
+    name: f.text({ required: true, maxLength: 255, label: "Name" }),
 
     // View configuration (filters, sort, columns)
-    configuration: jsonb("configuration").notNull().$type<ViewConfiguration>(),
+    configuration: f.json({
+      required: true,
+      label: "Configuration",
+    }),
 
     // Whether this is the default view for the user/collection
-    isDefault: boolean("is_default").default(false).notNull(),
-  })
+    isDefault: f.boolean({ default: false, label: "Is Default" }),
+  }))
   .options({
     timestamps: true,
   });

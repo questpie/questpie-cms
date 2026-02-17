@@ -38,17 +38,57 @@ export const en = {
 	"booking.success.backHome": "Back to Home",
 	"booking.error.slotTaken": "This time slot is no longer available",
 	"booking.error.generic": "Something went wrong. Please try again.",
+	"booking.stepOf": "Step {current} of {total}",
+	"booking.policy.title": "Our Policy",
+	"booking.policy.arrive": "Please arrive 5 minutes before your appointment.",
+	"booking.policy.cancel":
+		"Cancellations must be made at least 24h in advance.",
+	"booking.policy.payment": "We accept cash and all major credit cards.",
+	"booking.total": "Total",
+	"booking.service": "Service",
+	"booking.barber": "Barber",
+	"booking.appointment": "Appointment",
+	"booking.selectServiceToStart": "Select a service to start",
+	"booking.phoneOptional": "Phone Number (Optional)",
+	"booking.notesForBarber": "Notes for Barber (Optional)",
+	"booking.notesPlaceholder": "Anything we should know?",
+	"booking.booking": "Booking...",
+	"booking.confirmBooking": "Confirm Booking",
+	"booking.noSlotsForDay": "No available slots for this day. Try another date.",
+	"booking.confirmed.title": "Booking Confirmed!",
+	"booking.confirmed.message":
+		"We've received your request. A confirmation email has been sent to",
+	"booking.returnHome": "Return Home",
+	"booking.needToChange": "Need to change something? Call us at",
+	"booking.error.loadSlots": "Failed to load available times",
+	"booking.error.loadSlotsDesc":
+		"Please try selecting a different date or barber.",
+	"booking.error.success": "Appointment booked successfully!",
+	"booking.error.successDesc": "We've sent a confirmation to your email.",
+	"booking.error.failed": "Failed to book appointment",
+	"booking.error.failedDesc":
+		"Something went wrong. Please try again or contact us.",
+	"booking.error.missing": "Missing information",
+	"booking.error.missingDesc":
+		"Please complete all previous steps before confirming.",
+	"booking.error.required": "Required fields missing",
+	"booking.error.requiredDesc": "Please fill in your name and email address.",
 
 	// Services
 	"services.title": "Our Services",
-	"services.subtitle": "Quality grooming services tailored to your style",
+	"services.subtitle":
+		"Premium grooming services tailored to your style. We combine traditional techniques with modern aesthetics.",
 	"services.duration": "{duration} min",
+	"services.minutes": "minutes",
 	"services.book": "Book This Service",
+	"services.bookNow": "Book Now",
 	"services.viewAll": "View All Services",
+	"services.empty": "No services found.",
 
 	// Barbers
-	"barbers.title": "Our Team",
-	"barbers.subtitle": "Skilled professionals dedicated to your look",
+	"barbers.title": "Meet Our Team",
+	"barbers.subtitle":
+		"Our master barbers are dedicated to the craft of traditional grooming and modern styling.",
 	"barbers.viewProfile": "View Profile",
 	"barbers.bookWith": "Book with {name}",
 	"barbers.available": "Available",
@@ -58,6 +98,7 @@ export const en = {
 	"barbers.about": "About",
 	"barbers.services": "Services Offered",
 	"barbers.reviews": "Reviews",
+	"barbers.empty": "No barbers found.",
 
 	// Reviews
 	"reviews.title": "What Clients Say",
@@ -133,6 +174,20 @@ export const en = {
 	"cta.contactUs": "Contact Us",
 	"cta.viewServices": "View Services",
 	"cta.meetTeam": "Meet the Team",
+
+	// Blocks
+	"blocks.team.viewAll": "Meet the full team",
+	"blocks.team.empty": "No team members available",
+	"blocks.services.viewAll": "View all services",
+	"blocks.services.empty": "No services available",
+	"blocks.reviews.empty": "No reviews yet",
+	"blocks.reviews.anonymous": "Anonymous",
+	"blocks.gallery.empty": "No images available",
+	"blocks.hours.closed": "Closed",
+	"blocks.contact.phone": "Phone",
+	"blocks.contact.email": "Email",
+	"blocks.contact.address": "Address",
+	"blocks.contact.getDirections": "Get Directions",
 } as const;
 
 export type TranslationKey = keyof typeof en;

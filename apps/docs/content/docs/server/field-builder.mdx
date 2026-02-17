@@ -1,0 +1,252 @@
+---
+title: Field Builder
+description: How the .fields() callback works — lifecycle, type inference, and metadata
+---
+
+# Field Builder
+
+The field builder is the center of QUESTPIE's architecture. Instead of declaring database columns, API validators, and admin metadata separately, you define fields once using semantic constructors. The framework derives everything else.
+
+## Why This Exists
+
+In traditional CMS development, you repeat field information across layers: database migration, API validation, admin form config, client types. QUESTPIE eliminates this by making the `.fields()` callback the single source of truth. Every layer reads from the same definition.
+
+## Mental Model
+
+```text
+.fields((f) => ({
+  title: f.text({ ... }),    ← semantic field definition
+}))
+       │
+       ├── toColumn()        → Drizzle PostgreSQL column
+       ├── toZodSchema()     → Zod validation schema
+       ├── getOperators()    → WHERE clause operators
+       ├── getMetadata()     → JSON for admin introspection
+       ├── fromDb() / toDb() → value transformers
+       └── type inference    → TypeScript types for API
+```
+
+## Basic Usage
+
+```ts
+export const pages = qb
+  .collection("pages")
+  .fields((f) => ({
+    title: f.text({
+      label: { en: "Title", sk: "Názov" },
+      required: true,
+      maxLength: 255,
+      localized: true,
+    }),
+    slug: f.text({
+      label: { en: "Slug" },
+      required: true,
+      input: "optional",
+    }),
+    content: f.blocks({
+      label: { en: "Content" },
+      localized: true,
+    }),
+    isPublished: f.boolean({
+      label: { en: "Published" },
+      default: false,
+      required: true,
+    }),
+  }));
+```
+
+The `f` proxy gives you type-safe access to all registered field types. The core framework provides the basic types (`text`, `number`, `boolean`, `date`, `select`, `json`, `object`, `array`, `relation`), and modules like the admin module add content types (`richText`, `blocks`, `upload`).
+
+## The Field Proxy (`f`)
+
+Inside `.fields((f) => ...)`, `f` is a proxy object where each property is a field factory function:
+
+```ts
+f.text(config)       // → FieldDefinition<TextState>
+f.number(config)     // → FieldDefinition<NumberState>
+f.boolean(config)    // → FieldDefinition<BooleanState>
+f.relation(config)   // → FieldDefinition<RelationState>
+// ...etc
+```
+
+Each call returns a `FieldDefinition` that carries:
+- **Column definition** — how to create the PostgreSQL column
+- **Zod schema** — how to validate input/output
+- **Operators** — what WHERE clauses are valid (`eq`, `ne`, `contains`, `gt`, etc.)
+- **Metadata** — what the admin UI needs to render the field
+- **Type information** — TypeScript types for the value, input, and output
+
+## Field Configuration Options
+
+Every field type accepts a base set of options:
+
+### `label` and `description`
+
+Internationalized text for admin display:
+
+```ts
+name: f.text({
+  label: { en: "Name", sk: "Meno" },
+  description: { en: "The barber's full name" },
+})
+```
+
+### `required`
+
+Makes the field NOT NULL in the database and required in create/update inputs:
+
+```ts
+title: f.text({ required: true })     // NOT NULL, required in input
+title: f.text({})                       // nullable, optional in input
+```
+
+### `default`
+
+Sets a default value. Can be a static value or a factory function:
+
+```ts
+isActive: f.boolean({ default: true })
+createdBy: f.text({ default: () => getCurrentUserId() })
+```
+
+### `input`
+
+Controls whether the field appears in create/update inputs:
+
+```ts
+title: f.text({ input: true })          // default: included in input, required
+slug: f.text({ input: "optional" })     // included but not required
+computedField: f.text({ input: false }) // never in input (read-only)
+```
+
+### `output`
+
+Controls whether the field appears in query results:
+
+```ts
+password: f.text({ output: false })  // never returned in API responses
+```
+
+### `localized`
+
+Stores the field value per locale in a separate i18n table:
+
+```ts
+title: f.text({ localized: true })
+// Results in: title stored in pages_i18n table with locale column
+```
+
+### `meta`
+
+Arbitrary metadata passed through to the admin panel:
+
+```ts
+status: f.select({
+  options: [...],
+  meta: {
+    admin: {
+      displayAs: "badge",
+      badgeColors: {
+        draft: "gray",
+        published: "green",
+      },
+    },
+  },
+})
+```
+
+The admin module reads `meta.admin` for rendering hints. You can add custom metadata for your own use.
+
+### `virtual`
+
+Creates a field without a database column:
+
+```ts
+fullName: f.text({
+  virtual: true,  // no column, but included in type and metadata
+})
+
+// Or a computed SQL expression:
+displayTitle: f.text({
+  virtual: sql`concat(first_name, ' ', last_name)`,
+})
+```
+
+## Using Fields in Views
+
+Inside `.list()` and `.form()`, the `f` proxy is strongly typed to the fields you defined:
+
+```ts
+.fields((f) => ({
+  title: f.text({ ... }),
+  slug: f.text({ ... }),
+  content: f.richText({ ... }),
+  isPublished: f.boolean({ ... }),
+}))
+.list(({ v, f }) =>
+  // f.title, f.slug, f.content, f.isPublished are all typed
+  v.table({ columns: [f.title, f.isPublished] }),
+)
+.form(({ v, f }) =>
+  v.form({
+    fields: [f.title, f.content],
+    sidebar: { position: "right", fields: [f.slug, f.isPublished] },
+  }),
+)
+```
+
+This means typos in field names are caught at compile time.
+
+## Field Lifecycle
+
+When the CMS builds, each field definition goes through these steps:
+
+1. **Column generation** — `toColumn(fieldName)` produces a Drizzle column (or `null` for virtual/relation fields)
+2. **Table assembly** — columns are assembled into a Drizzle table schema
+3. **Validation schema** — `toZodSchema()` produces a Zod schema used for API input validation
+4. **Operator registration** — `getOperators()` registers valid WHERE operators per field
+5. **Metadata emission** — `getMetadata()` produces JSON for admin introspection
+6. **Type inference** — TypeScript infers value/input/output types from the field definition
+
+## Type Inference
+
+Field definitions propagate types through the entire stack:
+
+```ts
+const posts = qb.collection("posts").fields((f) => ({
+  title: f.text({ required: true }),        // string (non-null)
+  description: f.textarea({}),               // string | null
+  rating: f.number({ min: 1, max: 5 }),     // number | null
+  isPublished: f.boolean({ required: true }), // boolean (non-null)
+}));
+
+// API types are inferred:
+// create input: { title: string, description?: string | null, ... }
+// update input: { title?: string, description?: string | null, ... }
+// query result: { id: string, title: string, description: string | null, ... }
+```
+
+## Field Location
+
+Fields are stored in different locations depending on their configuration:
+
+| Location | When | Storage |
+|---|---|---|
+| `main` | Default | Column in the main collection table |
+| `i18n` | `localized: true` | Column in the `{collection}_i18n` table |
+| `virtual` | `virtual: true` or SQL expression | No column (computed at query time) |
+| `relation` | `f.relation()` | Foreign key in main table (belongsTo) or via junction table |
+
+## Common Mistakes
+
+- **Treating fields as only DB columns** — Fields carry behavior, metadata, and type information. They drive the entire stack, not just the database.
+- **Forgetting `input: "optional"` on auto-generated fields** — Fields like `slug` that are computed from other fields should use `input: "optional"` so they're accepted but not required.
+- **Putting rendering logic in field config** — Field definitions should describe the data, not how it renders. Use `meta.admin` for rendering hints, not for embedding React components.
+
+## Related Pages
+
+- [Field Types](/docs/server/field-types) — Complete catalog of built-in types
+- [Relations](/docs/server/relations) — How relation fields work
+- [Reactive Fields](/docs/server/reactive-fields) — compute, hidden, readOnly, disabled
+- [Custom Field Type](/docs/guides/custom-field-type) — Build your own field type
+- [Collections](/docs/server/collections) — How fields fit into collections

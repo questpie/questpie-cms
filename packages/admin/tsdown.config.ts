@@ -9,12 +9,17 @@ export default defineConfig({
   clean: true,
 
   treeshake: true,
+  unbundle: true,
   dts: true,
 
   // Copy CSS files instead of bundling them
   copy: [{ from: "src/client/styles/**/*.css", to: "dist/client/styles" }],
 
   exports: {
+    // Export all files including internal chunks so TypeScript can resolve
+    // type references from internal .d.mts files
+    all: true,
+    devExports: true,
     customExports: async (exports, opts) => {
       try {
         // Add CSS file exports
@@ -39,6 +44,5 @@ export default defineConfig({
         return exports;
       }
     },
-    devExports: true,
   },
 });

@@ -2,19 +2,32 @@
 
 import type { BuildColumn, SQL } from "drizzle-orm";
 import type { PgTableWithColumns } from "drizzle-orm/pg-core";
+import type { Collection } from "#questpie/exports/index.js";
 import type {
 	CollectionVersioningOptions,
+	ExtractFieldsByLocation,
 	I18nFieldAccessor,
 	InferTableWithColumns,
-	NonLocalizedFields,
 	RelationConfig,
 	RelationVariant,
 } from "#questpie/server/collection/builder/types.js";
-// Note: any, any, and any are deprecated.
-// Users should use getApp<AppCMS>(), getDb<AppCMS>(), and getSession<AppCMS>() instead.
-import type { AccessMode } from "#questpie/server/config/types.js";
+import type { BaseRequestContext } from "#questpie/server/config/context.js";
+// Note: any types are intentional for composition flexibility.
+// Users should use typedApp<AppCMS>(), typedDb<AppCMS>(), and typedSession<AppCMS>() for type-safe access.
+import type {
+	AccessMode,
+	QuestpieContextExtension,
+} from "#questpie/server/config/types.js";
+import type { FieldDefinitionAccess } from "#questpie/server/fields/types.js";
 import type { FunctionDefinition } from "#questpie/server/functions/types.js";
-import type { Collection } from "#questpie/exports/index.js";
+
+/**
+ * Scope resolver function type for globals.
+ * Returns a scope ID based on the request context.
+ */
+export type GlobalScopeResolver = (
+	ctx: BaseRequestContext & QuestpieContextExtension,
+) => string | null | undefined;
 
 /**
  * Options for global configuration
@@ -29,6 +42,39 @@ export interface GlobalOptions {
 	 * Versioning configuration
 	 */
 	versioning?: boolean | CollectionVersioningOptions;
+	/**
+	 * Scope resolver for multi-tenant globals.
+	 * When provided, each scope gets its own instance of the global.
+	 *
+	 * The resolver receives the request context (including custom extensions
+	 * from `.context()` on builder) and returns the scope ID.
+	 *
+	 * @example
+	 * ```ts
+	 * // Per-tenant settings
+	 * const tenantSettings = qb
+	 *   .global('tenant_settings')
+	 *   .options({
+	 *     scoped: (ctx) => ctx.tenantId  // From context extension
+	 *   })
+	 *   .fields((f) => ({
+	 *     welcomeMessage: f.text(),
+	 *     theme: f.select({ options: ['light', 'dark'] })
+	 *   }))
+	 *
+	 * // Per-property settings (multi-property management)
+	 * const propertySettings = qb
+	 *   .global('property_settings')
+	 *   .options({
+	 *     scoped: (ctx) => ctx.propertyId
+	 *   })
+	 *   .fields((f) => ({
+	 *     checkInTime: f.text({ default: '14:00' }),
+	 *     checkOutTime: f.text({ default: '11:00' })
+	 *   }))
+	 * ```
+	 */
+	scoped?: GlobalScopeResolver;
 }
 
 /**
@@ -39,12 +85,12 @@ export interface GlobalOptions {
  *
  * @example
  * ```ts
- * import { getApp } from "questpie";
+ * import { typedApp } from "questpie";
  * import type { AppCMS } from "./cms";
  *
  * .hooks({
  *   afterUpdate: async ({ app, data }) => {
- *     const cms = getApp<AppCMS>(app);
+ *     const cms = typedApp<AppCMS>(app);
  *     await cms.kv.set('settings-cache', data);
  *   }
  * })
@@ -55,11 +101,11 @@ export interface GlobalHookContext<TData = any, TApp = any> {
 	data: TData;
 	/** Input data for update operations */
 	input?: any;
-	/** CMS instance - use getApp<AppCMS>(app) for type-safe access */
+	/** CMS instance - use typedApp<AppCMS>(app) for type-safe access */
 	app: TApp;
 	/**
 	 * Auth session (user + session) from Better Auth.
-	 * Use getSession<AppCMS>(session) for type-safe access.
+	 * Use typedSession<AppCMS>(session) for type-safe access.
 	 * - undefined = session not resolved
 	 * - null = explicitly unauthenticated
 	 * - object = authenticated
@@ -69,7 +115,7 @@ export interface GlobalHookContext<TData = any, TApp = any> {
 	locale?: string;
 	/** Access mode */
 	accessMode?: AccessMode;
-	/** Database client - use getDb<AppCMS>(db) for type-safe access */
+	/** Database client - use typedDb<AppCMS>(db) for type-safe access */
 	db: any;
 }
 
@@ -80,11 +126,11 @@ export interface GlobalHookContext<TData = any, TApp = any> {
  * @template TApp - The CMS app type (defaults to any)
  */
 export interface GlobalAccessContext<TData = any, TApp = any> {
-	/** CMS instance - use getApp<AppCMS>(app) for type-safe access */
+	/** CMS instance - use typedApp<AppCMS>(app) for type-safe access */
 	app: TApp;
 	/**
 	 * Auth session (user + session) from Better Auth.
-	 * Use getSession<AppCMS>(session) for type-safe access.
+	 * Use typedSession<AppCMS>(session) for type-safe access.
 	 * - undefined = session not resolved
 	 * - null = explicitly unauthenticated
 	 * - object = authenticated
@@ -94,7 +140,7 @@ export interface GlobalAccessContext<TData = any, TApp = any> {
 	data?: TData;
 	/** Input data for update */
 	input?: any;
-	/** Database client - use getDb<AppCMS>(db) for type-safe access */
+	/** Database client - use typedDb<AppCMS>(db) for type-safe access */
 	db: any;
 	/** Current locale */
 	locale?: string;
@@ -135,20 +181,10 @@ export interface GlobalHooks<TRow = any, TApp = any> {
 /**
  * Access control function can return:
  * - boolean: true (allow) or false (deny)
- * - string: role name to check
  */
 export type GlobalAccessRule<TRow = any, TApp = any> =
 	| boolean
-	| string // Role name
 	| ((ctx: GlobalAccessContext<TRow, TApp>) => boolean | Promise<boolean>);
-
-/**
- * Field-level access control
- */
-export interface GlobalFieldAccess<TRow = any, TApp = any> {
-	read?: GlobalAccessRule<TRow, TApp>;
-	write?: GlobalAccessRule<TRow, TApp>;
-}
 
 /**
  * Global access control configuration
@@ -156,9 +192,11 @@ export interface GlobalFieldAccess<TRow = any, TApp = any> {
 export interface GlobalAccess<TRow = any, TApp = any> {
 	read?: GlobalAccessRule<TRow, TApp>;
 	update?: GlobalAccessRule<TRow, TApp>;
-
-	// Optional: field-level access
-	fields?: Record<string, GlobalFieldAccess<TRow, TApp>>;
+	/**
+	 * Field-scoped access rules.
+	 * Source-of-truth for per-field authorization in globals.
+	 */
+	fields?: Record<string, Pick<FieldDefinitionAccess, "read" | "update">>;
 }
 
 export type GlobalBuilderRelationFn<
@@ -168,7 +206,9 @@ export type GlobalBuilderRelationFn<
 	ctx: {
 		table: InferTableWithColumns<
 			TState["name"],
-			NonLocalizedFields<TState["fields"], TState["localized"]>,
+			TState["fieldDefinitions"] extends Record<string, any>
+				? ExtractFieldsByLocation<TState["fieldDefinitions"], "main">
+				: Omit<TState["fields"], TState["localized"][number]>,
 			undefined,
 			TState["options"]
 		>;
@@ -183,6 +223,14 @@ export type GlobalBuilderRelationFn<
  * Global builder state - simplified interface
  * Type inference happens from builder usage, not from explicit generics
  */
+/**
+ * Validation schemas for a global
+ */
+export interface GlobalValidationSchemas {
+	/** Schema for update operations */
+	updateSchema: import("zod").ZodTypeAny;
+}
+
 export interface GlobalBuilderState {
 	name: string;
 	fields: Record<string, any>;
@@ -193,14 +241,49 @@ export interface GlobalBuilderState {
 	hooks: GlobalHooks;
 	access: GlobalAccess;
 	functions: Record<string, FunctionDefinition>;
+	/**
+	 * Validation schemas for the global.
+	 * Auto-generated if not explicitly provided.
+	 */
+	validation?: GlobalValidationSchemas;
+	/**
+	 * Field definitions when using Field Builder.
+	 * undefined when using raw Drizzle columns.
+	 */
+	fieldDefinitions: Record<string, any> | undefined;
+	/**
+	 * Phantom type for QuestpieBuilder reference.
+	 * Used to access field types registered via q.fields().
+	 */
+	"~questpieApp"?: any;
+	/**
+	 * Phantom type for field types available in .fields((f) => ...).
+	 * Extracted from ~questpieApp at compile time for type inference.
+	 */
+	"~fieldTypes"?: Record<string, any>;
 }
 
 /**
+ * Extract field types from QuestpieBuilder.
+ * QuestpieBuilder<TState> has `$state: TState` declared property for type extraction.
+ */
+type ExtractFieldTypesFromApp<TQuestpieApp> = TQuestpieApp extends {
+	$state: { fields: infer TFields };
+}
+	? TFields
+	: undefined;
+
+/**
  * Default empty state for a new global
+ *
+ * @param TName - Global name
+ * @param TQuestpieApp - Reference to QuestpieBuilder instance
+ * @param TFieldTypes - Field types available in .fields((f) => ...)
  */
 export type EmptyGlobalState<
 	TName extends string,
-	_TApp = any,
+	TQuestpieApp = undefined,
+	TFieldTypes extends Record<string, any> | undefined = undefined,
 > = GlobalBuilderState & {
 	name: TName;
 	fields: {};
@@ -211,6 +294,9 @@ export type EmptyGlobalState<
 	hooks: {};
 	access: {};
 	functions: {};
+	fieldDefinitions: undefined;
+	"~questpieApp": TQuestpieApp;
+	"~fieldTypes": TFieldTypes;
 };
 
 /**

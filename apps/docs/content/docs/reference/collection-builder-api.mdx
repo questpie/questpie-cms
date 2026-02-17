@@ -1,0 +1,332 @@
+---
+title: Collection Builder API
+description: All collection-level methods — fields, hooks, access, options, search, preview, and more
+---
+
+# Collection Builder API
+
+`CollectionBuilder` defines a single collection's schema, behavior, and admin configuration. Created via `q.collection(name)`.
+
+```ts
+const posts = q.collection("posts")
+  .fields((f) => ({ ... }))
+  .title(({ f }) => f.title)
+  .hooks({ ... })
+  .access({ ... })
+  .options({ timestamps: true });
+```
+
+All methods are chainable and return a new builder instance.
+
+## Schema
+
+### `.fields(factory)`
+
+Define the collection's fields using the field builder proxy.
+
+```ts
+.fields((f) => ({
+  title: f.text({ required: true }),
+  slug: f.text({ required: true }),
+  body: f.richText(),
+  status: f.select({
+    options: ["draft", "published", "archived"],
+    required: true,
+    defaultValue: "draft",
+  }),
+  author: f.relation({ to: "users" }),
+  publishedAt: f.datetime(),
+}))
+```
+
+**Parameter:** `(f: FieldBuilderProxy) => Record<string, FieldBuilder>` — factory function receiving the `f` proxy. Each field type method on `f` returns a chainable `FieldBuilder`.
+
+Also accepts raw Drizzle columns for escape hatches:
+
+```ts
+.fields({
+  customCol: pgTable.varchar("custom_col", { length: 255 }),
+})
+```
+
+### `.title(fn)`
+
+Define which field to use as the display title in the admin panel.
+
+```ts
+.title(({ f }) => f.title)
+```
+
+**Parameter:** `(proxy) => FieldProxy` — callback receiving a field name proxy.
+
+### `.indexes(fn)`
+
+Define database indexes and constraints.
+
+```ts
+.indexes(({ table }) => [
+  uniqueIndex("slug_unique").on(table.slug),
+  index("status_idx").on(table.status),
+])
+```
+
+**Parameter:** `({ table }) => PgTableExtraConfigValue[]`
+
+## Behavior
+
+### `.hooks(hooks)`
+
+Register lifecycle hooks. Each hook can be a single function or an array (executed sequentially).
+
+```ts
+.hooks({
+  beforeValidate: ({ data, operation }) => {
+    if (operation === "create") {
+      data.slug = slugify(data.title);
+    }
+  },
+  afterChange: [
+    sendNotificationHook,
+    reindexSearchHook,
+  ],
+})
+```
+
+**Parameter:** Object with optional keys:
+
+| Hook | Runs | Transaction |
+|---|---|---|
+| `beforeOperation` | Before any CRUD op | Outside |
+| `beforeValidate` | Before Zod validation (create/update) | Outside |
+| `beforeChange` | After validation (create/update) | Inside |
+| `afterChange` | After DB write (create/update) | Inside |
+| `beforeRead` | Before read query | Outside |
+| `afterRead` | After any op returns data | Outside |
+| `beforeDelete` | Before DB delete | Inside |
+| `afterDelete` | After DB delete | Outside |
+
+See [Hooks API](/docs/reference/hooks-api) for context types and execution order.
+
+### `.access(rules)`
+
+Set access control rules. Each rule can be a boolean, a function returning boolean, or a function returning an `AccessWhere` filter.
+
+```ts
+.access({
+  read: true,
+  create: ({ session }) => session?.user?.role === "editor",
+  update: ({ session }) => ({
+    authorId: { eq: session?.user?.id },
+  }),
+  delete: ({ session }) => session?.user?.role === "admin",
+})
+```
+
+**Parameter:** `{ read?, create?, update?, delete? }` — each is `boolean | AccessFunction`.
+
+See [Access Control](/docs/server/access-control) for details.
+
+### `.options(options)`
+
+Set collection options.
+
+```ts
+.options({
+  timestamps: true,      // adds createdAt, updatedAt
+  softDelete: true,      // adds deletedAt, restore support
+  versioning: true,      // creates version table
+})
+```
+
+**Parameter:**
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `timestamps` | `boolean` | `true` | Add `createdAt` and `updatedAt` columns |
+| `softDelete` | `boolean` | `false` | Add `deletedAt` column, enable `.restore()` |
+| `versioning` | `boolean \| CollectionVersioningOptions` | `false` | Enable version history |
+
+Versioning options: `{ maxVersions?: number }` to limit stored versions.
+
+### `.validation(options?)`
+
+Configure field validation.
+
+```ts
+.validation({
+  exclude: { slug: true },  // skip validation for slug
+  refine: {
+    email: (schema) => schema.email("Must be valid email"),
+  },
+})
+```
+
+**Parameter:** `{ exclude?: Record<string, true>; refine?: Record<string, (schema) => ZodTypeAny> }`
+
+## Features
+
+### `.functions(fns)`
+
+Register RPC functions scoped to this collection.
+
+```ts
+.functions({
+  publish: q.fn({
+    schema: z.object({ id: z.string() }),
+    handler: async ({ input, app }) => {
+      return app.api.collections.posts.update({
+        where: { id: input.id },
+        data: { status: "published", publishedAt: new Date() },
+      });
+    },
+  }),
+})
+```
+
+**Parameter:** `Record<string, FunctionDefinition>` — functions accessible via RPC at `collections/{name}/functions/{fnName}`.
+
+### `.searchable(config)`
+
+Configure full-text search indexing.
+
+```ts
+.searchable({
+  content: ["title", "body", "excerpt"],
+  metadata: ["status", "category"],
+})
+```
+
+**Parameter:** `{ content?: string[]; metadata?: string[]; embeddings?: string[] }`
+
+### `.upload(options?)`
+
+Enable file upload capabilities. Automatically adds upload-related fields and hooks.
+
+```ts
+.upload({
+  visibility: "public",
+  maxSize: 10 * 1024 * 1024,  // 10MB
+  allowedTypes: ["image/*", "application/pdf"],
+})
+```
+
+**Parameter:** `{ visibility?: "public" | "private"; maxSize?: number; allowedTypes?: string[] }`
+
+### `.preview(config)`
+
+Enable live preview for this collection.
+
+```ts
+.preview({
+  url: (record) => `${process.env.FRONTEND_URL}/posts/${record.slug}`,
+})
+```
+
+## Admin Configuration
+
+These methods configure how the collection appears in the admin panel. They are available when `@questpie/admin` is composed via `.use()`.
+
+### `.admin(config)`
+
+General admin panel configuration.
+
+```ts
+.admin({
+  label: "Blog Posts",
+  icon: "ph:article",
+  group: "Content",
+  description: "Manage blog posts",
+  hidden: false,
+  order: 1,
+})
+```
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `label` | `string \| I18nText` | Display name in admin UI |
+| `icon` | `string` | Iconify icon name (e.g., `"ph:article"`) |
+| `group` | `string` | Group name for auto-generated sidebar |
+| `description` | `string \| I18nText` | Help text shown in admin |
+| `hidden` | `boolean` | Hide from sidebar, search, and direct URL access. See [Visibility Rules](/docs/admin/visibility-rules). |
+| `order` | `number` | Sort order within group (lower values appear first) |
+
+### `.list(config)`
+
+Configure the table/list view.
+
+```ts
+.list({
+  columns: ["title", "status", "createdAt"],
+  defaultSort: { createdAt: "desc" },
+  searchable: true,
+  filters: ["status", "category"],
+})
+```
+
+### `.form(config)`
+
+Configure the edit form view.
+
+```ts
+.form({
+  layout: [
+    { fields: ["title", "slug", "body"], span: 8 },
+    { fields: ["status", "publishedAt", "author"], span: 4 },
+  ],
+})
+```
+
+## Composition
+
+### `.merge(other)`
+
+Merge another collection builder into this one. Fields, hooks, access rules, and functions are combined.
+
+```ts
+const extendedPosts = postsCollection.merge(
+  q.collection("posts").fields((f) => ({
+    featured: f.boolean().default(false),
+  })),
+);
+```
+
+## Finalization
+
+Collection builders are passed directly to `q.collections({ ... })` and finalized during top-level CMS `.build(...)`.
+
+In app code, prefer this pattern:
+
+```ts
+const posts = q.collection("posts")
+  .fields((f) => ({ ... }))
+  .hooks({ ... });
+
+export const cms = q({ name: "app" })
+  .collections({ posts })
+  .build({ app: { url: process.env.APP_URL! }, db: { url: process.env.DATABASE_URL! } });
+```
+
+## Runtime
+
+After CMS build, CRUD operations are available at:
+
+```ts
+cms.api.collections.posts.find(options)
+cms.api.collections.posts.findOne(options)
+cms.api.collections.posts.count(options)
+cms.api.collections.posts.create(data)
+cms.api.collections.posts.update(options)
+cms.api.collections.posts.updateMany(options)
+cms.api.collections.posts.delete(options)
+cms.api.collections.posts.deleteMany(options)
+```
+
+See [CRUD API](/docs/reference/crud-api) for full operation signatures.
+
+## Related Pages
+
+- [Collections](/docs/server/collections) — Conceptual guide
+- [Field API](/docs/reference/field-api) — Field types and options
+- [Hooks API](/docs/reference/hooks-api) — Hook types and context
+- [CRUD API](/docs/reference/crud-api) — Runtime CRUD operations
+- [Access Control](/docs/server/access-control) — Access rule details

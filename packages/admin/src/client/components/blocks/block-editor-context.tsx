@@ -7,8 +7,8 @@
 "use client";
 
 import * as React from "react";
+import type { BlockSchema } from "#questpie/admin/server";
 import type { BlockContent } from "../../blocks/types.js";
-import type { BlockDefinition } from "../../builder/block/types.js";
 import type { InsertPosition } from "./utils/tree-utils.js";
 
 // ============================================================================
@@ -29,8 +29,8 @@ export type BlockEditorState = {
 	isLibraryOpen: boolean;
 	/** Insert position when adding new block */
 	insertPosition: InsertPosition | null;
-	/** Registered block definitions */
-	blocks: Record<string, BlockDefinition>;
+	/** Registered block definitions (from server introspection) */
+	blocks: Record<string, BlockSchema>;
 	/** Allowed block types for this field */
 	allowedBlocks: string[] | null;
 	/** Current locale for editing */
@@ -53,7 +53,12 @@ export type BlockEditorActions = {
 	duplicateBlock: (id: string) => void;
 
 	// Reorder
-	moveBlock: (id: string, toPosition: InsertPosition) => void;
+	moveBlock: (
+		id: string,
+		parentId: string | null,
+		fromIndex: number,
+		toIndex: number,
+	) => void;
 
 	// Values
 	updateBlockValues: (id: string, values: Record<string, unknown>) => void;
@@ -122,19 +127,25 @@ export function useIsBlockExpanded(blockId: string): boolean {
 }
 
 /**
- * Hook to get a block definition by type.
+ * Hook to get a block schema by type.
  */
-export function useBlockDefinition(
-	blockType: string,
-): BlockDefinition | undefined {
+export function useBlockSchema(blockType: string): BlockSchema | undefined {
 	const { state } = useBlockEditor();
 	return state.blocks[blockType];
 }
 
 /**
- * Hook to get the selected block's definition.
+ * Hook to get the selected block's schema.
+ * @deprecated Use useBlockSchema instead
  */
-export function useSelectedBlockDefinition(): BlockDefinition | undefined {
+export function useBlockDefinition(blockType: string): BlockSchema | undefined {
+	return useBlockSchema(blockType);
+}
+
+/**
+ * Hook to get the selected block's schema.
+ */
+export function useSelectedBlockSchema(): BlockSchema | undefined {
 	const { state } = useBlockEditor();
 	if (!state.selectedBlockId) return undefined;
 
@@ -145,6 +156,14 @@ export function useSelectedBlockDefinition(): BlockDefinition | undefined {
 	if (!blockNode) return undefined;
 
 	return state.blocks[blockNode.type];
+}
+
+/**
+ * Hook to get the selected block's definition.
+ * @deprecated Use useSelectedBlockSchema instead
+ */
+export function useSelectedBlockDefinition(): BlockSchema | undefined {
+	return useSelectedBlockSchema();
 }
 
 /**

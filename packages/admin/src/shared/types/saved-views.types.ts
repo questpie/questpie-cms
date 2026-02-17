@@ -62,4 +62,9 @@ export interface ViewConfiguration {
 	filters: FilterRule[];
 	sortConfig: SortConfig | null;
 	visibleColumns: string[];
+	realtime?: boolean;
+	pagination?: {
+		page: number;
+		pageSize: number;
+	};
 }

@@ -1,0 +1,21 @@
+{
+	"title": "Server",
+	"defaultOpen": true,
+	"pages": [
+		"index",
+		"collections",
+		"globals",
+		"field-builder",
+		"field-types",
+		"relations",
+		"reactive-fields",
+		"hooks-and-lifecycle",
+		"access-control",
+		"validation",
+		"versioning",
+		"localization",
+		"modules-and-extensions",
+		"rpc",
+		"context-and-transactions"
+	]
+}

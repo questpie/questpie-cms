@@ -1,7 +1,7 @@
 /**
  * Block Tree
  *
- * Renders a list of blocks with drag-and-drop support.
+ * Renders a list of blocks with drag-and-drop support and rail visual for hierarchy.
  */
 
 "use client";
@@ -27,18 +27,27 @@ export type BlockTreeProps = {
 	level: number;
 	/** Parent block ID (null = root) */
 	parentId: string | null;
+	/** Custom class name */
+	className?: string;
 };
 
 // ============================================================================
 // Component
 // ============================================================================
 
-export function BlockTree({ blocks, level, parentId }: BlockTreeProps) {
+export function BlockTree({
+	blocks,
+	level,
+	parentId,
+	className,
+}: BlockTreeProps) {
 	// Get block IDs for sortable context
 	const blockIds = React.useMemo(() => blocks.map((b) => b.id), [blocks]);
 
+	const isRoot = level === 0;
+
 	return (
-		<div className="min-w-fit space-y-1">
+		<div className={cn("space-y-2", className)}>
 			<SortableContext items={blockIds} strategy={verticalListSortingStrategy}>
 				{blocks.map((block, index) => (
 					<BlockItem
@@ -51,12 +60,15 @@ export function BlockTree({ blocks, level, parentId }: BlockTreeProps) {
 				))}
 			</SortableContext>
 
-			{/* Single add button at the end of this level */}
-			<BlockInsertButton
-				position={{ parentId, index: blocks.length }}
-				compact
-				className={level > 0 ? "mt-1" : "mt-2"}
-			/>
+			{/* Add block at end - only for root level */}
+			{isRoot && (
+				<div className="mt-4">
+					<BlockInsertButton
+						position={{ parentId, index: blocks.length }}
+						variant="default"
+					/>
+				</div>
+			)}
 		</div>
 	);
 }

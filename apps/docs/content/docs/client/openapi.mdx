@@ -1,0 +1,120 @@
+---
+title: OpenAPI
+description: Generate OpenAPI 3.1 specs and interactive API docs from your CMS
+---
+
+# OpenAPI
+
+QUESTPIE can generate an OpenAPI 3.1 specification from your collection and global definitions, including all CRUD endpoints, RPC procedures, and search. The spec powers interactive API documentation via [Scalar](https://scalar.com/).
+
+## Why This Exists
+
+OpenAPI specs enable API documentation, client generation, and testing tools. QUESTPIE auto-generates the spec from your schema — no manual YAML or JSON required. The included Scalar UI gives you interactive API docs out of the box.
+
+## Setup
+
+### With `withOpenApi` (Recommended)
+
+Wrap your existing fetch handler to add OpenAPI routes:
+
+```ts
+import { createFetchHandler } from "questpie";
+import { withOpenApi } from "@questpie/openapi";
+import { cms, appRpc } from "./cms";
+
+const handler = withOpenApi(
+  createFetchHandler(cms, { basePath: "/api/cms", rpc: appRpc }),
+  {
+    cms,
+    rpc: appRpc,
+    basePath: "/api/cms",
+    info: {
+      title: "Barbershop API",
+      version: "1.0.0",
+      description: "API for the barbershop booking system",
+    },
+    scalar: { theme: "purple" },
+  },
+);
+
+// Now available:
+// GET /api/cms/openapi.json  → OpenAPI spec
+// GET /api/cms/docs          → Scalar interactive docs
+```
+
+### Manual Setup
+
+For more control, generate the spec and create handlers separately:
+
+```ts
+import { generateOpenApiSpec, createOpenApiHandlers } from "@questpie/openapi";
+
+const spec = generateOpenApiSpec(cms, appRpc, {
+  info: { title: "My API", version: "1.0.0" },
+  basePath: "/api/cms",
+  servers: [
+    { url: "https://api.example.com", description: "Production" },
+    { url: "http://localhost:3000", description: "Development" },
+  ],
+});
+
+const { specHandler, scalarHandler } = createOpenApiHandlers(spec, {
+  scalar: { theme: "purple" },
+});
+```
+
+## Configuration
+
+### `withOpenApi` Options
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `cms` | `Questpie` | — | CMS instance (required) |
+| `rpc` | `RpcRouterTree` | — | RPC router for procedure docs |
+| `basePath` | `string` | — | API base path |
+| `info.title` | `string` | — | API title |
+| `info.version` | `string` | — | API version |
+| `info.description` | `string` | — | API description |
+| `servers` | `Array<{ url, description }>` | — | Server URLs |
+| `exclude.collections` | `string[]` | — | Collections to exclude from spec |
+| `exclude.globals` | `string[]` | — | Globals to exclude from spec |
+| `auth` | `boolean` | — | Include auth endpoints |
+| `search` | `boolean` | — | Include search endpoints |
+| `specPath` | `string` | `"openapi.json"` | Path for the spec endpoint |
+| `docsPath` | `string` | `"docs"` | Path for the docs UI |
+| `scalar` | `ScalarConfig` | — | Scalar UI configuration |
+
+### Scalar Configuration
+
+| Option | Type | Description |
+|---|---|---|
+| `theme` | `string` | UI theme (e.g., `"purple"`, `"default"`) |
+| `title` | `string` | Documentation page title |
+| `customCss` | `string` | Additional CSS |
+| `hideDownloadButton` | `boolean` | Hide spec download button |
+
+## What's Generated
+
+The OpenAPI spec includes:
+
+- **Collection CRUD** — All find, create, update, delete endpoints with typed request/response schemas
+- **Global endpoints** — Get and update for each global
+- **RPC procedures** — Input/output schemas from Zod definitions
+- **Search** — Search endpoint with query parameters
+- **Realtime** — SSE endpoints
+- **File operations** — Upload and serve endpoints
+- **Auth** — Authentication endpoints (if enabled)
+
+Schemas are derived from your field definitions — field types, constraints, enums, and nested structures all map to JSON Schema.
+
+## Common Mistakes
+
+- **Missing `@questpie/openapi` package** — Install it separately: `bun add @questpie/openapi`.
+- **Not passing `rpc`** — Without the RPC router, custom procedures won't appear in the spec.
+- **Wrong `basePath`** — The spec's paths must match your actual route structure.
+
+## Related Pages
+
+- [Adapters Overview](/docs/client/adapters-overview) — HTTP routing
+- [Client Overview](/docs/client) — Client SDK overview
+- [RPC](/docs/server/rpc) — Custom RPC procedures

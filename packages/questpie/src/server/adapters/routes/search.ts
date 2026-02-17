@@ -13,7 +13,11 @@ import { executeAccessRule } from "../../collection/crud/shared/access-control.j
 import type { Questpie } from "../../config/cms.js";
 import type { QuestpieConfig } from "../../config/types.js";
 import { ApiError } from "../../errors/index.js";
-import type { CollectionAccessFilter, PopulatedSearchResponse, SearchMeta } from "../../integrated/search/types.js";
+import type {
+	CollectionAccessFilter,
+	PopulatedSearchResponse,
+	SearchMeta,
+} from "../../integrated/search/types.js";
 import type { AdapterConfig, AdapterContext } from "../types.js";
 import { resolveContext } from "../utils/context.js";
 import { parseRpcBody } from "../utils/request.js";
@@ -31,6 +35,48 @@ export const createSearchRoutes = <
 		locale?: string,
 	): Response => {
 		return handleError(error, { request, cms, locale });
+	};
+
+	const canReindexCollection = async (params: {
+		request: Request;
+		collectionName: string;
+		collection: unknown;
+		session?: { user: any; session: any } | null;
+		db: unknown;
+		locale?: string;
+	}): Promise<boolean> => {
+		const customAccess = config.search?.reindexAccess;
+
+		if (typeof customAccess === "boolean") {
+			return customAccess;
+		}
+
+		if (typeof customAccess === "function") {
+			try {
+				return await customAccess({
+					request: params.request,
+					cms,
+					session: params.session,
+					db: params.db,
+					locale: params.locale,
+					collection: params.collectionName,
+				});
+			} catch {
+				return false;
+			}
+		}
+
+		// Default policy: derive from collection update access rule.
+		// If update access is denied, reindex is denied.
+		const updateAccessRule = (params.collection as any)?.state?.access?.update;
+		const updateAccessResult = await executeAccessRule(updateAccessRule, {
+			cms,
+			db: params.db,
+			session: params.session,
+			locale: params.locale,
+		});
+
+		return updateAccessResult !== false;
 	};
 
 	return {
@@ -90,12 +136,14 @@ export const createSearchRoutes = <
 			try {
 				// Build access filters for each collection
 				const allCollections = cms.getCollections();
-				const requestedCollections: string[] = body.collections ?? Object.keys(allCollections);
+				const requestedCollections: string[] =
+					body.collections ?? Object.keys(allCollections);
 				const accessFilters: CollectionAccessFilter[] = [];
 				const accessibleCollections: string[] = [];
 
 				for (const collectionName of requestedCollections) {
-					const collection = allCollections[collectionName as keyof typeof allCollections];
+					const collection =
+						allCollections[collectionName as keyof typeof allCollections];
 					if (!collection) continue;
 
 					// Check read access for this collection
@@ -122,11 +170,14 @@ export const createSearchRoutes = <
 
 				// If no collections are accessible, return empty results
 				if (accessibleCollections.length === 0) {
-					return smartResponse({
-						docs: [],
-						total: 0,
-						facets: [],
-					} satisfies PopulatedSearchResponse, request);
+					return smartResponse(
+						{
+							docs: [],
+							total: 0,
+							facets: [],
+						} satisfies PopulatedSearchResponse,
+						request,
+					);
 				}
 
 				// Execute search with access filtering
@@ -145,11 +196,14 @@ export const createSearchRoutes = <
 
 				// If no results, return early
 				if (searchResults.results.length === 0) {
-					return smartResponse({
-						docs: [],
-						total: searchResults.total,
-						facets: searchResults.facets,
-					} satisfies PopulatedSearchResponse, request);
+					return smartResponse(
+						{
+							docs: [],
+							total: searchResults.total,
+							facets: searchResults.facets,
+						} satisfies PopulatedSearchResponse,
+						request,
+					);
 				}
 
 				// Build search metadata map for merging with CRUD results
@@ -181,7 +235,8 @@ export const createSearchRoutes = <
 				};
 
 				for (const [collectionName, ids] of idsByCollection) {
-					const collection = allCollections[collectionName as keyof typeof allCollections];
+					const collection =
+						allCollections[collectionName as keyof typeof allCollections];
 					if (!collection) continue;
 
 					// Generate CRUD for this collection
@@ -214,18 +269,26 @@ export const createSearchRoutes = <
 						}
 					} catch (err) {
 						// Log but continue - don't fail entire search if one collection errors
-						console.error(`[Search] Failed to populate ${collectionName}:`, err);
+						console.error(
+							`[Search] Failed to populate ${collectionName}:`,
+							err,
+						);
 					}
 				}
 
 				// Re-sort by search score to maintain relevance order
-				populatedDocs.sort((a, b) => (b._search?.score ?? 0) - (a._search?.score ?? 0));
+				populatedDocs.sort(
+					(a, b) => (b._search?.score ?? 0) - (a._search?.score ?? 0),
+				);
 
-				return smartResponse({
-					docs: populatedDocs,
-					total: searchResults.total,
-					facets: searchResults.facets,
-				} satisfies PopulatedSearchResponse, request);
+				return smartResponse(
+					{
+						docs: populatedDocs,
+						total: searchResults.total,
+						facets: searchResults.facets,
+					} satisfies PopulatedSearchResponse,
+					request,
+				);
 			} catch (error) {
 				return errorResponse(error, request, resolved.cmsContext.locale);
 			}
@@ -235,7 +298,7 @@ export const createSearchRoutes = <
 		 * Reindex a collection
 		 * POST /cms/search/reindex/:collection
 		 *
-		 * PROTECTED: Requires authentication and admin role.
+		 * PROTECTED: Requires authentication and reindex access policy.
 		 * This is a potentially expensive operation that rebuilds the search index.
 		 */
 		reindex: async (
@@ -249,22 +312,6 @@ export const createSearchRoutes = <
 			if (!resolved.cmsContext.session) {
 				return errorResponse(
 					ApiError.unauthorized("Authentication required"),
-					request,
-					resolved.cmsContext.locale,
-				);
-			}
-
-			// SECURITY: Require admin role
-			const user = resolved.cmsContext.session.user as { role?: string } | undefined;
-			if (user?.role !== "admin") {
-				return errorResponse(
-					ApiError.forbidden({
-						operation: "update",
-						resource: `search/reindex/${params.collection}`,
-						reason: "Admin role required for reindexing",
-						requiredRole: "admin",
-						userRole: user?.role,
-					}),
 					request,
 					resolved.cmsContext.locale,
 				);
@@ -289,9 +336,34 @@ export const createSearchRoutes = <
 				);
 			}
 
+			const db = resolved.cmsContext.db ?? cms.db;
+			const hasReindexAccess = await canReindexCollection({
+				request,
+				collectionName: params.collection,
+				collection,
+				session: resolved.cmsContext.session,
+				db,
+				locale: resolved.cmsContext.locale,
+			});
+
+			if (!hasReindexAccess) {
+				return errorResponse(
+					ApiError.forbidden({
+						operation: "update",
+						resource: `search/reindex/${params.collection}`,
+						reason: "Reindex access denied by policy",
+					}),
+					request,
+					resolved.cmsContext.locale,
+				);
+			}
+
 			try {
 				await cms.search.reindex(params.collection);
-				return smartResponse({ success: true, collection: params.collection }, request);
+				return smartResponse(
+					{ success: true, collection: params.collection },
+					request,
+				);
 			} catch (error) {
 				return errorResponse(error, request, resolved.cmsContext.locale);
 			}

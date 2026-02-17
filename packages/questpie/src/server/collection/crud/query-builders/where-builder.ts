@@ -59,9 +59,19 @@ export function buildLocalizedFieldRef(
 		i18nFallbackTable: PgTable | null;
 		useI18n?: boolean;
 	},
-): SQL | ReturnType<typeof sql.identifier> {
+): SQL | ReturnType<typeof sql.identifier> | undefined {
 	const { table, state, i18nCurrentTable, i18nFallbackTable, useI18n } =
 		options;
+
+	const virtualExpression = state.virtuals?.[field];
+	if (virtualExpression) {
+		return virtualExpression;
+	}
+
+	const fieldDef = state.fieldDefinitions?.[field];
+	if (fieldDef?.state?.location === "virtual") {
+		return undefined;
+	}
 
 	// Check if field is localized and i18n is enabled
 	if (
@@ -86,6 +96,18 @@ export function buildLocalizedFieldRef(
 
 	// Return COALESCE(current, fallback)
 	return sql`COALESCE(${i18nCurrentTbl[field]}, ${i18nFallbackTbl[field]})`;
+}
+
+function isNonQueryableVirtualField(
+	field: string,
+	state: CollectionBuilderState,
+): boolean {
+	const fieldDef = state.fieldDefinitions?.[field];
+	if (!fieldDef || fieldDef.state.location !== "virtual") {
+		return false;
+	}
+
+	return !(state.virtuals && field in state.virtuals);
 }
 
 /**
@@ -164,37 +186,105 @@ export function buildWhereClause(
 			}
 		} else if (key === "RAW" && typeof value === "function") {
 			conditions.push(value(table));
-		} else if (state.relations?.[key]) {
-			const relation = state.relations[key] as RelationConfig;
-			const relationClause = buildRelationWhereClause(relation, value, {
-				parentTable: table,
-				parentState: state,
-				context,
-				cms,
-				db: options.db,
-			});
-			if (relationClause) {
-				conditions.push(relationClause);
-			}
 		} else if (
 			typeof value === "object" &&
 			value !== null &&
 			!Array.isArray(value)
 		) {
-			// Field operators - use buildLocalizedFieldRef for proper COALESCE handling
-			const column = buildLocalizedFieldRef(key, {
-				table,
-				state,
-				i18nCurrentTable,
-				i18nFallbackTable,
-				useI18n,
-			});
+			// Determine if value contains field operators or relation quantifiers
+			const fieldOperators = [
+				"eq",
+				"ne",
+				"not",
+				"gt",
+				"gte",
+				"lt",
+				"lte",
+				"in",
+				"notIn",
+				"like",
+				"ilike",
+				"notLike",
+				"notIlike",
+				"contains",
+				"startsWith",
+				"endsWith",
+				"isNull",
+				"isNotNull",
+				"arrayOverlaps",
+				"arrayContained",
+				"arrayContains",
+			];
+			const relationQuantifiers = ["some", "none", "every", "is", "isNot"];
+			const valueKeys = Object.keys(value as Record<string, any>);
+			const hasFieldOperators = valueKeys.some((k) =>
+				fieldOperators.includes(k),
+			);
+			const hasRelationQuantifiers = valueKeys.some((k) =>
+				relationQuantifiers.includes(k),
+			);
 
-			if (!column) continue;
+			// If value contains field operators, treat as field filter
+			// If value contains relation quantifiers OR key is a relation and value has no operators, treat as relation filter
+			if (hasFieldOperators && !hasRelationQuantifiers) {
+				// Field operators - use buildLocalizedFieldRef for proper COALESCE handling
+				const column = buildLocalizedFieldRef(key, {
+					table,
+					state,
+					i18nCurrentTable,
+					i18nFallbackTable,
+					useI18n,
+				});
 
-			for (const [op, val] of Object.entries(value)) {
-				const condition = buildOperatorCondition(column, op, val);
-				if (condition) conditions.push(condition);
+				if (!column) {
+					if (isNonQueryableVirtualField(key, state)) {
+						throw new Error(
+							`Field '${key}' uses 'virtual: true' and is not queryable. Use 'virtual: sql\`...\`' to filter by this field.`,
+						);
+					}
+					continue;
+				}
+
+				for (const [op, val] of Object.entries(value as Record<string, any>)) {
+					const condition = buildOperatorCondition(column, op, val);
+					if (condition) conditions.push(condition);
+				}
+			} else if (state.relations?.[key]) {
+				// Relation filter (has quantifiers or is a plain object for nested matching)
+				const relation = state.relations[key] as RelationConfig;
+				const relationClause = buildRelationWhereClause(relation, value, {
+					parentTable: table,
+					parentState: state,
+					context,
+					cms,
+					db: options.db,
+				});
+				if (relationClause) {
+					conditions.push(relationClause);
+				}
+			} else {
+				// Fallback: treat as field operators
+				const column = buildLocalizedFieldRef(key, {
+					table,
+					state,
+					i18nCurrentTable,
+					i18nFallbackTable,
+					useI18n,
+				});
+
+				if (!column) {
+					if (isNonQueryableVirtualField(key, state)) {
+						throw new Error(
+							`Field '${key}' uses 'virtual: true' and is not queryable. Use 'virtual: sql\`...\`' to filter by this field.`,
+						);
+					}
+					continue;
+				}
+
+				for (const [op, val] of Object.entries(value as Record<string, any>)) {
+					const condition = buildOperatorCondition(column, op, val);
+					if (condition) conditions.push(condition);
+				}
 			}
 		} else {
 			// Simple equality - use buildLocalizedFieldRef for proper COALESCE handling
@@ -206,12 +296,19 @@ export function buildWhereClause(
 				useI18n,
 			});
 
-			if (column) {
-				if (value === null) {
-					conditions.push(sql`${column} IS NULL`);
-				} else {
-					conditions.push(eq(column, value));
+			if (!column) {
+				if (isNonQueryableVirtualField(key, state)) {
+					throw new Error(
+						`Field '${key}' uses 'virtual: true' and is not queryable. Use 'virtual: sql\`...\`' to filter by this field.`,
+					);
 				}
+				continue;
+			}
+
+			if (value === null) {
+				conditions.push(sql`${column} IS NULL`);
+			} else {
+				conditions.push(eq(column, value));
 			}
 		}
 	}
@@ -461,6 +558,7 @@ export function buildBelongsToExistsClause(
 		}
 	} else if (relation.fields && relation.fields.length > 0) {
 		// Array field format: fields: [table.userId], references: ["id"]
+		// Note: relation.fields may contain builders or columns - we need to resolve to actual table columns
 		joinConditions = relation.fields
 			.map((sourceField, index) => {
 				const refs = relation.references as string[];
@@ -468,7 +566,15 @@ export function buildBelongsToExistsClause(
 				const targetColumn = targetFieldName
 					? (relatedTable as any)[targetFieldName]
 					: undefined;
-				return targetColumn ? eq(targetColumn, sourceField) : undefined;
+				// Get the actual column from the table by matching the name
+				const sourceFieldName =
+					(sourceField as any)?.name ?? (sourceField as any)?.config?.name;
+				const sourceColumn = sourceFieldName
+					? (parentTable as any)[sourceFieldName]
+					: undefined;
+				return targetColumn && sourceColumn
+					? eq(targetColumn, sourceColumn)
+					: undefined;
 			})
 			.filter(Boolean) as SQL[];
 	}
@@ -530,13 +636,21 @@ export function buildHasManyExistsClause(
 		return undefined;
 	}
 
+	// Note: reverseRelation.fields may contain builders or columns - we need to resolve to actual table columns
 	const joinConditions = reverseRelation.fields
 		.map((foreignField: any, index: number) => {
 			const parentFieldName = reverseRelation.references?.[index];
 			const parentColumn = parentFieldName
 				? (parentTable as any)[parentFieldName]
 				: undefined;
-			return parentColumn ? eq(foreignField, parentColumn) : undefined;
+			// Get the actual column from the related table by matching the name
+			const foreignFieldName = foreignField?.name ?? foreignField?.config?.name;
+			const foreignColumn = foreignFieldName
+				? (relatedTable as any)[foreignFieldName]
+				: undefined;
+			return parentColumn && foreignColumn
+				? eq(foreignColumn, parentColumn)
+				: undefined;
 		})
 		.filter(Boolean) as SQL[];
 

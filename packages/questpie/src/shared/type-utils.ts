@@ -2,13 +2,52 @@
 // This file consolidates all type inference helpers used by both server and client
 
 import type {
+	InferRelationConfigsFromFields,
+	RelationConfig,
+} from "#questpie/server/collection/builder/types.js";
+import type {
+	FieldDefinition,
+	FieldDefinitionState,
+} from "#questpie/server/fields/types.js";
+
+// ============================================================================
+// Opaque Types for Better Autocomplete
+// ============================================================================
+
+/**
+ * Phantom brand symbol - exists only at type level for autocomplete filtering.
+ * This symbol is never actually used at runtime.
+ */
+declare const __dateInputBrand: unique symbol;
+
+/**
+ * Date input type for operators - accepts Date objects or ISO strings.
+ *
+ * This type uses a technique to hide Date's methods from autocomplete while
+ * still accepting Date | string values. The intersection with a branded phantom
+ * type makes TypeScript not expand the union in autocomplete, so you only see
+ * the operator keys (eq, gt, lte, etc.) instead of Date methods.
+ *
+ * @example
+ * // In where clause autocomplete shows:
+ * { createdAt: { eq, ne, gt, gte, lt, lte, between, isNull, isNotNull } }
+ * // Instead of showing Date methods like getTime, toISOString, etc.
+ *
+ * // Both of these work:
+ * { createdAt: { gte: "2024-01-01" } }  // ✓ string
+ * { createdAt: { gte: new Date() } }     // ✓ Date
+ */
+export type DateInput = (Date | string) & {
+	readonly [__dateInputBrand]?: never;
+};
+
+import type {
 	Collection,
 	CollectionBuilder,
-	GlobalBuilder,
-	Global,
 	FunctionDefinition,
+	Global,
+	GlobalBuilder,
 } from "#questpie/server/index.js";
-import type { RelationConfig } from "#questpie/server/collection/builder/types.js";
 
 // ============================================================================
 // Performance Type Utilities
@@ -89,10 +128,20 @@ export type CollectionInfer<T> = T extends { $infer: infer Infer }
  */
 type CollectionFieldAccess<T> =
 	CollectionState<T> extends {
-		access: { fields: infer Fields };
+		fieldDefinitions: infer FieldDefinitions;
 	}
-		? Fields extends Record<string, any>
-			? Fields
+		? FieldDefinitions extends Record<string, any>
+			? {
+					[K in keyof FieldDefinitions as FieldDefinitions[K] extends {
+						state: { config?: { access?: any } };
+					}
+						? NonNullable<
+								FieldDefinitions[K]["state"]["config"]
+							>["access"] extends undefined
+							? never
+							: K
+						: never]?: true;
+				}
 			: Record<never, never>
 		: Record<never, never>;
 
@@ -165,25 +214,59 @@ export type CollectionFunctions<T> =
 		: Record<string, FunctionDefinition>;
 
 /**
- * Extract relations from a Collection or CollectionBuilder
+ * Check if a Record type has specific keys (not just an index signature or empty).
+ */
+type HasSpecificKeys<T extends Record<string, any>> = string extends keyof T
+	? false
+	: keyof T extends never
+		? false
+		: true;
+
+/**
+ * Infer relation configs from field definitions.
+ * Falls back to generic Record when fieldDefinitions doesn't have specific fields.
+ */
+type InferRelationsFromFieldDefs<TFieldDefs> =
+	TFieldDefs extends Record<string, FieldDefinition<FieldDefinitionState>>
+		? InferRelationConfigsFromFields<TFieldDefs> extends infer TInferred
+			? TInferred extends Record<string, RelationConfig>
+				? keyof TInferred extends never
+					? Record<string, RelationConfig>
+					: TInferred
+				: Record<string, RelationConfig>
+			: Record<string, RelationConfig>
+		: Record<string, RelationConfig>;
+
+/**
+ * Extract relations from a Collection or CollectionBuilder.
+ *
+ * Priority:
+ * 1. state.relations when it has specific keys (from legacy .relations() API)
+ * 2. Inferred from state.fieldDefinitions (from .fields() API with f.relation())
+ * 3. Fallback: generic Record<string, RelationConfig>
  */
 export type CollectionRelations<T> =
 	CollectionState<T> extends {
 		relations: infer Relations;
 	}
 		? Relations extends Record<string, RelationConfig>
-			? Relations
-			: Record<string, RelationConfig>
-		: Record<string, RelationConfig>;
-
-// /**
-// TODO: use this type
-//  * Extract search metadata type from a Collection or CollectionBuilder
-//  */
-// export type CollectionSearchMetadata<T> =
-// 	CollectionState<T> extends { searchable: SearchableConfig }
-// 		? Record<string, any>
-// 		: Record<string, any>;
+			? HasSpecificKeys<Relations> extends true
+				? Relations
+				: CollectionState<T> extends {
+							fieldDefinitions: infer TFieldDefs;
+						}
+					? InferRelationsFromFieldDefs<TFieldDefs>
+					: Record<string, RelationConfig>
+			: CollectionState<T> extends {
+						fieldDefinitions: infer TFieldDefs;
+					}
+				? InferRelationsFromFieldDefs<TFieldDefs>
+				: Record<string, RelationConfig>
+		: CollectionState<T> extends {
+					fieldDefinitions: infer TFieldDefs;
+				}
+			? InferRelationsFromFieldDefs<TFieldDefs>
+			: Record<string, RelationConfig>;
 
 // ============================================================================
 // Global Type Inference (from $infer property)
@@ -198,10 +281,20 @@ export type GlobalInfer<T> = T extends { $infer: infer Infer } ? Infer : never;
  * Extract field access configuration from a Global state
  */
 type GlobalFieldAccess<T> = T extends {
-	state: { access: { fields?: infer Fields } };
+	state: { fieldDefinitions: infer FieldDefinitions };
 }
-	? Fields extends Record<string, any>
-		? Fields
+	? FieldDefinitions extends Record<string, any>
+		? {
+				[K in keyof FieldDefinitions as FieldDefinitions[K] extends {
+					state: { config?: { access?: any } };
+				}
+					? NonNullable<
+							FieldDefinitions[K]["state"]["config"]
+						>["access"] extends undefined
+						? never
+						: K
+					: never]?: true;
+			}
 		: {}
 	: {};
 
@@ -245,16 +338,35 @@ export type GlobalFunctions<T> =
 		: Record<string, FunctionDefinition>;
 
 /**
- * Extract relations from a Global or GlobalBuilder
+ * Extract relations from a Global or GlobalBuilder.
+ *
+ * Priority:
+ * 1. state.relations when it has specific keys (from legacy .relations() API)
+ * 2. Inferred from state.fieldDefinitions (from .fields() API with f.relation())
+ * 3. Fallback: generic Record<string, RelationConfig>
  */
 export type GlobalRelations<T> =
 	GlobalState<T> extends {
 		relations: infer Relations;
 	}
 		? Relations extends Record<string, RelationConfig>
-			? Relations
-			: Record<string, RelationConfig>
-		: Record<string, RelationConfig>;
+			? HasSpecificKeys<Relations> extends true
+				? Relations
+				: GlobalState<T> extends {
+							fieldDefinitions: infer TFieldDefs;
+						}
+					? InferRelationsFromFieldDefs<TFieldDefs>
+					: Record<string, RelationConfig>
+			: GlobalState<T> extends {
+						fieldDefinitions: infer TFieldDefs;
+					}
+				? InferRelationsFromFieldDefs<TFieldDefs>
+				: Record<string, RelationConfig>
+		: GlobalState<T> extends {
+					fieldDefinitions: infer TFieldDefs;
+				}
+			? InferRelationsFromFieldDefs<TFieldDefs>
+			: Record<string, RelationConfig>;
 
 // ============================================================================
 // Collection Name Extraction & Lookup
@@ -272,20 +384,6 @@ export type GetCollection<
 	: TCollections[Name] extends CollectionBuilder<infer TState>
 		? Collection<TState>
 		: never;
-
-// /**
-// TODO: use this type
-//  * Extract searchable collection names from a collections map
-//  */
-// export type SearchableCollectionNames<
-// 	TCollections extends Record<string, AnyCollectionOrBuilder>,
-// > = {
-// 	[K in keyof TCollections]: CollectionState<
-// 		GetCollection<TCollections, K>
-// 	> extends { searchable: SearchableConfig }
-// 		? K
-// 		: never;
-// }[keyof TCollections];
 
 // ============================================================================
 // Global Name Extraction & Lookup
@@ -325,20 +423,38 @@ type DecrementDepth<Depth extends unknown[]> = Depth extends [
 	? Rest
 	: [];
 
-export type RelationShape<TSelect, TRelations, TInsert = TSelect> = {
+export type RelationShape<
+	TSelect,
+	TRelations,
+	TInsert = TSelect,
+	TCollection = unknown,
+	TApp = unknown,
+> = {
 	__select: TSelect;
 	__relations: TRelations;
 	__insert: TInsert;
+	__collection: TCollection;
+	__app: TApp;
 };
 
 export type ExtractRelationSelect<T> =
-	T extends RelationShape<infer Select, any, any> ? Select : T;
+	T extends RelationShape<infer Select, any, any, any, any> ? Select : T;
 
 export type ExtractRelationRelations<T> =
-	T extends RelationShape<any, infer Relations, any> ? Relations : never;
+	T extends RelationShape<any, infer Relations, any, any, any>
+		? Relations
+		: never;
 
 export type ExtractRelationInsert<T> =
-	T extends RelationShape<any, any, infer Insert> ? Insert : T;
+	T extends RelationShape<any, any, infer Insert, any, any> ? Insert : T;
+
+export type ExtractRelationCollection<T> =
+	T extends RelationShape<any, any, any, infer Collection, any>
+		? Collection
+		: unknown;
+
+export type ExtractRelationApp<T> =
+	T extends RelationShape<any, any, any, any, infer App> ? App : unknown;
 
 type ResolveCollectionRelation<
 	TCollections extends Record<string, AnyCollectionOrBuilder>,
@@ -354,9 +470,11 @@ type ResolveCollectionRelation<
 						TCollections,
 						DecrementDepth<Depth>
 					>,
-			CollectionInsert<GetCollection<TCollections, C>>
+			CollectionInsert<GetCollection<TCollections, C>>,
+			GetCollection<TCollections, C>,
+			unknown
 		>
-	: RelationShape<any, never, any>;
+	: RelationShape<any, never, any, unknown, unknown>;
 
 /**
  * Resolve all relations from a RelationConfig to actual types

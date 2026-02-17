@@ -9,9 +9,9 @@
  */
 
 import * as React from "react";
+import type { BlockSchema } from "#questpie/admin/server";
 import type { BlockContent, BlockNode } from "../../../blocks/types";
 import { isBlockContent } from "../../../blocks/types";
-import type { BlockDefinition } from "../../../builder/block/types";
 import type { FieldDefinition } from "../../../builder/field/field";
 import { Badge } from "../../../components/ui/badge";
 import {
@@ -19,6 +19,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "../../../components/ui/tooltip";
+import { useAdminConfig } from "../../../hooks/use-admin-config";
 import { useResolveText } from "../../../i18n/hooks";
 import { cn } from "../../../lib/utils";
 import { selectAdmin, useAdminStore } from "../../../runtime";
@@ -370,12 +371,12 @@ function formatBlockType(type: string): string {
 
 function getBlockLabel(
 	type: string,
-	blockDef: BlockDefinition | undefined,
+	blockDef: BlockSchema | undefined,
 	resolveText: ReturnType<typeof useResolveText>,
 ): string {
 	if (!blockDef) return formatBlockType(type);
 	const fallback = blockDef.name || formatBlockType(type);
-	return resolveText(blockDef.label, fallback) || fallback;
+	return resolveText(blockDef.admin?.label, fallback) || fallback;
 }
 
 function collectBlockStats(tree: BlockNode[]): {
@@ -389,7 +390,7 @@ function collectBlockStats(tree: BlockNode[]): {
 		for (const node of nodes) {
 			total += 1;
 			counts.set(node.type, (counts.get(node.type) ?? 0) + 1);
-			if (node.children?.length) {
+			if (node.children.length) {
 				visit(node.children);
 			}
 		}
@@ -404,7 +405,7 @@ function collectBlockStats(tree: BlockNode[]): {
  */
 export function BlocksCell({ value }: { value: unknown }) {
 	const resolveText = useResolveText();
-	const admin = useAdminStore(selectAdmin);
+	const { data: adminConfig } = useAdminConfig();
 
 	if (value === null || value === undefined) {
 		return <span className="text-muted-foreground">-</span>;
@@ -419,9 +420,7 @@ export function BlocksCell({ value }: { value: unknown }) {
 		return <span className="text-muted-foreground">-</span>;
 	}
 
-	const blockDefs = admin?.state?.blocks as
-		| Record<string, BlockDefinition>
-		| undefined;
+	const blockDefs = adminConfig?.blocks ?? {};
 	const { total, counts } = collectBlockStats(content._tree);
 	if (total === 0) {
 		return <span className="text-muted-foreground">-</span>;

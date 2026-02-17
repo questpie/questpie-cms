@@ -5,31 +5,25 @@
  * This is the default edit view registered in the admin view registry.
  */
 
-import {
-	Check,
-	ClockCounterClockwise,
-	DotsThreeVertical,
-	Eye,
-	SpinnerGap,
-	Warning,
-} from "@phosphor-icons/react";
+import { Icon } from "@iconify/react";
 import { createQuestpieQueryOptions } from "@questpie/tanstack-query";
 import { useQueryClient } from "@tanstack/react-query";
+import type { CollectionSchema, FieldReactiveSchema } from "questpie/client";
 import { QuestpieClientError } from "questpie/client";
 import * as React from "react";
 import { FormProvider, useForm, useWatch } from "react-hook-form";
 import { toast } from "sonner";
-import { getDefaultFormActions } from "../../builder/collection/action-registry";
+import { getDefaultFormActions } from "../../builder/types/action-registry";
 import type {
 	ActionContext,
 	ActionDefinition,
 	ActionHelpers,
 	ActionQueryClient,
-} from "../../builder/collection/action-types";
+} from "../../builder/types/action-types";
 import type {
 	CollectionBuilderState,
 	PreviewConfig,
-} from "../../builder/collection/types";
+} from "../../builder/types/collection-types";
 import type {
 	ComponentRegistry,
 	FormViewActionsConfig,
@@ -38,6 +32,7 @@ import type {
 import { ActionButton } from "../../components/actions/action-button";
 import { ActionDialog } from "../../components/actions/action-dialog";
 import { ConfirmationDialog } from "../../components/actions/confirmation-dialog";
+import { resolveIconElement } from "../../components/component-renderer";
 import { LocaleSwitcher } from "../../components/locale-switcher";
 import {
 	LivePreviewMode,
@@ -60,13 +55,20 @@ import {
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "../../components/ui/dropdown-menu";
-import { useCollectionValidation } from "../../hooks";
+import {
+	useAdminConfig,
+	useCollectionValidation,
+	usePreferServerValidation,
+} from "../../hooks";
 import {
 	useCollectionCreate,
 	useCollectionDelete,
 	useCollectionItem,
 	useCollectionUpdate,
 } from "../../hooks/use-collection";
+import { useCollectionFields } from "../../hooks/use-collection-fields";
+import { getLockUser, LOCK_DURATION_MS, useLock } from "../../hooks/use-locks";
+import { useReactiveFields } from "../../hooks/use-reactive-fields";
 import { useResolveText, useTranslation } from "../../i18n/hooks";
 import {
 	selectAdmin,
@@ -81,9 +83,9 @@ import {
 	detectManyToManyRelations,
 	hasManyToManyRelations,
 } from "../../utils/detect-relations";
-import { wrapLocalizedNestedValues } from "../../utils/wrap-localized";
 
 import { AutoFormFields } from "./auto-form-fields";
+import { FormViewSkeleton } from "./view-skeletons";
 
 // ============================================================================
 // Constants
@@ -91,6 +93,60 @@ import { AutoFormFields } from "./auto-form-fields";
 
 /** Query key prefix for CMS queries (used for cache invalidation) */
 const QUERY_KEY_PREFIX = ["questpie", "collections"] as const;
+
+// ============================================================================
+// Helpers
+// ============================================================================
+
+/**
+ * Extract reactive configs from collection schema fields.
+ * Used to determine which fields have server-side reactive behaviors.
+ */
+function extractReactiveConfigs(
+	schema: CollectionSchema | undefined,
+): Record<string, FieldReactiveSchema> {
+	if (!schema?.fields) return {};
+
+	const configs: Record<string, FieldReactiveSchema> = {};
+
+	for (const [fieldName, fieldDef] of Object.entries(schema.fields)) {
+		if (fieldDef.reactive) {
+			configs[fieldName] = fieldDef.reactive;
+		}
+	}
+
+	return configs;
+}
+
+/**
+ * Component that manages reactive field states.
+ * Must be rendered inside FormProvider to access form context.
+ */
+function ReactiveFieldsManager({
+	collection,
+	mode = "collection",
+	reactiveConfigs,
+	enabled,
+}: {
+	collection: string;
+	mode?: "collection" | "global";
+	reactiveConfigs: Record<string, FieldReactiveSchema>;
+	enabled: boolean;
+}) {
+	// This hook handles:
+	// 1. Watching form values for changes to reactive dependencies
+	// 2. Calling server /reactive endpoint to execute handlers
+	// 3. Setting computed values via form.setValue
+	useReactiveFields({
+		collection,
+		mode,
+		reactiveConfigs,
+		enabled: enabled && Object.keys(reactiveConfigs).length > 0,
+		debounce: 300,
+	});
+
+	return null;
+}
 
 // ============================================================================
 // Types
@@ -223,14 +279,42 @@ export default function FormView({
 	const { t } = useTranslation();
 	const resolveText = useResolveText();
 	const admin = useAdminStore(selectAdmin);
+	const { data: adminConfig } = useAdminConfig();
 	const isEditMode = !!id;
+	const { fields: resolvedFields, schema } = useCollectionFields(collection, {
+		fallbackFields: (config as any)?.fields,
+	});
+	const resolvedFormConfig = React.useMemo(
+		() =>
+			viewConfig ??
+			(config?.form as any)?.["~config"] ??
+			(config?.form as any) ??
+			(schema?.admin?.form as any),
+		[viewConfig, config?.form, schema?.admin?.form],
+	);
+	const formConfigBridge = React.useMemo(() => {
+		if (!resolvedFormConfig) return config;
+
+		return {
+			...(config ?? {}),
+			form: resolvedFormConfig,
+		};
+	}, [config, resolvedFormConfig]);
+
+	// Extract reactive configs from schema for server-side reactive handlers
+	const reactiveConfigs = React.useMemo(
+		() => extractReactiveConfigs(schema),
+		[schema],
+	);
 
 	// Try to get preview context (will be null if not in LivePreviewMode)
 	const previewContext = useLivePreviewContext();
 
-	// Preview configuration from collection config
-	const previewConfig = (config as any)?.preview as PreviewConfig | undefined;
-	const hasPreview = !!previewConfig?.url && previewConfig?.enabled !== false;
+	// Preview configuration from introspected schema (server-side .preview() config)
+	// Note: url function cannot be serialized, so we use hasUrlBuilder flag + RPC
+	const schemaPreview = schema?.admin?.preview;
+	const hasPreview =
+		!!schemaPreview?.hasUrlBuilder && schemaPreview?.enabled !== false;
 
 	// Check URL for ?preview=true on mount
 	const [isLivePreviewOpen, setIsLivePreviewOpen] = React.useState(() => {
@@ -256,8 +340,8 @@ export default function FormView({
 
 	// Auto-detect M:N relations that need to be included when fetching
 	const withRelations = React.useMemo(
-		() => detectManyToManyRelations({ fields: config?.fields }),
-		[config?.fields],
+		() => detectManyToManyRelations({ fields: resolvedFields, schema }),
+		[resolvedFields, schema],
 	);
 
 	// Fetch item if in edit mode (include relations if specified)
@@ -269,6 +353,20 @@ export default function FormView({
 			: { localeFallback: false },
 		{ enabled: isEditMode },
 	);
+
+	// Document locking - acquire lock when editing, show blocked state if someone else is editing
+	const {
+		isBlocked,
+		blockedBy,
+		isOpenElsewhere,
+		refresh: refreshLock,
+	} = useLock({
+		resourceType: "collection",
+		resource: collection,
+		resourceId: id ?? "",
+		autoAcquire: isEditMode,
+	});
+	const blockedByUser = blockedBy ? getLockUser(blockedBy) : null;
 
 	// Transform loaded item - convert relation arrays of objects to arrays of IDs
 	// Backend returns: { services: [{ id: "...", name: "..." }] }
@@ -297,9 +395,17 @@ export default function FormView({
 	const updateMutation = useCollectionUpdate(collection as any);
 	const deleteMutation = useCollectionDelete(collection as any);
 
+	// Get validation resolver - prefer server validation (AJV with JSON Schema) over client validation
+	const clientResolver = useCollectionValidation(collection);
+	const resolver = usePreferServerValidation(
+		collection,
+		{ mode: isEditMode ? "update" : "create" },
+		clientResolver,
+	);
+
 	const form = useForm({
 		defaultValues: (transformedItem ?? defaultValuesProp ?? {}) as any,
-		resolver: useCollectionValidation(collection),
+		resolver,
 	});
 
 	// Autosave state
@@ -403,22 +509,14 @@ export default function FormView({
 	}, [form]);
 
 	const onSubmit = React.useEffectEvent(async (data: any) => {
-		// Transform nested localized values with $i18n wrappers
-		const transformedData = config?.fields
-			? wrapLocalizedNestedValues(data, {
-					fields: config.fields,
-					blocks: admin.state.blocks,
-				})
-			: data;
-
 		const savePromise = async () => {
 			if (isEditMode) {
 				return await updateMutation.mutateAsync({
 					id: id!,
-					data: transformedData,
+					data,
 				});
 			} else {
-				return await createMutation.mutateAsync(transformedData);
+				return await createMutation.mutateAsync(data);
 			}
 		};
 
@@ -495,18 +593,10 @@ export default function FormView({
 			try {
 				setIsSaving(true);
 				await form.handleSubmit(async (data) => {
-					// Transform nested localized values with $i18n wrappers
-					const transformedData = config?.fields
-						? wrapLocalizedNestedValues(data, {
-								fields: config.fields,
-								blocks: admin.state.blocks,
-							})
-						: data;
-
 					// Silent save (no toast)
 					const result = await updateMutation.mutateAsync({
 						id: id!,
-						data: transformedData,
+						data,
 					});
 
 					// Reset form to mark as not dirty
@@ -541,10 +631,11 @@ export default function FormView({
 		autoSaveConfig.debounce,
 		isEditMode,
 		updateMutation,
-		config,
-		admin.state.blocks,
+		resolvedFields,
+		adminConfig?.blocks,
 		id,
 		previewContext,
+		admin,
 	]);
 
 	// Prevent navigation when there are unsaved changes
@@ -572,12 +663,15 @@ export default function FormView({
 			if ((e.metaKey || e.ctrlKey) && e.key === "s") {
 				e.preventDefault();
 				e.stopPropagation();
-				form.handleSubmit(onSubmit)();
+				form.handleSubmit(onSubmit, (errors) => {
+					console.warn("[FormView] Validation errors:", errors);
+					toast.error(t("toast.validationFailed"));
+				})();
 			}
 		};
 		document.addEventListener("keydown", handleKeyDown);
 		return () => document.removeEventListener("keydown", handleKeyDown);
-	}, [form]);
+	}, [form, onSubmit]);
 
 	const isSubmitting =
 		createMutation.isPending ||
@@ -589,10 +683,9 @@ export default function FormView({
 	// ========================================================================
 
 	// Get form actions from config or use defaults (only for edit mode)
-	// Form config is stored under "~config" by the view registry proxy
-	const configFormActions: FormViewActionsConfig | undefined =
-		(config?.form as any)?.["~config"]?.actions ||
-		(config?.form as any)?.actions;
+	const configFormActions: FormViewActionsConfig | undefined = (
+		resolvedFormConfig as any
+	)?.actions;
 
 	// Use defaults if no actions defined and in edit mode
 	// In create mode, we don't show duplicate/delete actions
@@ -931,30 +1024,66 @@ export default function FormView({
 	// This is more performant as it's a proper React subscription
 	const watchedValues = useWatch({ control: form.control });
 
-	// Generate preview URL (must be after useWatch for reactive updates)
-	// Compute preview URL for LivePreviewMode
-	const previewUrl = React.useMemo(() => {
-		if (!hasPreview || !previewConfig?.url) return null;
-		try {
-			// Use watched values (reactive) instead of form.getValues() (non-reactive)
-			const formValues = (watchedValues ?? {}) as Record<string, any>;
-			return previewConfig.url(formValues, contentLocale);
-		} catch {
-			return null;
-		}
-	}, [hasPreview, previewConfig, watchedValues, contentLocale]);
+	// Refresh lock on form activity (debounced) - keeps lock alive while user is editing
+	const lockRefreshTimerRef = React.useRef<NodeJS.Timeout | null>(null);
+	React.useEffect(() => {
+		if (!isEditMode || isBlocked) return;
 
+		// Debounce lock refresh - only refresh after user stops typing for 1s
+		if (lockRefreshTimerRef.current) {
+			clearTimeout(lockRefreshTimerRef.current);
+		}
+		lockRefreshTimerRef.current = setTimeout(() => {
+			refreshLock();
+		}, 1000);
+
+		return () => {
+			if (lockRefreshTimerRef.current) {
+				clearTimeout(lockRefreshTimerRef.current);
+			}
+		};
+	}, [watchedValues, isEditMode, isBlocked, refreshLock]);
+
+	// Generate preview URL via server RPC (url function runs server-side)
+	// Must be after useWatch for reactive updates to form values
+	const [previewUrl, setPreviewUrl] = React.useState<string | null>(null);
+
+	React.useEffect(() => {
+		if (!hasPreview || !client) {
+			setPreviewUrl(null);
+			return;
+		}
+
+		// Debounce the RPC call to avoid too many requests
+		const timeoutId = setTimeout(async () => {
+			try {
+				const formValues = (watchedValues ?? {}) as Record<string, unknown>;
+				// Type assertion needed - getPreviewUrl is dynamically registered via adminModule
+				const rpc = (client as any).rpc;
+				const result = await rpc.getPreviewUrl({
+					collection,
+					record: formValues,
+					locale: contentLocale,
+				});
+				setPreviewUrl(result?.url ?? null);
+			} catch {
+				setPreviewUrl(null);
+			}
+		}, 300);
+
+		return () => clearTimeout(timeoutId);
+	}, [hasPreview, client, collection, watchedValues, contentLocale]);
+
+	// Show skeleton until form data is ready (edit mode only)
+	// This prevents race conditions where form fields render before data is loaded
 	if (isEditMode && isLoading) {
-		return (
-			<div className="w-full">
-				<div className="flex h-64 items-center justify-center text-muted-foreground">
-					<SpinnerGap className="size-6 animate-spin" />
-				</div>
-			</div>
-		);
+		return <FormViewSkeleton />;
 	}
 
-	const collectionLabel = resolveText(config?.label, collection);
+	const collectionLabel = resolveText(
+		(config as any)?.label ?? schema?.admin?.config?.label,
+		collection,
+	);
 	// In edit mode, show item's _title; in new mode, show "New {collection}"
 	const title = isEditMode
 		? (item as any)?._title ||
@@ -965,11 +1094,63 @@ export default function FormView({
 	// Form content - extracted for reuse in both layouts
 	const formContent = (
 		<>
+			{/* Lock banner - show when someone else is editing */}
+			{isBlocked && blockedByUser && (
+				<div className="flex items-center gap-3 p-3 mb-4 rounded-lg bg-warning/10 border border-warning/30">
+					{blockedByUser.image ? (
+						<img
+							src={blockedByUser.image}
+							alt=""
+							className="size-8 rounded-full"
+						/>
+					) : (
+						<div className="size-8 rounded-full bg-warning/20 flex items-center justify-center">
+							<Icon icon="ph:user" className="size-4 text-warning" />
+						</div>
+					)}
+					<div className="flex-1 min-w-0">
+						<p className="text-sm font-medium text-warning">
+							{t("lock.blockedTitle", {
+								name: blockedByUser.name ?? blockedByUser.email,
+							})}
+						</p>
+						<p className="text-xs text-warning/80">
+							{t("lock.blockedDescription")}
+						</p>
+					</div>
+					<Icon icon="ph:lock-simple" className="size-5 text-warning" />
+				</div>
+			)}
+
+			{/* Warning banner - show when same user has document open elsewhere */}
+			{isOpenElsewhere && (
+				<div className="flex items-center gap-3 p-3 mb-4 rounded-lg bg-info/10 border border-info/30">
+					<Icon icon="ph:browser" className="size-5 text-info" />
+					<p className="text-sm text-info">{t("lock.openElsewhere")}</p>
+				</div>
+			)}
+
 			<FormProvider {...form}>
+				{/* Manage server-side reactive field behaviors (compute, hidden, etc.) */}
+				<ReactiveFieldsManager
+					collection={collection}
+					reactiveConfigs={reactiveConfigs}
+					enabled={!isBlocked && !isSubmitting}
+				/>
 				<form
 					onSubmit={(e) => {
 						e.stopPropagation();
-						form.handleSubmit(onSubmit)(e);
+						if (isBlocked) {
+							e.preventDefault();
+							toast.error(t("lock.cannotSave"));
+							return;
+						}
+						form.handleSubmit(onSubmit, (errors) => {
+							console.warn("[FormView] Validation errors:", errors);
+							toast.error(t("toast.validationFailed"), {
+								description: t("toast.validationDescription"),
+							});
+						})(e);
 					}}
 					className="space-y-4"
 				>
@@ -995,13 +1176,19 @@ export default function FormView({
 										<>
 											{isSaving && (
 												<Badge variant="secondary" className="gap-1.5">
-													<SpinnerGap className="size-3 animate-spin" />
+													<Icon
+														icon="ph:spinner-gap"
+														className="size-3 animate-spin"
+													/>
 													{t("autosave.saving")}
 												</Badge>
 											)}
 											{!isSaving && form.formState.isDirty && (
 												<Badge variant="outline" className="gap-1.5">
-													<ClockCounterClockwise className="size-3" />
+													<Icon
+														icon="ph:clock-counter-clockwise"
+														className="size-3"
+													/>
 													{t("autosave.unsavedChanges")}
 												</Badge>
 											)}
@@ -1010,7 +1197,7 @@ export default function FormView({
 													variant="secondary"
 													className="gap-1.5 text-muted-foreground"
 												>
-													<Check className="size-3" />
+													<Icon icon="ph:check" className="size-3" />
 													{t("autosave.saved")} {formatTimeAgo(lastSaved)}
 												</Badge>
 											)}
@@ -1075,7 +1262,7 @@ export default function FormView({
 									onClick={() => setIsLivePreviewOpen(true)}
 									title={t("preview.livePreview")}
 								>
-									<Eye className="size-4" />
+									<Icon icon="ph:eye" className="size-4" />
 									<span className="sr-only">{t("preview.livePreview")}</span>
 								</Button>
 							)}
@@ -1099,12 +1286,15 @@ export default function FormView({
 							>
 								{isSubmitting ? (
 									<>
-										<SpinnerGap className="size-4 animate-spin" />
+										<Icon
+											icon="ph:spinner-gap"
+											className="size-4 animate-spin"
+										/>
 										{t("common.loading")}
 									</>
 								) : (
 									<>
-										<Check size={16} />
+										<Icon icon="ph:check" width={16} height={16} />
 										{t("common.save")}
 									</>
 								)}
@@ -1122,21 +1312,21 @@ export default function FormView({
 											/>
 										}
 									>
-										<DotsThreeVertical className="size-4" />
+										<Icon icon="ph:dots-three-vertical" className="size-4" />
 										<span className="sr-only">{t("common.moreActions")}</span>
 									</DropdownMenuTrigger>
 									<DropdownMenuContent align="end">
 										{regularSecondary.map((action) => {
-											const Icon = action.icon as
-												| React.ComponentType<React.SVGProps<SVGSVGElement>>
-												| undefined;
+											const iconElement = resolveIconElement(action.icon, {
+												className: "mr-2 size-4",
+											});
 											return (
 												<DropdownMenuItem
 													key={action.id}
 													onClick={() => handleActionClick(action)}
 													disabled={actionLoading}
 												>
-													{Icon && <Icon className="mr-2 size-4" />}
+													{iconElement}
 													{resolveText(action.label)}
 												</DropdownMenuItem>
 											);
@@ -1148,9 +1338,9 @@ export default function FormView({
 											)}
 
 										{destructiveSecondary.map((action) => {
-											const Icon = action.icon as
-												| React.ComponentType<React.SVGProps<SVGSVGElement>>
-												| undefined;
+											const iconElement = resolveIconElement(action.icon, {
+												className: "mr-2 size-4",
+											});
 											return (
 												<DropdownMenuItem
 													key={action.id}
@@ -1158,7 +1348,7 @@ export default function FormView({
 													onClick={() => handleActionClick(action)}
 													disabled={actionLoading}
 												>
-													{Icon && <Icon className="mr-2 size-4" />}
+													{iconElement}
 													{resolveText(action.label)}
 												</DropdownMenuItem>
 											);
@@ -1172,7 +1362,7 @@ export default function FormView({
 					{/* Main Content - Form Fields */}
 					<AutoFormFields
 						collection={collection as any}
-						config={config}
+						config={formConfigBridge}
 						registry={registry}
 						allCollectionsConfig={allCollectionsConfig}
 					/>
@@ -1189,7 +1379,7 @@ export default function FormView({
 				<DialogContent showCloseButton={false}>
 					<DialogHeader>
 						<DialogTitle className="flex items-center gap-2">
-							<Warning className="size-5 text-amber-500" weight="fill" />
+							<Icon icon="ph:warning-fill" className="size-5 text-warning" />
 							{t("confirm.localeChange")}
 						</DialogTitle>
 						<DialogDescription>

@@ -21,17 +21,17 @@ import {
 } from "drizzle-orm/pg-core";
 import { Collection } from "#questpie/server/collection/builder/collection.js";
 import type {
+	ExtractFieldsByLocation,
 	I18nFieldAccessor,
 	InferSQLType,
-	NonLocalizedFields,
-	RelationVariant,
 } from "#questpie/server/collection/builder/types.js";
 import type {
-	GlobalBuilderRelationFn,
 	GlobalBuilderState,
 	InferGlobalTableWithColumns,
 } from "#questpie/server/global/builder/types.js";
+import { createGlobalValidationSchema } from "#questpie/server/global/builder/validation-helpers.js";
 import { DEFAULT_LOCALE } from "#questpie/shared/constants.js";
+import type { GlobalMeta } from "#questpie/shared/global-meta.js";
 import { GlobalCRUDGenerator } from "../crud/global-crud-generator.js";
 import type { GlobalCRUD } from "../crud/types.js";
 
@@ -123,7 +123,9 @@ export class Global<TState extends GlobalBuilderState> {
 	public readonly name: TState["name"];
 	public readonly table: InferGlobalTableWithColumns<
 		TState["name"],
-		NonLocalizedFields<TState["fields"], TState["localized"]>,
+		TState["fieldDefinitions"] extends Record<string, any>
+			? ExtractFieldsByLocation<TState["fieldDefinitions"], "main">
+			: Omit<TState["fields"], TState["localized"][number]>,
 		TState["options"]
 	>;
 	public readonly i18nTable: TState["localized"][number] extends never
@@ -140,7 +142,9 @@ export class Global<TState extends GlobalBuilderState> {
 		select: InferGlobalSelect<
 			InferGlobalTableWithColumns<
 				TState["name"],
-				NonLocalizedFields<TState["fields"], TState["localized"]>,
+				TState["fieldDefinitions"] extends Record<string, any>
+					? ExtractFieldsByLocation<TState["fieldDefinitions"], "main">
+					: Omit<TState["fields"], TState["localized"][number]>,
 				TState["options"]
 			>,
 			TState["fields"],
@@ -150,7 +154,9 @@ export class Global<TState extends GlobalBuilderState> {
 		insert: InferGlobalInsert<
 			InferGlobalTableWithColumns<
 				TState["name"],
-				NonLocalizedFields<TState["fields"], TState["localized"]>,
+				TState["fieldDefinitions"] extends Record<string, any>
+					? ExtractFieldsByLocation<TState["fieldDefinitions"], "main">
+					: Omit<TState["fields"], TState["localized"][number]>,
 				TState["options"]
 			>,
 			TState["fields"],
@@ -159,7 +165,9 @@ export class Global<TState extends GlobalBuilderState> {
 		update: InferGlobalUpdate<
 			InferGlobalTableWithColumns<
 				TState["name"],
-				NonLocalizedFields<TState["fields"], TState["localized"]>,
+				TState["fieldDefinitions"] extends Record<string, any>
+					? ExtractFieldsByLocation<TState["fieldDefinitions"], "main">
+					: Omit<TState["fields"], TState["localized"][number]>,
 				TState["options"]
 			>,
 			TState["fields"],
@@ -167,15 +175,7 @@ export class Global<TState extends GlobalBuilderState> {
 		>;
 	};
 
-	constructor(
-		state: TState,
-		private readonly virtualsFn?: (
-			table: any,
-			i18n: any,
-			context: any,
-		) => TState["virtuals"],
-		private readonly relationsFn?: GlobalBuilderRelationFn<TState, any>,
-	) {
+	constructor(state: TState) {
 		this.state = state;
 		this.name = state.name;
 
@@ -184,55 +184,49 @@ export class Global<TState extends GlobalBuilderState> {
 		this.versionsTable = this.generateVersionsTable();
 		this.i18nVersionsTable = this.generateI18nVersionsTable();
 
-		// Execute virtuals to populate state
-		if (virtualsFn) {
-			const context = {
-				defaultLocale: DEFAULT_LOCALE,
-			};
-			const i18nAccessor = this.createI18nAccessor(context);
-			state.virtuals = virtualsFn(
-				this.table,
-				i18nAccessor,
-				context,
-			) as TState["virtuals"];
-		}
+		// Relations are now defined via f.relation() in fields() and resolved in global-builder.ts
 
-		// Execute relations
-		if (relationsFn) {
-			const context = { defaultLocale: DEFAULT_LOCALE };
-			const i18nAccessor = this.createI18nAccessor(context);
-			const helpers: RelationVariant = {
-				one: (collection, config) =>
-					({ type: "one", collection, ...config }) as any,
-				many: (collection, config) =>
-					({ type: "many", collection, ...config }) as any,
-				manyToMany: (collection, config) =>
-					({ type: "manyToMany", collection, ...config }) as any,
-			};
-			state.relations = relationsFn({
-				table: this.table as any,
-				i18n: i18nAccessor,
-				...helpers,
-			});
+		// Auto-generate validation schema if not explicitly provided
+		if (!state.validation) {
+			const localizedFieldNames = new Set(state.localized as readonly string[]);
+			const mainFields: Record<string, any> = {};
+			const localizedFields: Record<string, any> = {};
+
+			// Include auto-generated ID field if user didn't define one
+			const hasUserDefinedId = "id" in state.fields;
+			if (!hasUserDefinedId) {
+				mainFields.id = defaultIdColumn();
+			}
+
+			for (const [key, column] of Object.entries(state.fields)) {
+				if (localizedFieldNames.has(key)) {
+					localizedFields[key] = column;
+				} else {
+					mainFields[key] = column;
+				}
+			}
+
+			// Include system fields in validation schema
+			if (state.options.timestamps !== false) {
+				Object.assign(mainFields, Collection.timestampsCols());
+			}
+
+			state.validation = createGlobalValidationSchema(
+				state.name,
+				mainFields,
+				localizedFields,
+			) as any;
 		}
 
 		this.$infer = {} as any;
 	}
 
-	public getVirtuals(context: any): TState["virtuals"] {
-		if (!this.virtualsFn) return this.state.virtuals;
-		const i18nAccessor = this.createI18nAccessor(context);
-		return this.virtualsFn(this.table, i18nAccessor, context);
+	public getVirtuals(_context: any): TState["virtuals"] {
+		return this.state.virtuals;
 	}
 
-	public getVirtualsForVersions(context: any): TState["virtuals"] {
-		if (!this.virtualsFn || !this.versionsTable) return this.state.virtuals;
-		const i18nAccessor = this.createI18nAccessorForVersions(
-			this.versionsTable,
-			this.i18nVersionsTable,
-			context,
-		);
-		return this.virtualsFn(this.versionsTable, i18nAccessor, context);
+	public getVirtualsForVersions(_context: any): TState["virtuals"] {
+		return this.state.virtuals;
 	}
 
 	/**
@@ -269,6 +263,7 @@ export class Global<TState extends GlobalBuilderState> {
 	private generateMainTable(): PgTable {
 		const tableName = this.state.name;
 		const columns: Record<string, any> = {};
+		const isScoped = !!this.state.options.scoped;
 
 		// Check if user defined 'id' in fields
 		const hasUserDefinedId = "id" in this.state.fields;
@@ -278,6 +273,11 @@ export class Global<TState extends GlobalBuilderState> {
 			columns.id = defaultIdColumn();
 		}
 
+		// Add scope_id column for scoped globals
+		if (isScoped) {
+			columns.scopeId = text("scope_id");
+		}
+
 		for (const [fieldName, column] of Object.entries(this.state.fields)) {
 			if (this.state.localized.includes(fieldName as any)) continue;
 			columns[fieldName] = column;
@@ -285,6 +285,13 @@ export class Global<TState extends GlobalBuilderState> {
 
 		if (this.state.options.timestamps !== false) {
 			Object.assign(columns, Collection.timestampsCols());
+		}
+
+		// Add unique index on scope_id for scoped globals
+		if (isScoped) {
+			return pgTable(tableName, columns as any, (t) => ({
+				scopeIdx: uniqueIndex(`${tableName}_scope_idx`).on(t.scopeId),
+			}));
 		}
 
 		return pgTable(tableName, columns as any);
@@ -324,6 +331,7 @@ export class Global<TState extends GlobalBuilderState> {
 		if (typeof versioning === "object" && !versioning.enabled) return null;
 
 		const tableName = `${this.state.name}_versions`;
+		const isScoped = !!this.state.options.scoped;
 
 		// Get the parent table's ID column to match its type
 		const parentIdColumn = (this.table as any).id as PgColumn;
@@ -340,6 +348,11 @@ export class Global<TState extends GlobalBuilderState> {
 				.defaultNow()
 				.notNull(),
 		};
+
+		// Add scope_id for scoped globals
+		if (isScoped) {
+			columns.scopeId = text("scope_id");
+		}
 
 		for (const [fieldName, column] of Object.entries(this.state.fields)) {
 			if (this.state.localized.includes(fieldName as any)) continue;
@@ -446,20 +459,28 @@ export class Global<TState extends GlobalBuilderState> {
 		return accessor;
 	}
 
-	getMeta() {
-		return {
-			name: this.state.name,
-			fields: Object.entries(this.state.fields).map(([name, column]) => ({
+	getMeta(): GlobalMeta {
+		const fieldDefinitions = this.state.fieldDefinitions || {};
+		const fields = Object.entries(fieldDefinitions).map(
+			([name, def]: [string, any]) => ({
 				name,
-				column,
 				localized: this.state.localized.includes(name as any),
 				virtual: name in this.state.virtuals,
-			})),
-			isGlobal: true,
+			}),
+		);
+
+		const versioning = this.state.options.versioning;
+		const hasVersioning =
+			!!versioning &&
+			(typeof versioning !== "object" || versioning.enabled !== false);
+
+		return {
+			name: this.state.name,
+			fields,
 			timestamps: this.state.options.timestamps !== false,
+			versioning: hasVersioning,
 			virtualFields: Object.keys(this.state.virtuals),
 			localizedFields: Array.from(this.state.localized),
-			relations: Object.keys(this.state.relations),
 		};
 	}
 }

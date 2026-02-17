@@ -1,0 +1,101 @@
+---
+title: Media & Uploads
+description: Upload fields, media picker, bulk upload, and asset management
+---
+
+# Media & Uploads
+
+QUESTPIE provides upload fields for file attachments, a media picker dialog for selecting existing assets, and bulk upload support. Files are stored via the storage adapter (local, S3, or any flydrive driver).
+
+## Upload Fields
+
+Use `f.upload()` on a collection to add a file field:
+
+```ts
+export const barbers = qb
+  .collection("barbers")
+  .fields((f) => ({
+    name: f.text({ required: true }),
+    avatar: f.upload({}),           // Single file
+    gallery: f.upload({ multiple: true }),  // Multiple files
+  }));
+```
+
+### Upload Field Configuration
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `accept` | `string` | — | MIME types (`"image/*"`, `"application/pdf"`) |
+| `maxSize` | `number` | — | Max file size in bytes |
+| `multiple` | `boolean` | `false` | Allow multiple files |
+| `maxItems` | `number` | — | Max files for multi-upload |
+| `showPreview` | `boolean` | `true` | Show file preview |
+| `orderable` | `boolean` | `false` | Allow drag-to-reorder (multi) |
+| `layout` | `string` | — | Layout for multi-upload |
+
+## Media Picker
+
+The media picker dialog lets users browse and select existing assets or upload new ones. It opens when clicking the upload field button.
+
+**Features:**
+
+- Browse existing uploads with thumbnail grid
+- Filter by MIME type
+- Search by filename
+- Select single or multiple files
+- Upload new files directly from the picker
+
+The media picker is rendered by the `MediaPickerDialog` component, which connects to the upload collection's API.
+
+## Bulk Upload
+
+The bulk upload dialog supports uploading many files at once with progress tracking:
+
+```text
+Drop zone → File validation → Parallel upload → Individual progress → Success/retry
+```
+
+**Features:**
+
+- Multi-file drag-and-drop
+- Individual progress bars per file
+- File type and size validation before upload
+- Retry failed uploads
+- Success callback for integration
+
+## Upload Collections
+
+Under the hood, upload fields store references to records in an upload collection. This collection manages file metadata (filename, MIME type, size, URL) and the actual storage operations.
+
+The upload collection is automatically configured when you use `f.upload()`. Files are stored via the configured storage adapter (see [Storage](/docs/infrastructure/storage)).
+
+## Admin Components
+
+### UploadField
+
+The form component for upload fields. Renders a dropzone with preview, supports single and multi-file modes, and integrates with the media picker.
+
+### MediaGrid
+
+A responsive thumbnail grid for displaying assets. Used in the media picker and can be used in custom views:
+
+- Configurable column count (2-5)
+- Single or multi-select mode
+- Loading skeleton state
+- Click handlers for asset actions
+
+### AssetPreview
+
+Read-only asset display with file type icon, filename, size, and download link. Used in table cells and read-only form contexts.
+
+## Common Mistakes
+
+- **No storage adapter configured** — Upload fields require a storage adapter in the build config. Without one, uploads fail at runtime.
+- **Missing `accept` filter** — Without MIME type filtering, users can upload any file type. Set `accept` to restrict (e.g., `"image/*"` for image-only).
+- **Large `maxSize` without infrastructure** — If your storage backend or reverse proxy has size limits, set `maxSize` to match the lowest limit in your stack.
+
+## Related Pages
+
+- [Storage](/docs/infrastructure/storage) — File storage adapters
+- [Field Types](/docs/server/field-types) — Upload field type reference
+- [Collections](/docs/server/collections) — Collection builder with `.upload()`

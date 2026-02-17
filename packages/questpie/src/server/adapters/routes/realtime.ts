@@ -1,7 +1,8 @@
 /**
  * Realtime Routes
  *
- * Server-sent events (SSE) route handlers for realtime updates.
+ * Unified SSE endpoint for multiplexed realtime updates.
+ * Accepts multiple topics via POST and streams updates for all of them.
  */
 
 import type { Questpie } from "../../config/cms.js";
@@ -9,8 +10,45 @@ import type { QuestpieConfig } from "../../config/types.js";
 import { ApiError } from "../../errors/index.js";
 import type { AdapterConfig, AdapterContext } from "../types.js";
 import { resolveContext } from "../utils/context.js";
-import { parseFindOptions } from "../utils/parsers.js";
 import { handleError, sseHeaders } from "../utils/response.js";
+
+// ============================================================================
+// Types
+// ============================================================================
+
+type TopicInput = {
+	/** Unique topic ID */
+	id: string;
+	/** Resource type */
+	resourceType: "collection" | "global";
+	/** Resource name */
+	resource: string;
+	/** WHERE filters */
+	where?: Record<string, unknown>;
+	/** Relations to include */
+	with?: Record<string, unknown>;
+	/** Pagination limit */
+	limit?: number;
+	/** Pagination offset */
+	offset?: number;
+	/** Order by */
+	orderBy?: Record<string, "asc" | "desc">;
+};
+
+type ValidatedTopic = TopicInput & {
+	type: "collection" | "global";
+	crud: any;
+};
+
+type TopicState = {
+	refreshInFlight: boolean;
+	refreshQueued: boolean;
+	lastSeq: number;
+};
+
+// ============================================================================
+// Route Handler
+// ============================================================================
 
 export const createRealtimeRoutes = <
 	TConfig extends QuestpieConfig = QuestpieConfig,
@@ -27,248 +65,286 @@ export const createRealtimeRoutes = <
 	};
 
 	return {
+		/**
+		 * Unified SSE endpoint for multiplexed realtime subscriptions.
+		 *
+		 * POST /realtime
+		 * Body: { topics: [{ id, resourceType, resource, where?, with?, limit?, offset?, orderBy? }] }
+		 *
+		 * Response: SSE stream with events:
+		 * - snapshot: { topicId, seq, data }
+		 * - error: { topicId, message }
+		 * - ping: { ts }
+		 */
 		subscribe: async (
 			request: Request,
-			params: { collection: string },
+			_params: Record<string, string>,
 			context?: AdapterContext,
 		): Promise<Response> => {
-			if (request.method !== "GET") {
+			// Only accept POST
+			if (request.method !== "POST") {
 				return errorResponse(
-					ApiError.badRequest("Method not allowed"),
+					ApiError.badRequest("Method not allowed. Use POST."),
 					request,
 				);
 			}
 
+			// Check if realtime is available
 			if (!cms.realtime) {
 				return errorResponse(ApiError.notImplemented("Realtime"), request);
 			}
 
+			// Resolve context (auth, locale, etc.)
 			const resolved = await resolveContext(cms, request, config, context);
-			const crud = cms.api.collections[params.collection as any];
 
-			if (!crud) {
-				return errorResponse(
-					ApiError.notFound("Collection", params.collection),
-					request,
-					resolved.cmsContext.locale,
-				);
-			}
-
-			const options = parseFindOptions(new URL(request.url));
-
-			const encoder = new TextEncoder();
-			let closeStream: (() => void) | null = null;
-			const stream = new ReadableStream({
-				start: (controller) => {
-					let closed = false;
-					let refreshInFlight = false;
-					let refreshQueued = false;
-					let lastSeq = 0;
-
-					const send = (event: string, data: unknown) => {
-						if (closed) return;
-						controller.enqueue(
-							encoder.encode(
-								`event: ${event}\n` + `data: ${JSON.stringify(data)}\n\n`,
-							),
-						);
-					};
-
-					const sendError = (error: unknown) => {
-						const message =
-							error instanceof Error ? error.message : "Unknown error";
-						send("error", { message });
-					};
-
-					const refresh = async (seq?: number) => {
-						if (closed) return;
-						if (typeof seq === "number") {
-							lastSeq = Math.max(lastSeq, seq);
-						}
-						if (refreshInFlight) {
-							refreshQueued = true;
-							return;
-						}
-						refreshInFlight = true;
-
-						try {
-							do {
-								refreshQueued = false;
-								const data = await crud.find(options, resolved.cmsContext);
-								send("snapshot", { seq: lastSeq, data });
-							} while (refreshQueued && !closed);
-						} catch (error) {
-							sendError(error);
-						} finally {
-							refreshInFlight = false;
-						}
-					};
-
-					// Service handles topic routing + dependency tracking
-					const unsubscribe = cms.realtime!.subscribe(
-						(event) => {
-							void refresh(event.seq);
-						},
-						{
-							resourceType: "collection",
-							resource: params.collection,
-							where: options.where,
-							with: options.with,
-						},
-					);
-
-					const pingTimer = setInterval(() => {
-						send("ping", { ts: Date.now() });
-					}, 25000);
-
-					const close = () => {
-						if (closed) return;
-						closed = true;
-						clearInterval(pingTimer);
-						unsubscribe();
-						controller.close();
-					};
-					closeStream = close;
-
-					if (request.signal) {
-						request.signal.addEventListener("abort", close);
-					}
-
-					void (async () => {
-						try {
-							lastSeq = await cms.realtime?.getLatestSeq();
-							await refresh(lastSeq);
-						} catch (error) {
-							sendError(error);
-						}
-					})();
-				},
-				cancel: () => {
-					closeStream?.();
-				},
-			});
-
-			return new Response(stream, {
-				headers: sseHeaders,
-			});
-		},
-
-		subscribeGlobal: async (
-			request: Request,
-			params: { global: string },
-			context?: AdapterContext,
-		): Promise<Response> => {
-			if (request.method !== "GET") {
-				return errorResponse(
-					ApiError.badRequest("Method not allowed"),
-					request,
-				);
-			}
-
-			if (!cms.realtime) {
-				return errorResponse(ApiError.notImplemented("Realtime"), request);
-			}
-
-			const resolved = await resolveContext(cms, request, config, context);
-			let globalInstance: any;
-
+			// Parse request body
+			let body: { topics?: TopicInput[] };
 			try {
-				globalInstance = cms.getGlobalConfig(params.global as any);
+				body = await request.json();
 			} catch {
 				return errorResponse(
-					ApiError.notFound("Global", params.global),
+					ApiError.badRequest("Invalid JSON body"),
 					request,
 					resolved.cmsContext.locale,
 				);
 			}
 
-			const crud = globalInstance.generateCRUD(resolved.cmsContext.db, cms);
-			const options = parseFindOptions(new URL(request.url));
+			const { topics } = body;
 
+			// Validate topics
+			if (!Array.isArray(topics) || topics.length === 0) {
+				return errorResponse(
+					ApiError.badRequest("Topics array is required and must not be empty"),
+					request,
+					resolved.cmsContext.locale,
+				);
+			}
+
+			// Validate and resolve all topics upfront
+			const validatedTopics: ValidatedTopic[] = [];
+			const topicErrors: Array<{ id: string; message: string }> = [];
+
+			for (const topic of topics) {
+				if (!topic.id || typeof topic.id !== "string") {
+					topicErrors.push({
+						id: topic.id ?? "unknown",
+						message: "Topic ID is required",
+					});
+					continue;
+				}
+
+				if (!topic.resourceType || !topic.resource) {
+					topicErrors.push({
+						id: topic.id,
+						message: "resourceType and resource are required",
+					});
+					continue;
+				}
+
+				if (topic.resourceType === "collection") {
+					const crud = cms.api.collections[topic.resource as any];
+					if (!crud) {
+						topicErrors.push({
+							id: topic.id,
+							message: `Collection "${topic.resource}" not found`,
+						});
+						continue;
+					}
+					validatedTopics.push({ ...topic, type: "collection", crud });
+				} else if (topic.resourceType === "global") {
+					try {
+						const globalConfig = cms.getGlobalConfig(topic.resource as any);
+						const crud = globalConfig.generateCRUD(resolved.cmsContext.db, cms);
+						validatedTopics.push({ ...topic, type: "global", crud });
+					} catch {
+						topicErrors.push({
+							id: topic.id,
+							message: `Global "${topic.resource}" not found`,
+						});
+					}
+				} else {
+					topicErrors.push({
+						id: topic.id,
+						message: `Invalid resourceType "${topic.resourceType}"`,
+					});
+				}
+			}
+
+			// If no valid topics, return error
+			if (validatedTopics.length === 0) {
+				return errorResponse(
+					ApiError.badRequest(
+						`No valid topics provided. Errors: ${topicErrors.map((e) => `${e.id}: ${e.message}`).join("; ")}`,
+					),
+					request,
+					resolved.cmsContext.locale,
+				);
+			}
+
+			// Create SSE stream
 			const encoder = new TextEncoder();
 			let closeStream: (() => void) | null = null;
+
 			const stream = new ReadableStream({
 				start: (controller) => {
+					const unsubscribers: (() => void)[] = [];
 					let closed = false;
-					let refreshInFlight = false;
-					let refreshQueued = false;
-					let lastSeq = 0;
 
+					// Per-topic state
+					const topicState = new Map<string, TopicState>();
+
+					// Helper to send SSE event
 					const send = (event: string, data: unknown) => {
 						if (closed) return;
-						controller.enqueue(
-							encoder.encode(
-								`event: ${event}\n` + `data: ${JSON.stringify(data)}\n\n`,
-							),
-						);
-					};
-
-					const sendError = (error: unknown) => {
-						const message =
-							error instanceof Error ? error.message : "Unknown error";
-						send("error", { message });
-					};
-
-					const refresh = async (seq?: number) => {
-						if (closed) return;
-						if (typeof seq === "number") {
-							lastSeq = Math.max(lastSeq, seq);
+						try {
+							controller.enqueue(
+								encoder.encode(
+									`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`,
+								),
+							);
+						} catch {
+							// Controller may be closed
 						}
-						if (refreshInFlight) {
-							refreshQueued = true;
+					};
+
+					// Send per-topic error
+					const sendTopicError = (topicId: string, message: string) => {
+						send("error", { topicId, message });
+					};
+
+					// Refresh a single topic
+					const refresh = async (topicId: string, seq?: number) => {
+						const topic = validatedTopics.find((t) => t.id === topicId);
+						const state = topicState.get(topicId);
+						if (!topic || !state || closed) return;
+
+						if (typeof seq === "number") {
+							state.lastSeq = Math.max(state.lastSeq, seq);
+						}
+
+						if (state.refreshInFlight) {
+							state.refreshQueued = true;
 							return;
 						}
-						refreshInFlight = true;
+
+						state.refreshInFlight = true;
 
 						try {
 							do {
-								refreshQueued = false;
-								const data = await crud.get(options, resolved.cmsContext);
-								send("snapshot", { seq: lastSeq, data });
-							} while (refreshQueued && !closed);
+								state.refreshQueued = false;
+								let data: unknown;
+
+								if (topic.type === "collection") {
+									data = await topic.crud.find(
+										{
+											where: topic.where,
+											with: topic.with,
+											limit: topic.limit,
+											offset: topic.offset,
+											orderBy: topic.orderBy,
+										},
+										resolved.cmsContext,
+									);
+								} else {
+									data = await topic.crud.get(
+										{
+											where: topic.where,
+											with: topic.with,
+										},
+										resolved.cmsContext,
+									);
+								}
+
+								send("snapshot", { topicId, seq: state.lastSeq, data });
+							} while (state.refreshQueued && !closed);
 						} catch (error) {
-							sendError(error);
+							sendTopicError(
+								topicId,
+								error instanceof Error ? error.message : "Unknown error",
+							);
 						} finally {
-							refreshInFlight = false;
+							state.refreshInFlight = false;
 						}
 					};
 
-					// Service handles topic routing + dependency tracking
-					const unsubscribe = cms.realtime!.subscribe(
-						(event) => {
-							void refresh(event.seq);
-						},
-						{
-							resourceType: "global",
-							resource: params.global,
-							where: options.where,
-							with: options.with,
-						},
-					);
+					// Subscribe to each topic
+					for (const topic of validatedTopics) {
+						topicState.set(topic.id, {
+							refreshInFlight: false,
+							refreshQueued: false,
+							lastSeq: 0,
+						});
 
+						const unsub = cms.realtime!.subscribe(
+							(event) => {
+								void refresh(topic.id, event.seq);
+							},
+							{
+								resourceType: topic.resourceType,
+								resource: topic.resource,
+								where: topic.where,
+								with: topic.with,
+							},
+						);
+						unsubscribers.push(unsub);
+					}
+
+					// Send initial errors for invalid topics
+					for (const error of topicErrors) {
+						sendTopicError(error.id, error.message);
+					}
+
+					// Ping timer to keep connection alive
 					const pingTimer = setInterval(() => {
 						send("ping", { ts: Date.now() });
 					}, 25000);
 
+					// Cleanup function
 					const close = () => {
 						if (closed) return;
 						closed = true;
 						clearInterval(pingTimer);
-						unsubscribe();
-						controller.close();
+						for (const unsub of unsubscribers) {
+							unsub();
+						}
+						try {
+							controller.close();
+						} catch {
+							// Controller may already be closed
+						}
 					};
 					closeStream = close;
 
+					// Handle abort signal
 					if (request.signal) {
 						request.signal.addEventListener("abort", close);
 					}
 
+					// Send initial snapshots
 					void (async () => {
 						try {
-							lastSeq = await cms.realtime?.getLatestSeq();
-							await refresh(lastSeq);
+							const latestSeq = (await cms.realtime?.getLatestSeq()) ?? 0;
+
+							// Initialize all topic states with latest seq
+							for (const topic of validatedTopics) {
+								const state = topicState.get(topic.id);
+								if (state) {
+									state.lastSeq = latestSeq;
+								}
+							}
+
+							// Fetch initial snapshots for all topics
+							await Promise.all(
+								validatedTopics.map((topic) => refresh(topic.id, latestSeq)),
+							);
 						} catch (error) {
-							sendError(error);
+							send("error", {
+								topicId: "*",
+								message:
+									error instanceof Error
+										? error.message
+										: "Failed to initialize",
+							});
 						}
 					})();
 				},

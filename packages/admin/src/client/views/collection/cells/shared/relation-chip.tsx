@@ -27,6 +27,11 @@ export interface RelationChipProps {
 	 * Receives item ID and collection name
 	 */
 	onClick?: (itemId: string, collection: string) => void;
+
+	/**
+	 * Additional CSS classes
+	 */
+	className?: string;
 }
 
 /**
@@ -37,6 +42,7 @@ export function RelationChip({
 	item,
 	targetCollection,
 	onClick,
+	className,
 }: RelationChipProps) {
 	const resolveText = useResolveText();
 	const label = resolveText(getRelationItemLabel(item));
@@ -58,6 +64,7 @@ export function RelationChip({
 			"bg-primary/10 text-primary hover:bg-primary/20",
 			"transition-colors cursor-pointer",
 			"border border-primary/20 hover:border-primary/40",
+			className,
 		);
 
 		// If onClick provided, use button-like behavior but keep href for accessibility
@@ -80,6 +87,7 @@ export function RelationChip({
 				"inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs",
 				"bg-muted text-muted-foreground",
 				"border border-border",
+				className,
 			)}
 		>
 			{label}

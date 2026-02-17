@@ -1,7 +1,7 @@
 /**
  * Portuguese Backend Messages
  */
-export const backendMessagesPT = {
+export default {
 	// General errors
 	"error.notFound": "Recurso não encontrado",
 	"error.notFound.withId": "{{resource}} não encontrado: {{id}}",

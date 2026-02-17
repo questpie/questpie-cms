@@ -1,0 +1,93 @@
+---
+title: RPC
+description: Typed rpc contracts for custom application workflows
+---
+
+# RPC
+
+RPC is used for custom operations that do not fit plain CRUD.
+
+For end-to-end type safety, bind RPC to your CMS type:
+
+```ts
+import { rpc } from "questpie";
+import type { AppCMS } from "./cms";
+
+export const r = rpc<AppCMS>();
+```
+
+## Pattern
+
+1. create root `const r = rpc()`
+2. define procedures with `r.fn({ schema, handler })`
+3. compose with `r.router({...})`
+4. mount via `createFetchHandler(..., { rpc: appRpc })`
+
+## Example
+
+```ts
+import { rpc } from "questpie";
+import z from "zod";
+import type { AppCMS } from "../cms";
+
+export const r = rpc<AppCMS>();
+
+export const getRevenueStats = r.fn({
+  schema: z.object({
+    startDate: z.string().datetime(),
+    endDate: z.string().datetime(),
+  }),
+  handler: async ({ input, app }) => {
+    const appointments = await app.api.collections.appointments.find({
+      where: {
+        scheduledAt: {
+          gte: new Date(input.startDate),
+          lte: new Date(input.endDate),
+        },
+      },
+    });
+    return { appointmentCount: appointments.docs.length };
+  },
+});
+
+export const appRpc = r.router({ getRevenueStats });
+```
+
+## Alternative: Typed fn Factory
+
+If you need typed functions outside `rpc()`, use `fn.typed<AppCMS>()`:
+
+```ts
+import { fn } from "questpie";
+import z from "zod";
+import type { AppCMS } from "../cms";
+
+const f = fn.typed<AppCMS>();
+
+export const recalculateStats = f({
+  schema: z.object({ date: z.string() }),
+  handler: async ({ input, app }) => {
+    return app.api.collections.analytics.find({ where: { date: input.date } });
+  },
+});
+```
+
+## Client usage
+
+```ts
+const stats = await client.rpc.getRevenueStats({
+  startDate: "2026-01-01T00:00:00.000Z",
+  endDate: "2026-01-31T23:59:59.999Z",
+});
+```
+
+## When to use RPC
+
+- booking orchestration
+- analytics aggregation
+- external API workflows
+- multi-step domain logic
+
+## Related
+
+- [Type-Safe Contexts](/docs/server/type-safe-contexts)

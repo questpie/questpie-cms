@@ -9,20 +9,19 @@ import * as React from "react";
 import { useFormContext, useWatch } from "react-hook-form";
 import type { ComponentRegistry } from "../../builder";
 import type { FieldDefinition } from "../../builder/field/field";
+import { useAdminConfig } from "../../hooks/use-admin-config";
 import { useCollectionMeta } from "../../hooks/use-collection-meta";
 import { useFieldHooks } from "../../hooks/use-field-hooks";
+import { useGlobalMeta } from "../../hooks/use-global-meta";
 import { useResolveText } from "../../i18n/hooks";
-import { selectAdmin, useAdminStore, useScopedLocale } from "../../runtime";
+import { useScopedLocale } from "../../runtime";
 import {
 	buildComponentProps,
-	buildFormFieldProps,
 	type FieldContext,
 	getFieldContext,
 	getFieldOptions,
 	getFullFieldName,
 } from "./field-context";
-import type { FormFieldProps } from "./form-field";
-import { FormField } from "./form-field";
 
 // ============================================================================
 // Types
@@ -32,6 +31,8 @@ export interface FieldRendererProps {
 	fieldName: string;
 	fieldDef?: FieldDefinition;
 	collection: string;
+	/** Entity type - determines which meta hook to use */
+	mode?: "collection" | "global";
 	registry?: ComponentRegistry;
 	fieldPrefix?: string;
 	className?: string;
@@ -50,9 +51,9 @@ export interface FieldRendererProps {
 	 */
 	allCollectionsConfig?: Record<string, any>;
 	/**
-	 * Collection metadata from backend (for inferring localized fields)
+	 * Entity metadata from backend (for inferring localized fields)
 	 */
-	collectionMeta?: { localizedFields?: string[] };
+	entityMeta?: { localizedFields?: string[] };
 }
 
 // ============================================================================
@@ -82,14 +83,6 @@ function stripFieldUiOptions(options: Record<string, any>) {
 	} = options;
 
 	return rest;
-}
-
-function renderFormField(
-	formFieldProps: FormFieldProps,
-	type?: FormFieldProps["type"],
-	extra?: Partial<FormFieldProps>,
-) {
-	return <FormField {...formFieldProps} type={type} {...extra} />;
 }
 
 /**
@@ -184,57 +177,6 @@ function renderEmbeddedField({
 	);
 }
 
-/**
- * Render primitive field using FormField component
- *
- * This is the fallback for fields without a FieldDefinition.field.component.
- * It maps field types to FormField types for basic form controls.
- */
-function renderPrimitiveField({
-	context,
-	formFieldProps,
-}: {
-	context: FieldContext;
-	formFieldProps: FormFieldProps;
-}) {
-	if (!context.type) {
-		return renderConfigError(
-			`Missing field type for "${context.fieldName}". ` +
-				`Available fields: ${Object.keys(context.fieldDef || {}).join(", ")}`,
-		);
-	}
-
-	// Map field types to FormField types
-	const typeMap: Record<string, FormFieldProps["type"]> = {
-		text: "text",
-		email: "email",
-		password: "password",
-		textarea: "textarea",
-		number: "number",
-		checkbox: "checkbox",
-		switch: "switch",
-		select: "select",
-		date: "date",
-		datetime: "datetime",
-		json: "json",
-	};
-
-	const mappedType = typeMap[context.type];
-
-	if (context.type === "select" && context.options) {
-		return renderFormField(formFieldProps, "select", {
-			options: context.options,
-		});
-	}
-
-	if (mappedType) {
-		return renderFormField(formFieldProps, mappedType);
-	}
-
-	// Unknown type - try to render as text
-	return renderFormField(formFieldProps, "text");
-}
-
 // ============================================================================
 // FieldRenderer Component
 // ============================================================================
@@ -244,26 +186,26 @@ function renderPrimitiveField({
  *
  * Rendering priority:
  * 1. Embedded fields (need special handling for recursive AutoFormFields)
- * 2. FieldDefinition.field.component (handles relation, array, richText, etc.)
- * 3. Primitive fields via FormField (fallback for fields without component)
+ * 2. FieldDefinition.field.component (registry-first approach)
+ * 3. Error message if no component registered
  */
 export function FieldRenderer({
 	fieldName,
 	fieldDef,
 	collection,
+	mode = "collection",
 	registry,
 	fieldPrefix,
 	allCollectionsConfig,
 	renderEmbeddedFields,
 	className,
-	collectionMeta: collectionMetaProp,
+	entityMeta: entityMetaProp,
 }: FieldRendererProps) {
 	const form = useFormContext() as any;
 	// Use scoped locale (from LocaleScopeProvider in ResourceSheet) or global locale
 	const { locale } = useScopedLocale();
 	const resolveText = useResolveText();
-	// Get admin for blocks registry
-	const admin = useAdminStore(selectAdmin);
+	const { data: adminConfig } = useAdminConfig();
 
 	// Use useWatch hook (React pattern) instead of form.getValues() method
 	// This ensures reactive updates when form values change
@@ -289,12 +231,18 @@ export function FieldRenderer({
 		return (result ?? {}) as Record<string, any>;
 	}, [watchedValues, fieldPrefix]);
 
-	// Fetch collection metadata for inferring localized fields
-	// Use prop if provided, otherwise fetch from backend
-	const { data: fetchedMeta } = useCollectionMeta(collection, {
-		enabled: !collectionMetaProp,
+	// Fetch entity metadata for inferring localized fields
+	// Use prop if provided, otherwise fetch from backend based on mode
+	const { data: fetchedCollectionMeta } = useCollectionMeta(collection, {
+		enabled: !entityMetaProp && mode === "collection",
 	});
-	const collectionMeta = collectionMetaProp ?? fetchedMeta;
+	const { data: fetchedGlobalMeta } = useGlobalMeta(collection, {
+		enabled: !entityMetaProp && mode === "global",
+	});
+
+	const entityMeta =
+		entityMetaProp ??
+		(mode === "global" ? fetchedGlobalMeta : fetchedCollectionMeta);
 
 	const context = getFieldContext({
 		fieldName,
@@ -303,12 +251,19 @@ export function FieldRenderer({
 		form,
 		fieldPrefix,
 		locale,
-		collectionMeta,
+		entityMeta,
 		formValues, // Pass pre-watched values to avoid calling form.watch() internally
 	});
 
 	// Get field options for hooks
 	const fieldOptions = getFieldOptions(fieldDef);
+
+	// Check if compute is client-side (function) vs server-side (object with handler)
+	// Server-side compute is handled by useReactiveFields in form-view.tsx
+	const clientSideCompute =
+		typeof fieldOptions.compute === "function"
+			? fieldOptions.compute
+			: undefined;
 
 	// Use field hooks for compute, onChange, loadOptions
 	const {
@@ -321,7 +276,7 @@ export function FieldRenderer({
 		fieldName,
 		fullFieldName: context.fullFieldName,
 		locale,
-		compute: fieldOptions.compute,
+		compute: clientSideCompute,
 		onChange: fieldOptions.onChange,
 		defaultValue: fieldOptions.defaultValue,
 		loadOptions: fieldOptions.loadOptions,
@@ -333,8 +288,9 @@ export function FieldRenderer({
 
 	// Field not found in config
 	if (!fieldDef) {
+		const entityType = mode === "global" ? "global" : "collection";
 		return renderConfigError(
-			`Field "${fieldName}" not found in collection "${collection}" config.`,
+			`Field "${fieldName}" not found in ${entityType} "${collection}" config.`,
 		);
 	}
 
@@ -368,16 +324,6 @@ export function FieldRenderer({
 		placeholder: resolveText(rawComponentProps.placeholder, "", formValues),
 	};
 
-	const rawFormFieldProps = buildFormFieldProps(context);
-	const formFieldProps: FormFieldProps = {
-		...rawFormFieldProps,
-		// Use resolved options for select fields (cast for compatibility)
-		options: resolvedOptions as FormFieldProps["options"],
-		label: resolveText(rawFormFieldProps.label, "", formValues),
-		description: resolveText(rawFormFieldProps.description, "", formValues),
-		placeholder: resolveText(rawFormFieldProps.placeholder, "", formValues),
-	};
-
 	// Render content based on priority
 	let content: React.ReactNode = null;
 
@@ -392,21 +338,21 @@ export function FieldRenderer({
 		});
 	}
 
-	// 2. Use FieldDefinition.field.component if available
+	// 2. Use FieldDefinition.field.component (registry-first approach)
 	if (!content && context.component) {
 		content = renderDefinitionComponent({
 			context,
 			componentProps,
-			blocks: admin.state.blocks,
+			blocks: adminConfig?.blocks,
 		});
 	}
 
-	// 3. Fallback to primitive field rendering
+	// 3. No component found - show error (all fields should have registered components)
 	if (!content) {
-		content = renderPrimitiveField({ context, formFieldProps });
+		content = renderConfigError(
+			`No component registered for field type "${context.type}" (field: "${context.fieldName}").`,
+		);
 	}
-
-	if (!content) return null;
 
 	// Wrap with className if provided
 	if (className) {

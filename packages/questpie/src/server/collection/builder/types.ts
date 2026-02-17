@@ -9,9 +9,15 @@ import type {
 import type { PgColumn, PgTableWithColumns } from "drizzle-orm/pg-core";
 import type { Collection } from "#questpie/server/collection/builder/collection.js";
 import type { ValidationSchemas } from "#questpie/server/collection/builder/validation-helpers.js";
-// Note: any and any are deprecated.
-// Users should use getApp<AppCMS>(), getDb<AppCMS>(), and getSession<AppCMS>() instead.
+// Note: any types are intentional for composition flexibility.
+// Users should use typedApp<AppCMS>(), typedDb<AppCMS>(), and typedSession<AppCMS>() for type-safe access.
 import type { AccessMode } from "#questpie/server/config/types.js";
+import type {
+	FieldDefinition,
+	FieldDefinitionAccess,
+	FieldDefinitionState,
+	FieldLocation,
+} from "#questpie/server/fields/types.js";
 import type { FunctionDefinition } from "#questpie/server/functions/types.js";
 import type { SearchableConfig } from "#questpie/server/integrated/search/index.js";
 
@@ -32,7 +38,7 @@ export interface CollectionVersioningOptions {
  * Upload configuration for collections that handle file uploads
  * When configured, the collection automatically:
  * - Adds upload fields (key, filename, mimeType, size, visibility)
- * - Adds $outputType<{ url: string }>() for typed URL access
+ * - Extends output type with { url: string } for typed URL access
  * - Adds afterRead hook for URL generation based on visibility
  * - Enables upload() and uploadMany() CRUD methods
  * - Registers HTTP routes: POST /:collection/upload, GET /:collection/files/:key
@@ -98,6 +104,68 @@ export interface RelationConfig {
 	targetField?: string; // Foreign key column in junction table pointing to target
 }
 
+type InferRelationTargetName<TTarget> = TTarget extends string
+	? TTarget
+	: TTarget extends () => { name: infer TName extends string }
+		? TName
+		: TTarget extends Record<string, any>
+			? Extract<keyof TTarget, string>
+			: string;
+
+type InferRelationTypeFromConfig<TConfig> = TConfig extends {
+	morphName: string;
+}
+	? "many"
+	: TConfig extends { hasMany: true }
+		? TConfig extends { through: any }
+			? "manyToMany"
+			: "many"
+		: "one";
+
+/** Infer upload relation type: through → manyToMany, else one */
+type InferUploadRelationType<TConfig> = TConfig extends { through: string }
+	? "manyToMany"
+	: "one";
+
+/** Infer upload target collection: config.to or default "assets" */
+type InferUploadTargetCollection<TConfig> = TConfig extends {
+	to: infer TTo extends string;
+}
+	? TTo
+	: "assets";
+
+export type InferRelationConfigsFromFields<
+	TFields extends Record<string, FieldDefinition<FieldDefinitionState>>,
+> = {
+	[K in keyof TFields as TFields[K] extends FieldDefinition<infer TState>
+		? TState["type"] extends "relation" | "upload"
+			? K
+			: never
+		: never]: TFields[K] extends FieldDefinition<infer TState>
+		? TState["type"] extends "relation"
+			? RelationConfig & {
+					type: InferRelationTypeFromConfig<TState["config"]>;
+					collection: InferRelationTargetName<TState["config"]["to"]>;
+				}
+			: TState["type"] extends "upload"
+				? RelationConfig & {
+						type: InferUploadRelationType<TState["config"]>;
+						collection: InferUploadTargetCollection<TState["config"]>;
+					}
+				: never
+		: never;
+};
+
+/**
+ * Extract fields for relations context.
+ * For field definitions, uses ExtractFieldsByLocation.
+ * For raw Drizzle columns, passes through as-is.
+ */
+type FieldsForRelationsContext<TFields extends Record<string, any>> =
+	TFields extends Record<string, FieldDefinition<FieldDefinitionState>>
+		? ExtractFieldsByLocation<TFields, "main">
+		: TFields;
+
 export type CollectionBuilderRelationFn<
 	TState extends CollectionBuilderState,
 	TNewRelations extends Record<string, RelationConfig>,
@@ -105,7 +173,7 @@ export type CollectionBuilderRelationFn<
 	ctx: {
 		table: InferTableWithColumns<
 			TState["name"],
-			NonLocalizedFields<TState["fields"], TState["localized"]>,
+			FieldsForRelationsContext<TState["fields"]>,
 			undefined,
 			TState["options"]
 		>;
@@ -122,7 +190,7 @@ export type CollectionBuilderVirtualsFn<
 > = (ctx: {
 	table: InferTableWithColumns<
 		TState["name"],
-		NonLocalizedFields<TState["fields"], TState["localized"]>,
+		ExtractFieldsByLocation<TState["fields"], "main">,
 		undefined,
 		TState["options"]
 	>;
@@ -212,18 +280,18 @@ export interface RelationVariant {
  *
  * @example
  * ```ts
- * import { getApp, getDb, getSession } from "questpie";
+ * import { typedApp, typedDb, typedSession } from "questpie";
  * import type { AppCMS } from "./cms";
  *
  * .hooks({
  *   afterChange: async ({ data, app, db, session }) => {
- *     const cms = getApp<AppCMS>(app);
- *     const typedDb = getDb<AppCMS>(db);
- *     const typedSession = getSession<AppCMS>(session);
+ *     const cms = typedApp<AppCMS>(app);
+ *     const database = typedDb<AppCMS>(db);
+ *     const sess = typedSession<AppCMS>(session);
  *
  *     // ✅ Fully typed access
  *     await cms.queue.notify.publish({ id: data.id });
- *     await typedDb.insert(auditLog).values({ ... });
+ *     await database.insert(auditLog).values({ ... });
  *   }
  * })
  * ```
@@ -249,11 +317,11 @@ export interface HookContext<
 	original: TOriginal extends never ? never : TOriginal | undefined;
 
 	/**
-	 * CMS instance - use getApp<AppCMS>(app) for type-safe access.
+	 * CMS instance - use typedApp<AppCMS>(app) for type-safe access.
 	 *
 	 * @example
 	 * ```ts
-	 * const cms = getApp<AppCMS>(app);
+	 * const cms = typedApp<AppCMS>(app);
 	 * cms.queue.jobName.publish(...);
 	 * cms.email.send(...);
 	 * ```
@@ -266,12 +334,12 @@ export interface HookContext<
 	 * - null = explicitly unauthenticated
 	 * - object = authenticated
 	 *
-	 * Use getSession<AppCMS>(session) for type-safe access.
+	 * Use typedSession<AppCMS>(session) for type-safe access.
 	 *
 	 * @example
 	 * ```ts
-	 * const typedSession = getSession<AppCMS>(session);
-	 * if (typedSession?.user.role === 'admin') { ... }
+	 * const sess = typedSession<AppCMS>(session);
+	 * if (sess?.user.role === 'admin') { ... }
 	 * ```
 	 */
 	session?: any | null;
@@ -293,12 +361,12 @@ export interface HookContext<
 
 	/**
 	 * Database client (may be transaction).
-	 * Use getDb<AppCMS>(db) for type-safe Drizzle operations.
+	 * Use typedDb<AppCMS>(db) for type-safe Drizzle operations.
 	 *
 	 * @example
 	 * ```ts
-	 * const typedDb = getDb<AppCMS>(db);
-	 * await typedDb.insert(table).values({ ... });
+	 * const database = typedDb<AppCMS>(db);
+	 * await database.insert(table).values({ ... });
 	 * ```
 	 */
 	db: any;
@@ -312,23 +380,23 @@ export interface HookContext<
  *
  * @example
  * ```ts
- * import { getSession } from "questpie";
+ * import { typedSession } from "questpie";
  * import type { AppCMS } from "./cms";
  *
  * .access({
  *   read: ({ session, data }) => {
- *     const typedSession = getSession<AppCMS>(session);
- *     return data.userId === typedSession?.user.id || typedSession?.user.role === 'admin'
+ *     const sess = typedSession<AppCMS>(session);
+ *     return data.userId === sess?.user.id || sess?.user.role === 'admin'
  *   }
  * })
  * ```
  */
 export interface AccessContext<TData = any, TApp = any> {
-	/** CMS instance - use getApp<AppCMS>(app) for type-safe access */
+	/** CMS instance - use typedApp<AppCMS>(app) for type-safe access */
 	app: TApp;
 	/**
 	 * Auth session (user + session) from Better Auth.
-	 * Use getSession<AppCMS>(session) for type-safe access.
+	 * Use typedSession<AppCMS>(session) for type-safe access.
 	 * - undefined = session not resolved
 	 * - null = explicitly unauthenticated
 	 * - object = authenticated
@@ -338,7 +406,7 @@ export interface AccessContext<TData = any, TApp = any> {
 	data?: TData;
 	/** Input data (for create/update) */
 	input?: any;
-	/** Database client - use getDb<AppCMS>(db) for type-safe access */
+	/** Database client - use typedDb<AppCMS>(db) for type-safe access */
 	db: any;
 	/** Current locale */
 	locale?: string;
@@ -694,12 +762,10 @@ export type AccessWhere<TFields = any> =
 /**
  * Access control function can return:
  * - boolean: true (allow all) or false (deny all)
- * - string: role name to check
  * - AccessWhere: query conditions to filter results (TYPE-SAFE!)
  */
 export type AccessRule<TRow = any, TFields = any, TApp = any> =
 	| boolean
-	| string // Role name
 	| ((
 			ctx: AccessContext<TRow, TApp>,
 	  ) =>
@@ -712,7 +778,8 @@ export type AccessRule<TRow = any, TFields = any, TApp = any> =
  */
 export interface FieldAccess<TRow = any, TApp = any> {
 	read?: AccessRule<TRow, any, TApp>;
-	write?: AccessRule<TRow, any, TApp>;
+	create?: AccessRule<TRow, any, TApp>;
+	update?: AccessRule<TRow, any, TApp>;
 }
 
 /**
@@ -726,11 +793,151 @@ export interface CollectionAccess<TRow = any, TApp = any> {
 	update?: AccessRule<TRow, any, TApp>;
 	delete?: AccessRule<TRow, any, TApp>;
 
-	// Optional: field-level access
-	fields?: Record<string, FieldAccess<TRow, TApp>>;
+	/**
+	 * Field-scoped access rules.
+	 *
+	 * This is the source-of-truth for per-field authorization.
+	 * Field-level access in field config is deprecated and removed from runtime.
+	 */
+	fields?: Record<string, FieldDefinitionAccess | FieldAccess<TRow, TApp>>;
 }
 
 export type CollectionFunctionsMap = Record<string, FunctionDefinition>;
+
+// ============================================================================
+// Form Builder Types (for .form() with typed reactive behaviors)
+// ============================================================================
+
+/**
+ * Context for form reactive handlers.
+ * Provides typed access to form data for conditions.
+ */
+export interface FormReactiveContext<TData = Record<string, any>> {
+	/** Current form data - typed based on collection fields */
+	data: TData;
+	/** Sibling data (for fields inside arrays/objects) */
+	sibling: Record<string, any>;
+	/** Server context (db, session, etc.) */
+	ctx: {
+		db: any;
+		user?: any;
+		locale?: string;
+	};
+}
+
+/**
+ * Reactive handler function for form conditions.
+ * Returns the computed value or condition result.
+ */
+export type FormReactiveHandler<TData, TReturn> = (
+	ctx: FormReactiveContext<TData>,
+) => TReturn | Promise<TReturn>;
+
+/**
+ * Reactive config with handler and optional explicit deps.
+ */
+export type FormReactiveConfig<TData, TReturn> =
+	| FormReactiveHandler<TData, TReturn>
+	| {
+			handler: FormReactiveHandler<TData, TReturn>;
+			deps?: string[] | ((ctx: FormReactiveContext<TData>) => any[]);
+			debounce?: number;
+	  };
+
+/**
+ * Form field entry with optional reactive behaviors.
+ * Can be a simple field name or object with field + reactive config.
+ *
+ * @example Simple field
+ * ```ts
+ * f.name
+ * ```
+ *
+ * @example Field with compute
+ * ```ts
+ * {
+ *   field: f.slug,
+ *   compute: {
+ *     handler: ({ data }) => slugify(data.title),
+ *     deps: ({ data }) => [data.title],
+ *     debounce: 300,
+ *   }
+ * }
+ * ```
+ *
+ * @example Field with hidden condition
+ * ```ts
+ * {
+ *   field: f.cancellationReason,
+ *   hidden: ({ data }) => data.status !== "cancelled"
+ * }
+ * ```
+ */
+export type FormFieldEntry<TData = any> =
+	| string
+	| {
+			/** Field name (use f.fieldName) */
+			field: string;
+			/** Hide field conditionally */
+			hidden?: FormReactiveConfig<TData, boolean>;
+			/** Make field read-only conditionally */
+			readOnly?: FormReactiveConfig<TData, boolean>;
+			/** Disable field conditionally */
+			disabled?: FormReactiveConfig<TData, boolean>;
+			/** Auto-compute field value */
+			compute?: FormReactiveConfig<TData, any>;
+	  };
+
+/**
+ * Form section definition.
+ */
+export interface FormSection<TData = any> {
+	label?: string | Record<string, string>;
+	description?: string | Record<string, string>;
+	fields: FormFieldEntry<TData>[];
+	collapsible?: boolean;
+	defaultCollapsed?: boolean;
+}
+
+/**
+ * Form tab definition.
+ */
+export interface FormTab<TData = any> {
+	label: string | Record<string, string>;
+	icon?: { type: string; props?: Record<string, unknown> };
+	sections: FormSection<TData>[];
+}
+
+/**
+ * Form view configuration.
+ * Used by .form() method on collection builder.
+ */
+export interface FormConfig<TData = any> {
+	/** View type override */
+	view?: string;
+	/** Simple list of fields */
+	fields?: FormFieldEntry<TData>[];
+	/** Organized sections */
+	sections?: FormSection<TData>[];
+	/** Tabbed layout */
+	tabs?: FormTab<TData>[];
+}
+
+/**
+ * Proxy for field names in form builder.
+ * Accessing f.fieldName returns the field name as string.
+ */
+export type FormFieldProxy<TFields extends Record<string, any>> = {
+	[K in keyof TFields]: K & string;
+};
+
+/**
+ * Context passed to .form() callback.
+ */
+export interface FormBuilderContext<TState extends CollectionBuilderState> {
+	/** Field name proxy - f.fieldName returns "fieldName" */
+	f: FormFieldProxy<TState["fields"]>;
+}
 
 /**
  * Main builder state that accumulates configuration through the chain
@@ -742,8 +949,13 @@ export type CollectionFunctionsMap = Record<string, FunctionDefinition>;
  */
 export interface CollectionBuilderState {
 	name: string;
-	fields: Record<string, any>; // Allow any Drizzle column type
-	localized: readonly any[];
+	/** Drizzle columns extracted from field definitions */
+	fields: Record<string, any>;
+	/**
+	 * Localized field names (computed from fieldDefinitions).
+	 * Fields with `state.location === "i18n"` are considered localized.
+	 */
+	localized: readonly string[];
 	virtuals: Record<string, SQL> | undefined;
 	relations: Record<string, RelationConfig>;
 	indexes: Record<string, any>;
@@ -771,6 +983,22 @@ export interface CollectionBuilderState {
 	 * for this collection including CRUD methods and HTTP routes.
 	 */
 	upload: UploadOptions | undefined;
+	/**
+	 * Field definitions from Field Builder.
+	 * Stores the FieldDefinition objects for validation, introspection, and localization.
+	 */
+	fieldDefinitions: Record<string, FieldDefinition<FieldDefinitionState>>;
+	/**
+	 * Phantom type for QuestpieBuilder reference.
+	 * Used to access field types registered via q.fields().
+	 */
+	"~questpieApp"?: any;
+	/**
+	 * Phantom type for field types available in .fields((f) => ...).
+	 * Extracted from ~questpieApp at compile time for type inference.
+	 * This is set directly rather than computed to avoid complex type inference.
+	 */
+	"~fieldTypes"?: Record<string, any>;
 }
 
 /**
@@ -800,25 +1028,35 @@ export type ExtractFunctions<TState extends CollectionBuilderState> =
 
 /**
  * Default empty state for a new collection
+ *
+ * @param TName - Collection name
+ * @param TQuestpieApp - Reference to QuestpieBuilder instance (for accessing cms config)
+ * @param TFieldTypes - Field types available in .fields((f) => ...), passed directly to avoid type extraction issues
  */
-export type EmptyCollectionState<TName extends string> =
-	CollectionBuilderState & {
-		name: TName;
-		fields: {};
-		localized: [];
-		virtuals: undefined;
-		relations: {};
-		indexes: {};
-		title: undefined;
-		options: {};
-		hooks: CollectionHooks<any, any, any>;
-		access: {};
-		functions: {};
-		searchable: undefined;
-		validation: undefined;
-		output: undefined;
-		upload: undefined;
-	};
+export type EmptyCollectionState<
+	TName extends string,
+	TQuestpieApp = undefined,
+	TFieldTypes extends Record<string, any> = Record<string, any>,
+> = CollectionBuilderState & {
+	name: TName;
+	fields: {};
+	localized: [];
+	virtuals: undefined;
+	relations: {};
+	indexes: {};
+	title: undefined;
+	options: {};
+	hooks: CollectionHooks<any, any, any>;
+	access: {};
+	functions: {};
+	searchable: undefined;
+	validation: undefined;
+	output: undefined;
+	upload: undefined;
+	fieldDefinitions: {};
+	"~questpieApp": TQuestpieApp;
+	"~fieldTypes": TFieldTypes;
+};
 
 /**
  * Any collection builder state (for type constraints)
@@ -826,20 +1064,27 @@ export type EmptyCollectionState<TName extends string> =
 export type AnyCollectionState = CollectionBuilderState;
 
 /**
- * Extract non-localized fields from field definitions
+ * Extract fields by location from TState-based field definitions.
+ * New approach using FieldDefinition state.location property.
  */
-export type NonLocalizedFields<
-	TFields extends Record<string, any>,
-	TLocalized extends ReadonlyArray<keyof TFields>,
-> = Omit<TFields, TLocalized[number]>;
-
-/**
- * Extract localized fields from field definitions
- */
-export type LocalizedFields<
-	TFields extends Record<string, any>,
-	TLocalized extends ReadonlyArray<keyof TFields>,
-> = Pick<TFields, TLocalized[number]>;
+export type ExtractFieldsByLocation<
+	TFields extends Record<string, FieldDefinition<FieldDefinitionState>>,
+	TLocation extends FieldLocation,
+> = {
+	[K in keyof TFields as TFields[K] extends FieldDefinition<infer TState>
+		? TState extends FieldDefinitionState
+			? TState["location"] extends TLocation
+				? K
+				: never
+			: never
+		: never]: TFields[K] extends FieldDefinition<infer TState>
+		? TState extends FieldDefinitionState
+			? TState["column"] extends null
+				? never // Skip fields without columns (virtual, relations)
+				: TState["column"]
+			: never
+		: never;
+};
 
 /**
  * Helper type to create i18n access object with SQL expressions
@@ -888,12 +1133,76 @@ export type InferI18nVersionColumnFromFields<
 	[K in keyof TFields]: TFields[K];
 };
 
+// ============================================================================
+// TState-based Column Inference (New Approach)
+// ============================================================================
+
+/**
+ * Infer main table columns from TState-based field definitions.
+ * Extracts only fields with location: "main" and non-null columns.
+ */
+export type InferMainColumnsFromFields<
+	TFields extends Record<string, FieldDefinition<FieldDefinitionState>>,
+	TOptions extends CollectionOptions,
+	TUpload extends UploadOptions | undefined = undefined,
+> = ("id" extends keyof ExtractFieldsByLocation<TFields, "main">
+	? {} // User defined their own ID field, don't add default
+	: ReturnType<typeof Collection.pkCols>) &
+	ExtractFieldsByLocation<TFields, "main"> &
+	(TOptions["timestamps"] extends false
+		? {}
+		: ReturnType<typeof Collection.timestampsCols>) &
+	(TOptions["softDelete"] extends true
+		? ReturnType<typeof Collection.softDeleteCols>
+		: {}) &
+	(TUpload extends UploadOptions
+		? ReturnType<typeof Collection.uploadCols>
+		: {});
+
+/**
+ * Infer i18n table columns from TState-based field definitions.
+ * Extracts only fields with location: "i18n" and non-null columns.
+ */
 export type InferI18nColumnsFromFields<
-	TFields extends Record<string, any>,
-	_TTitle extends TitleExpression | undefined,
-> = ReturnType<typeof Collection.i18nCols> & {
-	[K in keyof TFields]: TFields[K];
-};
+	TFields extends Record<string, FieldDefinition<FieldDefinitionState>>,
+> = ReturnType<typeof Collection.i18nCols> &
+	ExtractFieldsByLocation<TFields, "i18n">;
+
+/**
+ * Infer main table type from TState-based field definitions.
+ */
+export type InferMainTableWithColumns<
+	TName extends string,
+	TFields extends Record<string, FieldDefinition<FieldDefinitionState>>,
+	TOptions extends CollectionOptions,
+	TUpload extends UploadOptions | undefined = undefined,
+> = PgTableWithColumns<{
+	name: TName;
+	schema: undefined;
+	columns: BuildColumns<
+		TName,
+		InferMainColumnsFromFields<TFields, TOptions, TUpload>,
+		"pg"
+	>;
+	dialect: "pg";
+}>;
+
+/**
+ * Infer i18n table type from TState-based field definitions.
+ */
+export type InferI18nTableWithColumns<
+	TName extends string,
+	TFields extends Record<string, FieldDefinition<FieldDefinitionState>>,
+> = PgTableWithColumns<{
+	name: LocalizedTableName<TName>;
+	schema: undefined;
+	columns: BuildColumns<
+		LocalizedTableName<TName>,
+		InferI18nColumnsFromFields<TFields>,
+		"pg"
+	>;
+	dialect: "pg";
+}>;
 
 export type LocalizedTableName<TName extends string> = `${TName}_i18n`;
 export type VersionedTableName<TName extends string> = `${TName}_versions`;
@@ -915,21 +1224,6 @@ export type InferTableWithColumns<
 	columns: BuildColumns<
 		TName,
 		InferColumnsFromFields<TFields, TOptions, TTitle>,
-		"pg"
-	>;
-	dialect: "pg";
-}>;
-
-export type InferI18nTableWithColumns<
-	TName extends string,
-	TFields extends Record<string, any>,
-	TTitle extends TitleExpression | undefined,
-> = PgTableWithColumns<{
-	name: LocalizedTableName<TName>;
-	schema: undefined;
-	columns: BuildColumns<
-		LocalizedTableName<TName>,
-		InferI18nColumnsFromFields<TFields, TTitle>,
 		"pg"
 	>;
 	dialect: "pg";

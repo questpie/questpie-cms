@@ -19,9 +19,9 @@ import { Route as AdminSplatRouteImport } from './routes/admin/$'
 import { Route as AppServicesRouteImport } from './routes/_app/services'
 import { Route as AppContactRouteImport } from './routes/_app/contact'
 import { Route as AppBookingRouteImport } from './routes/_app/booking'
+import { Route as AppSlugRouteImport } from './routes/_app/$slug'
 import { Route as AppBarbersIndexRouteImport } from './routes/_app/barbers.index'
 import { Route as ApiCmsSplatRouteImport } from './routes/api/cms/$'
-import { Route as AppPagesSlugRouteImport } from './routes/_app/pages.$slug'
 import { Route as AppBarbersSlugRouteImport } from './routes/_app/barbers.$slug'
 
 const AdminRoute = AdminRouteImport.update({
@@ -73,6 +73,11 @@ const AppBookingRoute = AppBookingRouteImport.update({
   path: '/booking',
   getParentRoute: () => AppRoute,
 } as any)
+const AppSlugRoute = AppSlugRouteImport.update({
+  id: '/$slug',
+  path: '/$slug',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppBarbersIndexRoute = AppBarbersIndexRouteImport.update({
   id: '/barbers/',
   path: '/barbers/',
@@ -83,11 +88,6 @@ const ApiCmsSplatRoute = ApiCmsSplatRouteImport.update({
   path: '/api/cms/$',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AppPagesSlugRoute = AppPagesSlugRouteImport.update({
-  id: '/pages/$slug',
-  path: '/pages/$slug',
-  getParentRoute: () => AppRoute,
-} as any)
 const AppBarbersSlugRoute = AppBarbersSlugRouteImport.update({
   id: '/barbers/$slug',
   path: '/barbers/$slug',
@@ -96,6 +96,7 @@ const AppBarbersSlugRoute = AppBarbersSlugRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/admin': typeof AdminRouteWithChildren
+  '/$slug': typeof AppSlugRoute
   '/booking': typeof AppBookingRoute
   '/contact': typeof AppContactRoute
   '/services': typeof AppServicesRoute
@@ -105,11 +106,11 @@ export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute
   '/admin/': typeof AdminIndexRoute
   '/barbers/$slug': typeof AppBarbersSlugRoute
-  '/pages/$slug': typeof AppPagesSlugRoute
   '/api/cms/$': typeof ApiCmsSplatRoute
   '/barbers': typeof AppBarbersIndexRoute
 }
 export interface FileRoutesByTo {
+  '/$slug': typeof AppSlugRoute
   '/booking': typeof AppBookingRoute
   '/contact': typeof AppContactRoute
   '/services': typeof AppServicesRoute
@@ -119,7 +120,6 @@ export interface FileRoutesByTo {
   '/': typeof AppIndexRoute
   '/admin': typeof AdminIndexRoute
   '/barbers/$slug': typeof AppBarbersSlugRoute
-  '/pages/$slug': typeof AppPagesSlugRoute
   '/api/cms/$': typeof ApiCmsSplatRoute
   '/barbers': typeof AppBarbersIndexRoute
 }
@@ -127,6 +127,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_app': typeof AppRouteWithChildren
   '/admin': typeof AdminRouteWithChildren
+  '/_app/$slug': typeof AppSlugRoute
   '/_app/booking': typeof AppBookingRoute
   '/_app/contact': typeof AppContactRoute
   '/_app/services': typeof AppServicesRoute
@@ -136,7 +137,6 @@ export interface FileRoutesById {
   '/_app/': typeof AppIndexRoute
   '/admin/': typeof AdminIndexRoute
   '/_app/barbers/$slug': typeof AppBarbersSlugRoute
-  '/_app/pages/$slug': typeof AppPagesSlugRoute
   '/api/cms/$': typeof ApiCmsSplatRoute
   '/_app/barbers/': typeof AppBarbersIndexRoute
 }
@@ -144,6 +144,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/admin'
+    | '/$slug'
     | '/booking'
     | '/contact'
     | '/services'
@@ -153,11 +154,11 @@ export interface FileRouteTypes {
     | '/'
     | '/admin/'
     | '/barbers/$slug'
-    | '/pages/$slug'
     | '/api/cms/$'
     | '/barbers'
   fileRoutesByTo: FileRoutesByTo
   to:
+    | '/$slug'
     | '/booking'
     | '/contact'
     | '/services'
@@ -167,13 +168,13 @@ export interface FileRouteTypes {
     | '/'
     | '/admin'
     | '/barbers/$slug'
-    | '/pages/$slug'
     | '/api/cms/$'
     | '/barbers'
   id:
     | '__root__'
     | '/_app'
     | '/admin'
+    | '/_app/$slug'
     | '/_app/booking'
     | '/_app/contact'
     | '/_app/services'
@@ -183,7 +184,6 @@ export interface FileRouteTypes {
     | '/_app/'
     | '/admin/'
     | '/_app/barbers/$slug'
-    | '/_app/pages/$slug'
     | '/api/cms/$'
     | '/_app/barbers/'
   fileRoutesById: FileRoutesById
@@ -267,6 +267,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppBookingRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/$slug': {
+      id: '/_app/$slug'
+      path: '/$slug'
+      fullPath: '/$slug'
+      preLoaderRoute: typeof AppSlugRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/barbers/': {
       id: '/_app/barbers/'
       path: '/barbers'
@@ -281,13 +288,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiCmsSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/_app/pages/$slug': {
-      id: '/_app/pages/$slug'
-      path: '/pages/$slug'
-      fullPath: '/pages/$slug'
-      preLoaderRoute: typeof AppPagesSlugRouteImport
-      parentRoute: typeof AppRoute
-    }
     '/_app/barbers/$slug': {
       id: '/_app/barbers/$slug'
       path: '/barbers/$slug'
@@ -299,22 +299,22 @@ declare module '@tanstack/react-router' {
 }
 
 interface AppRouteChildren {
+  AppSlugRoute: typeof AppSlugRoute
   AppBookingRoute: typeof AppBookingRoute
   AppContactRoute: typeof AppContactRoute
   AppServicesRoute: typeof AppServicesRoute
   AppIndexRoute: typeof AppIndexRoute
   AppBarbersSlugRoute: typeof AppBarbersSlugRoute
-  AppPagesSlugRoute: typeof AppPagesSlugRoute
   AppBarbersIndexRoute: typeof AppBarbersIndexRoute
 }
 
 const AppRouteChildren: AppRouteChildren = {
+  AppSlugRoute: AppSlugRoute,
   AppBookingRoute: AppBookingRoute,
   AppContactRoute: AppContactRoute,
   AppServicesRoute: AppServicesRoute,
   AppIndexRoute: AppIndexRoute,
   AppBarbersSlugRoute: AppBarbersSlugRoute,
-  AppPagesSlugRoute: AppPagesSlugRoute,
   AppBarbersIndexRoute: AppBarbersIndexRoute,
 }
 

@@ -2,14 +2,13 @@
  * Reviews Block
  *
  * Customer testimonials with ratings.
- * Design: Quote-style cards with star ratings.
+ * Supports filter and configurable columns.
  */
 
 import { Quotes, Star } from "@phosphor-icons/react";
-import type { BlockRendererProps } from "@questpie/admin/client";
-import { client } from "../../../lib/cms-client";
+import { useTranslation } from "../../../lib/providers/locale-provider";
 import { cn } from "../../../lib/utils";
-import { builder } from "../builder";
+import type { BlockProps } from "./types";
 
 type Review = {
 	id: string;
@@ -19,14 +18,15 @@ type Review = {
 	createdAt: string;
 };
 
-type ReviewsValues = {
-	title: string;
-	subtitle: string;
-	limit: number;
-};
+export function ReviewsRenderer({ values, data }: BlockProps<"reviews">) {
+	const { t } = useTranslation();
+	const reviews = (data?.reviews ?? []) as Review[];
 
-function ReviewsRenderer({ values, data }: BlockRendererProps<ReviewsValues>) {
-	const { reviews = [] } = (data as { reviews: Review[] }) || {};
+	const columnsClass = {
+		"2": "md:grid-cols-2",
+		"3": "md:grid-cols-2 lg:grid-cols-3",
+		"4": "md:grid-cols-2 lg:grid-cols-4",
+	}[values.columns || "3"];
 
 	return (
 		<section className="py-20 px-6 bg-muted/30">
@@ -46,11 +46,11 @@ function ReviewsRenderer({ values, data }: BlockRendererProps<ReviewsValues>) {
 				)}
 
 				{/* Reviews Grid */}
-				<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+				<div className={cn("grid grid-cols-1 gap-6", columnsClass)}>
 					{reviews.map((review, i) => (
 						<article
 							key={review.id}
-							className="bg-card border border-border p-8 animate-fade-in-up"
+							className="bg-card border border-border p-8 rounded-lg hover:shadow-lg transition-all animate-fade-in-up"
 							style={{ animationDelay: `${i * 100}ms` }}
 						>
 							{/* Quote Icon */}
@@ -58,6 +58,22 @@ function ReviewsRenderer({ values, data }: BlockRendererProps<ReviewsValues>) {
 								className="size-10 text-highlight/20 mb-4"
 								weight="fill"
 							/>
+
+							{/* Rating */}
+							<div className="flex items-center gap-0.5 mb-4">
+								{[1, 2, 3, 4, 5].map((star) => (
+									<Star
+										key={star}
+										weight={star <= review.rating ? "fill" : "regular"}
+										className={cn(
+											"size-5",
+											star <= review.rating
+												? "text-highlight"
+												: "text-muted-foreground/30",
+										)}
+									/>
+								))}
+							</div>
 
 							{/* Comment */}
 							{review.comment && (
@@ -67,24 +83,10 @@ function ReviewsRenderer({ values, data }: BlockRendererProps<ReviewsValues>) {
 							)}
 
 							{/* Footer */}
-							<div className="flex items-center justify-between pt-4 border-t border-border">
+							<div className="pt-4 border-t border-border">
 								<span className="font-medium text-sm">
-									{review.customerName || "Anonymous"}
+									{review.customerName || t("blocks.reviews.anonymous")}
 								</span>
-								<div className="flex items-center gap-0.5">
-									{[1, 2, 3, 4, 5].map((star) => (
-										<Star
-											key={star}
-											weight={star <= review.rating ? "fill" : "regular"}
-											className={cn(
-												"size-4",
-												star <= review.rating
-													? "text-highlight"
-													: "text-muted-foreground/30",
-											)}
-										/>
-									))}
-								</div>
 							</div>
 						</article>
 					))}
@@ -92,47 +94,10 @@ function ReviewsRenderer({ values, data }: BlockRendererProps<ReviewsValues>) {
 
 				{reviews.length === 0 && (
 					<p className="text-center text-muted-foreground py-12">
-						No reviews yet
+						{t("blocks.reviews.empty")}
 					</p>
 				)}
 			</div>
 		</section>
 	);
 }
-
-export const reviewsBlock = builder
-	.block("reviews")
-	.label({ en: "Reviews", sk: "Recenzie" })
-	.description({
-		en: "Display customer testimonials",
-		sk: "Zobrazenie recenzií zákazníkov",
-	})
-	.icon("Star")
-	.category("sections")
-	.fields(({ r }) => ({
-		title: r.text({
-			label: { en: "Title", sk: "Titulok" },
-			localized: true,
-		}),
-		subtitle: r.textarea({
-			label: { en: "Subtitle", sk: "Podtitulok" },
-			localized: true,
-		}),
-		limit: r.number({
-			label: { en: "Max Reviews", sk: "Max recenzií" },
-			defaultValue: 6,
-			min: 1,
-			max: 12,
-		}),
-	}))
-	.prefetch(async ({ values, locale }) => {
-		const result = await client.collections.reviews.find({
-			where: { isApproved: true, isFeatured: true },
-			limit: (values.limit as number) || 6,
-			orderBy: { createdAt: "desc" },
-			locale,
-		});
-		return { reviews: result.docs };
-	})
-	.renderer(ReviewsRenderer)
-	.build();

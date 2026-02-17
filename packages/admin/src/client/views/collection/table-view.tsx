@@ -5,7 +5,7 @@
  * This is the default list view registered in the admin view registry.
  */
 
-import { SlidersHorizontalIcon, SpinnerGap } from "@phosphor-icons/react";
+import { Icon } from "@iconify/react";
 import {
 	type ColumnDef,
 	flexRender,
@@ -16,12 +16,12 @@ import {
 	useReactTable,
 } from "@tanstack/react-table";
 import * as React from "react";
-import { useMemo, useState } from "react";
-import type { ActionsConfig } from "../../builder/collection/action-types";
+import { Suspense, useMemo, useState } from "react";
+import type { ActionsConfig } from "../../builder/types/action-types";
 import type {
 	CollectionBuilderState,
 	ListViewConfig,
-} from "../../builder/collection/types";
+} from "../../builder/types/collection-types";
 import { ActionDialog } from "../../components/actions/action-dialog";
 import { HeaderActions } from "../../components/actions/header-actions";
 import { FilterBuilderSheet } from "../../components/filter-builder/filter-builder-sheet";
@@ -35,6 +35,13 @@ import { Button } from "../../components/ui/button";
 import { Checkbox } from "../../components/ui/checkbox";
 import { EmptyState } from "../../components/ui/empty-state";
 import { SearchInput } from "../../components/ui/search-input";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "../../components/ui/select";
 import {
 	Table,
 	TableBody,
@@ -53,7 +60,11 @@ import {
 	useCollectionDelete,
 	useCollectionList,
 } from "../../hooks/use-collection";
-import { useCollectionMeta } from "../../hooks/use-collection-meta";
+import { useCollectionFields } from "../../hooks/use-collection-fields";
+import { useSuspenseCollectionMeta } from "../../hooks/use-collection-meta";
+import { useSessionState } from "../../hooks/use-current-user";
+import { getLockUser, useLocks } from "../../hooks/use-locks";
+import { useRealtimeHighlight } from "../../hooks/use-realtime-highlight";
 import {
 	useDeleteSavedView,
 	useSavedViews,
@@ -62,7 +73,13 @@ import {
 import { useDebouncedValue, useSearch } from "../../hooks/use-search";
 import { useViewState } from "../../hooks/use-view-state";
 import { useResolveText, useTranslation } from "../../i18n/hooks";
-import { useSafeContentLocales, useScopedLocale } from "../../runtime";
+import { cn } from "../../lib/utils";
+import {
+	selectRealtime,
+	useAdminStore,
+	useSafeContentLocales,
+	useScopedLocale,
+} from "../../runtime";
 import {
 	autoExpandFields,
 	hasFieldsToExpand,
@@ -74,6 +91,7 @@ import {
 	computeDefaultColumns,
 	getAllAvailableFields,
 } from "./columns";
+import { TableViewSkeleton } from "./view-skeletons";
 
 // ============================================================================
 // Types
@@ -85,6 +103,27 @@ import {
  * Re-exports ListViewConfig for type consistency between builder and component.
  */
 export type TableViewConfig = ListViewConfig;
+
+function mapListSchemaToConfig(list?: {
+	view?: string;
+	columns?: string[];
+	defaultSort?: { field: string; direction: "asc" | "desc" };
+	searchable?: string[];
+	filterable?: string[];
+	actions?: unknown;
+}): ListViewConfig | undefined {
+	if (!list) return undefined;
+
+	const config: ListViewConfig = {};
+	if (list.columns?.length) config.columns = list.columns;
+	if (list.defaultSort) config.defaultSort = list.defaultSort as any;
+	if (list.searchable?.length) {
+		config.searchFields = list.searchable as any;
+		config.searchable = true;
+	}
+
+	return config;
+}
 
 /**
  * Props for TableView component
@@ -135,6 +174,12 @@ export interface TableViewProps {
 	showToolbar?: boolean;
 
 	/**
+	 * Enable realtime invalidation for this table.
+	 * Falls back to AdminProvider realtime config when undefined.
+	 */
+	realtime?: boolean;
+
+	/**
 	 * Custom header actions (in addition to configured actions)
 	 * @deprecated Use actions config instead
 	 */
@@ -159,6 +204,10 @@ export interface TableViewProps {
 /**
  * TableView - Default table-based list view for collections
  *
+ * Uses Suspense for data loading to eliminate race conditions.
+ * Critical data (collectionMeta, user session, preferences) is loaded
+ * before rendering, ensuring stable initial state.
+ *
  * Features:
  * - Auto-generates columns from collection config
  * - Search and filter functionality
@@ -178,7 +227,19 @@ export interface TableViewProps {
  * />
  * ```
  */
-export default function TableView({
+export default function TableView(props: TableViewProps): React.ReactElement {
+	return (
+		<Suspense fallback={<TableViewSkeleton />}>
+			<TableViewInner {...props} />
+		</Suspense>
+	);
+}
+
+/**
+ * Inner component that uses Suspense queries.
+ * This component will suspend until all critical data is loaded.
+ */
+function TableViewInner({
 	collection,
 	config,
 	viewConfig,
@@ -187,19 +248,38 @@ export default function TableView({
 	showSearch = true,
 	showFilters = true,
 	showToolbar = true,
+	realtime,
 	headerActions,
 	emptyState,
 	actionsConfig,
 }: TableViewProps): React.ReactElement {
+	const globalRealtimeConfig = useAdminStore(selectRealtime);
+	const { fields: resolvedFields, schema } = useCollectionFields(collection, {
+		fallbackFields: (config as any)?.fields,
+	});
+	const schemaListConfig = mapListSchemaToConfig(schema?.admin?.list as any);
+	const resolvedListConfig =
+		viewConfig ??
+		(config?.list as any)?.["~config"] ??
+		config?.list ??
+		schemaListConfig;
+	// Default to global realtime.enabled if not explicitly set
+	const resolvedRealtime =
+		realtime ??
+		((resolvedListConfig as any)?.realtime as boolean | undefined) ??
+		globalRealtimeConfig.enabled;
+
 	// Use actionsConfig from prop or from config.list view config
 	// Actions are now stored in the list view config, not at collection level
 	const resolvedActionsConfig =
-		actionsConfig ??
-		(config?.list as any)?.["~config"]?.actions ??
-		(config?.list as any)?.actions;
+		actionsConfig ?? (resolvedListConfig as any)?.actions;
 
-	// Fetch collection metadata from backend (for title field detection, timestamps, etc.)
-	const { data: collectionMeta } = useCollectionMeta(collection);
+	// Get user session for preferences (suspense-enabled)
+	const { user } = useSessionState();
+
+	// Fetch collection metadata from backend (suspense-enabled)
+	// This will suspend until data is loaded, eliminating race conditions
+	const { data: collectionMeta } = useSuspenseCollectionMeta(collection);
 
 	// i18n translations
 	const { t } = useTranslation();
@@ -229,25 +309,25 @@ export default function TableView({
 		() =>
 			buildColumns({
 				config: {
-					fields: config?.fields,
-					list: config?.list,
+					fields: resolvedFields,
+					list: resolvedListConfig,
 				},
 				fallbackColumns: ["id"],
 				buildAllColumns: true, // Build all columns so user can toggle any field
 				meta: collectionMeta, // Use meta to determine title field
 			}),
-		[config?.fields, config?.list, collectionMeta],
+		[resolvedFields, resolvedListConfig, collectionMeta],
 	);
 
 	// Auto-detect fields to expand (uploads, relations)
 	const expandedFields = useMemo(
 		() =>
 			autoExpandFields({
-				fields: config?.fields,
-				list: config?.list,
+				fields: resolvedFields,
+				list: resolvedListConfig as any,
 				relations: collectionMeta?.relations,
 			}),
-		[config?.fields, config?.list, collectionMeta?.relations],
+		[resolvedFields, resolvedListConfig, collectionMeta?.relations],
 	);
 
 	// Filter builder sheet state
@@ -258,15 +338,22 @@ export default function TableView({
 	// When .list({ columns: [...] }) is defined, those become the defaults
 	const defaultColumns = useMemo(
 		() =>
-			computeDefaultColumns(config?.fields, {
+			computeDefaultColumns(resolvedFields, {
 				meta: collectionMeta,
-				configuredColumns: config?.list?.columns,
+				configuredColumns: resolvedListConfig?.columns as any,
 			}),
-		[config?.fields, config?.list?.columns, collectionMeta],
+		[resolvedFields, resolvedListConfig?.columns, collectionMeta],
 	);
 
-	// View state (filters, sort, visible columns) - with database persistence
-	const viewState = useViewState(defaultColumns, undefined, collection);
+	// View state (filters, sort, visible columns, realtime) - with database persistence
+	// Uses Suspense internally for loading preferences
+	const viewState = useViewState(
+		defaultColumns,
+		{ realtime: resolvedRealtime },
+		collection,
+		user?.id,
+	);
+	const effectiveRealtime = viewState.config.realtime ?? resolvedRealtime;
 
 	// Build query options from view state (filters, sort)
 	const queryOptions = useMemo(() => {
@@ -373,7 +460,7 @@ export default function TableView({
 				const { field, operator, value } = filter;
 				if (!field || field === "_title") continue;
 
-				const fieldDef = config?.fields?.[field] as any;
+				const fieldDef = resolvedFields?.[field] as any;
 				const fieldType = fieldDef?.name ?? "text";
 				const fieldOptions = fieldDef?.["~options"] ?? {};
 				const relationName =
@@ -470,12 +557,20 @@ export default function TableView({
 			options.orderBy = { [field]: direction };
 		}
 
+		// Apply pagination from view state
+		const pageSize = viewState.config.pagination?.pageSize ?? 25;
+		const page = viewState.config.pagination?.page ?? 1;
+		options.limit = pageSize;
+		options.offset = (page - 1) * pageSize;
+
 		return options;
 	}, [
 		expandedFields,
 		viewState.config.filters,
 		viewState.config.sortConfig,
-		config?.fields,
+		viewState.config.pagination?.page,
+		viewState.config.pagination?.pageSize,
+		resolvedFields,
 		collectionMeta?.relations,
 	]);
 
@@ -504,6 +599,7 @@ export default function TableView({
 		collection as any,
 		queryOptions,
 		{ enabled: !isSearching },
+		{ realtime: effectiveRealtime },
 	);
 
 	// Merge data sources - search returns full records directly now
@@ -522,8 +618,8 @@ export default function TableView({
 	// Build available fields from config for column picker
 	// All fields are available in Options, but defaults come from .list() config
 	const availableFields: AvailableField[] = useMemo(() => {
-		return getAllAvailableFields(config?.fields, { meta: collectionMeta });
-	}, [config?.fields, collectionMeta]);
+		return getAllAvailableFields(resolvedFields, { meta: collectionMeta });
+	}, [resolvedFields, collectionMeta]);
 
 	// Filter columns based on visibleColumns from view state
 	// Includes checkbox selection column as first column
@@ -593,8 +689,17 @@ export default function TableView({
 			orderedColumns.push(titleCol as ColumnDef<any>);
 		}
 
+		// Determine which columns to show
+		// If visibleColumns is empty, show ALL columns (default behavior)
+		const columnsToShow =
+			viewState.config.visibleColumns.length > 0
+				? viewState.config.visibleColumns
+				: columns
+						.map((c) => (c as any).accessorKey || (c as any).id)
+						.filter(Boolean);
+
 		// Add remaining visible columns (excluding title since it's already added)
-		for (const colName of viewState.config.visibleColumns) {
+		for (const colName of columnsToShow) {
 			// Skip title column - already added first
 			if (colName === titleColName) continue;
 
@@ -652,6 +757,18 @@ export default function TableView({
 		}
 		return listData?.docs ?? [];
 	}, [isSearching, searchData?.docs, listData?.docs]);
+
+	// Track realtime changes and highlight affected rows
+	const { isHighlighted } = useRealtimeHighlight(items, {
+		enabled: effectiveRealtime && !isSearching,
+	});
+
+	// Track who is editing which documents
+	const { getLock, isLocked: isDocLocked } = useLocks({
+		resourceType: "collection",
+		resource: collection,
+		realtime: effectiveRealtime,
+	});
 
 	// Search results are already sorted by score, list results are server-sorted
 	const filteredItems = items;
@@ -722,7 +839,7 @@ export default function TableView({
 		return (
 			<div className="container">
 				<div className="flex h-64 items-center justify-center text-muted-foreground">
-					<SpinnerGap className="size-6 animate-spin" />
+					<Icon icon="ph:spinner-gap" className="size-6 animate-spin" />
 				</div>
 			</div>
 		);
@@ -736,7 +853,10 @@ export default function TableView({
 					<div className="min-w-0 flex-1">
 						<div className="flex items-center gap-3">
 							<h1 className="text-2xl md:text-3xl font-extrabold tracking-tight truncate">
-								{resolveText(config?.label, collection)}
+								{resolveText(
+									(config as any)?.label ?? schema?.admin?.config?.label,
+									collection,
+								)}
 							</h1>
 							{localeOptions.length > 0 && (
 								<LocaleSwitcher
@@ -746,11 +866,15 @@ export default function TableView({
 								/>
 							)}
 						</div>
-						{config?.description && (
+						{((config as any)?.description ??
+						schema?.admin?.config?.description) ? (
 							<p className="text-muted-foreground text-sm mt-1 line-clamp-2">
-								{resolveText(config.description)}
+								{resolveText(
+									(config as any)?.description ??
+										schema?.admin?.config?.description,
+								)}
 							</p>
-						)}
+						) : null}
 					</div>
 					<div className="flex items-center gap-2 shrink-0">
 						{headerActions}
@@ -794,7 +918,11 @@ export default function TableView({
 											onClick={() => setIsSheetOpen(true)}
 											className="gap-2"
 										>
-											<SlidersHorizontalIcon size={16} />
+											<Icon
+												icon="ph:sliders-horizontal"
+												width={16}
+												height={16}
+											/>
 											{t("viewOptions.title")}
 										</Button>
 									</ToolbarSection>
@@ -885,7 +1013,10 @@ export default function TableView({
 									<TableRow
 										key={row.id}
 										data-state={row.getIsSelected() && "selected"}
-										className="group"
+										className={cn(
+											"group",
+											isHighlighted(row.id) && "animate-realtime-pulse",
+										)}
 									>
 										{row.getVisibleCells().map((cell, cellIndex) => {
 											// First column (checkbox) is sticky at left=0, width ~36px
@@ -910,16 +1041,49 @@ export default function TableView({
 													}
 												>
 													{isTitleCol ? (
-														<button
-															type="button"
-															onClick={() => handleRowClick(row.original)}
-															className="text-left underline underline-offset-2 decoration-muted-foreground/50 hover:decoration-foreground transition-colors cursor-pointer"
-														>
-															{flexRender(
-																cell.column.columnDef.cell,
-																cell.getContext(),
-															)}
-														</button>
+														<div className="flex items-center gap-2">
+															<button
+																type="button"
+																onClick={() => handleRowClick(row.original)}
+																className="text-left underline underline-offset-2 decoration-muted-foreground/50 hover:decoration-foreground transition-colors cursor-pointer"
+															>
+																{flexRender(
+																	cell.column.columnDef.cell,
+																	cell.getContext(),
+																)}
+															</button>
+															{isDocLocked(row.id) &&
+																(() => {
+																	const lock = getLock(row.id);
+																	const user = lock ? getLockUser(lock) : null;
+																	return (
+																		<span
+																			className="inline-flex items-center gap-1 text-xs text-muted-foreground bg-muted/50 px-1.5 py-0.5 rounded-full"
+																			title={
+																				user?.name ??
+																				user?.email ??
+																				"Someone is editing"
+																			}
+																		>
+																			{user?.image ? (
+																				<img
+																					src={user.image}
+																					alt=""
+																					className="size-4 rounded-full"
+																				/>
+																			) : (
+																				<Icon
+																					icon="ph:pencil-simple"
+																					className="size-3"
+																				/>
+																			)}
+																			<span className="max-w-20 truncate">
+																				{user?.name?.split(" ")[0] ?? "Editing"}
+																			</span>
+																		</span>
+																	);
+																})()}
+														</div>
 													) : (
 														flexRender(
 															cell.column.columnDef.cell,
@@ -952,23 +1116,130 @@ export default function TableView({
 					</Table>
 				</div>
 
-				{/* Footer - Item count */}
-				<div className="text-sm text-muted-foreground flex items-center gap-2">
-					{isSearchActive && (
-						<SpinnerGap className="size-3 animate-spin" />
-					)}
-					{filteredItems.length} item{filteredItems.length !== 1 ? "s" : ""}
-					{isSearching && searchData?.total !== undefined && (
-						<span>
-							({searchData.total} match{searchData.total !== 1 ? "es" : ""} found)
-						</span>
-					)}
-				</div>
+				{/* Footer - Pagination */}
+				{!isSearching && (
+					<div className="flex items-center justify-between gap-4 py-2">
+						{/* Left side - item count and page size */}
+						<div className="flex items-center gap-4 text-sm text-muted-foreground">
+							<span>
+								{filteredItems.length > 0
+									? `${((viewState.config.pagination?.page ?? 1) - 1) * (viewState.config.pagination?.pageSize ?? 25) + 1}-${Math.min(((viewState.config.pagination?.page ?? 1) - 1) * (viewState.config.pagination?.pageSize ?? 25) + (viewState.config.pagination?.pageSize ?? 25), listData?.totalDocs ?? filteredItems.length)}`
+									: "0"}{" "}
+								of {listData?.totalDocs ?? 0}
+							</span>
+							<div className="flex items-center gap-2">
+								<span className="text-muted-foreground">Show</span>
+								<Select
+									value={String(viewState.config.pagination?.pageSize ?? 25)}
+									onValueChange={(value) =>
+										viewState.setPageSize(Number(value))
+									}
+								>
+									<SelectTrigger className="h-8 w-[70px]">
+										<SelectValue />
+									</SelectTrigger>
+									<SelectContent side="top">
+										{[10, 25, 50, 100].map((size) => (
+											<SelectItem key={size} value={String(size)}>
+												{size}
+											</SelectItem>
+										))}
+									</SelectContent>
+								</Select>
+							</div>
+						</div>
+
+						{/* Right side - pagination controls */}
+						<div className="flex items-center gap-1">
+							<Button
+								variant="ghost"
+								size="sm"
+								className="size-8 p-0"
+								disabled={(viewState.config.pagination?.page ?? 1) <= 1}
+								onClick={() =>
+									viewState.setPage(
+										(viewState.config.pagination?.page ?? 1) - 1,
+									)
+								}
+							>
+								<Icon icon="ph:caret-left" className="size-4" />
+							</Button>
+
+							{/* Page numbers */}
+							{Array.from(
+								{
+									length: Math.min(5, listData?.totalPages ?? 1),
+								},
+								(_, i) => {
+									const currentPage = viewState.config.pagination?.page ?? 1;
+									const totalPages = listData?.totalPages ?? 1;
+									let pageNum: number;
+
+									if (totalPages <= 5) {
+										pageNum = i + 1;
+									} else if (currentPage <= 3) {
+										pageNum = i + 1;
+									} else if (currentPage >= totalPages - 2) {
+										pageNum = totalPages - 4 + i;
+									} else {
+										pageNum = currentPage - 2 + i;
+									}
+
+									return (
+										<Button
+											key={pageNum}
+											variant={currentPage === pageNum ? "secondary" : "ghost"}
+											size="sm"
+											className="size-8 p-0 min-w-[32px]"
+											onClick={() => viewState.setPage(pageNum)}
+										>
+											{pageNum}
+										</Button>
+									);
+								},
+							)}
+
+							<Button
+								variant="ghost"
+								size="sm"
+								className="size-8 p-0"
+								disabled={
+									(viewState.config.pagination?.page ?? 1) >=
+									(listData?.totalPages ?? 1)
+								}
+								onClick={() =>
+									viewState.setPage(
+										(viewState.config.pagination?.page ?? 1) + 1,
+									)
+								}
+							>
+								<Icon icon="ph:caret-right" className="size-4" />
+							</Button>
+						</div>
+					</div>
+				)}
+
+				{/* Search mode footer */}
+				{isSearching && (
+					<div className="text-sm text-muted-foreground flex items-center gap-2 py-2">
+						{isSearchActive && (
+							<Icon icon="ph:spinner-gap" className="size-3 animate-spin" />
+						)}
+						{filteredItems.length} item{filteredItems.length !== 1 ? "s" : ""}
+						{searchData?.total !== undefined && (
+							<span>
+								({searchData.total} match{searchData.total !== 1 ? "es" : ""}{" "}
+								found)
+							</span>
+						)}
+					</div>
+				)}
 
 				{/* Filter Builder Sheet */}
 				<FilterBuilderSheet
 					collection={collection}
 					availableFields={availableFields}
+					defaultColumns={defaultColumns}
 					currentConfig={viewState.config}
 					onConfigChange={viewState.setConfig}
 					isOpen={isSheetOpen}

@@ -9,7 +9,6 @@
 import { z } from "zod";
 import type { FieldDefinition, ZodBuildContext } from "./field/field";
 import type { FieldValidationConfig } from "./types/field-types";
-import { builtInFields, createRegistryProxy } from "./defaults/fields";
 
 // ============================================================================
 // Types
@@ -202,12 +201,12 @@ function createBuildContext(registry: FieldRegistry): ZodBuildContext {
  * otherwise falls back to generic schema based on field type.
  *
  * @param fields - Field definitions from admin collection config
- * @param registry - Field registry (defaults to builtInFields)
+ * @param registry - Field registry from admin builder
  * @returns Zod object schema for the collection
  *
  * @example
  * ```ts
- * const schema = buildValidationSchema(collectionConfig.fields);
+ * const schema = buildValidationSchema(collectionConfig.fields, admin.getFields());
  *
  * // Use with react-hook-form
  * const form = useForm({
@@ -217,7 +216,7 @@ function createBuildContext(registry: FieldRegistry): ZodBuildContext {
  */
 export function buildValidationSchema(
   fields: FieldsMap,
-  registry: FieldRegistry = builtInFields,
+  registry: FieldRegistry,
 ): z.ZodObject<Record<string, z.ZodTypeAny>> {
   const ctx = createBuildContext(registry);
   const shape: Record<string, z.ZodTypeAny> = {};
@@ -236,12 +235,12 @@ export function buildValidationSchema(
  * which receives form values for cross-field validation.
  *
  * @param fields - Field definitions from admin collection config
- * @param registry - Field registry (defaults to builtInFields)
+ * @param registry - Field registry from admin builder
  * @returns Zod schema with superRefine for custom validators
  */
 export function buildValidationSchemaWithCustom(
   fields: FieldsMap,
-  registry: FieldRegistry = builtInFields,
+  registry: FieldRegistry,
 ): z.ZodTypeAny {
   const baseSchema = buildValidationSchema(fields, registry);
 
@@ -287,7 +286,7 @@ export function buildValidationSchemaWithCustom(
  * Use with @hookform/resolvers/zod for react-hook-form integration.
  *
  * @param fields - Field definitions from admin collection config
- * @param registry - Field registry (defaults to builtInFields)
+ * @param registry - Field registry from admin builder
  * @returns Zod schema for form validation
  *
  * @example
@@ -296,7 +295,7 @@ export function buildValidationSchemaWithCustom(
  * import { createFormSchema } from "@questpie/admin/builder";
  *
  * // From collection config
- * const schema = createFormSchema(collectionConfig.fields);
+ * const schema = createFormSchema(collectionConfig.fields, admin.getFields());
  *
  * function MyForm() {
  *   const form = useForm({
@@ -318,7 +317,7 @@ export function buildValidationSchemaWithCustom(
  */
 export function createFormSchema(
   fields: FieldsMap,
-  registry: FieldRegistry = builtInFields,
+  registry: FieldRegistry,
 ): z.ZodTypeAny {
   return buildValidationSchemaWithCustom(fields, registry);
 }
@@ -327,5 +326,5 @@ export function createFormSchema(
 // Re-exports for convenience
 // ============================================================================
 
-export { createRegistryProxy } from "./defaults/fields";
 export type { ZodBuildContext } from "./field/field";
+export { createFieldRegistryProxy as createRegistryProxy } from "./proxies";

@@ -76,7 +76,7 @@ export function RelationCell({
 				<Tooltip>
 					<TooltipTrigger
 						render={
-							<span className="inline-flex flex-wrap items-center gap-1 max-w-[250px]">
+							<span className="inline-flex items-center gap-1 max-w-[250px] overflow-hidden">
 								{visibleItems.map((item, idx) => (
 									<RelationChip
 										// biome-ignore lint/suspicious/noArrayIndexKey: stable array from backend
@@ -84,6 +84,7 @@ export function RelationCell({
 										item={item}
 										targetCollection={targetCollection}
 										onClick={handleChipClick}
+										className="shrink-0"
 									/>
 								))}
 								{remainingCount > 0 && (

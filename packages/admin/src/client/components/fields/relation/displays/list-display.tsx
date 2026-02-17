@@ -2,147 +2,195 @@
  * List Display - vertical list with action buttons
  */
 
-import { ArrowRight, DotsSixVertical, Pencil, X } from "@phosphor-icons/react";
+import { Icon } from "@iconify/react";
 import * as React from "react";
 import { CollectionEditLink } from "../../../admin-link";
+import { resolveIconElement } from "../../../component-renderer";
 import { Button } from "../../../ui/button";
-import { type RelationDisplayProps, getItemDisplayValue } from "./types";
+import { Skeleton } from "../../../ui/skeleton";
+import { getItemDisplayValue, type RelationDisplayProps } from "./types";
+
+function ListSkeleton({
+	count = 3,
+	editable = false,
+}: {
+	count?: number;
+	editable?: boolean;
+}) {
+	const skeletonKeys = React.useMemo(
+		() => Array.from({ length: count }, () => crypto.randomUUID()),
+		[count],
+	);
+
+	if (editable) {
+		return (
+			<div className="space-y-2 rounded-lg border border-border/60 bg-card/30 backdrop-blur-sm p-3">
+				{skeletonKeys.map((key) => (
+					<div
+						key={key}
+						className="flex items-center gap-2 rounded-md border border-border/60 bg-card/30 backdrop-blur-sm p-2"
+					>
+						<Skeleton className="size-3.5 rounded" />
+						<Skeleton className="h-4 flex-1 max-w-[200px] rounded" />
+					</div>
+				))}
+			</div>
+		);
+	}
+
+	return (
+		<ul className="space-y-1">
+			{skeletonKeys.map((key) => (
+				<li key={key} className="flex items-center gap-1">
+					<Skeleton className="size-3 rounded" />
+					<Skeleton className="h-4 w-32 rounded" />
+				</li>
+			))}
+		</ul>
+	);
+}
 
 export function ListDisplay({
-  items,
-  collection,
-  collectionIcon: CollectionIcon,
-  actions,
-  editable = false,
-  orderable = false,
-  linkToDetail = false,
-  renderItem,
+	items,
+	collection,
+	collectionIcon,
+	actions,
+	editable = false,
+	orderable = false,
+	linkToDetail = false,
+	renderItem,
+	isLoading = false,
+	loadingCount = 3,
 }: RelationDisplayProps) {
-  // Editable list with cards
-  if (editable) {
-    return (
-      <div className="space-y-2 rounded-lg border border-border/60 bg-card/30 backdrop-blur-sm p-3">
-        {items.map((item, index) => (
-          <div
-            key={item.id}
-            className="flex items-center gap-2 rounded-md border border-border/60 bg-card/30 backdrop-blur-sm p-2"
-          >
-            {/* Drag Handle */}
-            {orderable && (
-              <button
-                type="button"
-                className="cursor-grab text-muted-foreground hover:text-foreground"
-                aria-label="Drag to reorder"
-              >
-                <DotsSixVertical className="h-4 w-4" />
-              </button>
-            )}
+	const iconElement = resolveIconElement(collectionIcon, {
+		className: "size-3.5 text-muted-foreground shrink-0",
+	});
+	const smallIconElement = resolveIconElement(collectionIcon, {
+		className: "size-3 text-muted-foreground",
+	});
 
-            {/* Item Display */}
-            <div className="flex-1 flex items-center gap-2 min-w-0">
-              {CollectionIcon && (
-                <CollectionIcon className="size-3.5 text-muted-foreground shrink-0" />
-              )}
-              {renderItem ? (
-                renderItem(item, index)
-              ) : (
-                <span className="text-sm truncate">
-                  {getItemDisplayValue(item)}
-                </span>
-              )}
-            </div>
+	// Show skeleton when loading and no items
+	if (isLoading && items.length === 0) {
+		return <ListSkeleton count={loadingCount} editable={editable} />;
+	}
 
-            {/* Edit Button */}
-            {actions?.onEdit && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7 shrink-0"
-                onClick={() => actions.onEdit?.(item)}
-                title="Edit"
-                aria-label="Edit item"
-              >
-                <Pencil className="h-3 w-3" />
-              </Button>
-            )}
+	// Editable list with cards
+	if (editable) {
+		return (
+			<div className="space-y-2 rounded-lg border border-border/60 bg-card/30 backdrop-blur-sm p-3">
+				{items.map((item, index) => (
+					<div
+						key={item.id}
+						className="flex items-center gap-2 rounded-md border border-border/60 bg-card/30 backdrop-blur-sm p-2"
+					>
+						{/* Drag Handle */}
+						{orderable && (
+							<button
+								type="button"
+								className="cursor-grab text-muted-foreground hover:text-foreground"
+								aria-label="Drag to reorder"
+							>
+								<Icon icon="ph:dots-six-vertical" className="h-4 w-4" />
+							</button>
+						)}
 
-            {/* Remove Button */}
-            {actions?.onRemove && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7 shrink-0"
-                onClick={() => actions.onRemove?.(item)}
-                title="Remove"
-                aria-label="Remove item"
-              >
-                <X className="h-3 w-3" />
-              </Button>
-            )}
-          </div>
-        ))}
-      </div>
-    );
-  }
+						{/* Item Display */}
+						<div className="flex-1 flex items-center gap-2 min-w-0">
+							{iconElement}
+							{renderItem ? (
+								renderItem(item, index)
+							) : (
+								<span className="text-sm truncate">
+									{getItemDisplayValue(item)}
+								</span>
+							)}
+						</div>
 
-  // Read-only list
-  return (
-    <ul className="space-y-1">
-      {items.map((item, index) => {
-        const displayText = renderItem
-          ? renderItem(item, index)
-          : getItemDisplayValue(item);
+						{/* Edit Button */}
+						{actions?.onEdit && (
+							<Button
+								type="button"
+								variant="ghost"
+								size="icon"
+								className="h-7 w-7 shrink-0"
+								onClick={() => actions.onEdit?.(item)}
+								title="Edit"
+								aria-label="Edit item"
+							>
+								<Icon icon="ph:pencil" className="h-3 w-3" />
+							</Button>
+						)}
 
-        // Clickable for sheet edit
-        if (actions?.onEdit) {
-          return (
-            <li key={item.id}>
-              <button
-                type="button"
-                onClick={() => actions.onEdit?.(item)}
-                className="text-sm text-primary hover:underline inline-flex items-center gap-1"
-              >
-                {CollectionIcon && (
-                  <CollectionIcon className="size-3 text-muted-foreground" />
-                )}
-                {displayText}
-                <Pencil className="size-3" />
-              </button>
-            </li>
-          );
-        }
+						{/* Remove Button */}
+						{actions?.onRemove && (
+							<Button
+								type="button"
+								variant="ghost"
+								size="icon"
+								className="h-7 w-7 shrink-0"
+								onClick={() => actions.onRemove?.(item)}
+								title="Remove"
+								aria-label="Remove item"
+							>
+								<Icon icon="ph:x" className="h-3 w-3" />
+							</Button>
+						)}
+					</div>
+				))}
+			</div>
+		);
+	}
 
-        // Link to detail page
-        if (linkToDetail) {
-          return (
-            <li key={item.id}>
-              <CollectionEditLink
-                collection={collection as any}
-                id={item.id}
-                className="text-sm text-primary hover:underline inline-flex items-center gap-1"
-              >
-                {CollectionIcon && (
-                  <CollectionIcon className="size-3 text-muted-foreground" />
-                )}
-                {displayText}
-                <ArrowRight className="size-3" />
-              </CollectionEditLink>
-            </li>
-          );
-        }
+	// Read-only list
+	return (
+		<ul className="space-y-1">
+			{items.map((item, index) => {
+				const displayText = renderItem
+					? renderItem(item, index)
+					: getItemDisplayValue(item);
 
-        // Read-only
-        return (
-          <li key={item.id} className="text-sm flex items-center gap-1">
-            {CollectionIcon && (
-              <CollectionIcon className="size-3 text-muted-foreground" />
-            )}
-            {displayText}
-          </li>
-        );
-      })}
-    </ul>
-  );
+				// Clickable for sheet edit
+				if (actions?.onEdit) {
+					return (
+						<li key={item.id}>
+							<button
+								type="button"
+								onClick={() => actions.onEdit?.(item)}
+								className="text-sm text-primary hover:underline inline-flex items-center gap-1"
+							>
+								{smallIconElement}
+								{displayText}
+								<Icon icon="ph:pencil" className="size-3" />
+							</button>
+						</li>
+					);
+				}
+
+				// Link to detail page
+				if (linkToDetail) {
+					return (
+						<li key={item.id}>
+							<CollectionEditLink
+								collection={collection as any}
+								id={item.id}
+								className="text-sm text-primary hover:underline inline-flex items-center gap-1"
+							>
+								{smallIconElement}
+								{displayText}
+								<Icon icon="ph:arrow-right" className="size-3" />
+							</CollectionEditLink>
+						</li>
+					);
+				}
+
+				// Read-only
+				return (
+					<li key={item.id} className="text-sm flex items-center gap-1">
+						{smallIconElement}
+						{displayText}
+					</li>
+				);
+			})}
+		</ul>
+	);
 }

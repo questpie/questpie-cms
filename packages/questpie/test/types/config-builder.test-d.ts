@@ -5,63 +5,54 @@
  * These are compile-time only tests - run with: tsc --noEmit
  */
 
-import { integer, text, varchar } from "drizzle-orm/pg-core";
 import { z } from "zod";
-import { collection } from "#questpie/server/collection/builder/collection-builder.js";
 import type { QuestpieBuilder } from "#questpie/server/config/builder.js";
 import { questpie } from "#questpie/server/config/builder.js";
 import type { Questpie } from "#questpie/server/config/cms.js";
-import { fn } from "#questpie/server/functions/define-function.js";
-import { global } from "#questpie/server/global/builder/global-builder.js";
+import { builtinFields } from "#questpie/server/fields/builtin/defaults.js";
 import { job } from "#questpie/server/integrated/queue/job.js";
 import type {
-	Equal,
-	Expect,
-	Extends,
-	HasKey,
-	IsLiteral,
+  Equal,
+  Expect,
+  Extends,
+  HasKey,
+  IsLiteral,
 } from "./type-test-utils.js";
 
 // ============================================================================
-// Test fixtures
+// Test fixtures — use q.collection() for proper field type inference
 // ============================================================================
 
-const usersCollection = collection("users").fields({
-	name: text("name").notNull(),
-	email: varchar("email", { length: 255 }).notNull(),
-});
+const q = questpie({ name: "test" }).fields(builtinFields);
 
-const postsCollection = collection("posts")
-	.fields({
-		title: varchar("title", { length: 255 }).notNull(),
-		content: text("content"),
-		authorId: text("author_id").notNull(),
-	})
-	.relations(({ table, one }) => ({
-		author: one("users", {
-			fields: [table.authorId],
-			references: ["id"],
-		}),
-	}));
+const usersCollection = q.collection("users").fields((f) => ({
+  name: f.textarea({ required: true }),
+  email: f.email({ required: true, maxLength: 255 }),
+}));
 
-const settingsGlobal = global("settings").fields({
-	siteName: varchar("site_name", { length: 255 }).notNull(),
-});
+const postsCollection = q.collection("posts").fields((f) => ({
+  title: f.text({ required: true, maxLength: 255 }),
+  content: f.textarea(),
+  author: f.relation({
+    to: "users",
+    required: true,
+    relationName: "author",
+  }),
+}));
+
+const settingsGlobal = q.global("settings").fields((f) => ({
+  siteName: f.text({ required: true, maxLength: 255 }),
+}));
 
 const sendEmailJob = job({
-	name: "send-email",
-	schema: z.object({
-		to: z.string().email(),
-		subject: z.string(),
-	}),
-	handler: async ({ payload }) => {
-		// Send email
-	},
-});
-
-const pingFunction = fn({
-	schema: z.object({ message: z.string() }),
-	handler: async ({ input }) => ({ pong: input.message }),
+  name: "send-email",
+  schema: z.object({
+    to: z.string().email(),
+    subject: z.string(),
+  }),
+  handler: async ({ payload }) => {
+    // Send email
+  },
 });
 
 // ============================================================================
@@ -71,7 +62,7 @@ const pingFunction = fn({
 // questpie() should return QuestpieBuilder
 const builder = questpie({ name: "test-app" });
 type _builderIsQuestpieBuilder = Expect<
-	Extends<typeof builder, QuestpieBuilder<any>>
+  Extends<typeof builder, QuestpieBuilder<any>>
 >;
 
 // Builder should have $inferCms property for type inference
@@ -84,14 +75,14 @@ type _cmsHasConfig = Expect<HasKey<InferredCms, "config">>;
 
 // .collections() should accumulate collections
 const withCollections = questpie({ name: "app" }).collections({
-	users: usersCollection,
-	posts: postsCollection,
+  users: usersCollection,
+  posts: postsCollection,
 });
 
 // $inferCms should have collections
 type CmsWithCollections = typeof withCollections.$inferCms;
 type _cmsHasCollectionsConfig = Expect<
-	Equal<HasKey<CmsWithCollections["config"], "collections">, true>
+  Equal<HasKey<CmsWithCollections["config"], "collections">, true>
 >;
 
 // Collections should be accessible
@@ -105,13 +96,13 @@ type _hasPostsCollection = Expect<Equal<HasKey<Collections, "posts">, true>>;
 
 // .globals() should accumulate globals
 const withGlobals = questpie({ name: "app" }).globals({
-	settings: settingsGlobal,
+  settings: settingsGlobal,
 });
 
 // $inferCms should have globals
 type CmsWithGlobals = typeof withGlobals.$inferCms;
 type _cmsHasGlobalsConfig = Expect<
-	Equal<HasKey<CmsWithGlobals["config"], "globals">, true>
+  Equal<HasKey<CmsWithGlobals["config"], "globals">, true>
 >;
 
 // Globals should be accessible
@@ -124,28 +115,13 @@ type _hasSettingsGlobal = Expect<Equal<HasKey<Globals, "settings">, true>>;
 
 // .jobs() should accumulate jobs
 const withJobs = questpie({ name: "app" }).jobs({
-	sendEmail: sendEmailJob,
+  sendEmail: sendEmailJob,
 });
 
 // Jobs should be typed
 type BuilderWithJobs = typeof withJobs;
 type _builderWithJobsHasJobs = Expect<
-	Extends<BuilderWithJobs, { $inferCms: any }>
->;
-
-// ============================================================================
-// .functions() method tests
-// ============================================================================
-
-// .functions() should accumulate functions
-const withFunctions = questpie({ name: "app" }).functions({
-	ping: pingFunction,
-});
-
-// Functions should be typed
-type BuilderWithFunctions = typeof withFunctions;
-type _builderWithFunctionsHasFunctions = Expect<
-	Extends<BuilderWithFunctions, { $inferCms: any }>
+  Extends<BuilderWithJobs, { $inferCms: any }>
 >;
 
 // ============================================================================
@@ -154,13 +130,13 @@ type _builderWithFunctionsHasFunctions = Expect<
 
 // Create a module
 const blogModule = questpie({ name: "blog" }).collections({
-	posts: postsCollection,
+  posts: postsCollection,
 });
 
 // .use() should merge module into builder
 const withModule = questpie({ name: "app" })
-	.collections({ users: usersCollection })
-	.use(blogModule);
+  .collections({ users: usersCollection })
+  .use(blogModule);
 
 // Result should have both collections
 type CmsWithModule = typeof withModule.$inferCms;
@@ -174,30 +150,24 @@ type _moduleHasPosts = Expect<Equal<HasKey<ModuleCollections, "posts">, true>>;
 
 // Full builder chain should work
 const fullBuilder = questpie({ name: "full-app" })
-	.collections({
-		users: usersCollection,
-		posts: postsCollection,
-	})
-	.globals({
-		settings: settingsGlobal,
-	})
-	.jobs({
-		sendEmail: sendEmailJob,
-	})
-	.functions({
-		ping: pingFunction,
-	});
+  .collections({
+    users: usersCollection,
+    posts: postsCollection,
+  })
+  .globals({
+    settings: settingsGlobal,
+  })
+  .jobs({
+    sendEmail: sendEmailJob,
+  });
 
 // All parts should be typed
 type FullCms = typeof fullBuilder.$inferCms;
 type _fullHasCollections = Expect<
-	Equal<HasKey<FullCms["config"], "collections">, true>
+  Equal<HasKey<FullCms["config"], "collections">, true>
 >;
 type _fullHasGlobals = Expect<
-	Equal<HasKey<FullCms["config"], "globals">, true>
->;
-type _fullHasFunctions = Expect<
-	Equal<HasKey<FullCms["config"], "functions">, true>
+  Equal<HasKey<FullCms["config"], "globals">, true>
 >;
 
 // ============================================================================
@@ -206,18 +176,18 @@ type _fullHasFunctions = Expect<
 
 // Later .collections() should override earlier ones
 const overrideBuilder = questpie({ name: "app" })
-	.collections({ users: usersCollection })
-	.collections({ posts: postsCollection });
+  .collections({ users: usersCollection })
+  .collections({ posts: postsCollection });
 
 // Should have both collections (merge, not replace)
 type OverrideCms = typeof overrideBuilder.$inferCms;
 type OverrideCollections = OverrideCms["config"]["collections"];
 // Both should exist after chaining
 type _overrideHasUsers = Expect<
-	Equal<HasKey<OverrideCollections, "users">, true>
+  Equal<HasKey<OverrideCollections, "users">, true>
 >;
 type _overrideHasPosts = Expect<
-	Equal<HasKey<OverrideCollections, "posts">, true>
+  Equal<HasKey<OverrideCollections, "posts">, true>
 >;
 
 // ============================================================================
@@ -234,11 +204,11 @@ type Step2Cms = typeof step2.$inferCms;
 type Step3Cms = typeof step3.$inferCms;
 
 type _step2HasCollections = Expect<
-	Equal<HasKey<Step2Cms["config"], "collections">, true>
+  Equal<HasKey<Step2Cms["config"], "collections">, true>
 >;
 type _step3HasCollections = Expect<
-	Equal<HasKey<Step3Cms["config"], "collections">, true>
+  Equal<HasKey<Step3Cms["config"], "collections">, true>
 >;
 type _step3HasGlobals = Expect<
-	Equal<HasKey<Step3Cms["config"], "globals">, true>
+  Equal<HasKey<Step3Cms["config"], "globals">, true>
 >;

@@ -3,12 +3,14 @@
 	"pages": [
 		"index",
 		"getting-started",
-		"core-concepts",
-		"backend",
+		"mentality",
+		"server",
+		"infrastructure",
 		"admin",
-		"adapters",
+		"client",
 		"guides",
 		"examples",
-		"reference"
+		"reference",
+		"migration"
 	]
 }

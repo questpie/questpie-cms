@@ -1,0 +1,289 @@
+---
+title: Access Control
+description: Operation-level, field-level, and row-level permissions for collections and globals
+---
+
+# Access Control
+
+QUESTPIE enforces access control at three levels: operation-level (can this user create?), row-level (which records can they see?), and field-level (which fields are visible?). Rules are defined on the server and enforced in every API request.
+
+## Why This Exists
+
+Admin panels and APIs need permissions. QUESTPIE's access system lets you define rules once on the collection and have them enforced automatically across the REST API, RPC calls, and the admin UI. Rules can be static booleans, functions that check the session, or queries that filter rows.
+
+## Mental Model
+
+```text
+API Request → Auth Session extracted → Access rules evaluated
+  ├─ Operation denied → 403 Forbidden
+  ├─ AccessWhere returned → filter added to query
+  └─ Allowed → proceed to hooks → CRUD → field-level filtering on response
+```
+
+Two access modes control enforcement:
+
+- **`"user"` mode** — HTTP API requests from clients. All access rules are enforced.
+- **`"system"` mode** — Internal backend calls (hooks, jobs, RPC handlers). Access rules are bypassed. This is the default when calling `cms.api.collections.*` directly.
+
+## Collection Access
+
+Define operation-level rules with `.access()`:
+
+```ts
+export const appointments = qb
+  .collection("appointments")
+  .fields((f) => ({
+    customer: f.text({ required: true }),
+    scheduledAt: f.datetime({ required: true }),
+    status: f.select({ options: ["pending", "confirmed", "cancelled"] }),
+  }))
+  .access({
+    // Anyone can read (public API)
+    read: true,
+
+    // Only authenticated users can create
+    create: ({ session }) => !!session?.user,
+
+    // Only the record owner or admins can update
+    update: ({ session }) => {
+      if (!session?.user) return false;
+      if ((session.user as any).role === "admin") return true;
+      // Return AccessWhere to filter rows
+      return { customerId: session.user.id };
+    },
+
+    // Only admins can delete
+    delete: ({ session }) => (session?.user as any)?.role === "admin",
+  });
+```
+
+### AccessRule Return Values
+
+Each rule can return:
+
+| Return Value | Behavior |
+|---|---|
+| `true` | Allow the operation for all records |
+| `false` | Deny the operation entirely (403) |
+| `AccessWhere` object | Allow, but only for matching records |
+
+### AccessWhere (Row-Level Filtering)
+
+When a rule returns an object instead of a boolean, it becomes a WHERE condition merged into the query:
+
+```ts
+read: ({ session }) => ({
+  // User can only read their own records
+  userId: session?.user?.id,
+})
+
+// Complex conditions
+read: ({ session }) => ({
+  OR: [
+    { status: "published" },
+    { authorId: session?.user?.id },
+  ],
+})
+
+// Nested conditions
+update: ({ session }) => ({
+  AND: [
+    { status: { $ne: "archived" } },
+    { OR: [
+      { ownerId: session?.user?.id },
+      { teamId: { $in: session?.user?.teamIds } },
+    ]},
+  ],
+})
+```
+
+## Global Access
+
+Globals support `read` and `update` operations (no create/delete since globals are singletons):
+
+```ts
+export const siteSettings = qb
+  .global("siteSettings")
+  .fields((f) => ({
+    siteName: f.text({ required: true }),
+    logo: f.upload({}),
+    maintenanceMode: f.boolean({ defaultValue: false }),
+  }))
+  .access({
+    read: true,
+    update: ({ session }) => (session?.user as any)?.role === "admin",
+  });
+```
+
+Global access rules return `boolean` only — no row-level filtering (there's only one record).
+
+## Field-Level Access
+
+Define field-specific rules in the collection's `.access()` method:
+
+```ts
+export const employees = qb
+  .collection("employees")
+  .fields((f) => ({
+    name: f.text({ required: true }),
+    email: f.text({ required: true }),
+    ssn: f.text({ maxLength: 20 }),
+    salary: f.number({}),
+    internalNotes: f.textarea({}),
+  }))
+  .access({
+    // Operation-level access
+    read: true,
+    create: ({ session }) => !!session?.user,
+    update: ({ session }) => !!session?.user,
+    delete: ({ session }) => (session?.user as any)?.role === "admin",
+
+    // Field-level access — source of truth for per-field authorization
+    fields: {
+      ssn: {
+        read: (ctx) => (ctx.user as any)?.role === "admin",
+        create: (ctx) => (ctx.user as any)?.role === "admin",
+        update: (ctx) => (ctx.user as any)?.role === "admin",
+      },
+      salary: {
+        read: (ctx) => (ctx.user as any)?.role === "admin",
+        create: (ctx) => (ctx.user as any)?.role === "admin",
+        update: (ctx) => (ctx.user as any)?.role === "admin",
+      },
+      internalNotes: {
+        read: (ctx) => !!ctx.user, // Only authenticated users
+      },
+    },
+  });
+```
+
+### Field Access Behavior
+
+| Rule | On Deny |
+|---|---|
+| `read: false` | Field stripped from API response |
+| `create: false` | Error if field present in create payload |
+| `update: false` | Error if field present in update payload |
+
+Field access context:
+
+```ts
+interface FieldAccessContext {
+  req: Request;
+  user?: unknown;
+  doc?: Record<string, unknown>;
+  operation: "create" | "read" | "update" | "delete";
+}
+```
+
+## Access Context
+
+Collection and global access functions receive:
+
+```ts
+interface AccessContext<TData, TApp> {
+  app: TApp;                     // CMS instance
+  session?: Session | null;      // Auth session (user + session data)
+  data?: TData;                  // Record being accessed (for update/delete)
+  input?: any;                   // Input data (for create/update)
+  db: Database;                  // Database client
+  locale?: string;               // Current locale
+}
+```
+
+### Using Typed Access
+
+```ts
+import { getApp, getDb } from "questpie";
+import type { AppCMS } from "../cms";
+
+.access({
+  delete: async ({ session, data, app, db }) => {
+    const cms = getApp<AppCMS>(app);
+    const typedDb = getDb<AppCMS>(db);
+
+    // Complex check: can't delete if referenced elsewhere
+    const refs = await typedDb
+      .select({ count: sql`count(*)` })
+      .from(orderItems)
+      .where(eq(orderItems.productId, data.id));
+
+    return refs[0].count === 0;
+  },
+})
+```
+
+For full context typing in one line:
+
+```ts
+import { getContext } from "questpie";
+import type { AppCMS } from "../cms";
+
+update: (ctx) => {
+  const { app, db, session } = getContext<AppCMS>(ctx);
+  return !!session?.user;
+}
+```
+
+## Default Access
+
+Set CMS-wide defaults that apply to collections without explicit `.access()`:
+
+```ts
+const cms = questpie(builder).build({
+  // ...
+  defaultAccess: {
+    read: ({ session }) => !!session?.user,
+    create: ({ session }) => !!session?.user,
+    update: ({ session }) => !!session?.user,
+    delete: ({ session }) => (session?.user as any)?.role === "admin",
+  },
+});
+```
+
+Collections with `.access()` override the defaults entirely.
+
+## System Mode vs User Mode
+
+```ts
+// System mode (default for backend calls) — bypasses access control
+const allRecords = await cms.api.collections.posts.find({});
+
+// User mode — enforces access rules
+const userRecords = await cms.api.collections.posts.find(
+  {},
+  { accessMode: "user", session: req.session },
+);
+```
+
+HTTP adapter requests automatically use `"user"` mode with the authenticated session.
+
+## Execution Order
+
+Access control runs before hooks:
+
+```text
+1. Extract session from request
+2. Evaluate access rules
+3. If denied → 403 response
+4. If AccessWhere → merge into query
+5. Run hooks (beforeValidate, beforeChange, etc.)
+6. Execute CRUD operation
+7. Apply field-level read access (strip restricted fields)
+8. Return response
+```
+
+## Common Mistakes
+
+- **Relying on client-side checks only** — The admin UI can hide buttons, but server access rules are the real enforcement layer. Always define `.access()`.
+- **Forgetting `accessMode: "user"` in custom routes** — If you call CRUD directly from a custom API handler, pass `{ accessMode: "user" }` to enforce access. Without it, system mode bypasses all rules.
+- **Returning `undefined` instead of `false`** — Access functions must return `boolean` or `AccessWhere`. Returning `undefined` is treated as falsy but can cause type issues.
+- **Not setting `defaultAccess`** — Collections without `.access()` and no `defaultAccess` are open by default in system mode. Set sensible defaults.
+
+## Related Pages
+
+- [Collections](/docs/server/collections) — Collection builder with `.access()`
+- [Globals](/docs/server/globals) — Global access rules
+- [Authentication](/docs/infrastructure/authentication) — Session management with Better Auth
+- [Hooks & Lifecycle](/docs/server/hooks-and-lifecycle) — Hooks run after access checks
+- [Type-Safe Contexts](/docs/server/type-safe-contexts) — Typed `app`, `db`, and `session` pattern

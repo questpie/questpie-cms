@@ -1,0 +1,263 @@
+---
+title: CRUD API
+description: Collection find, create, update, delete operations with all options and response shapes
+---
+
+# CRUD API
+
+Every collection exposes CRUD operations via `cms.api.collections.{name}`. These methods are type-safe — field names, input types, and return types are inferred from your collection definition.
+
+## find(options?, context?)
+
+Find multiple records with filtering, sorting, and pagination.
+
+```ts
+const result = await cms.api.collections.posts.find({
+  where: { status: "published" },
+  orderBy: { createdAt: "desc" },
+  limit: 10,
+  offset: 0,
+  with: { author: true },
+});
+```
+
+### Options
+
+| Option | Type | Description |
+|---|---|---|
+| `where` | `WhereClause` | Filter conditions (see [Query Operators](/docs/reference/query-operators)) |
+| `orderBy` | `OrderBy` | Sort order (see [Sorting](#sorting)) |
+| `limit` | `number` | Max records to return |
+| `offset` | `number` | Records to skip |
+| `with` | `Record<string, boolean \| object>` | Relations to include |
+| `select` | `string[]` | Fields to include (projection) |
+| `includeDeleted` | `boolean` | Include soft-deleted records |
+
+### Sorting
+
+The `orderBy` option supports multiple syntaxes for sorting records:
+
+#### Object Syntax
+
+```ts
+// Single field
+orderBy: { createdAt: "desc" }
+
+// Multiple fields - first field is primary sort, second is secondary
+orderBy: { isFeatured: "desc", publishedAt: "desc" }
+```
+
+The order of keys in the object determines sort priority. `isFeatured` is sorted first, then `publishedAt`.
+
+#### Array Syntax
+
+```ts
+// Explicit multi-field sorting with priority
+orderBy: [{ isFeatured: "desc" }, { publishedAt: "desc" }]
+```
+
+Array syntax makes the priority explicit and is useful when conditional sorting is needed:
+
+```ts
+orderBy: values.showFeatured
+  ? [{ isFeatured: "desc" }, { publishedAt: "desc" }]
+  : { publishedAt: "desc" },
+```
+
+#### Function Syntax
+
+For complex sorting, use a function:
+
+```ts
+orderBy: (table, { asc, desc }) => [
+  desc(table.isFeatured),
+  desc(table.publishedAt),
+]
+```
+
+### Response
+
+```ts
+{
+  docs: TSelect[];        // Array of records
+  totalDocs: number;      // Total matching records
+  limit: number;          // Applied limit
+  offset: number;         // Applied offset
+  hasNextPage: boolean;   // Whether more records exist
+  hasPrevPage: boolean;   // Whether previous page exists
+}
+```
+
+## findOne(options, context?)
+
+Find a single record by ID or conditions.
+
+```ts
+const post = await cms.api.collections.posts.findOne({
+  where: { id: "post-123" },
+  with: { author: true },
+});
+```
+
+### Options
+
+| Option | Type | Description |
+|---|---|---|
+| `where` | `WhereClause` | Filter conditions |
+| `with` | `Record<string, boolean \| object>` | Relations to include |
+| `select` | `string[]` | Fields to include |
+
+### Response
+
+Returns `TSelect | null`.
+
+## count(options?, context?)
+
+Count matching records.
+
+```ts
+const total = await cms.api.collections.posts.count({
+  where: { status: "published" },
+});
+```
+
+### Response
+
+Returns `number`.
+
+## create(data, context?)
+
+Create a new record.
+
+```ts
+const post = await cms.api.collections.posts.create({
+  title: "Hello World",
+  status: "draft",
+  authorId: "user-123",
+});
+```
+
+### Input
+
+All required fields must be present. Optional fields can be omitted. Relation fields accept the FK value:
+
+```ts
+{
+  title: "Hello",           // required string
+  description?: "...",      // optional string
+  authorId: "user-123",    // FK field
+  // OR
+  author: "user-123",      // relation field name (auto-maps to FK)
+}
+```
+
+### Response
+
+Returns the created `TSelect` (full record with all computed fields).
+
+## update(options, context?)
+
+Update a record by ID.
+
+```ts
+const updated = await cms.api.collections.posts.update({
+  where: { id: "post-123" },
+  data: { status: "published" },
+});
+```
+
+### Options
+
+| Option | Type | Description |
+|---|---|---|
+| `where` | `{ id: string }` | Record to update |
+| `data` | `Partial<TUpdate>` | Fields to update (partial) |
+
+### Response
+
+Returns the updated `TSelect`.
+
+## updateMany(options, context?)
+
+Update multiple records matching a condition.
+
+```ts
+const updated = await cms.api.collections.posts.updateMany({
+  where: { status: "draft", createdAt: { $lt: "2024-01-01" } },
+  data: { status: "archived" },
+});
+```
+
+### Response
+
+Returns `TSelect[]` (array of updated records).
+
+## delete(options, context?)
+
+Delete a record by ID.
+
+```ts
+await cms.api.collections.posts.delete({
+  where: { id: "post-123" },
+});
+```
+
+### Response
+
+Returns `{ success: boolean }`.
+
+## deleteMany(options, context?)
+
+Delete multiple records matching a condition.
+
+```ts
+await cms.api.collections.posts.deleteMany({
+  where: { status: "archived" },
+});
+```
+
+### Response
+
+Returns `{ success: boolean; count: number }`.
+
+## findVersions(options, context?)
+
+Find version history for a record (requires `versioning: true`).
+
+```ts
+const versions = await cms.api.collections.posts.findVersions({
+  id: "post-123",
+  limit: 10,
+});
+```
+
+## revertToVersion(options, context?)
+
+Restore a record to a previous version.
+
+```ts
+await cms.api.collections.posts.revertToVersion({
+  id: "post-123",
+  versionNumber: 3,
+});
+```
+
+## Context Parameter
+
+All operations accept an optional context:
+
+```ts
+{
+  accessMode?: "system" | "user";  // Default: "system"
+  session?: Session | null;         // Auth session
+  locale?: string;                  // Locale for localized fields
+  db?: Database;                    // Database client (for transactions)
+}
+```
+
+## Related Pages
+
+- [Collections](/docs/server/collections) — Collection builder
+- [Query Operators](/docs/reference/query-operators) — Where clause operators
+- [Hooks API](/docs/reference/hooks-api) — Hook execution during CRUD
+- [Context & Transactions](/docs/server/context-and-transactions) — Transaction management

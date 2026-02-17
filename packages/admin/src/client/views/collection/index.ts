@@ -42,8 +42,6 @@ export {
 	SYSTEM_FIELDS,
 } from "./columns";
 
-export type { FormFieldProps } from "./form-field";
-export { FormField } from "./form-field";
 export {
 	default as FormView,
 	type FormViewProps,

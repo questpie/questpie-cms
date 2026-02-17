@@ -6,17 +6,10 @@
  */
 
 import type { SimpleMessages } from "../i18n/simple";
-import type { BlockDefinition } from "./block/types";
-import type { CollectionConfig } from "./collection/types";
 import type { FieldDefinition } from "./field/field";
-import type { GlobalConfig } from "./global/types";
 import type { PageDefinition } from "./page/page";
-import type {
-	BrandingConfig,
-	DashboardConfig,
-	LocaleConfig,
-	SidebarConfig,
-} from "./types/ui-config";
+import type { MaybeLazyComponent } from "./types/common";
+import type { LocaleConfig } from "./types/ui-config";
 import type { DefaultViewsConfig } from "./types/views";
 import type { EditViewDefinition, ListViewDefinition } from "./view/view";
 import type { WidgetDefinition } from "./widget/widget";
@@ -26,7 +19,7 @@ import type { WidgetDefinition } from "./widget/widget";
 // ============================================================================
 
 /**
- * Translations map - messages keyed by locale
+ * Translations map: locale -> key -> message
  */
 export type TranslationsMap = Record<string, SimpleMessages>;
 
@@ -45,9 +38,8 @@ export type EditViewDefinitionMap = Record<
 >;
 export type PageDefinitionMap = Record<string, PageDefinition<string>>;
 export type WidgetDefinitionMap = Record<string, WidgetDefinition<string, any>>;
-export type CollectionConfigMap = Record<string, CollectionConfig>;
-export type GlobalConfigMap = Record<string, GlobalConfig<any>>;
-export type BlockDefinitionMap = Record<string, BlockDefinition>;
+export type ComponentDefinitionMap = Record<string, MaybeLazyComponent<any>>;
+export type BlockDefinitionMap = Record<string, never>;
 
 export type EmptyMap = Record<never, never>;
 
@@ -66,38 +58,30 @@ export type EmptyMap = Record<never, never>;
 export interface AdminBuilderState<
 	TApp = any,
 	TFields extends FieldDefinitionMap = FieldDefinitionMap,
+	TComponents extends ComponentDefinitionMap = ComponentDefinitionMap,
 	TListViews extends ListViewDefinitionMap = ListViewDefinitionMap,
 	TEditViews extends EditViewDefinitionMap = EditViewDefinitionMap,
 	TPages extends PageDefinitionMap = PageDefinitionMap,
 	TWidgets extends WidgetDefinitionMap = WidgetDefinitionMap,
-	TCollections extends CollectionConfigMap = CollectionConfigMap,
-	TGlobals extends GlobalConfigMap = GlobalConfigMap,
 	TBlocks extends BlockDefinitionMap = BlockDefinitionMap,
+	TTranslations extends TranslationsMap = TranslationsMap,
 > {
 	// Context for deep inference
 	"~app": TApp;
 
 	// Extensible definitions (like collections/globals/jobs in questpie)
 	fields: TFields;
+	components: TComponents;
 	listViews: TListViews;
 	editViews: TEditViews;
 	pages: TPages;
 	widgets: TWidgets;
 	blocks: TBlocks;
-
-	// UI configs per collection/global
-	collections: TCollections;
-	globals: TGlobals;
+	translations: TTranslations;
 
 	// App-level UI configs (last wins)
-	dashboard: DashboardConfig;
-	sidebar: SidebarConfig;
-	branding: BrandingConfig;
 	locale: LocaleConfig;
 	defaultViews: DefaultViewsConfig;
-
-	// I18n translations
-	translations: TranslationsMap;
 }
 
 /**
@@ -106,15 +90,14 @@ export interface AdminBuilderState<
 export interface EmptyBuilderState extends AdminBuilderState<any> {
 	"~app": any;
 	fields: EmptyMap;
+	components: EmptyMap;
 	listViews: EmptyMap;
 	editViews: EmptyMap;
 	pages: EmptyMap;
 	widgets: EmptyMap;
 	blocks: EmptyMap;
-	collections: EmptyMap;
-	globals: EmptyMap;
+	translations: EmptyMap;
 	defaultViews: DefaultViewsConfig;
-	translations: Record<never, never>;
 }
 
 // ============================================================================

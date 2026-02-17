@@ -19,11 +19,7 @@
 	"access": "public",
 	"baseBranch": "main",
 	"updateInternalDependencies": "patch",
-	"ignore": [
-		"elysia-barbershop-example",
-		"portfolio-hono-example",
-		"tanstack-barbershop-example"
-	],
+	"ignore": ["city-portal-example", "tanstack-barbershop-example"],
 	"___experimentalUnsafeOptions_WILL_CHANGE_IN_PATCH": {
 		"onlyUpdatePeerDependentsWhenOutOfRange": true
 	}

@@ -28,6 +28,7 @@ import { resolveFieldKey } from "#questpie/server/collection/crud/shared/field-r
 import {
 	appendRealtimeChange,
 	executeAccessRule,
+	extractNestedLocalizationSchemas,
 	getDb,
 	getRestrictedReadFields,
 	mergeI18nRows,
@@ -44,6 +45,11 @@ import type {
 } from "#questpie/server/collection/crud/types.js";
 import { createVersionRecord } from "#questpie/server/collection/crud/versioning/index.js";
 import { ApiError } from "#questpie/server/errors/index.js";
+import {
+	applyFieldInputHooks,
+	applyFieldOutputHooks,
+} from "#questpie/server/fields/runtime.js";
+import type { FieldDefinitionAccess } from "#questpie/server/fields/types.js";
 import type {
 	GlobalAccessContext,
 	GlobalBuilderState,
@@ -96,6 +102,52 @@ export class GlobalCRUDGenerator<TState extends GlobalBuilderState> {
 	): Required<Pick<CRUDContext, "accessMode" | "locale" | "defaultLocale">> &
 		CRUDContext {
 		return normalizeContext(context);
+	}
+
+	private getFieldAccessRules():
+		| Record<string, FieldDefinitionAccess>
+		| undefined {
+		// Source field access from global-level .access({ fields: {...} })
+		const globalAccess = this.state.access as
+			| { fields?: Record<string, FieldDefinitionAccess> }
+			| undefined;
+		return globalAccess?.fields;
+	}
+
+	private async runFieldInputHooks(
+		data: Record<string, unknown>,
+		operation: "create" | "update",
+		context: CRUDContext,
+		db: any,
+		originalDocument?: Record<string, unknown>,
+	): Promise<Record<string, unknown>> {
+		return applyFieldInputHooks({
+			data,
+			fieldDefinitions: this.state.fieldDefinitions,
+			collectionName: this.state.name,
+			operation,
+			context,
+			db,
+			originalDocument,
+		});
+	}
+
+	private async runFieldOutputHooks(
+		data: Record<string, unknown>,
+		operation: "create" | "read" | "update",
+		context: CRUDContext,
+		db: any,
+		originalDocument?: Record<string, unknown>,
+	): Promise<void> {
+		await applyFieldOutputHooks({
+			data,
+			fieldDefinitions: this.state.fieldDefinitions,
+			collectionName: this.state.name,
+			operation,
+			context,
+			db,
+			originalDocument,
+		});
 	}
 
 	/**
@@ -226,8 +278,32 @@ export class GlobalCRUDGenerator<TState extends GlobalBuilderState> {
 		return { query, useI18n, needsFallback };
 	}
 
-	private async getCurrentRow(db: any) {
-		const rows = await db.select().from(this.table).limit(1);
+	/**
+	 * Resolve the scope ID from context using the scoped resolver
+	 */
+	private resolveScopeId(context: CRUDContext): string | null | undefined {
+		const scopeResolver = this.state.options.scoped;
+		if (!scopeResolver) return undefined;
+		return scopeResolver(context as any);
+	}
+
+	private async getCurrentRow(db: any, context?: CRUDContext) {
+		const scopeId = context ? this.resolveScopeId(context) : undefined;
+		const isScoped = this.state.options.scoped !== undefined;
+
+		let query = db.select().from(this.table);
+
+		// Filter by scope if this is a scoped global
+		if (isScoped) {
+			if (scopeId) {
+				query = query.where(eq((this.table as any).scopeId, scopeId));
+			} else {
+				// null scope - global instance
+				query = query.where(sql`${(this.table as any).scopeId} IS NULL`);
+			}
+		}
+
+		const rows = await query.limit(1);
 		return rows[0] || null;
 	}
 
@@ -238,6 +314,8 @@ export class GlobalCRUDGenerator<TState extends GlobalBuilderState> {
 		) => {
 			const db = this.getDb(context);
 			const normalized = this.normalizeContext(context);
+			const isScoped = this.state.options.scoped !== undefined;
+			const scopeId = isScoped ? this.resolveScopeId(normalized) : undefined;
 
 			// Enforce access control
 			const canRead = await this.enforceAccessControl(
@@ -265,7 +343,20 @@ export class GlobalCRUDGenerator<TState extends GlobalBuilderState> {
 				normalized,
 				options.columns,
 			);
-			let rows = await query.limit(1);
+
+			// Apply scope filter if this is a scoped global
+			let scopedQuery = query;
+			if (isScoped) {
+				if (scopeId) {
+					scopedQuery = query.where(eq((this.table as any).scopeId, scopeId));
+				} else {
+					scopedQuery = query.where(
+						sql`${(this.table as any).scopeId} IS NULL`,
+					);
+				}
+			}
+
+			let rows = await scopedQuery.limit(1);
 
 			// Application-side i18n merge
 			if (useI18n && rows.length > 0 && this.state.localized.length > 0) {
@@ -279,7 +370,16 @@ export class GlobalCRUDGenerator<TState extends GlobalBuilderState> {
 
 			if (!row) {
 				row = await withTransaction(db, async (tx: any) => {
-					const [inserted] = await tx.insert(this.table).values({}).returning();
+					// Auto-create with scope_id if scoped
+					const insertValues: Record<string, any> = {};
+					if (isScoped) {
+						insertValues.scopeId = scopeId ?? null;
+					}
+
+					const [inserted] = await tx
+						.insert(this.table)
+						.values(insertValues)
+						.returning();
 					if (!inserted) {
 						throw ApiError.internal("Failed to auto-create global record");
 					}
@@ -318,6 +418,7 @@ export class GlobalCRUDGenerator<TState extends GlobalBuilderState> {
 			// Filter fields based on field-level read access
 			if (row) {
 				await this.filterFieldsForRead(row, normalized);
+				await this.runFieldOutputHooks(row, "read", normalized, db);
 			}
 
 			// Hooks
@@ -377,7 +478,9 @@ export class GlobalCRUDGenerator<TState extends GlobalBuilderState> {
 		) => {
 			const db = this.getDb(context);
 			const normalized = this.normalizeContext(context);
-			const existing = await this.getCurrentRow(db);
+			const isScoped = this.state.options.scoped !== undefined;
+			const scopeId = isScoped ? this.resolveScopeId(normalized) : undefined;
+			const existing = await this.getCurrentRow(db, normalized);
 
 			const canUpdate = await this.enforceAccessControl(
 				"update",
@@ -402,22 +505,35 @@ export class GlobalCRUDGenerator<TState extends GlobalBuilderState> {
 				}),
 			);
 
+			// Separate nested relation operations from regular fields
+			let { regularFields, nestedRelations } =
+				this.separateNestedRelationsInternal(data);
+
+			// Validate field-level write access
+			await this.validateFieldWriteAccess(
+				regularFields,
+				normalized,
+				existing ? "update" : "create",
+				existing,
+			);
+
+			regularFields = await this.runFieldInputHooks(
+				regularFields,
+				existing ? "update" : "create",
+				normalized,
+				db,
+				existing,
+			);
+
 			await this.executeHooks(
 				this.state.hooks?.beforeChange,
 				this.createHookContext({
 					data: existing,
-					input: data,
+					input: regularFields,
 					context: normalized,
 					db,
 				}),
 			);
-
-			// Validate field-level write access
-			await this.validateFieldWriteAccess(data, normalized, existing);
-
-			// Separate nested relation operations from regular fields
-			const { regularFields, nestedRelations } =
-				this.separateNestedRelationsInternal(data);
 
 			let changeEvent: any = null;
 			const updatedRecord = await withTransaction(db, async (tx: any) => {
@@ -439,9 +555,14 @@ export class GlobalCRUDGenerator<TState extends GlobalBuilderState> {
 							.where(eq((this.table as any).id, existing.id));
 					}
 				} else {
+					// Include scope_id when creating new record for scoped globals
+					const insertValues = {
+						...nonLocalized,
+						...(isScoped ? { scopeId: scopeId ?? null } : {}),
+					};
 					const [inserted] = await tx
 						.insert(this.table)
-						.values(nonLocalized)
+						.values(insertValues)
 						.returning();
 					updatedId = inserted?.id;
 				}
@@ -556,6 +677,16 @@ export class GlobalCRUDGenerator<TState extends GlobalBuilderState> {
 			// Resolve relations if requested
 			if (updatedRecord && options.with && this.cms) {
 				await this.resolveRelations([updatedRecord], options.with, normalized);
+			}
+
+			if (updatedRecord) {
+				await this.runFieldOutputHooks(
+					updatedRecord,
+					existing ? "update" : "create",
+					normalized,
+					db,
+					existing ?? undefined,
+				);
 			}
 
 			await this.notifyRealtimeChange(changeEvent);
@@ -697,12 +828,21 @@ export class GlobalCRUDGenerator<TState extends GlobalBuilderState> {
 			}
 
 			const restoreData = { ...nonLocalized, ...localizedForContext };
+			const restoreWithFieldHooks = await this.runFieldInputHooks(
+				restoreData,
+				"update",
+				normalized,
+				db,
+				existing,
+			);
+			const { localized: restoreLocalized, nonLocalized: restoreNonLocalized } =
+				this.splitLocalizedFields(restoreWithFieldHooks);
 
 			const canUpdate = await this.enforceAccessControl(
 				"update",
 				normalized,
 				existing,
-				restoreData,
+				restoreWithFieldHooks,
 			);
 			if (!canUpdate)
 				throw ApiError.forbidden({
@@ -715,7 +855,7 @@ export class GlobalCRUDGenerator<TState extends GlobalBuilderState> {
 				this.state.hooks?.beforeUpdate,
 				this.createHookContext({
 					data: existing,
-					input: restoreData,
+					input: restoreWithFieldHooks,
 					context: normalized,
 					db,
 				}),
@@ -725,18 +865,18 @@ export class GlobalCRUDGenerator<TState extends GlobalBuilderState> {
 				this.state.hooks?.beforeChange,
 				this.createHookContext({
 					data: existing,
-					input: restoreData,
+					input: restoreWithFieldHooks,
 					context: normalized,
 					db,
 				}),
 			);
 
 			return withTransaction(db, async (tx: any) => {
-				if (Object.keys(nonLocalized).length > 0) {
+				if (Object.keys(restoreNonLocalized).length > 0) {
 					await tx
 						.update(this.table)
 						.set({
-							...nonLocalized,
+							...restoreNonLocalized,
 							...(this.state.options.timestamps !== false
 								? { updatedAt: new Date() }
 								: {}),
@@ -780,6 +920,23 @@ export class GlobalCRUDGenerator<TState extends GlobalBuilderState> {
 
 						await tx.insert(this.i18nTable).values(insertRows);
 					}
+
+					if (normalized.locale && Object.keys(restoreLocalized).length > 0) {
+						await tx
+							.insert(this.i18nTable)
+							.values({
+								parentId,
+								locale: normalized.locale,
+								...restoreLocalized,
+							})
+							.onConflictDoUpdate({
+								target: [
+									(this.i18nTable as any).parentId,
+									(this.i18nTable as any).locale,
+								],
+								set: restoreLocalized,
+							});
+					}
 				}
 
 				const baseRows = await tx
@@ -821,7 +978,7 @@ export class GlobalCRUDGenerator<TState extends GlobalBuilderState> {
 					this.state.hooks?.afterUpdate,
 					this.createHookContext({
 						data: updatedRecord,
-						input: restoreData,
+						input: restoreWithFieldHooks,
 						context: normalized,
 						db: tx,
 					}),
@@ -830,11 +987,21 @@ export class GlobalCRUDGenerator<TState extends GlobalBuilderState> {
 					this.state.hooks?.afterChange,
 					this.createHookContext({
 						data: updatedRecord,
-						input: restoreData,
+						input: restoreWithFieldHooks,
 						context: normalized,
 						db: tx,
 					}),
 				);
+
+				if (updatedRecord) {
+					await this.runFieldOutputHooks(
+						updatedRecord,
+						"update",
+						normalized,
+						tx,
+						existing,
+					);
+				}
 
 				return updatedRecord;
 			});
@@ -989,11 +1156,16 @@ export class GlobalCRUDGenerator<TState extends GlobalBuilderState> {
 	}
 
 	/**
-	 * Split input data into localized and non-localized fields
-	 * Delegates to shared splitLocalizedFields utility
+	 * Split input data into localized and non-localized fields.
+	 * Uses field definition schemas to determine which nested fields are localized.
 	 */
 	private splitLocalizedFields(input: any) {
-		return splitLocalizedFields(input, this.state.localized);
+		// Extract nested localization schemas from field definitions
+		const nestedSchemas = this.state.fieldDefinitions
+			? extractNestedLocalizationSchemas(this.state.fieldDefinitions)
+			: {};
+
+		return splitLocalizedFields(input, this.state.localized, nestedSchemas);
 	}
 
 	/**
@@ -1082,7 +1254,7 @@ export class GlobalCRUDGenerator<TState extends GlobalBuilderState> {
 			]);
 		}
 
-		const fieldAccess = this.state.access?.fields;
+		const fieldAccess = this.getFieldAccessRules();
 		if (!fieldAccess) {
 			// No field-level access rules - all fields readable
 			return new Set([
@@ -1118,16 +1290,6 @@ export class GlobalCRUDGenerator<TState extends GlobalBuilderState> {
 				continue;
 			}
 
-			// String role rule
-			if (typeof readRule === "string") {
-				const userRole =
-					(normalized as any).role || (normalized.user as any)?.role;
-				if (userRole === readRule) {
-					readableFields.add(fieldName);
-				}
-				continue;
-			}
-
 			// Function rule - we can't evaluate async here, so we allow it
 			// The actual filtering will happen in filterFieldsForRead
 			if (typeof readRule === "function") {
@@ -1156,10 +1318,11 @@ export class GlobalCRUDGenerator<TState extends GlobalBuilderState> {
 		if (!result) return;
 
 		const db = this.getDb(context);
+		const fieldAccess = this.getFieldAccessRules();
 		const fieldsToRemove = await getRestrictedReadFields(result, context, {
 			cms: this.cms,
 			db,
-			fieldAccess: this.state.access?.fields,
+			fieldAccess,
 		});
 
 		// Remove restricted fields
@@ -1174,52 +1337,31 @@ export class GlobalCRUDGenerator<TState extends GlobalBuilderState> {
 	private async canWriteField(
 		fieldName: string,
 		context: CRUDContext,
+		operation: "create" | "update",
 		row?: any,
 	): Promise<boolean> {
-		const normalized = this.normalizeContext(context);
+		const fieldAccess = this.getFieldAccessRules();
+		const access = fieldAccess?.[fieldName];
+		if (!access) return true;
 
-		// System mode can write all fields
-		if (normalized.accessMode === "system") return true;
-
-		const fieldAccess = this.state.access?.fields;
-		if (!fieldAccess) return true; // No field-level access rules
-
-		const access = fieldAccess[fieldName];
-		if (!access || access.write === undefined) {
-			// No access rule for this field - allow write
-			return true;
-		}
-
-		const writeRule = access.write;
-		const db = this.getDb(context);
-
-		// Boolean rule
-		if (typeof writeRule === "boolean") {
-			return writeRule;
-		}
-
-		// String role rule
-		if (typeof writeRule === "string") {
-			const userRole =
-				(normalized as any).role || (normalized.user as any)?.role;
-			return userRole === writeRule;
-		}
-
-		// Function rule
-		if (typeof writeRule === "function") {
-			const result = await writeRule({
-				app: this.cms as any,
-				user: normalized.user,
-				session: normalized.session,
-				data: row,
-				input: undefined,
-				db,
-				locale: normalized.locale,
-			} as GlobalAccessContext);
-
-			// Field-level access: only boolean true allows write
-			// AccessWhere is treated as deny (it's for record-level filtering)
-			return result === true;
+		const rule = operation === "create" ? access.create : access.update;
+		if (rule === undefined || rule === true) return true;
+		if (rule === false) return false;
+		if (typeof rule === "function") {
+			const req =
+				(context as any).req ??
+				(context as any).request ??
+				(typeof Request !== "undefined"
+					? new Request("http://questpie.local")
+					: ({} as Request));
+			return (
+				(await rule({
+					req,
+					user: (context.session as any)?.user,
+					doc: row,
+					operation,
+				})) === true
+			);
 		}
 
 		return true;
@@ -1231,6 +1373,7 @@ export class GlobalCRUDGenerator<TState extends GlobalBuilderState> {
 	private async validateFieldWriteAccess(
 		data: any,
 		context: CRUDContext,
+		operation: "create" | "update",
 		existing?: any,
 	): Promise<void> {
 		const normalized = this.normalizeContext(context);
@@ -1238,7 +1381,7 @@ export class GlobalCRUDGenerator<TState extends GlobalBuilderState> {
 		// System mode bypasses field access control
 		if (normalized.accessMode === "system") return;
 
-		const fieldAccess = this.state.access?.fields;
+		const fieldAccess = this.getFieldAccessRules();
 		if (!fieldAccess) return; // No field-level access rules
 
 		// Check each field in the input
@@ -1252,7 +1395,12 @@ export class GlobalCRUDGenerator<TState extends GlobalBuilderState> {
 				continue;
 			}
 
-			const canWrite = await this.canWriteField(fieldName, context, existing);
+			const canWrite = await this.canWriteField(
+				fieldName,
+				context,
+				operation,
+				existing,
+			);
 			if (!canWrite) {
 				throw ApiError.forbidden({
 					operation: "update",
@@ -1598,16 +1746,20 @@ export class GlobalCRUDGenerator<TState extends GlobalBuilderState> {
 	): string | undefined {
 		if (typeof column === "string") return column;
 
-		const columnName = column?.name;
+		// Column can be either a built column (with .name) or a builder (with .config.name)
+		const columnName = column?.name ?? column?.config?.name;
 		if (!columnName) return undefined;
 
 		for (const [key, value] of Object.entries(state.fields)) {
-			if ((value as any)?.name === columnName) return key;
+			// Check both .name and .config.name for compatibility
+			const valueName = (value as any)?.name ?? (value as any)?.config?.name;
+			if (valueName === columnName) return key;
 		}
 
 		if (table) {
 			for (const [key, value] of Object.entries(table)) {
-				if ((value as any)?.name === columnName) return key;
+				const valueName = (value as any)?.name ?? (value as any)?.config?.name;
+				if (valueName === columnName) return key;
 			}
 		}
 

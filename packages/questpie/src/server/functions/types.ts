@@ -1,8 +1,26 @@
 import type { z } from "zod";
-// Note: any, any, and any are deprecated.
-// Users should use getApp<AppCMS>(), getDb<AppCMS>(), and getSession<AppCMS>() instead.
+// Note: any types are intentional for composition flexibility.
+// Users should use typedApp<AppCMS>(), typedDb<AppCMS>(), and typedSession<AppCMS>() for type-safe access.
 
 export type FunctionType = "query" | "mutation";
+
+export interface FunctionAccessContext<TApp = any> {
+	app: TApp;
+	session?: any | null;
+	db: any;
+	locale?: string;
+	request?: Request;
+}
+
+export type FunctionAccessRule<TApp = any> =
+	| boolean
+	| ((ctx: FunctionAccessContext<TApp>) => boolean | Promise<boolean>);
+
+export type FunctionAccess<TApp = any> =
+	| FunctionAccessRule<TApp>
+	| {
+			execute?: FunctionAccessRule<TApp>;
+	  };
 
 // ============================================================================
 // Function Context Types
@@ -16,7 +34,7 @@ export type FunctionType = "query" | "mutation";
  *
  * @example
  * ```ts
- * import { getApp, getSession } from "questpie";
+ * import { typedApp, typedSession } from "questpie";
  * import type { AppCMS } from "./cms";
  *
  * // Pattern 1: With outputSchema (recommended)
@@ -24,8 +42,8 @@ export type FunctionType = "query" | "mutation";
  *   schema: z.object({ period: z.string() }),
  *   outputSchema: z.array(statsSchema),
  *   handler: async ({ input, session }) => {
- *     const typedSession = getSession<AppCMS>(session);
- *     if (!typedSession) throw new Error('Unauthorized');
+ *     const sess = typedSession<AppCMS>(session);
+ *     if (!sess) throw new Error('Unauthorized');
  *     // Return type inferred from outputSchema
  *     return [...];
  *   }
@@ -37,7 +55,7 @@ export type FunctionType = "query" | "mutation";
  *
  * const getOrders = q.fn({
  *   handler: async ({ app }) => {
- *     const cms = getApp<BaseCMS>(app);
+ *     const cms = typedApp<BaseCMS>(app);
  *     return cms.api.collections.orders.find();
  *   }
  * });
@@ -46,11 +64,11 @@ export type FunctionType = "query" | "mutation";
 export interface FunctionHandlerArgs<TInput = any, TApp = any> {
 	/** Validated input data */
 	input: TInput;
-	/** CMS instance - use getApp<AppCMS>(app) for type-safe access */
+	/** CMS instance - use typedApp<AppCMS>(app) for type-safe access */
 	app: TApp;
 	/**
 	 * Auth session (user + session) from Better Auth.
-	 * Use getSession<AppCMS>(session) for type-safe access.
+	 * Use typedSession<AppCMS>(session) for type-safe access.
 	 * - undefined = session not resolved
 	 * - null = explicitly unauthenticated
 	 * - object = authenticated
@@ -60,7 +78,7 @@ export interface FunctionHandlerArgs<TInput = any, TApp = any> {
 	locale?: string;
 	/**
 	 * Database client (may be transaction).
-	 * Use getDb<AppCMS>(db) for type-safe access.
+	 * Use typedDb<AppCMS>(db) for type-safe access.
 	 */
 	db: any;
 }
@@ -72,13 +90,13 @@ export interface FunctionHandlerArgs<TInput = any, TApp = any> {
  *
  * @example
  * ```ts
- * import { getApp } from "questpie";
+ * import { typedApp } from "questpie";
  * import type { AppCMS } from "./cms";
  *
  * const webhook = q.fn({
  *   mode: 'raw',
  *   handler: async ({ request, app }) => {
- *     const cms = getApp<AppCMS>(app);
+ *     const cms = typedApp<AppCMS>(app);
  *     const body = await request.json();
  *     await cms.queue.processWebhook.publish(body);
  *     return new Response('OK', { status: 200 });
@@ -89,11 +107,11 @@ export interface FunctionHandlerArgs<TInput = any, TApp = any> {
 export interface RawFunctionHandlerArgs<TApp = any> {
 	/** Raw request object */
 	request: Request;
-	/** CMS instance - use getApp<AppCMS>(app) for type-safe access */
+	/** CMS instance - use typedApp<AppCMS>(app) for type-safe access */
 	app: TApp;
 	/**
 	 * Auth session (user + session) from Better Auth.
-	 * Use getSession<AppCMS>(session) for type-safe access.
+	 * Use typedSession<AppCMS>(session) for type-safe access.
 	 * - undefined = session not resolved
 	 * - null = explicitly unauthenticated
 	 * - object = authenticated
@@ -103,7 +121,7 @@ export interface RawFunctionHandlerArgs<TApp = any> {
 	locale?: string;
 	/**
 	 * Database client (may be transaction).
-	 * Use getDb<AppCMS>(db) for type-safe access.
+	 * Use typedDb<AppCMS>(db) for type-safe access.
 	 */
 	db: any;
 }
@@ -131,13 +149,10 @@ export interface RawFunctionHandlerArgs<TApp = any> {
  * })
  * ```
  */
-export type JsonFunctionDefinition<
-	TInput = any,
-	TOutput = any,
-	TApp = any,
-> = {
+export type JsonFunctionDefinition<TInput = any, TOutput = any, TApp = any> = {
 	mode?: "json";
 	type?: FunctionType;
+	access?: FunctionAccess<TApp>;
 	schema: z.ZodSchema<TInput>;
 	outputSchema?: z.ZodSchema<TOutput>;
 	handler: (
@@ -165,14 +180,13 @@ export type JsonFunctionDefinition<
 export type RawFunctionDefinition<TApp = any> = {
 	mode: "raw";
 	type?: FunctionType;
+	access?: FunctionAccess<TApp>;
 	handler: (args: RawFunctionHandlerArgs<TApp>) => Response | Promise<Response>;
 };
 
-export type FunctionDefinition<
-	TInput = any,
-	TOutput = any,
-	TApp = any,
-> = JsonFunctionDefinition<TInput, TOutput, TApp> | RawFunctionDefinition<TApp>;
+export type FunctionDefinition<TInput = any, TOutput = any, TApp = any> =
+	| JsonFunctionDefinition<TInput, TOutput, TApp>
+	| RawFunctionDefinition<TApp>;
 
 export type FunctionsMap = Record<string, FunctionDefinition>;
 export type JsonFunctionsMap = Record<string, JsonFunctionDefinition<any, any>>;

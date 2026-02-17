@@ -9,13 +9,83 @@ import type { QuestpieConfig } from "../../config/types.js";
 import { ApiError } from "../../errors/index.js";
 import { executeJsonFunction } from "../../functions/execute.js";
 import type {
+  FunctionAccess,
+  FunctionAccessRule,
   FunctionDefinition,
   FunctionsMap,
 } from "../../functions/types.js";
+import type { RpcRouterTree } from "../../rpc/types.js";
 import type { AdapterConfig, AdapterContext } from "../types.js";
-import { handleError, smartResponse } from "../utils/response.js";
-import { parseRpcBody } from "../utils/request.js";
 import { resolveContext } from "../utils/context.js";
+import { parseRpcBody } from "../utils/request.js";
+import { handleError, smartResponse } from "../utils/response.js";
+
+const isFunctionDefinition = (value: unknown): value is FunctionDefinition => {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "handler" in value &&
+    typeof (value as { handler?: unknown }).handler === "function"
+  );
+};
+
+const extractAccessRule = (
+  access?: FunctionAccess,
+): FunctionAccessRule | undefined => {
+  if (access === undefined) {
+    return undefined;
+  }
+
+  if (typeof access === "object" && access !== null) {
+    return access.execute;
+  }
+
+  return access;
+};
+
+const evaluateFunctionAccess = async (
+  definition: FunctionDefinition,
+  ctx: {
+    app: unknown;
+    session?: unknown | null;
+    db: unknown;
+    locale?: string;
+    request: Request;
+  },
+): Promise<boolean> => {
+  const rule = extractAccessRule(definition.access);
+
+  if (rule === undefined) {
+    return true;
+  }
+
+  if (typeof rule === "boolean") {
+    return rule;
+  }
+
+  try {
+    return await rule(ctx as any);
+  } catch {
+    return false;
+  }
+};
+
+const resolveRpcProcedure = (
+  router: RpcRouterTree,
+  path: string[],
+): FunctionDefinition | undefined => {
+  let current: unknown = router;
+
+  for (const segment of path) {
+    if (!current || typeof current !== "object") {
+      return undefined;
+    }
+
+    current = (current as Record<string, unknown>)[segment];
+  }
+
+  return isFunctionDefinition(current) ? current : undefined;
+};
 
 const executeFunction = async <TConfig extends QuestpieConfig = QuestpieConfig>(
   cms: Questpie<TConfig>,
@@ -32,15 +102,33 @@ const executeFunction = async <TConfig extends QuestpieConfig = QuestpieConfig>(
     return handleError(error, { request, cms, locale });
   };
 
-  if (definition.mode === "raw") {
-    if (request.method !== "POST") {
-      return errorResponse(
-        ApiError.badRequest("Method not allowed for raw function"),
-        request,
-      );
-    }
+  if (request.method !== "POST") {
+    return errorResponse(ApiError.badRequest("Method not allowed"), request);
+  }
 
-    const resolved = await resolveContext(cms, request, config, context);
+  const resolved = await resolveContext(cms, request, config, context);
+
+  const hasAccess = await evaluateFunctionAccess(definition, {
+    app: cms,
+    session: resolved.cmsContext.session,
+    db: resolved.cmsContext.db ?? cms.db,
+    locale: resolved.cmsContext.locale,
+    request,
+  });
+
+  if (!hasAccess) {
+    return errorResponse(
+      ApiError.forbidden({
+        operation: "read",
+        resource: "rpc",
+        reason: "Access denied",
+      }),
+      request,
+      resolved.cmsContext.locale,
+    );
+  }
+
+  if (definition.mode === "raw") {
     try {
       return await definition.handler({
         request,
@@ -54,11 +142,6 @@ const executeFunction = async <TConfig extends QuestpieConfig = QuestpieConfig>(
     }
   }
 
-  if (request.method !== "POST") {
-    return errorResponse(ApiError.badRequest("Method not allowed"), request);
-  }
-
-  const resolved = await resolveContext(cms, request, config, context);
   const body = await parseRpcBody(request);
 
   if (body === null) {
@@ -95,14 +178,17 @@ export const createRpcRoutes = <
   return {
     root: async (
       request: Request,
-      params: { name: string },
+      params: { path: string[] },
       context?: AdapterContext,
     ): Promise<Response> => {
-      const functions = cms.getFunctions() as FunctionsMap;
-      const definition = functions[params.name];
+      if (!config.rpc) {
+        return errorResponse(ApiError.notFound("RPC router"), request);
+      }
+
+      const definition = resolveRpcProcedure(config.rpc, params.path);
       if (!definition) {
         return errorResponse(
-          ApiError.notFound("Function", params.name),
+          ApiError.notFound("RPC procedure", params.path.join(".")),
           request,
         );
       }

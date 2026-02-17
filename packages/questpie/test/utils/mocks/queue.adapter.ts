@@ -1,5 +1,11 @@
 import type { PublishOptions } from "../../../src/exports/index.js";
-import type { QueueAdapter } from "../../../src/server/integrated/queue/adapter.js";
+import type {
+  QueueAdapter,
+  QueueHandlerMap,
+  QueueListenOptions,
+  QueueRunOnceOptions,
+  QueueRunOnceResult,
+} from "../../../src/server/integrated/queue/adapter.js";
 
 export interface MockJob {
   id: string;
@@ -17,8 +23,7 @@ export interface MockScheduledJob {
 }
 
 export interface MockWorker {
-  jobName: string;
-  handler: (job: { id: string; data: any }) => Promise<void>;
+  handlers: QueueHandlerMap;
   options?: { teamSize?: number; batchSize?: number };
 }
 
@@ -27,6 +32,14 @@ export interface MockWorker {
  * Provides full type safety and test utilities for inspecting queue state
  */
 export class MockQueueAdapter implements QueueAdapter {
+  public readonly capabilities = {
+    longRunningConsumer: true,
+    runOnceConsumer: true,
+    pushConsumer: false,
+    scheduling: true,
+    singleton: false,
+  } as const;
+
   private jobs: MockJob[] = [];
   private scheduledJobs: MockScheduledJob[] = [];
   private workers: MockWorker[] = [];
@@ -84,12 +97,13 @@ export class MockQueueAdapter implements QueueAdapter {
       throw new Error(`Job not found: ${jobId}`);
     }
 
-    const worker = this.workers.find((w) => w.jobName === job.name);
-    if (!worker) {
+    const worker = this.workers.find((w) => !!w.handlers[job.name]);
+    const handler = worker?.handlers[job.name];
+    if (!handler) {
       throw new Error(`No worker registered for job: ${job.name}`);
     }
 
-    await worker.handler({ id: job.id, data: job.payload });
+    await handler({ id: job.id, data: job.payload });
   }
 
   /**
@@ -97,10 +111,11 @@ export class MockQueueAdapter implements QueueAdapter {
    */
   async processAllJobs(): Promise<void> {
     for (const job of this.jobs) {
-      const worker = this.workers.find((w) => w.jobName === job.name);
-      if (worker) {
+      const worker = this.workers.find((w) => !!w.handlers[job.name]);
+      const handler = worker?.handlers[job.name];
+      if (handler) {
         try {
-          await worker.handler({ id: job.id, data: job.payload });
+          await handler({ id: job.id, data: job.payload });
         } catch (error) {
           for (const handler of this.errorHandlers) {
             handler(error as Error);
@@ -164,16 +179,37 @@ export class MockQueueAdapter implements QueueAdapter {
     );
   }
 
-  async work(
-    jobName: string,
-    handler: (job: { id: string; data: any }) => Promise<void>,
-    options?: { teamSize?: number; batchSize?: number },
+  async listen(
+    handlers: QueueHandlerMap,
+    options?: QueueListenOptions,
   ): Promise<void> {
     this.workers.push({
-      jobName,
-      handler,
+      handlers,
       options,
     });
+  }
+
+  async runOnce(
+    handlers: QueueHandlerMap,
+    options?: QueueRunOnceOptions,
+  ): Promise<QueueRunOnceResult> {
+    const selectedNames =
+      options?.jobs && options.jobs.length > 0 ? new Set(options.jobs) : null;
+    const max = Math.max(1, (options?.batchSize ?? this.jobs.length) || 1);
+
+    let processed = 0;
+    for (const job of this.jobs) {
+      if (processed >= max) break;
+      if (selectedNames && !selectedNames.has(job.name)) continue;
+
+      const handler = handlers[job.name];
+      if (!handler) continue;
+
+      await handler({ id: job.id, data: job.payload });
+      processed += 1;
+    }
+
+    return { processed };
   }
 
   on(event: "error", handler: (error: Error) => void): void {

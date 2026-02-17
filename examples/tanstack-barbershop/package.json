@@ -10,6 +10,10 @@
 		"build": "vite build",
 		"preview": "vite preview",
 		"test": "vitest run",
+		"e2e": "playwright test",
+		"e2e:ui": "playwright test --ui",
+		"e2e:debug": "playwright test --debug",
+		"e2e:report": "playwright show-report",
 		"lint": "eslint",
 		"format": "prettier",
 		"check": "prettier --write . && eslint --fix"
@@ -22,6 +26,7 @@
 		"@hugeicons/react": "^1.1.1",
 		"@phosphor-icons/react": "^2.1.10",
 		"@questpie/admin": "workspace:*",
+		"@questpie/openapi": "workspace:*",
 		"@questpie/tanstack-query": "workspace:*",
 		"@tailwindcss/vite": "^4.0.6",
 		"@tanstack/db": "^0.1.1",
@@ -59,6 +64,7 @@
 		"zod": "^4.2.1"
 	},
 	"devDependencies": {
+		"@playwright/test": "^1.58.2",
 		"@tanstack/devtools-vite": "^0.3.11",
 		"@tanstack/eslint-config": "^0.3.0",
 		"@testing-library/dom": "^10.4.0",
@@ -66,6 +72,7 @@
 		"@types/node": "^22.10.2",
 		"@types/react": "^19.2.0",
 		"@types/react-dom": "^19.2.0",
+		"@typescript/native-preview": "^7.0.0-dev.20260213.1",
 		"@vitejs/plugin-react": "^5.0.4",
 		"jsdom": "^27.0.0",
 		"prettier": "^3.5.3",

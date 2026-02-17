@@ -1,0 +1,267 @@
+---
+title: Blocks System
+description: Block builder, page builder, and rich content composition
+---
+
+# Blocks System
+
+Blocks are the building units for page builders and rich content areas. Each block type defines its own schema, admin config, and rendering — all following the same server-first pattern.
+
+## Defining Blocks
+
+Blocks are defined using the block builder on the server:
+
+```typescript
+import { adminModule } from "@questpie/admin/server";
+
+const heroBlock = adminModule.block("hero")
+  .fields((f) => ({
+    heading: f.text({ required: true }),
+    subheading: f.text(),
+    image: f.upload("media"),
+    cta: f.object({
+      fields: (f) => ({
+        label: f.text({ required: true }),
+        url: f.url({ required: true }),
+      }),
+    }),
+  }))
+  .admin({
+    label: "Hero Section",
+    icon: "ph:layout",
+    description: "Full-width hero with heading, image, and CTA",
+  });
+```
+
+## Using Blocks in Collections
+
+Add blocks to a collection field using `richText` or a dedicated blocks field:
+
+```typescript
+const pages = qb.collection("pages")
+  .fields((f) => ({
+    title: f.text({ required: true }),
+    content: f.richText({
+      blocks: [heroBlock, paragraphBlock, imageBlock, ctaBlock],
+    }),
+  }));
+```
+
+## Client-Side Block Rendering
+
+Register block renderers in your client admin builder:
+
+```typescript
+// admin/blocks/hero.tsx
+export function HeroBlockRenderer({ data }) {
+  return (
+    <div className="hero">
+      <h1>{data.heading}</h1>
+      {data.subheading && <p>{data.subheading}</p>}
+      {data.image && <img src={data.image.url} alt="" />}
+      {data.cta && (
+        <a href={data.cta.url}>{data.cta.label}</a>
+      )}
+    </div>
+  );
+}
+```
+
+## Block Categories
+
+Organize blocks into categories for the block picker:
+
+- **Layout**: Hero, columns, spacer, divider
+- **Content**: Paragraph, heading, image, video
+- **Interactive**: Accordion, tabs, testimonial, CTA
+- **Media**: Gallery, embed, file download
+
+## Preview Integration
+
+Blocks work with the preview system. When editing blocks in the admin panel, the preview panel shows a live-rendered version using your front-end components.
+
+## Block Prefetch (Server-Side Data Loading)
+
+Blocks can fetch additional data on the server before being sent to the client. This is useful for:
+- Expanding upload/relation fields to full objects with URLs
+- Fetching dynamic data (e.g., latest posts, featured products)
+- Computing derived values
+
+### Two Prefetch Approaches
+
+#### 1. Declarative Prefetch (for block fields)
+
+Use `{ with: { fieldName: true } }` to automatically expand relation/upload fields on the block. This approach **batches** requests - if multiple blocks need the same collection, only one query is made.
+
+```typescript
+const heroBlock = qb.block("hero")
+  .fields((f) => ({
+    title: f.text({ required: true }),
+    backgroundImage: f.upload(), // Stored as UUID
+  }))
+  // Expand backgroundImage to full asset object with URL
+  .prefetch({ with: { backgroundImage: true } });
+```
+
+**Result**: `_data.backgroundImage` contains the full asset object:
+```json
+{
+  "backgroundImage": {
+    "id": "uuid-here",
+    "url": "http://your-site.com/api/cms/storage/files/...",
+    "filename": "hero.jpg",
+    "mimeType": "image/jpeg"
+  }
+}
+```
+
+**Nested expansion** for relations with their own relations:
+```typescript
+.prefetch({
+  with: {
+    author: { with: { avatar: true } }
+  }
+})
+```
+
+#### 2. Functional Prefetch (for dynamic data)
+
+Use an async function when you need to fetch data that isn't a direct field on the block:
+
+```typescript
+const teamBlock = qb.block("team")
+  .fields((f) => ({
+    title: f.text(),
+    limit: f.number({ defaultValue: 4 }),
+  }))
+  .prefetch(async ({ values, ctx }) => {
+    // Fetch barbers with their avatars expanded
+    const res = await ctx.app.api.collections.barbers.find({
+      limit: values.limit || 4,
+      where: { isActive: true },
+      with: { avatar: true }, // Expand avatar relation
+    });
+    return { barbers: res.docs };
+  });
+```
+
+**Result**: `_data.barbers` contains the fetched records with expanded avatars.
+
+### Combined Approach (with + loader)
+
+Expand fields first, then run additional logic:
+
+```typescript
+.prefetch({
+  with: { backgroundImage: true },
+  loader: async ({ values, expanded, ctx }) => {
+    // expanded.backgroundImage is already fetched
+    const analytics = await getImageAnalytics(expanded.backgroundImage?.id);
+    return { analytics };
+  },
+})
+```
+
+### Accessing Prefetch Data in Renderers
+
+Prefetch data is available via `data` prop in your block renderer:
+
+```tsx
+export function TeamRenderer({ values, data }: BlockProps<"team">) {
+  const barbers = data?.barbers ?? [];
+
+  return (
+    <div className="team-grid">
+      {barbers.map((barber) => (
+        <div key={barber.id}>
+          {barber.avatar?.url && (
+            <img src={barber.avatar.url} alt={barber.name} />
+          )}
+          <h3>{barber.name}</h3>
+        </div>
+      ))}
+    </div>
+  );
+}
+```
+
+### When to Use Which Approach
+
+| Scenario | Approach |
+|----------|----------|
+| Expand upload field (image, file) | Declarative: `{ with: { image: true } }` |
+| Expand relation field | Declarative: `{ with: { author: true } }` |
+| Fetch from different collection | Functional: `async ({ ctx }) => ...` |
+| Dynamic query based on block values | Functional: use `values.limit`, etc. |
+| Expand + compute derived data | Combined: `{ with, loader }` |
+
+## Troubleshooting: Circular Dependencies with Typed Prefetch
+
+When blocks use functional `.prefetch()` handlers that need typed access to `ctx.app` (e.g., `ctx.app.api.collections.posts.find(...)`), you can run into a circular dependency:
+
+- `app.ts` imports `blocks.ts` to register blocks via `.blocks(blocks)`
+- `blocks.ts` wants to import `AppCMS` from `app.ts` to get typed `ctx.app` in prefetch
+- **Circular import!**
+
+### The BaseCMS Pattern (Current Workaround)
+
+Split your CMS setup into a "base" (everything except blocks) and the final build:
+
+```typescript
+// app.ts
+import { blocks } from "./blocks";
+
+// Step 1: Configure everything EXCEPT blocks
+export const baseCms = qb
+  .collections({ posts, pages })
+  .globals({ siteSettings })
+  .auth({ ... });
+
+// Step 2: Export the base type for blocks to import
+export type BaseCMS = (typeof baseCms)["$inferCms"];
+
+// Step 3: Add blocks and build
+export const cms = baseCms.blocks(blocks).build({ ... });
+
+export type AppCMS = typeof cms;
+```
+
+```typescript
+// blocks.ts
+import { typedApp, type Where } from "questpie";
+import type { BaseCMS } from "./app"; // ← type-only import, no circular dependency
+import type { posts } from "./collections";
+
+const latestPostsBlock = qb
+  .block("latest-posts")
+  .fields((f) => ({
+    count: f.number({ label: "Count", default: 3 }),
+  }))
+  .prefetch(async ({ values, ctx }) => {
+    // Cast the untyped ctx.app to your typed CMS API
+    const cms = typedApp<BaseCMS>(ctx.app);
+    const res = await cms.api.collections.posts.find({
+      limit: values.count || 3,
+      where: { published: true } satisfies Where<typeof posts, BaseCMS>,
+      orderBy: { createdAt: "desc" },
+    });
+    return { posts: res.docs };
+  });
+```
+
+**Why this works:**
+- `BaseCMS` is derived from `baseCms` which does NOT import `blocks.ts` — no circular dependency
+- `BaseCMS` has all the same collections, globals, and APIs as the final `AppCMS` — blocks just aren't part of the type
+- `typedApp<BaseCMS>(ctx.app)` safely casts the runtime app instance to the typed API
+
+**When you DON'T need this pattern:**
+- Blocks that only use **declarative prefetch** (`{ with: { image: true } }`) to expand upload/relation fields — no `ctx.app` access needed, no circular dependency
+- Blocks without any prefetch at all
+
+<Callout type="info">
+This is a known ergonomic limitation of the current blocks API. We are actively working on a more seamless solution that removes the need for the `BaseCMS` split pattern.
+</Callout>
+
+## Barbershop Example
+
+The TanStack Barbershop example includes 22 block types demonstrating the full blocks system. See `examples/tanstack-barbershop/src/questpie/admin/blocks/` for real implementations.

@@ -2,13 +2,7 @@
  * Setup Form - create first admin account
  */
 
-import {
-  Envelope,
-  Lock,
-  SpinnerGap,
-  User,
-  WarningCircle,
-} from "@phosphor-icons/react";
+import { Icon } from "@iconify/react";
 import * as React from "react";
 import { useForm } from "react-hook-form";
 import { Alert, AlertDescription } from "../../components/ui/alert";
@@ -21,6 +15,7 @@ import {
   FieldLabel,
 } from "../../components/ui/field";
 import { Input } from "../../components/ui/input";
+import { useTranslation } from "../../i18n/hooks";
 import { cn } from "../../lib/utils";
 
 export type SetupFormValues = {
@@ -39,6 +34,8 @@ export type SetupFormProps = {
   className?: string;
   /** Error message from setup */
   error?: string | null;
+  /** Minimum password length (default: 8) */
+  minPasswordLength?: number;
 };
 
 /**
@@ -73,7 +70,9 @@ export function SetupForm({
   defaultValues,
   className,
   error,
+  minPasswordLength = 8,
 }: SetupFormProps) {
+  const { t } = useTranslation();
   const {
     register,
     handleSubmit,
@@ -100,25 +99,25 @@ export function SetupForm({
       <FieldGroup>
         {/* Name Field */}
         <Field data-invalid={!!errors.name}>
-          <FieldLabel htmlFor="name">Name</FieldLabel>
+          <FieldLabel htmlFor="name">{t("auth.name")}</FieldLabel>
           <FieldContent>
             <div className="relative">
-              <User
+              <Icon
+                icon="ph:user-duotone"
                 className="text-muted-foreground absolute left-2 top-1/2 size-4 -translate-y-1/2"
-                weight="duotone"
               />
               <Input
                 id="name"
                 type="text"
-                placeholder="Admin User"
+                placeholder={t("auth.namePlaceholder")}
                 className="pl-8"
                 autoComplete="name"
                 aria-invalid={!!errors.name}
                 {...register("name", {
-                  required: "Name is required",
+                  required: t("auth.nameRequired"),
                   minLength: {
                     value: 2,
-                    message: "Name must be at least 2 characters",
+                    message: t("auth.nameMinLength", { min: 2 }),
                   },
                 })}
               />
@@ -129,25 +128,25 @@ export function SetupForm({
 
         {/* Email Field */}
         <Field data-invalid={!!errors.email}>
-          <FieldLabel htmlFor="email">Email</FieldLabel>
+          <FieldLabel htmlFor="email">{t("auth.email")}</FieldLabel>
           <FieldContent>
             <div className="relative">
-              <Envelope
+              <Icon
+                icon="ph:envelope-duotone"
                 className="text-muted-foreground absolute left-2 top-1/2 size-4 -translate-y-1/2"
-                weight="duotone"
               />
               <Input
                 id="email"
                 type="email"
-                placeholder="admin@example.com"
+                placeholder={t("auth.emailPlaceholder")}
                 className="pl-8"
                 autoComplete="email"
                 aria-invalid={!!errors.email}
                 {...register("email", {
-                  required: "Email is required",
+                  required: t("auth.emailRequired"),
                   pattern: {
                     value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
-                    message: "Invalid email address",
+                    message: t("auth.invalidEmail"),
                   },
                 })}
               />
@@ -158,25 +157,27 @@ export function SetupForm({
 
         {/* Password Field */}
         <Field data-invalid={!!errors.password}>
-          <FieldLabel htmlFor="password">Password</FieldLabel>
+          <FieldLabel htmlFor="password">{t("auth.password")}</FieldLabel>
           <FieldContent>
             <div className="relative">
-              <Lock
+              <Icon
+                icon="ph:lock-duotone"
                 className="text-muted-foreground absolute left-2 top-1/2 size-4 -translate-y-1/2"
-                weight="duotone"
               />
               <Input
                 id="password"
                 type="password"
-                placeholder="Enter a secure password"
+                placeholder={t("auth.passwordPlaceholder")}
                 className="pl-8"
                 autoComplete="new-password"
                 aria-invalid={!!errors.password}
                 {...register("password", {
-                  required: "Password is required",
+                  required: t("auth.passwordRequired"),
                   minLength: {
-                    value: 8,
-                    message: "Password must be at least 8 characters",
+                    value: minPasswordLength,
+                    message: t("auth.passwordMinLength", {
+                      min: minPasswordLength,
+                    }),
                   },
                 })}
               />
@@ -187,24 +188,26 @@ export function SetupForm({
 
         {/* Confirm Password Field */}
         <Field data-invalid={!!errors.confirmPassword}>
-          <FieldLabel htmlFor="confirmPassword">Confirm Password</FieldLabel>
+          <FieldLabel htmlFor="confirmPassword">
+            {t("auth.confirmPassword")}
+          </FieldLabel>
           <FieldContent>
             <div className="relative">
-              <Lock
+              <Icon
+                icon="ph:lock-duotone"
                 className="text-muted-foreground absolute left-2 top-1/2 size-4 -translate-y-1/2"
-                weight="duotone"
               />
               <Input
                 id="confirmPassword"
                 type="password"
-                placeholder="Confirm your password"
+                placeholder={t("auth.confirmPasswordPlaceholder")}
                 className="pl-8"
                 autoComplete="new-password"
                 aria-invalid={!!errors.confirmPassword}
                 {...register("confirmPassword", {
-                  required: "Please confirm your password",
+                  required: t("auth.passwordRequired"),
                   validate: (value) =>
-                    value === password || "Passwords do not match",
+                    value === password || t("auth.passwordMismatch"),
                 })}
               />
             </div>
@@ -216,7 +219,7 @@ export function SetupForm({
       {/* Error Message */}
       {error && (
         <Alert variant="destructive">
-          <WarningCircle />
+          <Icon icon="ph:warning-circle" />
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       )}
@@ -230,11 +233,11 @@ export function SetupForm({
       >
         {isSubmitting ? (
           <>
-            <SpinnerGap className="animate-spin" weight="bold" />
-            Creating account...
+            <Icon icon="ph:spinner-gap-bold" className="animate-spin" />
+            {t("auth.creatingAdmin")}
           </>
         ) : (
-          "Create Admin Account"
+          t("auth.createFirstAdmin")
         )}
       </Button>
     </form>

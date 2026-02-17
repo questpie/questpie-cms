@@ -7,10 +7,11 @@
  * Browser-safe utilities (isDraftMode, createDraftModeCookie, etc.) are in @questpie/admin/shared
  */
 
-import { getPreviewSecret } from "#questpie/admin/shared/preview-utils.js";
 import { createHmac, timingSafeEqual } from "node:crypto";
-import { fn } from "questpie";
+import { fn, type Questpie } from "questpie";
 import { z } from "zod";
+import { getPreviewSecret } from "#questpie/admin/shared/preview-utils.js";
+import type { PreviewConfig } from "../../../augmentation.js";
 
 // ============================================================================
 // Token Utilities
@@ -271,6 +272,86 @@ export function createPreviewTokenVerifier(secret?: string) {
 }
 
 // ============================================================================
+// Preview URL Generation
+// ============================================================================
+
+const getPreviewUrlSchema = z.object({
+	collection: z.string().min(1, "Collection name is required"),
+	record: z.record(z.string(), z.unknown()),
+	locale: z.string().optional(),
+});
+
+const getPreviewUrlOutputSchema = z.object({
+	url: z.string().nullable(),
+	error: z.string().optional(),
+});
+
+/**
+ * Get preview URL for a collection record.
+ *
+ * Calls the server-side url() function from the collection's .preview() config.
+ * This is needed because url() is a function that cannot be serialized to JSON.
+ *
+ * @example
+ * ```ts
+ * const { url } = await client.rpc.getPreviewUrl({
+ *   collection: "pages",
+ *   record: { slug: "about", title: "About Us" },
+ *   locale: "en",
+ * });
+ * // Returns: "/about?preview=true"
+ * ```
+ */
+export const getPreviewUrl = fn({
+	type: "query",
+	schema: getPreviewUrlSchema,
+	outputSchema: getPreviewUrlOutputSchema,
+	handler: async ({ input, app, session }) => {
+		// Require authenticated admin session
+		if (!session) {
+			return { url: null, error: "Unauthorized: Admin session required" };
+		}
+
+		const { collection: collectionName, record, locale } = input;
+		const cms = app as Questpie<any>;
+
+		// Get collection from CMS
+		const collections = cms.getCollections();
+		const collection = collections[collectionName];
+
+		if (!collection) {
+			return { url: null, error: `Collection '${collectionName}' not found` };
+		}
+
+		// Get preview config from collection state
+		const previewConfig = (collection.state as any).adminPreview as
+			| PreviewConfig
+			| undefined;
+
+		if (!previewConfig?.url) {
+			return {
+				url: null,
+				error: "No preview URL configured for this collection",
+			};
+		}
+
+		if (previewConfig.enabled === false) {
+			return { url: null, error: "Preview is disabled for this collection" };
+		}
+
+		try {
+			const url = previewConfig.url({ record, locale });
+			return { url };
+		} catch (err) {
+			return {
+				url: null,
+				error: `Failed to generate preview URL: ${err instanceof Error ? err.message : "Unknown error"}`,
+			};
+		}
+	},
+});
+
+// ============================================================================
 // Default Functions Bundle
 // ============================================================================
 
@@ -278,4 +359,7 @@ export function createPreviewTokenVerifier(secret?: string) {
  * Default preview functions bundle with env-based secret.
  * Used by adminModule to register preview RPC functions.
  */
-export const previewFunctions = createPreviewFunctions(getPreviewSecret());
+export const previewFunctions = {
+	...createPreviewFunctions(getPreviewSecret()),
+	getPreviewUrl,
+};

@@ -2,16 +2,17 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { MigrationRunner } from "../../server/migration/runner.js";
 import type { Migration } from "../../server/migration/types.js";
+import { SeedRunner } from "../../server/seed/runner.js";
 import { loadQuestpieConfig } from "../config.js";
 
 export type RunMigrationAction = "up" | "down" | "status" | "reset" | "fresh";
 
 export type RunMigrationOptions = {
-  action: RunMigrationAction;
-  configPath: string;
-  targetMigration?: string;
-  batch?: number;
-  dryRun?: boolean;
+	action: RunMigrationAction;
+	configPath: string;
+	targetMigration?: string;
+	batch?: number;
+	dryRun?: boolean;
 };
 
 /**
@@ -23,78 +24,82 @@ export type RunMigrationOptions = {
  * 3. Executes the requested action using MigrationRunner
  */
 export async function runMigrationCommand(
-  options: RunMigrationOptions,
+	options: RunMigrationOptions,
 ): Promise<void> {
-  // Resolve config path
-  const resolvedConfigPath = join(process.cwd(), options.configPath);
+	// Resolve config path
+	const resolvedConfigPath = join(process.cwd(), options.configPath);
 
-  if (!existsSync(resolvedConfigPath)) {
-    throw new Error(`Config file not found: ${resolvedConfigPath}`);
-  }
+	if (!existsSync(resolvedConfigPath)) {
+		throw new Error(`Config file not found: ${resolvedConfigPath}`);
+	}
 
-  // Load config
-  const cmsConfig = await loadQuestpieConfig(resolvedConfigPath);
-  const app = cmsConfig.app;
+	// Load config
+	const cmsConfig = await loadQuestpieConfig(resolvedConfigPath);
+	const app = cmsConfig.app;
 
-  // Get migrations from Questpie config (loaded via .migrations() builder method)
-  const migrations: Migration[] = app.config.migrations?.migrations || [];
+	// Get migrations from Questpie config (passed via .build())
+	const migrations: Migration[] = app.config.migrations?.migrations || [];
 
-  if (migrations.length === 0) {
-    console.log("ℹ️  No migrations found");
-    console.log(
-      "\n💡 Tip: Make sure to import and add migrations via .migrations([...]) in your CMS builder",
-    );
-    return;
-  }
+	if (migrations.length === 0) {
+		console.log("ℹ️  No migrations found");
+		console.log(
+			"\n💡 Tip: Make sure to import and add migrations via .build({ migrations: [...] })",
+		);
+		return;
+	}
 
-  console.log(`📦 Found ${migrations.length} migrations\n`);
+	console.log(`📦 Found ${migrations.length} migrations\n`);
 
-  if (options.dryRun) {
-    console.log(
-      "🔍 DRY RUN - Would execute the following migration operation:",
-    );
-    console.log(`Action: ${options.action}`);
-    if (options.targetMigration)
-      console.log(`Target migration: ${options.targetMigration}`);
-    if (options.batch) console.log(`Target batch: ${options.batch}`);
-    console.log("");
-    return;
-  }
+	if (options.dryRun) {
+		console.log(
+			"🔍 DRY RUN - Would execute the following migration operation:",
+		);
+		console.log(`Action: ${options.action}`);
+		if (options.targetMigration)
+			console.log(`Target migration: ${options.targetMigration}`);
+		if (options.batch) console.log(`Target batch: ${options.batch}`);
+		console.log("");
+		return;
+	}
 
-  // Create migration runner
-  const runner = new MigrationRunner(app.db);
+	// Create migration runner
+	const runner = new MigrationRunner(app.db);
 
-  // Execute the requested action
-  switch (options.action) {
-    case "up":
-      await runner.runMigrationsUp(migrations, {
-        targetMigration: options.targetMigration,
-      });
-      break;
+	// Execute the requested action
+	switch (options.action) {
+		case "up":
+			await runner.runMigrationsUp(migrations, {
+				targetMigration: options.targetMigration,
+			});
+			break;
 
-    case "down":
-      if (options.batch !== undefined) {
-        await runner.rollbackBatch(migrations, options.batch);
-      } else if (options.targetMigration) {
-        await runner.rollbackToMigration(migrations, options.targetMigration);
-      } else {
-        await runner.rollbackLastBatch(migrations);
-      }
-      break;
+		case "down":
+			if (options.batch !== undefined) {
+				await runner.rollbackBatch(migrations, options.batch);
+			} else if (options.targetMigration) {
+				await runner.rollbackToMigration(migrations, options.targetMigration);
+			} else {
+				await runner.rollbackLastBatch(migrations);
+			}
+			break;
 
-    case "reset":
-      await runner.reset(migrations);
-      break;
+		case "reset":
+			await runner.reset(migrations);
+			break;
 
-    case "fresh":
-      await runner.fresh(migrations);
-      break;
+		case "fresh": {
+			await runner.fresh(migrations);
+			// Also reset seed tracking since DB is fresh
+			const seedRunner = new SeedRunner(app);
+			await seedRunner.reset();
+			break;
+		}
 
-    case "status":
-      await runner.status(migrations);
-      break;
+		case "status":
+			await runner.status(migrations);
+			break;
 
-    default:
-      throw new Error(`Unknown action: ${options.action}`);
-  }
+		default:
+			throw new Error(`Unknown action: ${options.action}`);
+	}
 }

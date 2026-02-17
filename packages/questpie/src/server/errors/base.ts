@@ -142,11 +142,14 @@ export class ApiError extends Error {
    * Create FORBIDDEN error with access context
    */
   static forbidden(context: AccessErrorContext): ApiError {
+    const useDefaultTranslation = context.reason === "Access denied";
     return new ApiError({
       code: "FORBIDDEN",
       message: context.reason,
-      messageKey: "error.forbidden",
-      messageParams: { reason: context.reason },
+      messageKey: useDefaultTranslation ? "error.forbidden" : undefined,
+      messageParams: useDefaultTranslation
+        ? { reason: context.reason }
+        : undefined,
       context: { access: context },
     });
   }
@@ -181,11 +184,15 @@ export class ApiError extends Error {
   /**
    * Create BAD_REQUEST error
    */
-  static badRequest(message: string, fieldErrors?: FieldError[]): ApiError {
+  static badRequest(
+    message = "Bad request",
+    fieldErrors?: FieldError[],
+  ): ApiError {
+    const useDefaultTranslation = message === "Bad request";
     return new ApiError({
       code: "BAD_REQUEST",
       message,
-      messageKey: "error.badRequest",
+      messageKey: useDefaultTranslation ? "error.badRequest" : undefined,
       fieldErrors,
     });
   }

@@ -1,0 +1,63 @@
+---
+title: Builder Extensions
+description: How packages extend builders in QUESTPIE (core + admin modules)
+---
+
+# Builder Extensions
+
+This is a core design choice in QUESTPIE.
+
+## Minimal core idea
+
+- `questpie` core is intentionally minimal and composable
+- packages extend builders through `.use(...)` modules and builder augmentation
+- your app composes only what it needs
+
+## Real example: core + admin
+
+```ts
+import { q } from "questpie";
+import { adminModule } from "@questpie/admin/server";
+
+const cms = q({ name: "app" })
+  .use(adminModule)
+  .collections({
+    // your collections
+  })
+  .build({
+    db: { url: process.env.DATABASE_URL },
+  });
+```
+
+`@questpie/admin/server` extends the server builder with admin-capable behavior, for example:
+
+- admin field types (`richText`, `blocks`, ...)
+- server admin methods (`.admin()`, `.list()`, `.form()`, `.dashboard()`, `.sidebar()`)
+- default server registries for views/components
+- admin RPC functions
+
+## Client-side counterpart
+
+```ts
+import { qa, adminModule } from "@questpie/admin/client";
+import type { AppCMS } from "../server/cms";
+
+export const admin = qa<AppCMS>()
+  .use(adminModule);
+```
+
+The client module extends rendering registries, not server schema ownership.
+
+## Why this matters
+
+- architecture stays modular
+- package boundaries remain clean
+- extensions can add capability without forcing hardcoded runtime branches
+
+## Practical rule
+
+Think of QUESTPIE as a composition system:
+
+1. start with minimal core
+2. add modules (`admin`, adapters, custom packages)
+3. let builder state carry extended contracts end-to-end

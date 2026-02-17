@@ -1,5 +1,9 @@
 import { Elysia } from "elysia";
-import { createFetchHandler, type Questpie } from "questpie";
+import {
+  createFetchHandler,
+  type Questpie,
+  type RpcRouterTree,
+} from "questpie";
 
 /**
  * Context stored in Elysia decorator
@@ -20,6 +24,7 @@ export type ElysiaAdapterConfig = {
    * @default '/cms'
    */
   basePath?: string;
+  rpc?: RpcRouterTree<any>;
 };
 
 /**
@@ -73,6 +78,7 @@ export function questpieElysia(
   const handler = createFetchHandler(cms, {
     basePath,
     accessMode: "user",
+    rpc: config.rpc,
   });
 
   const app = new Elysia({ prefix: basePath, name: "questpie-cms" }).all(

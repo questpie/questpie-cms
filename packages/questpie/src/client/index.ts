@@ -1,20 +1,24 @@
 import qs from "qs";
 import superjson from "superjson";
+import { createRealtimeAPI, type RealtimeAPI } from "./realtime/index.js";
 import type {
 	ExtractJsonFunctions,
 	InferFunctionInput,
 	InferFunctionOutput,
 	JsonFunctionDefinition,
 } from "#questpie/server/functions/types.js";
+import type { GlobalSchema } from "#questpie/server/global/introspection.js";
 import type {
 	AnyCollection,
 	AnyCollectionOrBuilder,
 	CollectionFunctions,
 	CollectionInsert,
+	CollectionRelations,
 	CollectionSelect,
 	CollectionUpdate,
 	GetCollection,
 	GlobalFunctions,
+	GlobalRelations,
 	GlobalSelect,
 	GlobalUpdate,
 	ResolveRelationsDeep,
@@ -24,9 +28,10 @@ import type {
 	CreateInputBase,
 	CreateInputWithRelations,
 	FindManyOptions,
-	FindOneOptions,
+	FindOneOptionsBase,
 	PaginatedResult,
 	UpdateInput,
+	Where,
 	With,
 } from "../server/collection/crud/types.js";
 import type { GlobalUpdateInput } from "../server/global/crud/types.js";
@@ -82,12 +87,13 @@ export class UploadError extends Error {
 
 import type {
 	AnyGlobal,
-	GetFunctions,
 	GetGlobal,
 	Questpie,
 } from "#questpie/exports/index.js";
+import type { CollectionSchema } from "#questpie/server/collection/introspection.js";
 import type { CollectionMeta } from "#questpie/shared/collection-meta.js";
 import type { ApiErrorShape } from "#questpie/shared/error-types.js";
+import type { GlobalMeta } from "#questpie/shared/global-meta.js";
 
 /**
  * Type-safe client error with support for ApiErrorShape
@@ -211,18 +217,17 @@ type JsonFunctionCaller<TDefinition extends JsonFunctionDefinition<any, any>> =
 		input: InferFunctionInput<TDefinition>,
 	) => Promise<InferFunctionOutput<TDefinition>>;
 
-type RootFunctionsAPI<T extends Questpie> =
-	GetFunctions<T["config"]> extends Record<string, any>
+type RpcClientAPI<TRouter> =
+	TRouter extends Record<string, any>
 		? {
-				[K in keyof ExtractJsonFunctions<
-					GetFunctions<T["config"]>
-				>]: ExtractJsonFunctions<
-					GetFunctions<T["config"]>
-				>[K] extends JsonFunctionDefinition<any, any>
-					? JsonFunctionCaller<
-							ExtractJsonFunctions<GetFunctions<T["config"]>>[K]
-						>
-					: never;
+				[K in keyof TRouter]: TRouter[K] extends JsonFunctionDefinition<
+					any,
+					any
+				>
+					? JsonFunctionCaller<TRouter[K]>
+					: TRouter[K] extends Record<string, any>
+						? RpcClientAPI<TRouter[K]>
+						: never;
 			}
 		: {};
 
@@ -261,7 +266,7 @@ type CollectionAPI<
 	find: <
 		TQuery extends FindManyOptions<
 			CollectionSelect<TCollection>,
-			ResolveRelationsDeep<TCollection["state"]["relations"], TCollections>
+			ResolveRelationsDeep<CollectionRelations<TCollection>, TCollections>
 		>,
 	>(
 		options?: TQuery,
@@ -269,7 +274,7 @@ type CollectionAPI<
 		PaginatedResult<
 			ApplyQuery<
 				CollectionSelect<TCollection>,
-				ResolveRelationsDeep<TCollection["state"]["relations"], TCollections>,
+				ResolveRelationsDeep<CollectionRelations<TCollection>, TCollections>,
 				TQuery
 			>
 		>
@@ -281,7 +286,7 @@ type CollectionAPI<
 	count: (options?: {
 		where?: FindManyOptions<
 			CollectionSelect<TCollection>,
-			ResolveRelationsDeep<TCollection["state"]["relations"], TCollections>
+			ResolveRelationsDeep<CollectionRelations<TCollection>, TCollections>
 		>["where"];
 		includeDeleted?: boolean;
 	}) => Promise<number>;
@@ -291,15 +296,15 @@ type CollectionAPI<
 	 * Accepts any where clause - optimizes to /:id endpoint when only id is provided
 	 */
 	findOne: <
-		TQuery extends FindOneOptions<
+		TQuery extends FindOneOptionsBase<
 			CollectionSelect<TCollection>,
-			ResolveRelationsDeep<TCollection["state"]["relations"], TCollections>
+			ResolveRelationsDeep<CollectionRelations<TCollection>, TCollections>
 		>,
 	>(
 		options?: TQuery,
 	) => Promise<ApplyQuery<
 		CollectionSelect<TCollection>,
-		ResolveRelationsDeep<TCollection["state"]["relations"], TCollections>,
+		ResolveRelationsDeep<CollectionRelations<TCollection>, TCollections>,
 		TQuery
 	> | null>;
 
@@ -309,12 +314,12 @@ type CollectionAPI<
 	create: <
 		TInput extends CreateInputBase<
 			CollectionInsert<TCollection>,
-			ResolveRelationsDeep<TCollection["state"]["relations"], TCollections>
+			ResolveRelationsDeep<CollectionRelations<TCollection>, TCollections>
 		>,
 	>(
 		data: CreateInputWithRelations<
 			CollectionInsert<TCollection>,
-			ResolveRelationsDeep<TCollection["state"]["relations"], TCollections>,
+			ResolveRelationsDeep<CollectionRelations<TCollection>, TCollections>,
 			TInput
 		>,
 		options?: LocaleOptions,
@@ -323,11 +328,13 @@ type CollectionAPI<
 	 * Update a single record by ID
 	 */
 	update: (
-		id: string,
-		data: UpdateInput<
-			CollectionUpdate<TCollection>,
-			ResolveRelationsDeep<TCollection["state"]["relations"], TCollections>
-		>,
+		params: {
+			id: string;
+			data: UpdateInput<
+				CollectionUpdate<TCollection>,
+				ResolveRelationsDeep<CollectionRelations<TCollection>, TCollections>
+			>;
+		},
 		options?: LocaleOptions,
 	) => Promise<CollectionSelect<TCollection>>;
 
@@ -335,7 +342,7 @@ type CollectionAPI<
 	 * Delete a single record by ID
 	 */
 	delete: (
-		id: string,
+		params: { id: string },
 		options?: LocaleOptions,
 	) => Promise<{ success: boolean }>;
 
@@ -343,9 +350,39 @@ type CollectionAPI<
 	 * Restore a soft-deleted record by ID
 	 */
 	restore: (
-		id: string,
+		params: { id: string },
 		options?: LocaleOptions,
 	) => Promise<CollectionSelect<TCollection>>;
+
+	/**
+	 * Update multiple records matching a where clause
+	 */
+	updateMany: (
+		params: {
+			where: Where<
+				CollectionSelect<TCollection>,
+				ResolveRelationsDeep<CollectionRelations<TCollection>, TCollections>
+			>;
+			data: UpdateInput<
+				CollectionUpdate<TCollection>,
+				ResolveRelationsDeep<CollectionRelations<TCollection>, TCollections>
+			>;
+		},
+		options?: LocaleOptions,
+	) => Promise<CollectionSelect<TCollection>[]>;
+
+	/**
+	 * Delete multiple records matching a where clause
+	 */
+	deleteMany: (
+		params: {
+			where: Where<
+				CollectionSelect<TCollection>,
+				ResolveRelationsDeep<CollectionRelations<TCollection>, TCollections>
+			>;
+		},
+		options?: LocaleOptions,
+	) => Promise<{ success: boolean; count: number }>;
 
 	/**
 	 * Upload a file to this collection (requires .upload() enabled on collection)
@@ -364,6 +401,12 @@ type CollectionAPI<
 	 * Useful for building dynamic UIs that adapt to collection configuration
 	 */
 	meta: () => Promise<CollectionMeta>;
+
+	/**
+	 * Get collection schema with full introspection (fields, relations, access, validation)
+	 * Includes evaluated access control for the current user and JSON Schema for validation
+	 */
+	schema: () => Promise<CollectionSchema>;
 } & CollectionFunctionsAPI<TCollection>;
 
 /**
@@ -389,9 +432,7 @@ type GlobalAPI<
 	 */
 	get: <
 		TQuery extends {
-			with?: With<
-				ResolveRelationsDeep<TGlobal["state"]["relations"], TCollections>
-			>;
+			with?: With<ResolveRelationsDeep<GlobalRelations<TGlobal>, TCollections>>;
 			columns?: any;
 			locale?: string;
 			localeFallback?: boolean;
@@ -401,7 +442,7 @@ type GlobalAPI<
 	) => Promise<
 		ApplyQuery<
 			GlobalSelect<TGlobal>,
-			ResolveRelationsDeep<TGlobal["state"]["relations"], TCollections>,
+			ResolveRelationsDeep<GlobalRelations<TGlobal>, TCollections>,
 			TQuery
 		>
 	>;
@@ -412,25 +453,33 @@ type GlobalAPI<
 	 */
 	update: <
 		TQuery extends {
-			with?: With<
-				ResolveRelationsDeep<TGlobal["state"]["relations"], TCollections>
-			>;
+			with?: With<ResolveRelationsDeep<GlobalRelations<TGlobal>, TCollections>>;
 			locale?: string;
 			localeFallback?: boolean;
 		},
 	>(
 		data: GlobalUpdateInput<
 			GlobalUpdate<TGlobal>,
-			ResolveRelationsDeep<TGlobal["state"]["relations"], TCollections>
+			ResolveRelationsDeep<GlobalRelations<TGlobal>, TCollections>
 		>,
 		options?: TQuery,
 	) => Promise<
 		ApplyQuery<
 			GlobalSelect<TGlobal>,
-			ResolveRelationsDeep<TGlobal["state"]["relations"], TCollections>,
+			ResolveRelationsDeep<GlobalRelations<TGlobal>, TCollections>,
 			TQuery
 		>
 	>;
+
+	/**
+	 * Get global schema with full introspection (fields, access, validation)
+	 */
+	schema: () => Promise<GlobalSchema>;
+
+	/**
+	 * Get global metadata (timestamps, versioning, localized fields)
+	 */
+	meta: () => Promise<GlobalMeta>;
 } & GlobalFunctionsAPI<TGlobal>;
 
 /**
@@ -543,19 +592,26 @@ type SearchAPI = {
 	/**
 	 * Reindex a collection
 	 */
-	reindex: (collection: string) => Promise<{ success: boolean; collection: string }>;
+	reindex: (
+		collection: string,
+	) => Promise<{ success: boolean; collection: string }>;
 };
 
 /**
  * Questpie Client
  */
-export type QuestpieClient<T extends Questpie<any>> = {
-	collections: CollectionsAPI<T>;
-	globals: GlobalsAPI<T>;
-	functions: RootFunctionsAPI<T>;
+export type QuestpieClient<
+	TCMS extends Questpie<any>,
+	TRPC extends Record<string, any> = Record<string, never>,
+> = {
+	collections: CollectionsAPI<TCMS>;
+	globals: GlobalsAPI<TCMS>;
+	rpc: RpcClientAPI<TRPC>;
 	search: SearchAPI;
+	realtime: RealtimeAPI;
 	setLocale?: (locale?: string) => void;
 	getLocale?: () => string | undefined;
+	getBasePath?: () => string;
 };
 
 /**
@@ -573,13 +629,14 @@ export type QuestpieClient<T extends Questpie<any>> = {
  * // Type-safe collections
  * const posts = await client.collections.posts.find({ limit: 10 })
  *
- * // Type-safe functions
- * const result = await client.functions.addToCart({ productId: '123' })
+ * // Type-safe RPC
+ * const result = await client.rpc.addToCart({ productId: '123' })
  * ```
  */
-export function createClient<T extends Questpie<any>>(
-	config: QuestpieClientConfig,
-): QuestpieClient<T> {
+export function createClient<
+	TCMS extends Questpie<any>,
+	TRPC extends Record<string, any> = Record<string, never>,
+>(config: QuestpieClientConfig): QuestpieClient<TCMS, TRPC> {
 	const fetcher = config.fetch || globalThis.fetch;
 	const basePath = config.basePath ?? "/cms";
 	const normalizedBasePath = basePath.startsWith("/")
@@ -691,7 +748,7 @@ export function createClient<T extends Questpie<any>>(
 	/**
 	 * Collections API
 	 */
-	const collections = new Proxy({} as CollectionsAPI<T>, {
+	const collections = new Proxy({} as CollectionsAPI<TCMS>, {
 		get(_, collectionName: string) {
 			const base = {
 				find: async (options: any = {}) => {
@@ -766,7 +823,10 @@ export function createClient<T extends Questpie<any>>(
 					});
 				},
 
-				update: async (id: string, data: any, options: LocaleOptions = {}) => {
+				update: async (
+					{ id, data }: { id: string; data: any },
+					options: LocaleOptions = {},
+				) => {
 					const queryString = qs.stringify(options, {
 						skipNulls: true,
 						arrayFormat: "brackets",
@@ -778,7 +838,7 @@ export function createClient<T extends Questpie<any>>(
 					});
 				},
 
-				delete: async (id: string, options: LocaleOptions = {}) => {
+				delete: async ({ id }: { id: string }, options: LocaleOptions = {}) => {
 					const queryString = qs.stringify(options, {
 						skipNulls: true,
 						arrayFormat: "brackets",
@@ -789,7 +849,10 @@ export function createClient<T extends Questpie<any>>(
 					});
 				},
 
-				restore: async (id: string, options: LocaleOptions = {}) => {
+				restore: async (
+					{ id }: { id: string },
+					options: LocaleOptions = {},
+				) => {
 					const queryString = qs.stringify(options, {
 						skipNulls: true,
 						arrayFormat: "brackets",
@@ -800,8 +863,42 @@ export function createClient<T extends Questpie<any>>(
 					});
 				},
 
+				updateMany: async (
+					{ where, data }: { where: any; data: any },
+					options: LocaleOptions = {},
+				) => {
+					const queryString = qs.stringify(options, {
+						skipNulls: true,
+						arrayFormat: "brackets",
+					});
+					const path = `${cmsBasePath}/${collectionName}${queryString ? `?${queryString}` : ""}`;
+					return request(path, {
+						method: "PATCH",
+						body: JSON.stringify({ where, data }),
+					});
+				},
+
+				deleteMany: async (
+					{ where }: { where: any },
+					options: LocaleOptions = {},
+				) => {
+					const queryString = qs.stringify(options, {
+						skipNulls: true,
+						arrayFormat: "brackets",
+					});
+					const path = `${cmsBasePath}/${collectionName}/delete-many${queryString ? `?${queryString}` : ""}`;
+					return request(path, {
+						method: "POST",
+						body: JSON.stringify({ where }),
+					});
+				},
+
 				meta: async () => {
 					return request(`${cmsBasePath}/${collectionName}/meta`);
+				},
+
+				schema: async () => {
+					return request(`${cmsBasePath}/${collectionName}/schema`);
 				},
 
 				upload: (file: File, options?: UploadOptions): Promise<any> => {
@@ -955,7 +1052,7 @@ export function createClient<T extends Questpie<any>>(
 	/**
 	 * Globals API
 	 */
-	const globals = new Proxy({} as GlobalsAPI<T>, {
+	const globals = new Proxy({} as GlobalsAPI<TCMS>, {
 		get(_, globalName: string) {
 			const base = {
 				get: async (
@@ -1003,6 +1100,14 @@ export function createClient<T extends Questpie<any>>(
 						},
 					);
 				},
+
+				schema: async () => {
+					return request(`${cmsBasePath}/globals/${globalName}/schema`);
+				},
+
+				meta: async () => {
+					return request(`${cmsBasePath}/globals/${globalName}/meta`);
+				},
 			};
 
 			return new Proxy(base as any, {
@@ -1020,17 +1125,34 @@ export function createClient<T extends Questpie<any>>(
 		},
 	});
 
-	/**
-	 * Root functions API
-	 */
-	const functions = new Proxy({} as RootFunctionsAPI<T>, {
-		get(_, functionName: string) {
-			return async (input: any) => {
-				return request(`${cmsBasePath}/rpc/${functionName}`, {
+	const createRpcProcedureProxy = (segments: string[]): any => {
+		const callable = async (input: any) => {
+			return request(`${cmsBasePath}/rpc/${segments.join("/")}`, {
+				method: "POST",
+				body: JSON.stringify(input),
+			});
+		};
+
+		return new Proxy(callable, {
+			get(_, prop) {
+				if (prop === "then") return undefined;
+				if (typeof prop !== "string") return undefined;
+				return createRpcProcedureProxy([...segments, prop]);
+			},
+			apply(_, __, args: unknown[]) {
+				const input = args[0];
+				return request(`${cmsBasePath}/rpc/${segments.join("/")}`, {
 					method: "POST",
 					body: JSON.stringify(input),
 				});
-			};
+			},
+		});
+	};
+
+	const rpc = new Proxy({} as RpcClientAPI<TRPC>, {
+		get(_, prop) {
+			if (typeof prop !== "string") return undefined;
+			return createRpcProcedureProxy([prop]);
 		},
 	});
 
@@ -1052,11 +1174,18 @@ export function createClient<T extends Questpie<any>>(
 		},
 	};
 
+	const realtimeApi = createRealtimeAPI({
+		baseUrl: `${config.baseURL}${cmsBasePath}`,
+		withCredentials: true,
+		debounceMs: 50,
+	});
+
 	return {
 		collections,
 		globals,
-		functions,
+		rpc,
 		search,
+		realtime: realtimeApi,
 		setLocale: (locale?: string) => {
 			currentLocale = locale;
 			if (locale) {
@@ -1068,12 +1197,28 @@ export function createClient<T extends Questpie<any>>(
 			}
 		},
 		getLocale: () => currentLocale,
+		getBasePath: () => cmsBasePath,
 	};
 }
 
-// Re-export collection meta types
+// Re-export collection schema types for admin introspection
+export type {
+	AccessResult,
+	CollectionAccessInfo,
+	CollectionSchema,
+	FieldAccessInfo,
+	FieldReactiveSchema,
+	FieldSchema,
+	RelationSchema,
+} from "#questpie/server/collection/introspection.js";
+export type { GlobalSchema } from "#questpie/server/global/introspection.js";
+// Re-export collection and global meta types
 export type {
 	CollectionFieldMeta,
 	CollectionMeta,
 	CollectionTitleMeta,
 } from "#questpie/shared/collection-meta.js";
+export type { GlobalMeta } from "#questpie/shared/global-meta.js";
+// Re-export realtime types and helpers
+export type { RealtimeAPI, TopicConfig, TopicInput } from "./realtime/index.js";
+export { buildCollectionTopic, buildGlobalTopic } from "./realtime/index.js";

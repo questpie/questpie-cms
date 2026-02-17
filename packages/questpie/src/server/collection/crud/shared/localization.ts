@@ -2,14 +2,18 @@
  * Shared Localization Utilities
  *
  * Provides field splitting utilities for localized content.
- * Supports two types of localization:
+ * Uses field definition schemas to determine which fields are localized.
+ *
+ * Supports three types of localization:
  * 1. Flat localized fields - entire column is localized (e.g., title, description)
  * 2. JSONB whole-mode - entire JSONB object per locale
- * 3. JSONB nested-mode - { $i18n: value } wrappers within JSONB field
+ * 3. JSONB nested-mode - nested fields with `localized: true` in field definitions
  */
 
+import type { NestedLocalizationSchema } from "./field-extraction.js";
 import { deepMergeI18n } from "./nested-i18n-merge.js";
-import { autoSplitNestedI18n } from "./nested-i18n-split.js";
+import { splitByNestedSchema } from "./nested-i18n-split.js";
+import { isPlainObject } from "./path-utils.js";
 
 /**
  * Constant for the _localized column name in i18n table
@@ -17,63 +21,97 @@ import { autoSplitNestedI18n } from "./nested-i18n-split.js";
 export const LOCALIZED_COLUMN = "_localized";
 
 /**
- * Localization mode for fields
+ * Split legacy `{ $i18n: value }` wrappers into structure + localized values.
+ *
+ * Backward compatibility path for fields without explicit nested localization schema.
  */
-type LocalizationMode = "whole" | "nested";
-
-/**
- * Parse a localized field name to extract field name and mode.
- * Supports syntax: "fieldName" (default whole) or "fieldName:nested"
- */
-function parseLocalizedField(localizedField: string): {
-	name: string;
-	mode: LocalizationMode;
+function splitLegacyI18nWrappers(value: unknown): {
+	structure: unknown;
+	i18nValues: unknown | null;
 } {
-	if (localizedField.endsWith(":nested")) {
+	if (value == null) {
+		return { structure: value, i18nValues: null };
+	}
+
+	if (isPlainObject(value)) {
+		const obj = value as Record<string, unknown>;
+		const entries = Object.entries(obj);
+
+		if (entries.length === 1 && entries[0]?.[0] === "$i18n") {
+			return {
+				structure: { $i18n: true },
+				i18nValues: entries[0][1],
+			};
+		}
+
+		const structureObj: Record<string, unknown> = {};
+		const i18nObj: Record<string, unknown> = {};
+		let hasI18n = false;
+
+		for (const [key, child] of entries) {
+			const split = splitLegacyI18nWrappers(child);
+			structureObj[key] = split.structure;
+			if (split.i18nValues != null) {
+				i18nObj[key] = split.i18nValues;
+				hasI18n = true;
+			}
+		}
+
 		return {
-			name: localizedField.slice(0, -7), // Remove ":nested"
-			mode: "nested",
+			structure: structureObj,
+			i18nValues: hasI18n ? i18nObj : null,
 		};
 	}
-	return {
-		name: localizedField,
-		mode: "whole",
-	};
-}
 
-/**
- * Get localization mode for a specific field name.
- * Searches the localized array for the field name with optional :nested suffix.
- */
-function getLocalizedFieldMode(
-	localizedArray: readonly string[],
-	fieldName: string,
-): LocalizationMode | null {
-	for (const localizedField of localizedArray) {
-		const parsed = parseLocalizedField(localizedField);
-		if (parsed.name === fieldName) {
-			return parsed.mode;
+	if (Array.isArray(value)) {
+		const structureArr: unknown[] = [];
+		const i18nArr: Array<unknown | null> = [];
+		let hasI18n = false;
+
+		for (const item of value) {
+			const split = splitLegacyI18nWrappers(item);
+			structureArr.push(split.structure);
+			i18nArr.push(split.i18nValues);
+			if (split.i18nValues != null) {
+				hasI18n = true;
+			}
 		}
+
+		return {
+			structure: structureArr,
+			i18nValues: hasI18n ? i18nArr : null,
+		};
 	}
-	return null;
+
+	return { structure: value, i18nValues: null };
 }
 
 /**
- * Split input data into localized and non-localized fields.
- * Auto-detects { $i18n: value } wrappers for nested-mode JSONB fields.
+ * Split input data into localized and non-localized fields using field definition schemas.
+ * Uses nested localization schemas from field definitions to know which paths are localized.
  *
- * Handles three types of localized fields:
- * 1. Flat localized (text, varchar, etc.) - entire value goes to i18n table column
- * 2. JSONB whole-mode - entire JSONB object goes to i18n table column
- * 3. JSONB nested-mode - structure stays in main table, extracted $i18n values go to _localized column
- *
- * @param input - Input data object
- * @param localizedFields - Array of field names marked as localized (may include ":nested" suffix)
+ * @param input - Input data object (plain values)
+ * @param localizedFields - Array of field names marked as localized at top level
+ * @param nestedSchemas - Map of field name → nested localization schema
  * @returns Object with localized fields, nonLocalized fields, and nested localized values
+ *
+ * @example
+ * // Field definitions have:
+ * // - title: localized: true (top-level)
+ * // - workingHours.monday.note: localized: true (nested)
+ *
+ * // Client sends plain data:
+ * { title: "Hello", workingHours: { monday: { isOpen: true, note: "Morning only" } } }
+ *
+ * // Function splits into:
+ * // localized: { title: "Hello" }
+ * // nonLocalized: { workingHours: { monday: { isOpen: true, note: { $i18n: true } } } }
+ * // nestedLocalized: { workingHours: { monday: { note: "Morning only" } } }
  */
 export function splitLocalizedFields(
 	input: Record<string, any>,
 	localizedFields: readonly string[],
+	nestedSchemas: Record<string, NestedLocalizationSchema> = {},
 ): {
 	localized: Record<string, any>;
 	nonLocalized: Record<string, any>;
@@ -84,53 +122,39 @@ export function splitLocalizedFields(
 	const nestedLocalized: Record<string, any> = {};
 	let hasNestedLocalized = false;
 
+	// Create set for fast lookup of top-level localized fields
+	const localizedSet = new Set(localizedFields);
+
 	for (const [key, value] of Object.entries(input)) {
-		const mode = getLocalizedFieldMode(localizedFields, key);
+		const isTopLevelLocalized = localizedSet.has(key);
+		const nestedSchema = nestedSchemas[key];
 
-		// Check for { $i18n: value } wrappers in object values (nested-mode detection)
-		if (value != null && typeof value === "object" && !Array.isArray(value)) {
-			const { structure, i18nValues } = autoSplitNestedI18n(value);
-
-			// If we found any $i18n wrappers, this must be nested-mode
+		// Case 1: Field has nested localization schema (object/array/blocks with localized nested fields)
+		if (nestedSchema !== undefined && value != null) {
+			const { structure, i18nValues } = splitByNestedSchema(
+				value,
+				nestedSchema,
+			);
+			nonLocalized[key] = structure;
 			if (i18nValues != null) {
-				// Verify that field is marked as nested-mode (or not localized at all - client might send $i18n anyway)
-				if (mode === "nested" || mode === null) {
-					// Structure (with $i18n: true markers) goes to main table
-					nonLocalized[key] = structure;
-					// Extracted values go to _localized column
-					nestedLocalized[key] = i18nValues;
-					hasNestedLocalized = true;
-					continue;
-				}
-				// If mode is 'whole' but client sent $i18n wrappers, treat as error or fall through
-				// For now, fall through to handle as whole-mode JSONB
+				nestedLocalized[key] = i18nValues;
+				hasNestedLocalized = true;
 			}
-
-			// Object value without $i18n wrappers
-			if (mode === "whole") {
-				// JSONB whole-mode - entire object goes to i18n table column
-				localized[key] = value;
-				continue;
-			}
-
-			if (mode === "nested") {
-				// Nested-mode but no $i18n wrappers - structure goes to main table, nothing to _localized
-				nonLocalized[key] = value;
-				continue;
-			}
-
-			// Not localized - JSONB field goes to main table
-			nonLocalized[key] = value;
 			continue;
 		}
 
-		// Primitive value (string, number, null, etc.)
-		if (mode !== null) {
-			// Localized field (flat or whole-mode if it was JSONB)
+		// Case 2: Top-level localized field (flat or JSONB whole-mode)
+		if (isTopLevelLocalized) {
 			localized[key] = value;
-		} else {
-			// Non-localized field - goes to main table
-			nonLocalized[key] = value;
+			continue;
+		}
+
+		// Case 3: Non-localized field - goes to main table
+		const split = splitLegacyI18nWrappers(value);
+		nonLocalized[key] = split.structure;
+		if (split.i18nValues != null) {
+			nestedLocalized[key] = split.i18nValues;
+			hasNestedLocalized = true;
 		}
 	}
 

@@ -1,152 +1,132 @@
-import { cn } from "@/lib/utils";
-import { CodeWindow } from "./CodeWindow";
+import { Link } from "@tanstack/react-router";
+import {
+	Blocks,
+	Building2,
+	FileText,
+	KeyRound,
+	Languages,
+	ListTodo,
+	Search,
+	Shield,
+} from "lucide-react";
+import { motion } from "motion/react";
 
 const features = [
 	{
-		title: "Collections",
-		subtitle: "Drizzle schema + hooks + access control",
+		icon: Blocks,
+		title: "Block Editor",
 		description:
-			"Define your schema with native Drizzle columns. Add hooks for business logic, access rules for permissions. That's it.",
-		file: "src/collections/posts.ts",
-		code: `const posts = q.collection('posts')
-  .fields({
-    title: varchar('title', { length: 255 }).notNull(),
-    status: varchar('status', { length: 20 }).default('draft'),
-    authorId: varchar('author_id', { length: 255 }).notNull(),
-  })
-  .access({
-    read: true,
-    create: ({ user }) => !!user,
-    update: ({ user, doc }) => user?.id === doc.authorId
-  })
-  .hooks({
-    beforeChange: async ({ data, operation }) => {
-      if (operation === 'create' && !data.slug) {
-        data.slug = slugify(data.title)
-      }
-    }
-  })`,
+			"Visual page builder with drag-and-drop blocks. Define block types server-side, render them however you want.",
+		link: "admin/blocks-system",
 	},
 	{
-		title: "Relations",
-		subtitle: "Drizzle relations, type-safe queries",
+		icon: Search,
+		title: "Search & Semantic",
 		description:
-			"One-to-many, many-to-many—define them once, query with full type inference. Nested relations just work.",
-		file: "src/collections/comments.ts",
-		code: `const comments = q.collection('comments')
-  .fields({ postId: varchar('post_id').notNull() })
-  .relations(({ one, table }) => ({
-    post: one('posts', {
-      fields: [table.postId],
-      references: ['id']
-    })
-  }))
-
-// Query with relations
-const { docs } = await app.api.collections.posts.find({
-  with: { comments: { with: { author: true } } }
-})`,
+			"Full-text search via PostgreSQL FTS, semantic search via pgVector embeddings, faceted filtering — all built-in.",
+		link: "infrastructure/search",
 	},
 	{
-		title: "Background Jobs",
-		subtitle: "pg-boss queues, no Redis needed",
+		icon: FileText,
+		title: "OpenAPI & Scalar",
 		description:
-			"Define jobs with Zod schemas. Publish with type checking. Retries, scheduling, priorities—all built on Postgres.",
-		file: "src/jobs/send-email.ts",
-		code: `const sendEmail = q.job({
-  name: 'send-email',
-  schema: z.object({
-    to: z.string().email(),
-    template: z.string()
-  }),
-  handler: async (payload) => {
-    await mailer.send(payload)
-  }
-})
-
-// Type-safe publish
-await app.queue.sendEmail.publish({
-  to: 'user@example.com',
-  template: 'welcome'
-})`,
+			"Auto-generated OpenAPI spec from your collections, globals, and RPC. Ships with Scalar UI for interactive docs.",
+		link: "client/openapi",
 	},
 	{
-		title: "Type-Safe Client",
-		subtitle: "No codegen, types flow from schema",
+		icon: Languages,
+		title: "i18n / Localization",
 		description:
-			"Create a client, pass your app type. Collections, functions, globals—all typed. Works in React, Vue, Svelte, anywhere.",
-		file: "src/lib/api-client.ts",
-		code: `import { createClient } from 'questpie/client'
-import type { app } from './server'
-
-const client = createClient<typeof app>({
-  baseURL: 'http://localhost:3000'
-})
-
-// Fully typed
-const { docs } = await client.collections.posts.find({
-  where: { status: 'published' },
-  with: { author: true }
-})
-
-console.log(docs[0].title)       // string
-console.log(docs[0].author.name) // string`,
+			"Multi-locale content at the field level. Localized fields, locale switching in the admin, and typed locale keys.",
+		link: "server/localization",
+	},
+	{
+		icon: ListTodo,
+		title: "Jobs & Queues",
+		description:
+			"Background jobs powered by pg-boss. Cron scheduling, workflows, retries, priority queues — no external worker needed.",
+		link: "infrastructure/queue-and-jobs",
+	},
+	{
+		icon: Shield,
+		title: "Access Control",
+		description:
+			"Field-level and collection-level access rules. Context-aware evaluation with full access to the current user and session.",
+		link: "server/access-control",
+	},
+	{
+		icon: Building2,
+		title: "Multitenancy & Scopes",
+		description:
+			"Built-in scope system with ScopeProvider, header-based tenant isolation, row-level access filtering, and admin scope picker.",
+		link: "server/access-control",
+	},
+	{
+		icon: KeyRound,
+		title: "Auth (Better Auth)",
+		description:
+			"Email/password, OAuth, 2FA, sessions, API keys — all integrated via Better Auth. No external auth service required.",
+		link: "infrastructure/authentication",
 	},
 ];
 
 export function Features() {
 	return (
-		<section
-			id="features"
-			className="py-24 relative overflow-hidden border-t border-border/30"
-		>
-			{/* Subtle background glow */}
-			<div className="absolute top-1/2 left-1/4 w-[400px] h-[400px] bg-primary/3 rounded-full blur-[150px] -translate-y-1/2" />
-
-			<div className="w-full max-w-7xl mx-auto px-4 space-y-20 relative z-10">
-				<div className="text-center max-w-2xl mx-auto space-y-4">
-					<h2 className="font-mono text-sm tracking-[0.2em] uppercase text-primary">
-						Backend
+		<section id="features" className="border-t border-border/40 py-20">
+			<div className="mx-auto w-full max-w-7xl px-4">
+				<motion.div
+					className="mx-auto mb-12 max-w-2xl space-y-3 text-center"
+					initial={{ opacity: 0, y: 20 }}
+					whileInView={{ opacity: 1, y: 0 }}
+					viewport={{ once: true, margin: "-80px" }}
+					transition={{ duration: 0.6 }}
+				>
+					<h2 className="font-mono text-sm uppercase tracking-[0.2em] text-primary">
+						Batteries Included
 					</h2>
-					<h3 className="text-3xl md:text-4xl font-bold">
-						How It Works
+					<h3 className="text-3xl font-bold tracking-[-0.02em] text-balance md:text-4xl">
+						Everything ships in the box
 					</h3>
-					<p className="text-muted-foreground">
-						Collections, relations, jobs—all wired together with TypeScript.
-						Each piece uses a library you can learn independently.
+					<p className="text-muted-foreground text-balance">
+						Search, i18n, jobs, auth, versioning, block editor — all server-defined, all optional, all type-safe.
 					</p>
+				</motion.div>
+
+				<div className="mx-auto max-w-6xl grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+					{features.map((feature, i) => (
+						<motion.div
+							key={feature.title}
+							className="group border border-border bg-card/20 backdrop-blur-sm p-4 transition-colors hover:border-primary/30"
+							initial={{ opacity: 0, y: 16 }}
+							whileInView={{ opacity: 1, y: 0 }}
+							viewport={{ once: true }}
+							transition={{
+								duration: 0.4,
+								delay: i * 0.06,
+							}}
+						>
+							<div className="mb-3 flex h-9 w-9 items-center justify-center border border-primary/20 bg-primary/10 text-primary transition-colors group-hover:bg-primary/20">
+								<feature.icon className="h-4 w-4" />
+							</div>
+							<h4 className="text-sm font-semibold mb-1">
+								{feature.title}
+							</h4>
+							<p className="text-xs text-muted-foreground leading-relaxed">
+								{feature.description}
+							</p>
+						</motion.div>
+					))}
 				</div>
 
-				{features.map((feature, i) => (
-					<div
-						key={feature.title}
-						className={cn(
-							"grid md:grid-cols-2 gap-12 items-center",
-							i % 2 === 1 && "md:grid-flow-col-dense",
-						)}
+				<div className="mt-8 text-center">
+					<Link
+						to="/docs/$"
+						params={{ _splat: "infrastructure" }}
+						className="inline-flex items-center gap-2 font-mono text-xs text-primary transition-colors hover:text-primary/80"
 					>
-						<div
-							className={cn(
-								"space-y-4 min-w-0",
-								i % 2 === 1 && "md:col-start-2",
-							)}
-						>
-							<div>
-								<h4 className="text-xl font-bold mb-1">{feature.title}</h4>
-								<p className="font-mono text-xs text-primary uppercase tracking-wider mb-3">
-									{feature.subtitle}
-								</p>
-								<p className="text-muted-foreground leading-relaxed">
-									{feature.description}
-								</p>
-							</div>
-						</div>
-
-						<div className={cn(i % 2 === 1 && "md:col-start-1", "min-w-0")}>
-							<CodeWindow title={feature.file}>{feature.code}</CodeWindow>
-						</div>
-					</div>
-				))}
+						Explore all infrastructure →
+					</Link>
+				</div>
 			</div>
 		</section>
 	);

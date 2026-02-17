@@ -14,45 +14,38 @@ import type {
 	BooleanFieldConfig,
 	DateFieldConfig,
 	DateTimeFieldConfig,
-	EmbeddedFieldConfig,
 	JsonFieldConfig,
 	NumberFieldConfig,
 	ObjectFieldConfig,
 	RelationFieldConfig,
-	ReverseRelationFieldConfig,
 	RichTextFieldConfig,
 	SelectFieldConfig,
 	TextareaFieldConfig,
 	TextFieldConfig,
 	TimeFieldConfig,
 	UploadFieldConfig,
-	UploadManyFieldConfig,
 } from "../../components/fields/field-types.js";
 import {
 	ArrayField,
 	AssetPreviewField,
 	BlocksField,
-	CheckboxField,
+	BooleanField,
 	DateField,
 	DatetimeField,
 	EmailField,
-	EmbeddedCollectionField,
 	JsonField,
 	NumberField,
 	ObjectField,
-	PasswordField,
 	RelationField,
-	ReverseRelationField,
 	RichTextField,
 	SelectField,
-	SwitchField,
 	TextareaField,
 	TextField,
 	TimeField,
 	UploadField,
-	UploadManyField,
 } from "../../components/fields/index.js";
 import {
+	ArrayCell,
 	AssetThumbnail,
 	BlocksCell,
 	BooleanCell,
@@ -63,13 +56,11 @@ import {
 	NumberCell,
 	ObjectCell,
 	RelationCell,
-	ReverseRelationCell,
 	RichTextCell,
 	SelectCell,
 	TextCell,
 	TimeCell,
 	UploadCell,
-	UploadManyCell,
 } from "../../views/collection/cells/index.js";
 import {
 	type FieldDefinition,
@@ -137,11 +128,25 @@ export const textField = field("text", {
 	config: {} as TextFieldConfig,
 	createZod: (opts) => {
 		let schema = z.string();
+		if (opts.minLength) {
+			schema = schema.min(
+				opts.minLength,
+				`Must be at least ${opts.minLength} characters`,
+			);
+		}
 		if (opts.maxLength) {
 			schema = schema.max(
 				opts.maxLength,
 				`Must be at most ${opts.maxLength} characters`,
 			);
+		}
+		if (opts.pattern) {
+			// Support pattern from server metadata validation
+			const regex =
+				typeof opts.pattern === "string"
+					? new RegExp(opts.pattern)
+					: opts.pattern;
+			schema = schema.regex(regex, "Invalid format");
 		}
 		return wrapOptional(schema, opts.required);
 	},
@@ -179,28 +184,18 @@ export const emailField = field("email", {
 	},
 });
 
-export const passwordField = field("password", {
-	component: PasswordField,
-	cell: TextCell,
-	config: {} as TextFieldConfig,
-	createZod: (opts) => {
-		let schema = z.string();
-		if (opts.maxLength) {
-			schema = schema.max(
-				opts.maxLength,
-				`Must be at most ${opts.maxLength} characters`,
-			);
-		}
-		return wrapOptional(schema, opts.required);
-	},
-});
-
 export const textareaField = field("textarea", {
 	component: TextareaField,
 	cell: TextCell,
 	config: {} as TextareaFieldConfig,
 	createZod: (opts) => {
 		let schema = z.string();
+		if (opts.minLength) {
+			schema = schema.min(
+				opts.minLength,
+				`Must be at least ${opts.minLength} characters`,
+			);
+		}
 		if (opts.maxLength) {
 			schema = schema.max(
 				opts.maxLength,
@@ -212,21 +207,15 @@ export const textareaField = field("textarea", {
 });
 
 // ============================================================================
-// Boolean Fields
+// Boolean Field
 // ============================================================================
 
-export const checkboxField = field("checkbox", {
-	component: CheckboxField,
-	cell: BooleanCell,
-	config: {} as BooleanFieldConfig,
-	createZod: (opts) => {
-		const schema = z.boolean();
-		return wrapOptional(schema, opts.required);
-	},
-});
-
-export const switchField = field("switch", {
-	component: SwitchField,
+/**
+ * Boolean field - renders as checkbox (default) or switch based on displayAs option.
+ * Maps to server field type "boolean".
+ */
+export const booleanField = field("boolean", {
+	component: BooleanField,
 	cell: BooleanCell,
 	config: {} as BooleanFieldConfig,
 	createZod: (opts) => {
@@ -332,16 +321,6 @@ export const relationField = field("relation", {
 	},
 });
 
-export const reverseRelationField = field("reverseRelation", {
-	component: ReverseRelationField,
-	cell: ReverseRelationCell,
-	config: {} as ReverseRelationFieldConfig,
-	createZod: (_opts) => {
-		// Reverse relations are read-only, no validation needed
-		return z.any().optional();
-	},
-});
-
 // ============================================================================
 // Complex Fields
 // ============================================================================
@@ -377,7 +356,7 @@ export const objectField = field("object", {
 
 export const arrayField = field("array", {
 	component: ArrayField,
-	cell: JsonCell,
+	cell: ArrayCell,
 	config: {} as ArrayFieldConfig,
 	createZod: (opts, ctx) => {
 		let itemSchema: z.ZodTypeAny;
@@ -448,24 +427,19 @@ export const uploadField = field("upload", {
 	cell: UploadCell,
 	config: {} as UploadFieldConfig,
 	createZod: (opts) => {
-		// Upload stores asset ID as string
-		const schema = z.string();
-		return wrapOptional(schema, opts.required);
-	},
-});
-
-export const uploadManyField = field("uploadMany", {
-	component: UploadManyField,
-	cell: UploadManyCell,
-	config: {} as UploadManyFieldConfig,
-	createZod: (opts) => {
-		let schema = z.array(z.string());
-		if (opts.maxItems) {
-			schema = schema.max(
-				opts.maxItems,
-				`Maximum ${opts.maxItems} files allowed`,
-			);
+		// Multiple upload stores array of asset IDs
+		if (opts.multiple) {
+			let schema = z.array(z.string());
+			if (opts.maxItems) {
+				schema = schema.max(
+					opts.maxItems,
+					`Maximum ${opts.maxItems} files allowed`,
+				);
+			}
+			return wrapOptional(schema, opts.required);
 		}
+		// Single upload stores asset ID as string
+		const schema = z.string();
 		return wrapOptional(schema, opts.required);
 	},
 });
@@ -491,52 +465,8 @@ export const richTextField = field("richText", {
 	cell: RichTextCell,
 	config: {} as RichTextFieldConfig,
 	createZod: (opts) => {
-		// Rich text can be JSON (TipTap), HTML, or Markdown
-		let schema: z.ZodTypeAny;
-
-		switch (opts.outputFormat) {
-			case "html":
-			case "markdown":
-				schema = z.string();
-				if (opts.maxCharacters) {
-					schema = (schema as z.ZodString).max(
-						opts.maxCharacters,
-						`Maximum ${opts.maxCharacters} characters`,
-					);
-				}
-				break;
-			default:
-				// TipTap JSON format
-				schema = z.any();
-		}
-
-		return wrapOptional(schema, opts.required);
-	},
-});
-
-export const embeddedField = field("embedded", {
-	component: EmbeddedCollectionField,
-	cell: JsonCell,
-	config: {} as EmbeddedFieldConfig,
-	createZod: (opts) => {
-		// Embedded collections are arrays of objects
-		// The actual schema depends on the embedded collection's fields
-		// For now, we validate as array with min/max constraints
-		let schema = z.array(z.any());
-
-		if (opts.minItems !== undefined) {
-			schema = schema.min(
-				opts.minItems,
-				`Minimum ${opts.minItems} items required`,
-			);
-		}
-		if (opts.maxItems !== undefined) {
-			schema = schema.max(
-				opts.maxItems,
-				`Maximum ${opts.maxItems} items allowed`,
-			);
-		}
-
+		// Always TipTap JSON format
+		const schema: z.ZodTypeAny = z.any();
 		return wrapOptional(schema, opts.required);
 	},
 });
@@ -609,29 +539,66 @@ function countBlocks(tree: Array<{ children: Array<any> }>): number {
 // ============================================================================
 
 /**
- * All built-in fields
+ * Built-in admin fields registry.
+ *
+ * Maps 1:1 with questpie server default fields, plus admin-specific fields:
+ * - richText: TipTap-based WYSIWYG editor
+ * - blocks: Visual block editor
+ * - assetPreview: Read-only asset thumbnail
+ *
+ * @example
+ * ```ts
+ * const admin = defineAdmin()
+ *   .fields(builtInFields)
+ *   // ... rest of config
+ * ```
  */
 export const builtInFields = {
+	// ─────────────────────────────────────────────────────────────────────────
+	// 1:1 with questpie server fields (15 fields)
+	// ─────────────────────────────────────────────────────────────────────────
+
+	// Text-based
 	text: textField,
-	number: numberField,
-	email: emailField,
-	password: passwordField,
 	textarea: textareaField,
-	checkbox: checkboxField,
-	switch: switchField,
+	email: emailField,
+	url: textField, // Uses text component, server has separate url field for validation
+
+	// Numeric
+	number: numberField,
+
+	// Boolean - uses displayAs option for checkbox/switch variant
+	boolean: booleanField,
+
+	// Selection
 	select: selectField,
+
+	// Date/Time
 	date: dateField,
 	datetime: datetimeField,
 	time: timeField,
+
+	// Relations
 	relation: relationField,
-	reverseRelation: reverseRelationField,
-	json: jsonField,
+
+	// Complex types
 	object: objectField,
 	array: arrayField,
+	json: jsonField,
+
+	// Upload - use `through` config for multiple uploads (manyToMany)
 	upload: uploadField,
-	uploadMany: uploadManyField,
-	assetPreview: assetPreviewField,
+
+	// ─────────────────────────────────────────────────────────────────────────
+	// Admin-specific fields (not in questpie server)
+	// ─────────────────────────────────────────────────────────────────────────
+
+	/** TipTap-based WYSIWYG rich text editor */
 	richText: richTextField,
-	embedded: embeddedField,
+
+	/** Visual block editor for structured content */
 	blocks: blocksField,
+
+	/** Read-only asset thumbnail preview */
+	assetPreview: assetPreviewField,
 } as const;

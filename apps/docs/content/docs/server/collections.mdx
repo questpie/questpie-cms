@@ -1,0 +1,366 @@
+---
+title: Collections
+description: Define database-backed entities with the CollectionBuilder API
+---
+
+# Collections
+
+Collections are the core building block of QUESTPIE. Each collection definition produces a PostgreSQL table, typed CRUD API endpoints, and admin UI views — all from a single fluent builder chain.
+
+## Why Collections Exist
+
+A CMS needs structured data. Instead of manually creating database tables, writing API routes, building admin forms, and keeping them in sync, you define a collection once and everything derives from it. The collection definition is your single source of truth.
+
+## Mental Model
+
+```text
+CollectionBuilder chain:
+  .collection("name")
+  .fields(...)         → DB columns + validation + operators + metadata
+  .title(...)          → display title for admin UI
+  .admin(...)          → collection metadata (label, icon, group)
+  .list(...)           → table view blueprint
+  .form(...)           → form view blueprint
+  .hooks(...)          → lifecycle callbacks
+  .access(...)         → security rules
+  .indexes(...)        → DB constraints
+  .options(...)        → timestamps, softDelete, versioning
+  .searchable(...)     → full-text search
+  .validation(...)     → custom Zod refinements
+  .functions(...)      → collection-scoped RPC
+  .upload(...)         → file upload behavior
+  .preview(...)        → live preview config
+```
+
+## Basic Example
+
+From the Barbershop example — a services collection:
+
+```ts
+import { qb } from "../builder";
+
+export const services = qb
+  .collection("services")
+  .fields((f) => ({
+    name: f.text({
+      label: { en: "Name", sk: "Názov" },
+      required: true,
+      maxLength: 255,
+      localized: true,
+    }),
+    description: f.textarea({
+      label: { en: "Description", sk: "Popis" },
+      localized: true,
+    }),
+    image: f.upload({
+      to: "assets",
+      label: { en: "Image", sk: "Obrázok" },
+    }),
+    duration: f.number({
+      required: true,
+      label: { en: "Duration (minutes)", sk: "Trvanie (minúty)" },
+    }),
+    price: f.number({
+      required: true,
+      label: { en: "Price (cents)", sk: "Cena (centy)" },
+    }),
+    isActive: f.boolean({
+      label: { en: "Active", sk: "Aktívna" },
+      default: true,
+      required: true,
+    }),
+  }))
+  .title(({ f }) => f.name)
+  .admin(({ c }) => ({
+    label: { en: "Services", sk: "Služby" },
+    icon: c.icon("ph:scissors"),
+  }))
+  .list(({ v }) => v.table({}))
+  .form(({ v, f }) =>
+    v.form({
+      sidebar: { position: "right", fields: [f.isActive, f.image] },
+      fields: [
+        {
+          type: "section",
+          label: { en: "Service Info" },
+          layout: "grid",
+          columns: 2,
+          fields: [f.name, f.duration, f.price],
+        },
+        {
+          type: "section",
+          label: { en: "Description" },
+          fields: [f.description],
+        },
+      ],
+    }),
+  );
+```
+
+This produces:
+- A `services` table with `id`, `name`, `description`, `image`, `duration`, `price`, `isActive`, `createdAt`, `updatedAt`
+- An i18n table for `name` and `description` (because `localized: true`)
+- Full CRUD API at `/collections/services`
+- Admin table view and form view
+
+## Builder Methods
+
+### `.fields((f) => ({ ... }))`
+
+Defines the collection's data schema. The `f` proxy provides typed field constructors. See [Field Builder](/docs/server/field-builder) and [Field Types](/docs/server/field-types).
+
+```ts
+.fields((f) => ({
+  title: f.text({ required: true }),
+  rating: f.number({ min: 1, max: 5 }),
+  status: f.select({ options: [...], default: "draft" }),
+}))
+```
+
+### `.title(({ f }) => f.fieldName)`
+
+Sets which field is used as the display title in the admin panel (list views, relation pickers, breadcrumbs):
+
+```ts
+.title(({ f }) => f.name)
+```
+
+### `.admin(({ c }) => ({ ... }))`
+
+Collection metadata for the admin panel:
+
+```ts
+.admin(({ c }) => ({
+  label: { en: "Barbers", sk: "Holiči" },
+  description: { en: "Manage your barber team" },
+  icon: c.icon("ph:users"),
+  group: "team",
+  order: 1,
+}))
+```
+
+The `c` helper provides `c.icon(name)` for creating serializable icon references.
+
+### `.list(({ v, f }) => ...)`
+
+Configures the admin table view:
+
+```ts
+.list(({ v, f }) =>
+  v.table({
+    columns: [f.name, f.email, f.isActive],
+    defaultSort: { field: "name", order: "asc" },
+    searchable: true,
+  }),
+)
+```
+
+Pass `v.table({})` with no columns to auto-generate from all fields.
+
+### `.form(({ v, f }) => ...)`
+
+Configures the admin edit/create form:
+
+```ts
+.form(({ v, f }) =>
+  v.form({
+    fields: [
+      f.name,
+      f.email,
+      {
+        type: "section",
+        label: { en: "Details" },
+        layout: "grid",
+        columns: 2,
+        fields: [f.phone, f.bio],
+      },
+    ],
+    sidebar: {
+      position: "right",
+      fields: [f.isActive, f.avatar],
+    },
+  }),
+)
+```
+
+Form layouts support:
+- **Flat fields** — field references in order
+- **Sections** — groups with optional label, `layout` (`"stack"` | `"grid"` | `"inline"`), `columns`, and `wrapper` (`"flat"` | `"collapsible"` | `"card"`)
+- **Tabs** — tabbed field groups with `{ type: "tabs", tabs: [{ label, fields }] }`
+- **Sidebar** — fields shown in a side panel
+
+### `.hooks({ ... })`
+
+Lifecycle callbacks that run during CRUD operations:
+
+```ts
+.hooks({
+  beforeValidate: async ({ data, operation }) => {
+    if (data.name && !data.slug) data.slug = slugify(data.name);
+  },
+  beforeChange: async ({ data, original, operation, app }) => {
+    // Runs before create/update DB write
+  },
+  afterChange: async ({ data, original, operation, app }) => {
+    // Runs after create/update DB write
+    if (operation === "create") {
+      await app.queue.sendWelcomeEmail.publish({ id: data.id });
+    }
+  },
+  beforeDelete: async ({ data, app }) => { /* ... */ },
+  afterDelete: async ({ data, app }) => { /* ... */ },
+})
+```
+
+See [Hooks & Lifecycle](/docs/server/hooks-and-lifecycle) for the full lifecycle.
+
+### `.access({ ... })`
+
+Operation-level access control:
+
+```ts
+.access({
+  read: true,
+  create: ({ session }) => !!session,
+  update: ({ session }) => ({
+    author: { eq: session?.user.id },
+  }),
+  delete: ({ session }) => session?.user.role === "admin",
+})
+```
+
+See [Access Control](/docs/server/access-control) for details.
+
+### `.indexes(({ table }) => [...])`
+
+Database indexes and constraints using Drizzle:
+
+```ts
+import { uniqueIndex, index } from "drizzle-orm/pg-core";
+
+.indexes(({ table }) => [
+  uniqueIndex("barbers_slug_unique").on(table.slug),
+  index("barbers_active_idx").on(table.isActive),
+])
+```
+
+### `.options({ ... })`
+
+Collection behavior options:
+
+```ts
+.options({
+  timestamps: true,    // createdAt/updatedAt (default: true)
+  softDelete: true,    // deletedAt instead of hard delete
+  versioning: true,    // track record history
+})
+```
+
+### `.searchable({ ... })`
+
+Full-text search configuration:
+
+```ts
+.searchable({
+  content: (record) => `${record.name} ${record.description}`,
+  metadata: (record) => ({ category: record.category }),
+  facets: { category: true },
+})
+```
+
+### `.validation({ ... })`
+
+Custom validation beyond field-level rules:
+
+```ts
+.validation({
+  refine: (schema) =>
+    schema.refine(
+      (data) => data.startDate < data.endDate,
+      { message: "Start date must be before end date" },
+    ),
+})
+```
+
+### `.functions({ ... })`
+
+Collection-scoped RPC functions:
+
+```ts
+.functions({
+  publish: {
+    input: z.object({ id: z.string() }),
+    handler: async ({ input, app }) => {
+      return app.api.collections.posts.update(input.id, {
+        status: "published",
+      });
+    },
+  },
+})
+```
+
+### `.upload({ ... })`
+
+Configures a collection as a file upload target. Automatically adds `key`, `filename`, `mimeType`, `size`, `visibility` fields and a `url` output field:
+
+```ts
+.upload({
+  mimeTypes: ["image/*", "application/pdf"],
+  maxSize: 10_000_000,
+})
+```
+
+### `.preview({ ... })`
+
+Enables live preview in the admin form:
+
+```ts
+.preview({
+  enabled: true,
+  position: "right",
+  defaultWidth: 50,
+  url: ({ record }) => `/barbers/${record.slug}?preview=true`,
+})
+```
+
+### `.merge(otherBuilder)`
+
+Combines two collection builders:
+
+```ts
+const withSeo = qb.collection("temp").fields((f) => ({
+  metaTitle: f.text({ maxLength: 255 }),
+  metaDescription: f.textarea({}),
+}));
+
+const pages = qb
+  .collection("pages")
+  .fields((f) => ({ title: f.text({ required: true }) }))
+  .merge(withSeo);
+```
+
+## What the Builder Produces
+
+When you call `.build()` on the top-level `q` builder, each collection generates:
+
+1. **Drizzle table schema** — PostgreSQL table with typed columns
+2. **I18n table** — separate table for localized fields (if any)
+3. **CRUD generator** — `find`, `findOne`, `count`, `create`, `update`, `delete`
+4. **Introspection schema** — JSON metadata for the admin panel
+5. **Validation schemas** — Zod schemas for insert and update
+6. **Query operators** — typed WHERE clause operators per field
+
+## Common Mistakes
+
+- **Forgetting `required: true`** — Without it, the field is nullable in the database. If you want a non-null column, always add `required: true`.
+- **Using `input: false` instead of `input: "optional"`** — `input: false` means the field can never be set via the API. `input: "optional"` means it can be set but isn't required.
+- **Not exporting the collection** — The collection must be passed to `.collections({})` in your CMS builder. If it's not registered, it won't exist at runtime.
+
+## Related Pages
+
+- [Field Builder](/docs/server/field-builder) — How `.fields()` works
+- [Field Types](/docs/server/field-types) — All built-in field types
+- [Relations](/docs/server/relations) — Relation field configuration
+- [Hooks & Lifecycle](/docs/server/hooks-and-lifecycle) — Hook execution order
+- [Access Control](/docs/server/access-control) — Security rules
+- [Globals](/docs/server/globals) — Singleton records

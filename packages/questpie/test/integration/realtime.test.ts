@@ -1,10 +1,8 @@
 // @ts-nocheck // TODO: Temporary until test utils are fully typed
 import { afterEach, describe, expect, it } from "bun:test";
-import { boolean, integer, text } from "drizzle-orm/pg-core";
+import { defaultFields } from "../../src/server/fields/builtin/defaults.js";
 import {
-	collection,
 	createAdapterRoutes,
-	global,
 	questpie,
 	questpieRealtimeLogTable,
 	type RealtimeAdapter,
@@ -46,10 +44,75 @@ class MockRealtimeAdapter implements RealtimeAdapter {
 	}
 }
 
+class LifecycleTrackingRealtimeAdapter extends MockRealtimeAdapter {
+	public startCalls = 0;
+	public stopCalls = 0;
+
+	async start(): Promise<void> {
+		this.startCalls += 1;
+	}
+
+	async stop(): Promise<void> {
+		this.stopCalls += 1;
+	}
+}
+
 type SSEEvent = {
 	event: string;
 	data: any;
 };
+
+type TopicInput = {
+	id: string;
+	resourceType: "collection" | "global";
+	resource: string;
+	where?: Record<string, unknown>;
+	with?: Record<string, unknown>;
+	limit?: number;
+	offset?: number;
+	orderBy?: Record<string, "asc" | "desc">;
+};
+
+/**
+ * Create a POST request for the unified realtime endpoint
+ */
+const createRealtimeRequest = (
+	topics: TopicInput[],
+	signal?: AbortSignal,
+): Request => {
+	return new Request("http://localhost/cms/realtime", {
+		method: "POST",
+		headers: { "Content-Type": "application/json" },
+		body: JSON.stringify({ topics }),
+		signal,
+	});
+};
+
+/**
+ * Helper to create a collection topic
+ */
+const collectionTopic = (
+	collection: string,
+	options?: Omit<TopicInput, "id" | "resourceType" | "resource">,
+): TopicInput => ({
+	id: `col-${collection}`,
+	resourceType: "collection",
+	resource: collection,
+	...options,
+});
+
+/**
+ * Helper to create a global topic
+ */
+const globalTopic = (
+	globalName: string,
+	options?: Omit<TopicInput, "id" | "resourceType" | "resource">,
+): TopicInput => ({
+	id: `global-${globalName}`,
+	resourceType: "global",
+	resource: globalName,
+	...options,
+});
 
 const createSSEReader = (stream: ReadableStream<Uint8Array>) => {
 	const reader = stream.getReader();
@@ -91,10 +154,17 @@ const createSSEReader = (stream: ReadableStream<Uint8Array>) => {
 		throw new Error("Timed out waiting for SSE event");
 	};
 
-	const readSnapshot = async (timeoutMs = 2000): Promise<SSEEvent> => {
+	const readSnapshot = async (
+		timeoutMs = 2000,
+		topicId?: string,
+	): Promise<SSEEvent> => {
 		while (true) {
 			const event = await readEvent(timeoutMs);
 			if (event.event === "ping") {
+				continue;
+			}
+			// If topicId specified, filter by it
+			if (topicId && event.data?.topicId !== topicId) {
 				continue;
 			}
 			return event;
@@ -125,20 +195,16 @@ describe("realtime", () => {
 	describe("change logging", () => {
 		it("logs realtime changes for create/update/delete", async () => {
 			const adapter = new MockRealtimeAdapter();
-			const posts = collection("posts")
-				.fields({
-					title: text("title").notNull(),
-					slug: text("slug").notNull(),
-				})
-				.localized(["title"])
-				.build();
+			const q = questpie({ name: "realtime-test" }).fields(defaultFields);
+			const posts = q.collection("posts").fields((f) => ({
+				title: f.textarea({ required: true, localized: true }),
+				slug: f.textarea({ required: true }),
+			}));
 
-			const testModule = questpie({ name: "realtime-test" })
-				.collections({ posts })
-				.locale({
-					locales: [{ code: "en" }, { code: "sk" }],
-					defaultLocale: "en",
-				});
+			const testModule = q.collections({ posts }).locale({
+				locales: [{ code: "en" }, { code: "sk" }],
+				defaultLocale: "en",
+			});
 
 			setup = await buildMockApp(testModule, { realtime: { adapter } });
 			await runTestDbMigrations(setup.cms);
@@ -180,14 +246,13 @@ describe("realtime", () => {
 
 		it("logs bulk update/delete operations", async () => {
 			const adapter = new MockRealtimeAdapter();
-			const posts = collection("posts")
-				.fields({
-					title: text("title").notNull(),
-					slug: text("slug").notNull(),
-				})
-				.build();
+			const q = questpie({ name: "realtime-test" }).fields(defaultFields);
+			const posts = q.collection("posts").fields((f) => ({
+				title: f.textarea({ required: true }),
+				slug: f.textarea({ required: true }),
+			}));
 
-			const testModule = questpie({ name: "realtime-test" }).collections({
+			const testModule = q.collections({
 				posts,
 			});
 
@@ -225,14 +290,13 @@ describe("realtime", () => {
 
 		it("includes payload in realtime events", async () => {
 			const adapter = new MockRealtimeAdapter();
-			const posts = collection("posts")
-				.fields({
-					title: text("title").notNull(),
-					status: text("status").notNull(),
-				})
-				.build();
+			const q = questpie({ name: "realtime-test" }).fields(defaultFields);
+			const posts = q.collection("posts").fields((f) => ({
+				title: f.textarea({ required: true }),
+				status: f.textarea({ required: true }),
+			}));
 
-			const testModule = questpie({ name: "realtime-test" }).collections({
+			const testModule = q.collections({
 				posts,
 			});
 
@@ -269,14 +333,13 @@ describe("realtime", () => {
 	describe("WHERE filtering", () => {
 		it("only notifies subscribers with matching WHERE filter", async () => {
 			const adapter = new MockRealtimeAdapter();
-			const messages = collection("messages")
-				.fields({
-					chatId: text("chat_id").notNull(),
-					content: text("content").notNull(),
-				})
-				.build();
+			const q = questpie({ name: "realtime-test" }).fields(defaultFields);
+			const messages = q.collection("messages").fields((f) => ({
+				chatId: f.textarea({ required: true }),
+				content: f.textarea({ required: true }),
+			}));
 
-			const testModule = questpie({ name: "realtime-test" }).collections({
+			const testModule = q.collections({
 				messages,
 			});
 
@@ -338,15 +401,14 @@ describe("realtime", () => {
 
 		it("handles complex WHERE filters with multiple fields", async () => {
 			const adapter = new MockRealtimeAdapter();
-			const posts = collection("posts")
-				.fields({
-					status: text("status").notNull(),
-					authorId: text("author_id").notNull(),
-					title: text("title").notNull(),
-				})
-				.build();
+			const q = questpie({ name: "realtime-test" }).fields(defaultFields);
+			const posts = q.collection("posts").fields((f) => ({
+				status: f.textarea({ required: true }),
+				authorId: f.textarea({ required: true }),
+				title: f.textarea({ required: true }),
+			}));
 
-			const testModule = questpie({ name: "realtime-test" }).collections({
+			const testModule = q.collections({
 				posts,
 			});
 
@@ -398,16 +460,94 @@ describe("realtime", () => {
 			unsub?.();
 		});
 
+		it("refreshes create events for complex OR filters", async () => {
+			const adapter = new MockRealtimeAdapter();
+			const q = questpie({ name: "realtime-test" }).fields(defaultFields);
+			const posts = q.collection("posts").fields((f) => ({
+				title: f.textarea({ required: true }),
+				status: f.textarea({ required: true }),
+				authorId: f.textarea({ required: true }),
+			}));
+
+			const testModule = q.collections({ posts });
+
+			setup = await buildMockApp(testModule, { realtime: { adapter } });
+			await runTestDbMigrations(setup.cms);
+
+			const ctx = createTestContext();
+			const events: any[] = [];
+
+			const unsub = setup.cms.realtime?.subscribe(
+				(event) => events.push(event),
+				{
+					resourceType: "collection",
+					resource: "posts",
+					where: {
+						OR: [{ status: "published" }, { authorId: "author-1" }],
+					},
+				},
+			);
+
+			await setup.cms.api.collections.posts.create(
+				{ title: "Matches OR", status: "draft", authorId: "author-1" },
+				ctx,
+			);
+			await new Promise((resolve) => setTimeout(resolve, 100));
+
+			expect(events.length).toBe(1);
+			expect(events[0].operation).toBe("create");
+
+			unsub?.();
+		});
+
+		it("conservatively refreshes create for complex filters", async () => {
+			const adapter = new MockRealtimeAdapter();
+			const q = questpie({ name: "realtime-test" }).fields(defaultFields);
+			const posts = q.collection("posts").fields((f) => ({
+				title: f.textarea({ required: true }),
+				status: f.textarea({ required: true }),
+			}));
+
+			const testModule = q.collections({ posts });
+
+			setup = await buildMockApp(testModule, { realtime: { adapter } });
+			await runTestDbMigrations(setup.cms);
+
+			const ctx = createTestContext();
+			const events: any[] = [];
+
+			const unsub = setup.cms.realtime?.subscribe(
+				(event) => events.push(event),
+				{
+					resourceType: "collection",
+					resource: "posts",
+					where: {
+						OR: [{ status: "published" }, { status: "scheduled" }],
+					},
+				},
+			);
+
+			await setup.cms.api.collections.posts.create(
+				{ title: "Draft", status: "draft" },
+				ctx,
+			);
+			await new Promise((resolve) => setTimeout(resolve, 100));
+
+			expect(events.length).toBe(1);
+			expect(events[0].operation).toBe("create");
+
+			unsub?.();
+		});
+
 		it("filters by boolean fields", async () => {
 			const adapter = new MockRealtimeAdapter();
-			const tasks = collection("tasks")
-				.fields({
-					title: text("title").notNull(),
-					completed: boolean("completed").notNull().default(false),
-				})
-				.build();
+			const q = questpie({ name: "realtime-test" }).fields(defaultFields);
+			const tasks = q.collection("tasks").fields((f) => ({
+				title: f.textarea({ required: true }),
+				completed: f.boolean({ required: true, default: false }),
+			}));
 
-			const testModule = questpie({ name: "realtime-test" }).collections({
+			const testModule = q.collections({
 				tasks,
 			});
 
@@ -447,14 +587,13 @@ describe("realtime", () => {
 
 		it("filters by numeric fields", async () => {
 			const adapter = new MockRealtimeAdapter();
-			const products = collection("products")
-				.fields({
-					name: text("name").notNull(),
-					categoryId: integer("category_id").notNull(),
-				})
-				.build();
+			const q = questpie({ name: "realtime-test" }).fields(defaultFields);
+			const products = q.collection("products").fields((f) => ({
+				name: f.textarea({ required: true }),
+				categoryId: f.number({ required: true }),
+			}));
 
-			const testModule = questpie({ name: "realtime-test" }).collections({
+			const testModule = q.collections({
 				products,
 			});
 
@@ -492,14 +631,15 @@ describe("realtime", () => {
 
 		it("supports wildcard collection subscriptions", async () => {
 			const adapter = new MockRealtimeAdapter();
-			const posts = collection("posts")
-				.fields({ title: text("title").notNull() })
-				.build();
-			const comments = collection("comments")
-				.fields({ content: text("content").notNull() })
-				.build();
+			const q = questpie({ name: "realtime-test" }).fields(defaultFields);
+			const posts = q
+				.collection("posts")
+				.fields((f) => ({ title: f.textarea({ required: true }) }));
+			const comments = q
+				.collection("comments")
+				.fields((f) => ({ content: f.textarea({ required: true }) }));
 
-			const testModule = questpie({ name: "realtime-test" }).collections({
+			const testModule = q.collections({
 				posts,
 				comments,
 			});
@@ -530,6 +670,95 @@ describe("realtime", () => {
 
 			unsub?.();
 		});
+
+		it("re-sends snapshot when record leaves filter on update", async () => {
+			const adapter = new MockRealtimeAdapter();
+			const q = questpie({ name: "realtime-test" }).fields(defaultFields);
+			const posts = q.collection("posts").fields((f) => ({
+				title: f.textarea({ required: true }),
+				status: f.textarea({ required: true }),
+			}));
+
+			const testModule = q.collections({ posts });
+
+			setup = await buildMockApp(testModule, { realtime: { adapter } });
+			await runTestDbMigrations(setup.cms);
+
+			const ctx = createTestContext();
+			const filteredEvents: any[] = [];
+
+			const unsub = setup.cms.realtime?.subscribe(
+				(event) => filteredEvents.push(event),
+				{
+					resourceType: "collection",
+					resource: "posts",
+					where: { status: "published" },
+				},
+			);
+
+			const post = await setup.cms.api.collections.posts.create(
+				{ title: "Published post", status: "published" },
+				ctx,
+			);
+			await new Promise((resolve) => setTimeout(resolve, 100));
+			expect(filteredEvents.length).toBe(1);
+
+			filteredEvents.length = 0;
+
+			await setup.cms.api.collections.posts.updateById(
+				{ id: post.id, data: { status: "draft" } },
+				ctx,
+			);
+			await new Promise((resolve) => setTimeout(resolve, 100));
+
+			expect(filteredEvents.length).toBe(1);
+			expect(filteredEvents[0].operation).toBe("update");
+
+			unsub?.();
+		});
+
+		it("re-sends snapshot for filtered subscriber on delete", async () => {
+			const adapter = new MockRealtimeAdapter();
+			const q = questpie({ name: "realtime-test" }).fields(defaultFields);
+			const posts = q.collection("posts").fields((f) => ({
+				title: f.textarea({ required: true }),
+				status: f.textarea({ required: true }),
+			}));
+
+			const testModule = q.collections({ posts });
+
+			setup = await buildMockApp(testModule, { realtime: { adapter } });
+			await runTestDbMigrations(setup.cms);
+
+			const ctx = createTestContext();
+			const filteredEvents: any[] = [];
+
+			const unsub = setup.cms.realtime?.subscribe(
+				(event) => filteredEvents.push(event),
+				{
+					resourceType: "collection",
+					resource: "posts",
+					where: { status: "published" },
+				},
+			);
+
+			const post = await setup.cms.api.collections.posts.create(
+				{ title: "To delete", status: "published" },
+				ctx,
+			);
+			await new Promise((resolve) => setTimeout(resolve, 100));
+			expect(filteredEvents.length).toBe(1);
+
+			filteredEvents.length = 0;
+
+			await setup.cms.api.collections.posts.deleteById({ id: post.id }, ctx);
+			await new Promise((resolve) => setTimeout(resolve, 100));
+
+			expect(filteredEvents.length).toBe(1);
+			expect(filteredEvents[0].operation).toBe("delete");
+
+			unsub?.();
+		});
 	});
 
 	// ==========================================================================
@@ -539,27 +768,22 @@ describe("realtime", () => {
 	describe("WITH dependency tracking", () => {
 		it("notifies subscribers when related resource changes", async () => {
 			const adapter = new MockRealtimeAdapter();
-			const users = collection("users")
-				.fields({ name: text("name").notNull() })
-				.build();
+			const q = questpie({ name: "realtime-test" }).fields(defaultFields);
+			const users = q
+				.collection("users")
+				.fields((f) => ({ name: f.textarea({ required: true }) }));
 
-			const messages = collection("messages")
-				.fields({
-					chatId: text("chat_id").notNull(),
-					content: text("content").notNull(),
-					userId: text("user_id")
-						.notNull()
-						.references(() => users.table.id),
-				})
-				.relations(({ one }) => ({
-					user: one("users", {
-						fields: ["userId"] as any,
-						references: ["id"] as any,
-					}),
-				}))
-				.build();
+			const messages = q.collection("messages").fields((f) => ({
+				chatId: f.textarea({ required: true }),
+				content: f.textarea({ required: true }),
+				user: f.relation({
+					to: "users",
+					required: true,
+					relationName: "user",
+				}),
+			}));
 
-			const testModule = questpie({ name: "realtime-test" }).collections({
+			const testModule = q.collections({
 				users,
 				messages,
 			});
@@ -569,15 +793,11 @@ describe("realtime", () => {
 
 			const routes = createAdapterRoutes(setup.cms, { accessMode: "user" });
 			const controller = new AbortController();
-			const request = new Request(
-				"http://localhost/cms/realtime/messages?with[user]=true",
-				{ method: "GET", signal: controller.signal },
+			const request = createRealtimeRequest(
+				[collectionTopic("messages", { with: { user: true } })],
+				controller.signal,
 			);
-			const response = await routes.realtime.subscribe(
-				request,
-				{ collection: "messages" },
-				undefined,
-			);
+			const response = await routes.realtime.subscribe(request, {}, undefined);
 			expect(response.ok).toBe(true);
 			const reader = createSSEReader(response.body!);
 			const initial = await reader.readSnapshot();
@@ -589,7 +809,7 @@ describe("realtime", () => {
 				ctx,
 			);
 			await setup.cms.api.collections.messages.create(
-				{ chatId: "chat1", content: "Hello", userId: user.id },
+				{ chatId: "chat1", content: "Hello", user: user.id }, // FK column key is field name with unified API
 				ctx,
 			);
 
@@ -617,41 +837,30 @@ describe("realtime", () => {
 
 		it("handles nested WITH relations (comments -> posts -> users)", async () => {
 			const adapter = new MockRealtimeAdapter();
-			const users = collection("users")
-				.fields({ name: text("name").notNull() })
-				.build();
+			const q = questpie({ name: "realtime-test" }).fields(defaultFields);
+			const users = q
+				.collection("users")
+				.fields((f) => ({ name: f.textarea({ required: true }) }));
 
-			const posts = collection("posts")
-				.fields({
-					title: text("title").notNull(),
-					userId: text("user_id")
-						.notNull()
-						.references(() => users.table.id),
-				})
-				.relations(({ one }) => ({
-					user: one("users", {
-						fields: ["userId"] as any,
-						references: ["id"] as any,
-					}),
-				}))
-				.build();
+			const posts = q.collection("posts").fields((f) => ({
+				title: f.textarea({ required: true }),
+				user: f.relation({
+					to: "users",
+					required: true,
+					relationName: "user",
+				}),
+			}));
 
-			const comments = collection("comments")
-				.fields({
-					content: text("content").notNull(),
-					postId: text("post_id")
-						.notNull()
-						.references(() => posts.table.id),
-				})
-				.relations(({ one }) => ({
-					post: one("posts", {
-						fields: ["postId"] as any,
-						references: ["id"] as any,
-					}),
-				}))
-				.build();
+			const comments = q.collection("comments").fields((f) => ({
+				content: f.textarea({ required: true }),
+				post: f.relation({
+					to: "posts",
+					required: true,
+					relationName: "post",
+				}),
+			}));
 
-			const testModule = questpie({ name: "realtime-test" }).collections({
+			const testModule = q.collections({
 				users,
 				posts,
 				comments,
@@ -666,11 +875,11 @@ describe("realtime", () => {
 				ctx,
 			);
 			const post = await setup.cms.api.collections.posts.create(
-				{ title: "Post 1", userId: user.id },
+				{ title: "Post 1", user: user.id }, // FK column key is field name with unified API
 				ctx,
 			);
 			const comment = await setup.cms.api.collections.comments.create(
-				{ content: "Nice post!", postId: post.id },
+				{ content: "Nice post!", post: post.id }, // FK column key is field name with unified API
 				ctx,
 			);
 
@@ -723,26 +932,21 @@ describe("realtime", () => {
 
 		it("service-level WITH dependency tracking", async () => {
 			const adapter = new MockRealtimeAdapter();
-			const categories = collection("categories")
-				.fields({ name: text("name").notNull() })
-				.build();
+			const q = questpie({ name: "realtime-test" }).fields(defaultFields);
+			const categories = q
+				.collection("categories")
+				.fields((f) => ({ name: f.textarea({ required: true }) }));
 
-			const products = collection("products")
-				.fields({
-					name: text("name").notNull(),
-					categoryId: text("category_id")
-						.notNull()
-						.references(() => categories.table.id),
-				})
-				.relations(({ one }) => ({
-					category: one("categories", {
-						fields: ["categoryId"] as any,
-						references: ["id"] as any,
-					}),
-				}))
-				.build();
+			const products = q.collection("products").fields((f) => ({
+				name: f.textarea({ required: true }),
+				category: f.relation({
+					to: "categories",
+					required: true,
+					relationName: "category",
+				}),
+			}));
 
-			const testModule = questpie({ name: "realtime-test" }).collections({
+			const testModule = q.collections({
 				categories,
 				products,
 			});
@@ -756,7 +960,7 @@ describe("realtime", () => {
 				ctx,
 			);
 			await setup.cms.api.collections.products.create(
-				{ name: "Phone", categoryId: category.id },
+				{ name: "Phone", category: category.id }, // FK column key is field name with unified API
 				ctx,
 			);
 
@@ -795,11 +999,12 @@ describe("realtime", () => {
 	describe("global subscriptions", () => {
 		it("re-sends snapshots when global changes", async () => {
 			const adapter = new MockRealtimeAdapter();
-			const settings = global("settings")
-				.fields({ title: text("title") })
-				.build();
+			const q = questpie({ name: "realtime-test" }).fields(defaultFields);
+			const settings = q
+				.global("settings")
+				.fields((f) => ({ title: f.textarea() }));
 
-			const testModule = questpie({ name: "realtime-test" }).globals({
+			const testModule = q.globals({
 				settings,
 			});
 
@@ -808,15 +1013,11 @@ describe("realtime", () => {
 
 			const routes = createAdapterRoutes(setup.cms, { accessMode: "user" });
 			const controller = new AbortController();
-			const request = new Request(
-				"http://localhost/cms/realtime/globals/settings",
-				{ method: "GET", signal: controller.signal },
+			const request = createRealtimeRequest(
+				[globalTopic("settings")],
+				controller.signal,
 			);
-			const response = await routes.realtime.subscribeGlobal(
-				request,
-				{ global: "settings" },
-				undefined,
-			);
+			const response = await routes.realtime.subscribe(request, {}, undefined);
 
 			expect(response.ok).toBe(true);
 			const reader = createSSEReader(response.body!);
@@ -838,43 +1039,31 @@ describe("realtime", () => {
 
 		it("global subscriptions with WITH referencing collections", async () => {
 			const adapter = new MockRealtimeAdapter();
-			const categories = collection("categories")
-				.fields({ name: text("name").notNull() })
-				.build();
+			const q = questpie({ name: "realtime-test" }).fields(defaultFields);
+			const categories = q
+				.collection("categories")
+				.fields((f) => ({ name: f.textarea({ required: true }) }));
 
-			const settings = global("settings")
-				.fields({
-					siteName: text("site_name"),
-					defaultCategoryId: text("default_category_id").references(
-						() => categories.table.id,
-					),
-				})
-				.relations(({ one }) => ({
-					defaultCategory: one("categories", {
-						fields: ["defaultCategoryId"] as any,
-						references: ["id"] as any,
-					}),
-				}))
-				.build();
+			const settings = q.global("settings").fields((f) => ({
+				siteName: f.textarea(),
+				defaultCategory: f.relation({
+					to: "categories",
+					relationName: "defaultCategory",
+				}),
+			}));
 
-			const testModule = questpie({ name: "realtime-test" })
-				.collections({ categories })
-				.globals({ settings });
+			const testModule = q.collections({ categories }).globals({ settings });
 
 			setup = await buildMockApp(testModule, { realtime: { adapter } });
 			await runTestDbMigrations(setup.cms);
 
 			const routes = createAdapterRoutes(setup.cms, { accessMode: "user" });
 			const controller = new AbortController();
-			const request = new Request(
-				"http://localhost/cms/realtime/globals/settings?with[defaultCategory]=true",
-				{ method: "GET", signal: controller.signal },
+			const request = createRealtimeRequest(
+				[globalTopic("settings", { with: { defaultCategory: true } })],
+				controller.signal,
 			);
-			const response = await routes.realtime.subscribeGlobal(
-				request,
-				{ global: "settings" },
-				undefined,
-			);
+			const response = await routes.realtime.subscribe(request, {}, undefined);
 			expect(response.ok).toBe(true);
 			const reader = createSSEReader(response.body!);
 			const initial = await reader.readSnapshot();
@@ -886,7 +1075,7 @@ describe("realtime", () => {
 				ctx,
 			);
 			await setup.cms.api.globals.settings.update(
-				{ siteName: "My Site", defaultCategoryId: category.id },
+				{ siteName: "My Site", defaultCategory: category.id },
 				ctx,
 			);
 
@@ -920,17 +1109,49 @@ describe("realtime", () => {
 	// ==========================================================================
 
 	describe("edge cases", () => {
+		it("restarts adapter after all subscribers disconnect", async () => {
+			const adapter = new LifecycleTrackingRealtimeAdapter();
+			const q = questpie({ name: "realtime-test" }).fields(defaultFields);
+			const items = q
+				.collection("items")
+				.fields((f) => ({ name: f.textarea({ required: true }) }));
+
+			const testModule = q.collections({ items });
+
+			setup = await buildMockApp(testModule, { realtime: { adapter } });
+			await runTestDbMigrations(setup.cms);
+
+			const firstUnsub = setup.cms.realtime?.subscribe(() => {}, {
+				resourceType: "collection",
+				resource: "items",
+			});
+			await new Promise((resolve) => setTimeout(resolve, 50));
+			expect(adapter.startCalls).toBe(1);
+
+			firstUnsub?.();
+			await new Promise((resolve) => setTimeout(resolve, 50));
+			expect(adapter.stopCalls).toBe(1);
+
+			const secondUnsub = setup.cms.realtime?.subscribe(() => {}, {
+				resourceType: "collection",
+				resource: "items",
+			});
+			await new Promise((resolve) => setTimeout(resolve, 50));
+			expect(adapter.startCalls).toBe(2);
+
+			secondUnsub?.();
+		});
+
 		it("handles multiple subscribers with different filters", async () => {
 			const adapter = new MockRealtimeAdapter();
-			const orders = collection("orders")
-				.fields({
-					status: text("status").notNull(),
-					customerId: text("customer_id").notNull(),
-					total: integer("total").notNull(),
-				})
-				.build();
+			const q = questpie({ name: "realtime-test" }).fields(defaultFields);
+			const orders = q.collection("orders").fields((f) => ({
+				status: f.textarea({ required: true }),
+				customerId: f.textarea({ required: true }),
+				total: f.number({ required: true }),
+			}));
 
-			const testModule = questpie({ name: "realtime-test" }).collections({
+			const testModule = q.collections({
 				orders,
 			});
 
@@ -994,11 +1215,12 @@ describe("realtime", () => {
 
 		it("properly cleans up subscriptions", async () => {
 			const adapter = new MockRealtimeAdapter();
-			const items = collection("items")
-				.fields({ name: text("name").notNull() })
-				.build();
+			const q = questpie({ name: "realtime-test" }).fields(defaultFields);
+			const items = q
+				.collection("items")
+				.fields((f) => ({ name: f.textarea({ required: true }) }));
 
-			const testModule = questpie({ name: "realtime-test" }).collections({
+			const testModule = q.collections({
 				items,
 			});
 
@@ -1028,11 +1250,12 @@ describe("realtime", () => {
 
 		it("handles empty WHERE filter (matches all)", async () => {
 			const adapter = new MockRealtimeAdapter();
-			const logs = collection("logs")
-				.fields({ message: text("message").notNull() })
-				.build();
+			const q = questpie({ name: "realtime-test" }).fields(defaultFields);
+			const logs = q
+				.collection("logs")
+				.fields((f) => ({ message: f.textarea({ required: true }) }));
 
-			const testModule = questpie({ name: "realtime-test" }).collections({
+			const testModule = q.collections({
 				logs,
 			});
 
@@ -1056,6 +1279,156 @@ describe("realtime", () => {
 
 			unsub?.();
 		});
+
+		it("scales filtered routing across many subscribers", async () => {
+			const adapter = new MockRealtimeAdapter();
+			const q = questpie({ name: "realtime-test" }).fields(defaultFields);
+			const messages = q.collection("messages").fields((f) => ({
+				roomId: f.textarea({ required: true }),
+				content: f.textarea({ required: true }),
+			}));
+
+			const testModule = q.collections({ messages });
+
+			setup = await buildMockApp(testModule, { realtime: { adapter } });
+			await runTestDbMigrations(setup.cms);
+
+			const ctx = createTestContext();
+			const subscriberCount = 120;
+			const rooms = 12;
+			const targetRoom = "room-7";
+			const hits = Array.from({ length: subscriberCount }, () => 0);
+
+			const unsubscribers: Array<() => void> = [];
+			for (let i = 0; i < subscriberCount; i++) {
+				const roomId = `room-${i % rooms}`;
+				const unsub = setup.cms.realtime?.subscribe(
+					() => {
+						hits[i] += 1;
+					},
+					{
+						resourceType: "collection",
+						resource: "messages",
+						where: { roomId },
+					},
+				);
+
+				if (unsub) unsubscribers.push(unsub);
+			}
+
+			await setup.cms.api.collections.messages.create(
+				{ roomId: targetRoom, content: "hello" },
+				ctx,
+			);
+			await new Promise((resolve) => setTimeout(resolve, 150));
+
+			const targetHits = hits
+				.filter((_, i) => `room-${i % rooms}` === targetRoom)
+				.reduce((sum, value) => sum + value, 0);
+			const nonTargetHits = hits
+				.filter((_, i) => `room-${i % rooms}` !== targetRoom)
+				.reduce((sum, value) => sum + value, 0);
+
+			expect(targetHits).toBe(subscriberCount / rooms);
+			expect(nonTargetHits).toBe(0);
+
+			for (const unsub of unsubscribers) {
+				unsub();
+			}
+		});
+
+		it("cleans up old realtime log rows with retentionDays", async () => {
+			const adapter = new MockRealtimeAdapter();
+			const q = questpie({ name: "realtime-test" }).fields(defaultFields);
+			const items = q
+				.collection("items")
+				.fields((f) => ({ name: f.textarea({ required: true }) }));
+
+			const testModule = q.collections({ items });
+
+			setup = await buildMockApp(testModule, {
+				realtime: { adapter, retentionDays: 1 },
+			});
+			await runTestDbMigrations(setup.cms);
+
+			const oldCreatedAt = new Date(Date.now() - 5 * 24 * 60 * 60 * 1000);
+			await setup.cms.db.insert(questpieRealtimeLogTable).values({
+				resourceType: "collection",
+				resource: "items",
+				operation: "create",
+				recordId: "old-record",
+				locale: null,
+				payload: { name: "old" },
+				createdAt: oldCreatedAt,
+			});
+
+			const ctx = createTestContext();
+			await setup.cms.api.collections.items.create({ name: "new" }, ctx);
+			await new Promise((resolve) => setTimeout(resolve, 150));
+
+			const logs = await setup.cms.db
+				.select()
+				.from(questpieRealtimeLogTable)
+				.orderBy(questpieRealtimeLogTable.seq);
+
+			const hasOldRow = logs.some((row: any) => row.recordId === "old-record");
+			expect(hasOldRow).toBe(false);
+			expect(logs.some((row: any) => row.payload?.name === "new")).toBe(true);
+		});
+
+		it("cleans up consumed realtime rows using min consumed seq", async () => {
+			const adapter = new MockRealtimeAdapter();
+			const q = questpie({ name: "realtime-test" }).fields(defaultFields);
+			const items = q
+				.collection("items")
+				.fields((f) => ({ name: f.textarea({ required: true }) }));
+
+			const testModule = q.collections({ items });
+
+			setup = await buildMockApp(testModule, { realtime: { adapter } });
+			await runTestDbMigrations(setup.cms);
+
+			await setup.cms.db.insert(questpieRealtimeLogTable).values({
+				resourceType: "collection",
+				resource: "items",
+				operation: "create",
+				recordId: "pre-existing",
+				locale: null,
+				payload: { name: "before-subscribe" },
+			});
+
+			const events: RealtimeChangeEvent[] = [];
+			const unsub = setup.cms.realtime?.subscribe(
+				(event) => events.push(event),
+				{
+					resourceType: "collection",
+					resource: "items",
+				},
+			);
+
+			const ctx = createTestContext();
+			await setup.cms.api.collections.items.create(
+				{ name: "after-subscribe" },
+				ctx,
+			);
+			await new Promise((resolve) => setTimeout(resolve, 150));
+
+			expect(events.length).toBe(1);
+
+			const logs = await setup.cms.db
+				.select()
+				.from(questpieRealtimeLogTable)
+				.orderBy(questpieRealtimeLogTable.seq);
+
+			expect(logs.some((row: any) => row.recordId === "pre-existing")).toBe(
+				false,
+			);
+			expect(
+				logs.some((row: any) => row.payload?.name === "after-subscribe"),
+			).toBe(true);
+
+			unsub?.();
+		});
 	});
 
 	// ==========================================================================
@@ -1065,18 +1438,19 @@ describe("realtime", () => {
 	describe("access control", () => {
 		it("should send error event when user lacks read permission", async () => {
 			const adapter = new MockRealtimeAdapter();
-			const secrets = collection("secrets")
-				.fields({
-					content: text("content").notNull(),
-					level: text("level").notNull(),
-				})
+			const q = questpie({ name: "realtime-test" }).fields(defaultFields);
+			const secrets = q
+				.collection("secrets")
+				.fields((f) => ({
+					content: f.textarea({ required: true }),
+					level: f.textarea({ required: true }),
+				}))
 				.access({
 					read: ({ session }) => (session?.user as any)?.role === "admin",
 					create: true,
-				})
-				.build();
+				});
 
-			const testModule = questpie({ name: "realtime-test" }).collections({
+			const testModule = q.collections({
 				secrets,
 			});
 
@@ -1094,15 +1468,17 @@ describe("realtime", () => {
 			const controller = new AbortController();
 
 			// Request without admin role should receive error in SSE stream
-			const request = new Request("http://localhost/cms/realtime/secrets", {
-				method: "GET",
-				signal: controller.signal,
-			});
+			const request = createRealtimeRequest(
+				[collectionTopic("secrets")],
+				controller.signal,
+			);
 
 			const response = await routes.realtime.subscribe(
 				request,
-				{ collection: "secrets" },
-				{ cmsContext: createTestContext({ accessMode: "user", role: "user" }) },
+				{},
+				{
+					cmsContext: createTestContext({ accessMode: "user", role: "user" }),
+				},
 			);
 
 			expect(response.ok).toBe(true);
@@ -1119,18 +1495,19 @@ describe("realtime", () => {
 
 		it("should allow access for authorized users", async () => {
 			const adapter = new MockRealtimeAdapter();
-			const secrets = collection("secrets")
-				.fields({
-					content: text("content").notNull(),
-					level: text("level").notNull(),
-				})
+			const q = questpie({ name: "realtime-test" }).fields(defaultFields);
+			const secrets = q
+				.collection("secrets")
+				.fields((f) => ({
+					content: f.textarea({ required: true }),
+					level: f.textarea({ required: true }),
+				}))
 				.access({
 					read: ({ session }) => (session?.user as any)?.role === "admin",
 					create: true,
-				})
-				.build();
+				});
 
-			const testModule = questpie({ name: "realtime-test" }).collections({
+			const testModule = q.collections({
 				secrets,
 			});
 
@@ -1141,14 +1518,14 @@ describe("realtime", () => {
 			const controller = new AbortController();
 
 			// Admin should get successful snapshot
-			const request = new Request("http://localhost/cms/realtime/secrets", {
-				method: "GET",
-				signal: controller.signal,
-			});
+			const request = createRealtimeRequest(
+				[collectionTopic("secrets")],
+				controller.signal,
+			);
 
 			const response = await routes.realtime.subscribe(
 				request,
-				{ collection: "secrets" },
+				{},
 				{
 					cmsContext: createTestContext({ accessMode: "user", role: "admin" }),
 				},
@@ -1167,12 +1544,14 @@ describe("realtime", () => {
 
 		it("should filter payload fields based on field-level access", async () => {
 			const adapter = new MockRealtimeAdapter();
-			const documents = collection("documents")
-				.fields({
-					title: text("title").notNull(),
-					content: text("content").notNull(),
-					internalNotes: text("internal_notes").notNull(),
-				})
+			const q = questpie({ name: "realtime-test" }).fields(defaultFields);
+			const documents = q
+				.collection("documents")
+				.fields((f) => ({
+					title: f.textarea({ required: true }),
+					content: f.textarea({ required: true }),
+					internalNotes: f.textarea({ required: true }),
+				}))
 				.access({
 					read: true,
 					create: true,
@@ -1181,10 +1560,9 @@ describe("realtime", () => {
 							read: ({ session }) => (session?.user as any)?.role === "admin",
 						},
 					},
-				})
-				.build();
+				});
 
-			const testModule = questpie({ name: "realtime-test" }).collections({
+			const testModule = q.collections({
 				documents,
 			});
 
@@ -1227,18 +1605,19 @@ describe("realtime", () => {
 
 		it("should handle global access restrictions", async () => {
 			const adapter = new MockRealtimeAdapter();
-			const config = global("config")
-				.fields({
-					apiKey: text("api_key").notNull(),
-					publicName: text("public_name").notNull(),
-				})
+			const q = questpie({ name: "realtime-test" }).fields(defaultFields);
+			const config = q
+				.global("config")
+				.fields((f) => ({
+					apiKey: f.textarea({ required: true }),
+					publicName: f.textarea({ required: true }),
+				}))
 				.access({
 					read: ({ session }) => (session?.user as any)?.role === "admin",
 					update: ({ session }) => (session?.user as any)?.role === "admin",
-				})
-				.build();
+				});
 
-			const testModule = questpie({ name: "realtime-test" }).globals({
+			const testModule = q.globals({
 				config,
 			});
 
@@ -1249,18 +1628,17 @@ describe("realtime", () => {
 			const controller = new AbortController();
 
 			// Non-admin request should receive error in SSE
-			const request = new Request(
-				"http://localhost/cms/realtime/globals/config",
-				{
-					method: "GET",
-					signal: controller.signal,
-				},
+			const request = createRealtimeRequest(
+				[globalTopic("config")],
+				controller.signal,
 			);
 
-			const response = await routes.realtime.subscribeGlobal(
+			const response = await routes.realtime.subscribe(
 				request,
-				{ global: "config" },
-				{ cmsContext: createTestContext({ accessMode: "user", role: "user" }) },
+				{},
+				{
+					cmsContext: createTestContext({ accessMode: "user", role: "user" }),
+				},
 			);
 
 			expect(response.ok).toBe(true);
@@ -1294,14 +1672,13 @@ describe("realtime", () => {
 	describe("E2E SSE streaming", () => {
 		it("should stream multiple snapshots on rapid updates", async () => {
 			const adapter = new MockRealtimeAdapter();
-			const counters = collection("counters")
-				.fields({
-					name: text("name").notNull(),
-					value: integer("value").notNull().default(0),
-				})
-				.build();
+			const q = questpie({ name: "realtime-test" }).fields(defaultFields);
+			const counters = q.collection("counters").fields((f) => ({
+				name: f.textarea({ required: true }),
+				value: f.number({ required: true, default: 0 }),
+			}));
 
-			const testModule = questpie({ name: "realtime-test" }).collections({
+			const testModule = q.collections({
 				counters,
 			});
 
@@ -1311,16 +1688,12 @@ describe("realtime", () => {
 			const routes = createAdapterRoutes(setup.cms, { accessMode: "user" });
 			const controller = new AbortController();
 
-			const request = new Request("http://localhost/cms/realtime/counters", {
-				method: "GET",
-				signal: controller.signal,
-			});
-
-			const response = await routes.realtime.subscribe(
-				request,
-				{ collection: "counters" },
-				undefined,
+			const request = createRealtimeRequest(
+				[collectionTopic("counters")],
+				controller.signal,
 			);
+
+			const response = await routes.realtime.subscribe(request, {}, undefined);
 
 			expect(response.ok).toBe(true);
 			expect(response.headers.get("content-type")).toContain(
@@ -1376,11 +1749,12 @@ describe("realtime", () => {
 
 		it("should handle client disconnection gracefully", async () => {
 			const adapter = new MockRealtimeAdapter();
-			const items = collection("items")
-				.fields({ name: text("name").notNull() })
-				.build();
+			const q = questpie({ name: "realtime-test" }).fields(defaultFields);
+			const items = q
+				.collection("items")
+				.fields((f) => ({ name: f.textarea({ required: true }) }));
 
-			const testModule = questpie({ name: "realtime-test" }).collections({
+			const testModule = q.collections({
 				items,
 			});
 
@@ -1390,16 +1764,12 @@ describe("realtime", () => {
 			const routes = createAdapterRoutes(setup.cms, { accessMode: "user" });
 			const controller = new AbortController();
 
-			const request = new Request("http://localhost/cms/realtime/items", {
-				method: "GET",
-				signal: controller.signal,
-			});
-
-			const response = await routes.realtime.subscribe(
-				request,
-				{ collection: "items" },
-				undefined,
+			const request = createRealtimeRequest(
+				[collectionTopic("items")],
+				controller.signal,
 			);
+
+			const response = await routes.realtime.subscribe(request, {}, undefined);
 
 			expect(response.ok).toBe(true);
 

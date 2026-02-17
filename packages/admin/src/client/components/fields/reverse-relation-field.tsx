@@ -22,24 +22,19 @@
  * ```
  */
 
-import { Plus, Spinner } from "@phosphor-icons/react";
-import { createQuestpieQueryOptions } from "@questpie/tanstack-query";
-import { useQueryClient } from "@tanstack/react-query";
+import { Icon } from "@iconify/react";
 import * as React from "react";
 import { useFormContext, useWatch } from "react-hook-form";
 import { toast } from "sonner";
+import { useAdminConfig } from "../../hooks/use-admin-config";
 import { useAdminRoutes } from "../../hooks/use-admin-routes";
 import {
 	useCollectionList,
 	useCollectionUpdate,
 } from "../../hooks/use-collection";
+import { useQuestpieQueryOptions } from "../../hooks/use-questpie-query-options";
 import { useResolveText, useTranslation } from "../../i18n/hooks";
-import {
-	selectAdmin,
-	selectClient,
-	useAdminStore,
-	useScopedLocale,
-} from "../../runtime";
+import { resolveIconElement } from "../component-renderer";
 import { SelectSingle } from "../primitives/select-single";
 import type { SelectOption } from "../primitives/types";
 import { ResourceSheet } from "../sheets/resource-sheet";
@@ -100,16 +95,16 @@ export function ReverseRelationField({
 		string | undefined
 	>();
 
-	// Get admin config for source collection
-	const admin = useAdminStore(selectAdmin);
-	const client = useAdminStore(selectClient);
-	// Use scoped locale (from LocaleScopeProvider in ResourceSheet) or global locale
-	const { locale: contentLocale } = useScopedLocale();
-	const collections = admin?.getCollections() ?? {};
-	const sourceConfig = collections[sourceCollection];
-	const CollectionIcon = (sourceConfig as any)?.icon as
-		| React.ComponentType<{ className?: string }>
-		| undefined;
+	// Get admin config from server
+	const { data: serverConfig } = useAdminConfig();
+	const {
+		queryOpts,
+		queryClient,
+		locale: contentLocale,
+		client,
+	} = useQuestpieQueryOptions();
+	const sourceConfig = serverConfig?.collections?.[sourceCollection];
+	const collectionIconRef = (sourceConfig as any)?.icon;
 	const sourceFieldConfig = (sourceConfig as any)?.fields?.[sourceField];
 	const sourceFieldOptions = (sourceFieldConfig as any)?.["~options"] ?? {};
 	const sourceRelationName = sourceFieldOptions?.relationName ?? sourceField;
@@ -132,18 +127,6 @@ export function ReverseRelationField({
 	const canRemove =
 		canAssign && (isMultipleRelation || !isRequiredRelationField);
 	const updateMutation = useCollectionUpdate(sourceCollection as any);
-	const queryClient = useQueryClient();
-	const queryOpts = React.useMemo(
-		() =>
-			createQuestpieQueryOptions(
-				(client ?? {}) as any,
-				{
-					keyPrefix: ["questpie", "collections"],
-					locale: contentLocale,
-				} as any,
-			),
-		[client, contentLocale],
-	);
 
 	// Build create URL with prefill params (for link mode)
 	// For multiple relations (M2M), encode as JSON array; for single, use plain string
@@ -244,9 +227,9 @@ export function ReverseRelationField({
 					.map((item: any) => ({
 						value: item.id,
 						label: item._title || item.id || "",
-						icon: CollectionIcon ? (
-							<CollectionIcon className="size-3.5 text-muted-foreground" />
-						) : undefined,
+						icon: resolveIconElement(collectionIconRef, {
+							className: "size-3.5 text-muted-foreground",
+						}),
 					}));
 			} catch (loadError) {
 				const message =
@@ -257,7 +240,7 @@ export function ReverseRelationField({
 				return [];
 			}
 		},
-		[client, sourceCollection, selectedIds, CollectionIcon, t],
+		[client, sourceCollection, selectedIds, collectionIconRef, t],
 	);
 
 	const resolveManyRelationIds = React.useCallback(
@@ -461,24 +444,6 @@ export function ReverseRelationField({
 		return { [sourceField]: prefillValue };
 	}, [editingItemId, sourceField, currentId, isMultipleRelation]);
 
-	// Loading state
-	if (isLoading) {
-		return (
-			<div className="space-y-2">
-				{label && (
-					<div className="flex items-center gap-2">
-						<span className="text-sm font-medium">{resolveText(label)}</span>
-						{localized && <LocaleBadge locale={locale || "i18n"} />}
-					</div>
-				)}
-				<div className="flex items-center gap-2 text-muted-foreground">
-					<Spinner className="size-4 animate-spin" />
-					<span className="text-sm">{t("relation.loading")}</span>
-				</div>
-			</div>
-		);
-	}
-
 	// No current ID (new item)
 	if (!currentId) {
 		return (
@@ -508,11 +473,11 @@ export function ReverseRelationField({
 			name: actionLabel,
 		});
 		const buttonLabel = resolvedCreateLabel || defaultLabel;
-		const buttonIcon = <Plus className="size-4" />;
+		const buttonIcon = <Icon icon="ph:plus" className="size-4" />;
 		const buttonContent =
 			variant === "icon" ? null : (
 				<>
-					<Plus className="size-4 mr-1" />
+					<Icon icon="ph:plus" className="size-4 mr-1" />
 					{buttonLabel}
 				</>
 			);
@@ -623,7 +588,7 @@ export function ReverseRelationField({
 				display={display as RelationDisplayMode}
 				items={items}
 				collection={sourceCollection}
-				collectionIcon={CollectionIcon}
+				collectionIcon={collectionIconRef}
 				editable={isEditable}
 				columns={displayColumns}
 				fields={fields}
@@ -632,10 +597,13 @@ export function ReverseRelationField({
 				emptyMessage={resolvedEmptyMessage}
 				actions={displayActions}
 				collectionConfig={sourceConfig as any}
+				isLoading={isLoading}
+				loadingCount={limit}
 			/>
 
 			{/* Create button in empty state (when no label header) */}
 			{items.length === 0 &&
+				!isLoading &&
 				!label &&
 				allowCreate &&
 				!showAssignmentControls && (

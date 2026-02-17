@@ -21,16 +21,15 @@
 		"./client": "./src/exports/client.ts",
 		"./server": "./src/exports/server.ts",
 		"./shared": "./src/exports/shared.ts",
-		"./package.json": "./package.json",
+		"./*": "./*",
 		"./client/styles/index.css": "./src/client/styles/index.css"
 	},
 	"scripts": {
 		"dev": "tsdown --watch",
 		"build": "tsdown",
 		"check-types": "tsc --noEmit",
-		"test": "vitest run",
-		"test:watch": "vitest",
-		"test:coverage": "vitest run --coverage"
+		"test": "bun test test/",
+		"test:watch": "bun test --watch test/"
 	},
 	"dependencies": {
 		"@base-ui/react": "^1.0.0",
@@ -40,7 +39,7 @@
 		"@fontsource-variable/dm-sans": "^5.2.8",
 		"@fontsource-variable/jetbrains-mono": "^5.2.8",
 		"@hookform/resolvers": "^5.1.0",
-		"@phosphor-icons/react": "^2.1.10",
+		"@iconify/react": "^6.0.2",
 		"@questpie/tanstack-query": "workspace:*",
 		"@tailwindcss/vite": "^4.0.6",
 		"@tiptap/core": "^2.x",
@@ -58,6 +57,9 @@
 		"@tiptap/react": "^2.x",
 		"@tiptap/starter-kit": "^2.x",
 		"@tiptap/suggestion": "^2.x",
+		"ajv": "^8.12.0",
+		"ajv-errors": "^3.0.0",
+		"ajv-formats": "^2.1.1",
 		"class-variance-authority": "^0.7.1",
 		"clsx": "^2.1.1",
 		"cmdk": "^1.1.1",
@@ -96,18 +98,11 @@
 	"devDependencies": {
 		"@tanstack/db": "^0.1.1",
 		"drizzle-orm": "1.0.0-beta.6-4414a19",
-		"@testing-library/jest-dom": "^6.9.1",
-		"@testing-library/react": "^16.3.1",
-		"@testing-library/user-event": "^14.6.1",
 		"@types/react": "^19.2.0",
 		"@types/react-dom": "^19.2.0",
-		"@vitejs/plugin-react": "^5.1.2",
-		"happy-dom": "^20.1.0",
-		"jsdom": "^27.4.0",
 		"tinyglobby": "^0.2.15",
 		"tsdown": "^0.18.3",
-		"typescript": "^5.9.2",
-		"vitest": "^4.0.16"
+		"typescript": "^5.9.2"
 	},
 	"publishConfig": {
 		"access": "public",
@@ -116,7 +111,7 @@
 			"./client": "./dist/client.mjs",
 			"./server": "./dist/server.mjs",
 			"./shared": "./dist/shared.mjs",
-			"./package.json": "./package.json",
+			"./*": "./*",
 			"./client/styles/index.css": "./dist/client/styles/index.css"
 		}
 	},

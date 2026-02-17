@@ -11,25 +11,21 @@
  * - Highlights: Shows search term highlighted in record titles
  */
 
-import {
-	File,
-	Folder,
-	Gear,
-	MagnifyingGlass,
-	Plus,
-	Spinner,
-} from "@phosphor-icons/react";
-import * as React from "react";
-import { useMemo, useState, useCallback, useRef, useEffect } from "react";
+import { Icon } from "@iconify/react";
+import type * as React from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { ComponentReference } from "#questpie/admin/server";
+import { resolveIconElement } from "../../components/component-renderer";
 import { Kbd } from "../../components/ui/kbd";
 import {
 	ResponsiveDialog,
 	ResponsiveDialogContent,
 } from "../../components/ui/responsive-dialog";
+import { useAdminConfig } from "../../hooks/use-admin-config";
 import { useDebouncedValue, useGlobalSearch } from "../../hooks/use-search";
 import { useResolveText, useTranslation } from "../../i18n/hooks";
 import { cn } from "../../lib/utils";
-import { selectAdmin, selectBasePath, useAdminStore } from "../../runtime";
+import { selectBasePath, useAdminStore } from "../../runtime";
 
 // ============================================================================
 // Types
@@ -41,7 +37,10 @@ interface SearchItem {
 	label: string;
 	sublabel?: string;
 	href: string;
-	icon?: React.ComponentType<{ className?: string }>;
+	icon?:
+		| ComponentReference
+		| React.ComponentType<{ className?: string }>
+		| string;
 	keywords?: string[];
 	highlights?: { title?: string };
 }
@@ -54,8 +53,30 @@ export interface GlobalSearchProps {
 }
 
 // ============================================================================
+// Default Icon Names (for resolveIconElement)
+// ============================================================================
+
+const DEFAULT_FOLDER_ICON = "ph:folder";
+const DEFAULT_GEAR_ICON = "ph:gear";
+const DEFAULT_PLUS_ICON = "ph:plus";
+const DEFAULT_FILE_ICON = "ph:file";
+
+// ============================================================================
 // Helpers
 // ============================================================================
+
+/**
+ * Extract typed props from server config entries (collections/globals).
+ * Server config entries come as plain objects without strict typing.
+ */
+function getConfigProps(config: unknown) {
+	const c = config as Record<string, any>;
+	return {
+		label: c?.label as string | undefined,
+		icon: c?.icon as ComponentReference | undefined,
+		hidden: c?.hidden as boolean | undefined,
+	};
+}
 
 /**
  * Simple fuzzy search - matches if query words appear anywhere in text
@@ -118,7 +139,6 @@ function SearchGroup({
 				{items.map((item, idx) => {
 					const globalIndex = startIndex + idx;
 					const isSelected = globalIndex === selectedIndex;
-					const Icon = item.icon;
 
 					return (
 						<button
@@ -133,8 +153,10 @@ function SearchGroup({
 									: "hover:bg-accent/50 hover:text-accent-foreground",
 							)}
 						>
-							{Icon && (
-								<Icon className="h-4 w-4 text-muted-foreground shrink-0" />
+							{item.icon && (
+								<span className="h-4 w-4 text-muted-foreground shrink-0 flex items-center justify-center">
+									{resolveIconElement(item.icon, { className: "h-4 w-4" })}
+								</span>
 							)}
 							<div className="flex flex-col items-start min-w-0">
 								{item.highlights?.title ? (
@@ -173,8 +195,8 @@ export function GlobalSearch({
 	const { t } = useTranslation();
 	const resolveText = useResolveText();
 
-	// Get admin state
-	const admin = useAdminStore(selectAdmin);
+	// Get admin config from server
+	const { data: serverConfig } = useAdminConfig();
 	const storeBasePath = useAdminStore(selectBasePath);
 	const basePath = basePathProp ?? storeBasePath ?? "/admin";
 
@@ -193,59 +215,70 @@ export function GlobalSearch({
 		enabled: debouncedQuery.trim().length >= 2,
 	});
 
-	// Build navigation items from admin config
+	// Build navigation items from server config
+	// Note: Server already filters by access rules, we only need to filter by hidden flag
 	const navItems = useMemo(() => {
 		const items: SearchItem[] = [];
-		const collections = admin?.getCollections() ?? {};
-		const globals = admin?.getGlobals() ?? {};
+		const collections = serverConfig?.collections ?? {};
+		const globals = serverConfig?.globals ?? {};
 
-		// Add collections
+		// Add visible collections (not hidden in admin)
 		for (const [name, config] of Object.entries(collections)) {
-			const label = resolveText((config as any).label, name);
-			// Get icon from collection config (getCollections already extracts .state)
-			const icon = (config as any)?.icon || Folder;
+			const { label: rawLabel, icon, hidden } = getConfigProps(config);
+			// Skip hidden collections
+			if (hidden) continue;
+
+			const label = resolveText(rawLabel, name);
 			items.push({
 				id: `col-${name}`,
 				type: "collection",
 				label,
 				href: `${basePath}/collections/${name}`,
-				icon,
+				icon: icon ?? DEFAULT_FOLDER_ICON,
 				keywords: [name, "collection", "list"],
 			});
 		}
 
-		// Add globals
+		// Add visible globals (not hidden in admin)
 		for (const [name, config] of Object.entries(globals)) {
-			const label = resolveText((config as any).label, name);
-			// Get icon from global config (getGlobals already extracts .state)
-			const icon = (config as any)?.icon || Gear;
+			const { label: rawLabel, icon, hidden } = getConfigProps(config);
+			// Skip hidden globals
+			if (hidden) continue;
+
+			const label = resolveText(rawLabel, name);
 			items.push({
 				id: `glob-${name}`,
 				type: "global",
 				label,
 				href: `${basePath}/globals/${name}`,
-				icon,
+				icon: icon ?? DEFAULT_GEAR_ICON,
 				keywords: [name, "global", "settings", "config"],
 			});
 		}
 
-		// Add quick actions (create new)
+		// Add quick actions (create new) only for visible collections
 		for (const [name, config] of Object.entries(collections)) {
-			const label = resolveText((config as any).label, name);
-			// Get icon from collection config for the action too
-			const collectionIcon = (config as any)?.icon;
+			const {
+				label: rawLabel,
+				icon: collectionIcon,
+				hidden,
+			} = getConfigProps(config);
+			// Skip hidden collections
+			if (hidden) continue;
+
+			const label = resolveText(rawLabel, name);
 			items.push({
 				id: `action-create-${name}`,
 				type: "action",
 				label: t("globalSearch.createNew", { name: label }),
 				href: `${basePath}/collections/${name}/create`,
-				icon: collectionIcon || Plus,
+				icon: collectionIcon ?? DEFAULT_PLUS_ICON,
 				keywords: ["create", "new", "add", name],
 			});
 		}
 
 		return items;
-	}, [admin, basePath, resolveText, t]);
+	}, [serverConfig, basePath, resolveText, t]);
 
 	// Filter navigation items based on query (client-side)
 	const filteredNavItems = useMemo(
@@ -257,15 +290,15 @@ export function GlobalSearch({
 	const recordItems = useMemo(() => {
 		if (!searchResults?.docs) return [];
 
-		const collections = admin?.getCollections() ?? {};
+		const collections = serverConfig?.collections ?? {};
 
 		return searchResults.docs.map((doc): SearchItem => {
 			const collectionName = doc._collection;
 			const collectionConfig = collections[collectionName];
-			// Use resolveText for proper localization of collection label
-			const collectionLabel = resolveText((collectionConfig as any)?.label, collectionName);
-			// Get icon from collection config (getCollections already extracts .state)
-			const icon = (collectionConfig as any)?.icon || File;
+			const { label: rawLabel, icon: configIcon } =
+				getConfigProps(collectionConfig);
+			const collectionLabel = resolveText(rawLabel, collectionName);
+			const icon = configIcon ?? DEFAULT_FILE_ICON;
 
 			return {
 				id: `record-${collectionName}-${doc.id}`,
@@ -277,7 +310,7 @@ export function GlobalSearch({
 				highlights: doc._search?.highlights,
 			};
 		});
-	}, [searchResults, admin, basePath, resolveText]);
+	}, [searchResults, serverConfig, basePath, resolveText]);
 
 	// Group navigation items by type
 	const groupedNavItems = useMemo(() => {
@@ -376,7 +409,10 @@ export function GlobalSearch({
 			<ResponsiveDialogContent className="p-0 gap-0 max-w-2xl">
 				{/* Search Input */}
 				<div className="flex items-center border-b px-3">
-					<MagnifyingGlass className="mr-2 h-5 w-5 text-muted-foreground shrink-0" />
+					<Icon
+						icon="ph:magnifying-glass"
+						className="mr-2 h-5 w-5 text-muted-foreground shrink-0"
+					/>
 					<input
 						ref={inputRef}
 						className="flex h-14 w-full rounded-none bg-transparent py-3 text-base outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50"
@@ -387,7 +423,12 @@ export function GlobalSearch({
 						autoFocus
 					/>
 					<div className="flex items-center gap-1 shrink-0">
-						{isSearching && <Spinner className="h-4 w-4 animate-spin text-muted-foreground" />}
+						{isSearching && (
+							<Icon
+								icon="ph:spinner"
+								className="h-4 w-4 animate-spin text-muted-foreground"
+							/>
+						)}
 						<Kbd>ESC</Kbd>
 					</div>
 				</div>
@@ -438,7 +479,7 @@ export function GlobalSearch({
 						<div className="py-8 text-center text-sm text-muted-foreground">
 							{isSearching ? (
 								<div className="flex items-center justify-center gap-2">
-									<Spinner className="h-4 w-4 animate-spin" />
+									<Icon icon="ph:spinner" className="h-4 w-4 animate-spin" />
 									<span>{t("globalSearch.searching")}</span>
 								</div>
 							) : (
