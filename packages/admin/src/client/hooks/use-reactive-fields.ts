@@ -70,6 +70,14 @@ export interface UseReactiveFieldsResult {
 	refresh: () => void;
 }
 
+type ReactiveType = "hidden" | "readOnly" | "disabled" | "compute";
+
+type ReactiveRequestDescriptor = {
+	field: string;
+	type: ReactiveType;
+	watchDeps: string[];
+};
+
 // ============================================================================
 // Utility Functions
 // ============================================================================
@@ -106,30 +114,77 @@ function getSiblingData(
 	return typeof sibling === "object" ? sibling : null;
 }
 
-/**
- * Build watch dependencies from reactive configs
- */
-function buildWatchDependencies(
-	reactiveConfigs: Record<string, FieldReactiveSchema>,
-): Set<string> {
-	const deps = new Set<string>();
+function normalizeWatchDeps(deps: string[] | undefined): string[] {
+	if (!deps?.length) return [];
+	return deps.filter((dep) => dep.length > 0 && !dep.startsWith("$"));
+}
 
-	for (const config of Object.values(reactiveConfigs)) {
-		// Add deps from hidden, readOnly, disabled, compute
-		for (const key of ["hidden", "readOnly", "disabled", "compute"] as const) {
-			const reactiveConfig = config[key];
-			if (reactiveConfig?.watch) {
-				for (const dep of reactiveConfig.watch) {
-					// Filter out sibling deps ($sibling.*) for root-level watching
-					if (!dep.startsWith("$")) {
-						deps.add(dep);
-					}
-				}
-			}
+function buildReactiveRequestDescriptors(
+	reactiveConfigs: Record<string, FieldReactiveSchema>,
+): ReactiveRequestDescriptor[] {
+	const descriptors: ReactiveRequestDescriptor[] = [];
+
+	for (const [field, config] of Object.entries(reactiveConfigs)) {
+		for (const type of ["hidden", "readOnly", "disabled", "compute"] as const) {
+			const reactiveConfig = config[type];
+			if (!reactiveConfig) continue;
+
+			descriptors.push({
+				field,
+				type,
+				watchDeps: normalizeWatchDeps(reactiveConfig.watch),
+			});
 		}
 	}
 
-	return deps;
+	return descriptors;
+}
+
+function buildDependencyGraph(
+	descriptors: ReactiveRequestDescriptor[],
+): Map<string, ReactiveRequestDescriptor[]> {
+	const graph = new Map<string, ReactiveRequestDescriptor[]>();
+
+	for (const descriptor of descriptors) {
+		for (const dep of descriptor.watchDeps) {
+			const items = graph.get(dep) ?? [];
+			items.push(descriptor);
+			graph.set(dep, items);
+		}
+	}
+
+	return graph;
+}
+
+function mapDepValues(
+	deps: string[],
+	watchedValues: unknown,
+): Record<string, unknown> {
+	if (deps.length === 0) return {};
+
+	const values = Array.isArray(watchedValues) ? watchedValues : [watchedValues];
+	const result: Record<string, unknown> = {};
+
+	for (const [index, dep] of deps.entries()) {
+		result[dep] = values[index];
+	}
+
+	return result;
+}
+
+function getChangedDeps(
+	prevDeps: Record<string, unknown>,
+	nextDeps: Record<string, unknown>,
+): string[] {
+	const changed: string[] = [];
+
+	for (const [dep, value] of Object.entries(nextDeps)) {
+		if (prevDeps[dep] !== value) {
+			changed.push(dep);
+		}
+	}
+
+	return changed;
 }
 
 // ============================================================================
@@ -169,21 +224,36 @@ export function useReactiveFields({
 	const [isPending, setIsPending] = React.useState(false);
 	const [error, setError] = React.useState<Error | null>(null);
 
-	// Build list of dependencies to watch
-	const watchDeps = React.useMemo(
-		() => buildWatchDependencies(reactiveConfigs),
+	const requestDescriptors = React.useMemo(
+		() => buildReactiveRequestDescriptors(reactiveConfigs),
 		[reactiveConfigs],
 	);
 
-	// Watch form values
-	const watchedValues = useWatch({ control: form.control });
-	const formValues = React.useMemo(
-		() => (watchedValues ?? {}) as Record<string, any>,
-		[watchedValues],
+	const dependencyGraph = React.useMemo(
+		() => buildDependencyGraph(requestDescriptors),
+		[requestDescriptors],
 	);
 
-	// Previous values ref for change detection
-	const prevValuesRef = React.useRef<Record<string, any>>({});
+	const watchDeps = React.useMemo(
+		() => [...new Set(requestDescriptors.flatMap((item) => item.watchDeps))],
+		[requestDescriptors],
+	);
+
+	const watchedDepValues = useWatch({
+		control: form.control,
+		name: watchDeps as any,
+		disabled: watchDeps.length === 0,
+	});
+
+	const currentDepValues = React.useMemo(
+		() => mapDepValues(watchDeps, watchedDepValues),
+		[watchDeps, watchedDepValues],
+	);
+
+	const prevFormValuesRef = React.useRef<Record<string, any>>({});
+	const prevDepValuesRef = React.useRef<Record<string, unknown>>({});
+	const requestIdRef = React.useRef(0);
+	const isInitializedRef = React.useRef(false);
 
 	// Debounce timer ref
 	const debounceTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(
@@ -191,144 +261,147 @@ export function useReactiveFields({
 	);
 
 	// Fetch reactive states from server
-	const fetchReactiveStates = React.useCallback(async () => {
-		if (!enabled || !client || Object.keys(reactiveConfigs).length === 0) {
-			return;
-		}
-
-		// Build batch requests
-		const requests: Array<{
-			field: string;
-			type: "hidden" | "readOnly" | "disabled" | "compute";
-			formData: Record<string, any>;
-			siblingData: Record<string, any> | null;
-			prevData: Record<string, any> | null;
-			prevSiblingData: Record<string, any> | null;
-		}> = [];
-
-		for (const [fieldPath, config] of Object.entries(reactiveConfigs)) {
-			const siblingData = getSiblingData(formValues, fieldPath);
-			const prevSiblingData = getSiblingData(prevValuesRef.current, fieldPath);
-
-			// Add request for each reactive type that has a config
-			for (const type of [
-				"hidden",
-				"readOnly",
-				"disabled",
-				"compute",
-			] as const) {
-				if (config[type]?.watch) {
-					requests.push({
-						field: fieldPath,
-						type,
-						formData: formValues,
-						siblingData,
-						prevData: prevValuesRef.current,
-						prevSiblingData,
-					});
-				}
+	const fetchReactiveStates = React.useCallback(
+		async (descriptors: ReactiveRequestDescriptor[] = requestDescriptors) => {
+			if (!enabled || !client || descriptors.length === 0) {
+				return;
 			}
-		}
 
-		if (requests.length === 0) {
-			return;
-		}
+			const formData = (form.getValues() ?? {}) as Record<string, any>;
+			const prevData = prevFormValuesRef.current;
 
-		setIsPending(true);
-		setError(null);
+			const requests = descriptors.map((descriptor) => ({
+				field: descriptor.field,
+				type: descriptor.type,
+				formData,
+				siblingData: getSiblingData(formData, descriptor.field),
+				prevData,
+				prevSiblingData: getSiblingData(prevData, descriptor.field),
+			}));
 
-		try {
-			const response = await (client.rpc as any).batchReactive({
-				collection,
-				type: mode,
-				requests,
-			});
+			if (requests.length === 0) {
+				return;
+			}
 
-			// Update field states
-			const newStates: Record<string, ReactiveFieldState> = { ...fieldStates };
+			const requestId = ++requestIdRef.current;
 
-			for (const result of response.results as ReactiveFieldResult[]) {
-				if (!newStates[result.field]) {
-					newStates[result.field] = {};
+			setIsPending(true);
+			setError(null);
+
+			try {
+				const response = await (client.rpc as any).batchReactive({
+					collection,
+					type: mode,
+					requests,
+				});
+
+				if (requestId !== requestIdRef.current) {
+					return;
 				}
 
-				if (result.type === "compute") {
-					// Apply computed value to form
-					if (result.value !== undefined) {
-						form.setValue(result.field, result.value, {
-							shouldDirty: true,
-							shouldTouch: false,
-							shouldValidate: false,
-						});
+				setFieldStates((prevState) => {
+					const nextState: Record<string, ReactiveFieldState> = {
+						...prevState,
+					};
+
+					for (const result of response.results as ReactiveFieldResult[]) {
+						if (!nextState[result.field]) {
+							nextState[result.field] = {};
+						}
+
+						if (result.type === "compute") {
+							if (result.value !== undefined) {
+								form.setValue(result.field, result.value, {
+									shouldDirty: true,
+									shouldTouch: false,
+									shouldValidate: false,
+								});
+							}
+						} else {
+							nextState[result.field][result.type] = result.value as boolean;
+						}
 					}
-				} else {
-					// Update field state
-					newStates[result.field][result.type] = result.value as boolean;
+
+					return nextState;
+				});
+
+				prevFormValuesRef.current = { ...formData };
+			} catch (err) {
+				console.error("Reactive fields error:", err);
+				setError(err instanceof Error ? err : new Error(String(err)));
+			} finally {
+				if (requestId === requestIdRef.current) {
+					setIsPending(false);
 				}
 			}
+		},
+		[enabled, client, requestDescriptors, form, collection, mode],
+	);
 
-			setFieldStates(newStates);
-		} catch (err) {
-			console.error("Reactive fields error:", err);
-			setError(err instanceof Error ? err : new Error(String(err)));
-		} finally {
-			setIsPending(false);
-		}
-	}, [
-		enabled,
-		client,
-		collection,
-		mode,
-		reactiveConfigs,
-		formValues,
-		fieldStates,
-		form,
-	]);
-
-	// Track if we've done initial fetch (to avoid running on empty form data)
-	const isInitializedRef = React.useRef(false);
-
-	// Effect to trigger reactive updates on dep changes
-	// Also handles initial fetch when form data becomes available (fixes race condition)
 	React.useEffect(() => {
-		if (!enabled || watchDeps.size === 0) return;
+		void collection;
+		void mode;
+		void requestDescriptors;
 
-		// Check if form has actual data (not empty defaults)
-		// This prevents fetching before form data is loaded
-		const hasFormData = Object.keys(formValues).some(
-			(key) => formValues[key] !== undefined && formValues[key] !== null,
-		);
-		if (!hasFormData) return;
+		isInitializedRef.current = false;
+		prevFormValuesRef.current = {};
+		prevDepValuesRef.current = {};
 
-		// Initial fetch when data first becomes available
+		if (debounceTimerRef.current) {
+			clearTimeout(debounceTimerRef.current);
+		}
+	}, [collection, mode, requestDescriptors]);
+
+	React.useEffect(() => {
+		if (!enabled || requestDescriptors.length === 0) {
+			return;
+		}
+
 		if (!isInitializedRef.current) {
 			isInitializedRef.current = true;
-			prevValuesRef.current = { ...formValues };
-			fetchReactiveStates();
+			prevFormValuesRef.current = {
+				...((form.getValues() ?? {}) as Record<string, any>),
+			};
+			prevDepValuesRef.current = currentDepValues;
+			void fetchReactiveStates(requestDescriptors);
 			return;
 		}
 
-		// Check if any watched deps changed
-		let hasChanges = false;
-		for (const dep of watchDeps) {
-			if (formValues[dep] !== prevValuesRef.current[dep]) {
-				hasChanges = true;
-				break;
+		if (watchDeps.length === 0) {
+			return;
+		}
+
+		const changedDeps = getChangedDeps(
+			prevDepValuesRef.current,
+			currentDepValues,
+		);
+		if (changedDeps.length === 0) {
+			return;
+		}
+
+		prevDepValuesRef.current = currentDepValues;
+
+		const affectedDescriptors = new Map<string, ReactiveRequestDescriptor>();
+		for (const dep of changedDeps) {
+			const depDescriptors = dependencyGraph.get(dep) ?? [];
+			for (const descriptor of depDescriptors) {
+				affectedDescriptors.set(
+					`${descriptor.field}:${descriptor.type}`,
+					descriptor,
+				);
 			}
 		}
 
-		if (!hasChanges) return;
+		if (affectedDescriptors.size === 0) {
+			return;
+		}
 
-		// Update prev values
-		prevValuesRef.current = { ...formValues };
-
-		// Debounce the fetch
 		if (debounceTimerRef.current) {
 			clearTimeout(debounceTimerRef.current);
 		}
 
 		debounceTimerRef.current = setTimeout(() => {
-			fetchReactiveStates();
+			void fetchReactiveStates([...affectedDescriptors.values()]);
 		}, debounce);
 
 		return () => {
@@ -336,12 +409,29 @@ export function useReactiveFields({
 				clearTimeout(debounceTimerRef.current);
 			}
 		};
-	}, [enabled, watchDeps, formValues, debounce, fetchReactiveStates]);
+	}, [
+		enabled,
+		requestDescriptors,
+		form,
+		currentDepValues,
+		watchDeps,
+		dependencyGraph,
+		debounce,
+		fetchReactiveStates,
+	]);
+
+	React.useEffect(() => {
+		return () => {
+			if (debounceTimerRef.current) {
+				clearTimeout(debounceTimerRef.current);
+			}
+		};
+	}, []);
 
 	// Refresh function
 	const refresh = React.useCallback(() => {
-		fetchReactiveStates();
-	}, [fetchReactiveStates]);
+		void fetchReactiveStates(requestDescriptors);
+	}, [fetchReactiveStates, requestDescriptors]);
 
 	return {
 		fieldStates,

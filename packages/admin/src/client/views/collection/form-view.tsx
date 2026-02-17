@@ -11,7 +11,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import type { CollectionSchema, FieldReactiveSchema } from "questpie/client";
 import { QuestpieClientError } from "questpie/client";
 import * as React from "react";
-import { FormProvider, useForm, useWatch } from "react-hook-form";
+import { FormProvider, useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { getDefaultFormActions } from "../../builder/types/action-registry";
 import type {
@@ -20,10 +20,7 @@ import type {
 	ActionHelpers,
 	ActionQueryClient,
 } from "../../builder/types/action-types";
-import type {
-	CollectionBuilderState,
-	PreviewConfig,
-} from "../../builder/types/collection-types";
+import type { CollectionBuilderState } from "../../builder/types/collection-types";
 import type {
 	ComponentRegistry,
 	FormViewActionsConfig,
@@ -56,7 +53,6 @@ import {
 	DropdownMenuTrigger,
 } from "../../components/ui/dropdown-menu";
 import {
-	useAdminConfig,
 	useCollectionValidation,
 	usePreferServerValidation,
 } from "../../hooks";
@@ -67,11 +63,10 @@ import {
 	useCollectionUpdate,
 } from "../../hooks/use-collection";
 import { useCollectionFields } from "../../hooks/use-collection-fields";
-import { getLockUser, LOCK_DURATION_MS, useLock } from "../../hooks/use-locks";
+import { getLockUser, useLock } from "../../hooks/use-locks";
 import { useReactiveFields } from "../../hooks/use-reactive-fields";
 import { useResolveText, useTranslation } from "../../i18n/hooks";
 import {
-	selectAdmin,
 	selectBasePath,
 	selectClient,
 	selectNavigate,
@@ -278,8 +273,6 @@ export default function FormView({
 }: FormViewProps): React.ReactElement {
 	const { t } = useTranslation();
 	const resolveText = useResolveText();
-	const admin = useAdminStore(selectAdmin);
-	const { data: adminConfig } = useAdminConfig();
 	const isEditMode = !!id;
 	const { fields: resolvedFields, schema } = useCollectionFields(collection, {
 		fallbackFields: (config as any)?.fields,
@@ -427,11 +420,8 @@ export default function FormView({
 
 	// Track content locale changes to warn about unsaved changes
 	// Uses scoped locale (isolated in ResourceSheet) or global locale
-	const {
-		locale: contentLocale,
-		setLocale: setContentLocale,
-		isScoped,
-	} = useScopedLocale();
+	const { locale: contentLocale, setLocale: setContentLocale } =
+		useScopedLocale();
 	const contentLocales = useSafeContentLocales();
 	const localeOptions = contentLocales?.locales ?? [];
 	const prevLocaleRef = React.useRef(contentLocale);
@@ -510,9 +500,9 @@ export default function FormView({
 
 	const onSubmit = React.useEffectEvent(async (data: any) => {
 		const savePromise = async () => {
-			if (isEditMode) {
+			if (isEditMode && id) {
 				return await updateMutation.mutateAsync({
-					id: id!,
+					id,
 					data,
 				});
 			} else {
@@ -583,7 +573,8 @@ export default function FormView({
 			!autoSaveConfig.enabled ||
 			!form.formState.isDirty ||
 			form.formState.isSubmitting ||
-			!isEditMode
+			!isEditMode ||
+			!id
 		) {
 			return;
 		}
@@ -595,7 +586,7 @@ export default function FormView({
 				await form.handleSubmit(async (data) => {
 					// Silent save (no toast)
 					const result = await updateMutation.mutateAsync({
-						id: id!,
+						id,
 						data,
 					});
 
@@ -631,11 +622,8 @@ export default function FormView({
 		autoSaveConfig.debounce,
 		isEditMode,
 		updateMutation,
-		resolvedFields,
-		adminConfig?.blocks,
 		id,
 		previewContext,
-		admin,
 	]);
 
 	// Prevent navigation when there are unsaved changes
@@ -657,13 +645,16 @@ export default function FormView({
 		autoSaveConfig.enabled,
 	]);
 
+	const onSubmitRef = React.useRef(onSubmit);
+	onSubmitRef.current = onSubmit;
+
 	// Keyboard shortcut: Cmd+S to save
 	React.useEffect(() => {
 		const handleKeyDown = (e: KeyboardEvent) => {
 			if ((e.metaKey || e.ctrlKey) && e.key === "s") {
 				e.preventDefault();
 				e.stopPropagation();
-				form.handleSubmit(onSubmit, (errors) => {
+				form.handleSubmit(onSubmitRef.current, (errors) => {
 					console.warn("[FormView] Validation errors:", errors);
 					toast.error(t("toast.validationFailed"));
 				})();
@@ -671,7 +662,7 @@ export default function FormView({
 		};
 		document.addEventListener("keydown", handleKeyDown);
 		return () => document.removeEventListener("keydown", handleKeyDown);
-	}, [form, onSubmit]);
+	}, [form, t]);
 
 	const isSubmitting =
 		createMutation.isPending ||
@@ -1019,34 +1010,62 @@ export default function FormView({
 		return () => clearInterval(interval);
 	}, [lastSaved, autoSaveConfig.indicator]);
 
-	// Watch form values for preview updates
-	// Using useWatch hook (React way) instead of form.watch() method
-	// This is more performant as it's a proper React subscription
-	const watchedValues = useWatch({ control: form.control });
-
 	// Refresh lock on form activity (debounced) - keeps lock alive while user is editing
 	const lockRefreshTimerRef = React.useRef<NodeJS.Timeout | null>(null);
 	React.useEffect(() => {
 		if (!isEditMode || isBlocked) return;
 
-		// Debounce lock refresh - only refresh after user stops typing for 1s
-		if (lockRefreshTimerRef.current) {
-			clearTimeout(lockRefreshTimerRef.current);
-		}
-		lockRefreshTimerRef.current = setTimeout(() => {
-			refreshLock();
-		}, 1000);
+		const scheduleLockRefresh = () => {
+			if (lockRefreshTimerRef.current) {
+				clearTimeout(lockRefreshTimerRef.current);
+			}
+			lockRefreshTimerRef.current = setTimeout(() => {
+				refreshLock();
+			}, 1000);
+		};
+
+		const subscription = form.watch(() => {
+			scheduleLockRefresh();
+		});
+
+		// Keep lock alive if user opens edit form and pauses before first change
+		scheduleLockRefresh();
 
 		return () => {
+			subscription.unsubscribe();
 			if (lockRefreshTimerRef.current) {
 				clearTimeout(lockRefreshTimerRef.current);
 			}
 		};
-	}, [watchedValues, isEditMode, isBlocked, refreshLock]);
+	}, [form, isEditMode, isBlocked, refreshLock]);
 
 	// Generate preview URL via server RPC (url function runs server-side)
-	// Must be after useWatch for reactive updates to form values
 	const [previewUrl, setPreviewUrl] = React.useState<string | null>(null);
+	const previewTimerRef = React.useRef<NodeJS.Timeout | null>(null);
+
+	const updatePreviewUrl = React.useCallback(
+		(record: Record<string, unknown>) => {
+			if (!hasPreview || !client) {
+				setPreviewUrl(null);
+				return;
+			}
+
+			const rpc = (client as any).rpc;
+			void rpc
+				.getPreviewUrl({
+					collection,
+					record,
+					locale: contentLocale,
+				})
+				.then((result: { url?: string } | null | undefined) => {
+					setPreviewUrl(result?.url ?? null);
+				})
+				.catch(() => {
+					setPreviewUrl(null);
+				});
+		},
+		[hasPreview, client, collection, contentLocale],
+	);
 
 	React.useEffect(() => {
 		if (!hasPreview || !client) {
@@ -1054,25 +1073,30 @@ export default function FormView({
 			return;
 		}
 
-		// Debounce the RPC call to avoid too many requests
-		const timeoutId = setTimeout(async () => {
-			try {
-				const formValues = (watchedValues ?? {}) as Record<string, unknown>;
-				// Type assertion needed - getPreviewUrl is dynamically registered via adminModule
-				const rpc = (client as any).rpc;
-				const result = await rpc.getPreviewUrl({
-					collection,
-					record: formValues,
-					locale: contentLocale,
-				});
-				setPreviewUrl(result?.url ?? null);
-			} catch {
-				setPreviewUrl(null);
+		const schedulePreviewUpdate = (record: Record<string, unknown>) => {
+			if (previewTimerRef.current) {
+				clearTimeout(previewTimerRef.current);
 			}
-		}, 300);
 
-		return () => clearTimeout(timeoutId);
-	}, [hasPreview, client, collection, watchedValues, contentLocale]);
+			previewTimerRef.current = setTimeout(() => {
+				updatePreviewUrl(record);
+			}, 300);
+		};
+
+		const initialValues = (form.getValues() ?? {}) as Record<string, unknown>;
+		schedulePreviewUpdate(initialValues);
+
+		const subscription = form.watch((values) => {
+			schedulePreviewUpdate((values ?? {}) as Record<string, unknown>);
+		});
+
+		return () => {
+			subscription.unsubscribe();
+			if (previewTimerRef.current) {
+				clearTimeout(previewTimerRef.current);
+			}
+		};
+	}, [hasPreview, client, form, updatePreviewUrl]);
 
 	// Show skeleton until form data is ready (edit mode only)
 	// This prevents race conditions where form fields render before data is loaded
