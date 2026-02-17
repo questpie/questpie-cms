@@ -12,6 +12,7 @@ import {
 	paginatedResponseSchema,
 	ref,
 	singleQueryParameters,
+	stageQueryParameter,
 } from "./schemas.js";
 
 /**
@@ -119,6 +120,7 @@ export function generateCollectionPaths(
 				operationId: `${name}_create`,
 				summary: `Create ${name}`,
 				tags: [tag],
+				parameters: [stageQueryParameter()],
 				requestBody: jsonRequestBody(ref(insertSchemaName)),
 				responses: jsonResponse(
 					ref(documentSchemaName),
@@ -248,7 +250,7 @@ export function generateCollectionPaths(
 				operationId: `${name}_update`,
 				summary: `Update ${name}`,
 				tags: [tag],
-				parameters: [idParam],
+				parameters: [idParam, stageQueryParameter()],
 				requestBody: jsonRequestBody(ref(updateSchemaName)),
 				responses: jsonResponse(
 					ref(documentSchemaName),
@@ -259,7 +261,7 @@ export function generateCollectionPaths(
 				operationId: `${name}_delete`,
 				summary: `Delete ${name}`,
 				tags: [tag],
-				parameters: [idParam],
+				parameters: [idParam, stageQueryParameter()],
 				responses: jsonResponse(
 					ref("SuccessResponse"),
 					`Deleted ${name} record`,
@@ -274,7 +276,7 @@ export function generateCollectionPaths(
 					operationId: `${name}_restore`,
 					summary: `Restore deleted ${name}`,
 					tags: [tag],
-					parameters: [idParam],
+					parameters: [idParam, stageQueryParameter()],
 					responses: jsonResponse(
 						ref(documentSchemaName),
 						`Restored ${name} record`,
@@ -330,7 +332,7 @@ export function generateCollectionPaths(
 				operationId: `${name}_revertToVersion`,
 				summary: `Revert ${name} to a version`,
 				tags: [tag],
-				parameters: [idParam],
+				parameters: [idParam, stageQueryParameter()],
 				requestBody: jsonRequestBody({
 					type: "object",
 					properties: {
@@ -344,6 +346,32 @@ export function generateCollectionPaths(
 				),
 			},
 		};
+
+		// POST /{collection}/{id}/transition (only for workflow-enabled collections)
+		if (state.options?.workflow) {
+			paths[`${prefix}/{id}/transition`] = {
+				post: {
+					operationId: `${name}_transition`,
+					summary: `Transition ${name} workflow stage`,
+					tags: [tag],
+					parameters: [idParam],
+					requestBody: jsonRequestBody({
+						type: "object",
+						required: ["stage"],
+						properties: {
+							stage: {
+								type: "string",
+								description: "Target workflow stage",
+							},
+						},
+					}),
+					responses: jsonResponse(
+						ref(documentSchemaName),
+						`Transitioned ${name} record`,
+					),
+				},
+			};
+		}
 	}
 
 	return { paths, schemas, tags };

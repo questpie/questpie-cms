@@ -22,7 +22,7 @@ describe("OpenAPI schema generation", () => {
 				}),
 			}));
 
-			// Create a minimal mock CMS for testing
+			// Create a minimal mock app for testing
 			const mockCms = {
 				getCollections: () => ({ posts }),
 				getGlobals: () => ({}),
@@ -30,7 +30,7 @@ describe("OpenAPI schema generation", () => {
 
 			const spec = generateOpenApiSpec(mockCms as any, undefined, {
 				info: { title: "Test API", version: "1.0.0" },
-				basePath: "/cms",
+				basePath: "/",
 			});
 
 			// Check that schemas are generated
@@ -70,7 +70,7 @@ describe("OpenAPI schema generation", () => {
 
 			const spec = generateOpenApiSpec(mockCms as any, undefined, {
 				info: { title: "Test API", version: "1.0.0" },
-				basePath: "/cms",
+				basePath: "/",
 			});
 
 			const docSchema = spec.components?.schemas?.PostsDocument as any;
@@ -108,7 +108,7 @@ describe("OpenAPI schema generation", () => {
 
 			const spec = generateOpenApiSpec(mockCms as any, undefined, {
 				info: { title: "Test API", version: "1.0.0" },
-				basePath: "/cms",
+				basePath: "/",
 			});
 
 			const insertSchema = spec.components?.schemas?.PostsInsert as any;
@@ -136,7 +136,7 @@ describe("OpenAPI schema generation", () => {
 
 			const spec = generateOpenApiSpec(mockCms as any, undefined, {
 				info: { title: "Test API", version: "1.0.0" },
-				basePath: "/cms",
+				basePath: "/",
 			});
 
 			const insertSchema = spec.components?.schemas?.PostsInsert as any;
@@ -171,11 +171,54 @@ describe("OpenAPI schema generation", () => {
 
 			const spec = generateOpenApiSpec(mockCms as any, undefined, {
 				info: { title: "Test API", version: "1.0.0" },
-				basePath: "/cms",
+				basePath: "/",
 			});
 
-			expect(spec.paths?.["/cms/posts/{id}/versions"]?.get).toBeDefined();
-			expect(spec.paths?.["/cms/posts/{id}/revert"]?.post).toBeDefined();
+			expect(spec.paths?.["//posts/{id}/versions"]?.get).toBeDefined();
+			expect(spec.paths?.["//posts/{id}/revert"]?.post).toBeDefined();
+		});
+
+		it("generates transition path for workflow-enabled collections", () => {
+			const q = questpie({ name: "test-openapi-collection-transition" }).fields(
+				defaultFields,
+			);
+
+			const posts = q
+				.collection("posts")
+				.fields((f) => ({
+					title: f.text({ required: true }),
+				}))
+				.options({
+					versioning: true,
+					workflow: {
+						stages: ["draft", "published"],
+						initialStage: "draft",
+					},
+				});
+
+			const pages = q
+				.collection("pages")
+				.fields((f) => ({
+					title: f.text({ required: true }),
+				}));
+
+			const mockCms = {
+				getCollections: () => ({ posts, pages }),
+				getGlobals: () => ({}),
+			};
+
+			const spec = generateOpenApiSpec(mockCms as any, undefined, {
+				info: { title: "Test API", version: "1.0.0" },
+				basePath: "/",
+			});
+
+			// Workflow-enabled collection should have transition endpoint
+			const transitionOp = spec.paths?.["//posts/{id}/transition"]?.post;
+			expect(transitionOp).toBeDefined();
+			expect(transitionOp?.operationId).toBe("posts_transition");
+
+			// Non-workflow collection should NOT have transition endpoint
+			expect(spec.paths?.["//pages/{id}/transition"]).toBeUndefined();
 		});
 	});
 
@@ -228,11 +271,55 @@ describe("OpenAPI schema generation", () => {
 
 			const spec = generateOpenApiSpec(mockCms as any, undefined, {
 				info: { title: "Test API", version: "1.0.0" },
-				basePath: "/cms",
+				basePath: "/",
 			});
 
-			expect(spec.paths?.["/cms/globals/settings/versions"]?.get).toBeDefined();
-			expect(spec.paths?.["/cms/globals/settings/revert"]?.post).toBeDefined();
+			expect(spec.paths?.["//globals/settings/versions"]?.get).toBeDefined();
+			expect(spec.paths?.["//globals/settings/revert"]?.post).toBeDefined();
+		});
+
+		it("generates transition path for workflow-enabled globals", () => {
+			const q = questpie({ name: "test-openapi-global-transition" }).fields(
+				defaultFields,
+			);
+
+			const settings = q
+				.global("settings")
+				.fields((f) => ({
+					siteName: f.text({ required: true }),
+				}))
+				.options({
+					versioning: true,
+					workflow: {
+						stages: ["draft", "published"],
+						initialStage: "draft",
+					},
+				});
+
+			const nav = q
+				.global("nav")
+				.fields((f) => ({
+					items: f.array({ of: f.text() }),
+				}));
+
+			const mockCms = {
+				getCollections: () => ({}),
+				getGlobals: () => ({ settings, nav }),
+			};
+
+			const spec = generateOpenApiSpec(mockCms as any, undefined, {
+				info: { title: "Test API", version: "1.0.0" },
+				basePath: "/",
+			});
+
+			// Workflow-enabled global should have transition endpoint
+			const transitionOp =
+				spec.paths?.["//globals/settings/transition"]?.post;
+			expect(transitionOp).toBeDefined();
+			expect(transitionOp?.operationId).toBe("global_settings_transition");
+
+			// Non-workflow global should NOT have transition endpoint
+			expect(spec.paths?.["//globals/nav/transition"]).toBeUndefined();
 		});
 	});
 });

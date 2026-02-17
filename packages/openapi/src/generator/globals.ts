@@ -5,7 +5,12 @@
 import type { Questpie } from "questpie";
 import { z } from "zod";
 import type { OpenApiConfig, PathOperation } from "../types.js";
-import { jsonRequestBody, jsonResponse, ref } from "./schemas.js";
+import {
+	jsonRequestBody,
+	jsonResponse,
+	ref,
+	stageQueryParameter,
+} from "./schemas.js";
 
 /**
  * Generate OpenAPI paths and component schemas for all globals.
@@ -95,6 +100,7 @@ export function generateGlobalPaths(
 						schema: { type: "string" },
 						description: "Content locale",
 					},
+					stageQueryParameter(),
 				],
 				responses: jsonResponse(
 					ref(valueSchemaName),
@@ -105,6 +111,7 @@ export function generateGlobalPaths(
 				operationId: `global_${name}_update`,
 				summary: `Update ${name} global`,
 				tags: [tag],
+				parameters: [stageQueryParameter()],
 				requestBody: jsonRequestBody(ref(updateSchemaName)),
 				responses: jsonResponse(ref(valueSchemaName), `Updated ${name} global`),
 			},
@@ -175,6 +182,7 @@ export function generateGlobalPaths(
 				operationId: `global_${name}_revertToVersion`,
 				summary: `Revert ${name} global to a version`,
 				tags: [tag],
+				parameters: [stageQueryParameter()],
 				requestBody: jsonRequestBody({
 					type: "object",
 					properties: {
@@ -189,6 +197,31 @@ export function generateGlobalPaths(
 				),
 			},
 		};
+
+		// POST /globals/{name}/transition (only for workflow-enabled globals)
+		if (state.options?.workflow) {
+			paths[`${prefix}/transition`] = {
+				post: {
+					operationId: `global_${name}_transition`,
+					summary: `Transition ${name} global workflow stage`,
+					tags: [tag],
+					requestBody: jsonRequestBody({
+						type: "object",
+						required: ["stage"],
+						properties: {
+							stage: {
+								type: "string",
+								description: "Target workflow stage",
+							},
+						},
+					}),
+					responses: jsonResponse(
+						ref(valueSchemaName),
+						`Transitioned ${name} global value`,
+					),
+				},
+			};
+		}
 	}
 
 	return { paths, schemas, tags };
