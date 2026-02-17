@@ -201,10 +201,12 @@ export function useFieldHooks({
 		[computeDeps, loadOptionsDeps],
 	);
 
+	const shouldFallbackToFullWatch = !!compute && computeDeps.length === 0;
+
 	const watchedDepValues = useWatch({
 		control: form.control,
-		name: watchedDeps as any,
-		disabled: watchedDeps.length === 0,
+		name: shouldFallbackToFullWatch ? undefined : (watchedDeps as any),
+		disabled: !shouldFallbackToFullWatch && watchedDeps.length === 0,
 	});
 
 	const watchedDepMap = React.useMemo(() => {
@@ -226,9 +228,13 @@ export function useFieldHooks({
 	}, [watchedDeps, watchedDepValues]);
 
 	const computeDepKey = React.useMemo(() => {
+		if (shouldFallbackToFullWatch) {
+			return JSON.stringify(watchedDepValues ?? {});
+		}
+
 		if (!computeDeps.length) return "";
 		return JSON.stringify(computeDeps.map((dep) => watchedDepMap[dep]));
-	}, [computeDeps, watchedDepMap]);
+	}, [computeDeps, shouldFallbackToFullWatch, watchedDepValues, watchedDepMap]);
 
 	// ========================================================================
 	// Computed Value (reactive via useWatch + useMemo)
