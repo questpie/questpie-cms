@@ -183,8 +183,10 @@ export function getFieldContext({
 	const description = options.description;
 	const placeholder = options.placeholder;
 
+	const isVisible = resolveValue(options.visible, formValues, true);
 	// hidden: false/undefined = visible, true = hidden
-	const isHidden = resolveValue(options.hidden, formValues, false);
+	const isHidden =
+		!isVisible || resolveValue(options.hidden, formValues, false);
 	// compute implies readonly
 	const isComputed = typeof options.compute === "function";
 	const isReadOnly =

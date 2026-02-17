@@ -16,41 +16,7 @@ import type {
 	FieldHookContext,
 	SelectOption,
 } from "../builder/types/field-types";
-
-// ============================================================================
-// Proxy Tracking Utilities
-// ============================================================================
-
-/**
- * Result of tracking dependencies via Proxy
- */
-interface TrackingResult<T> {
-	result: T;
-	deps: string[];
-}
-
-/**
- * Track which fields are accessed during a function call using Proxy.
- * Returns the result and the list of accessed field names.
- */
-function trackDependencies<T>(
-	values: Record<string, any>,
-	fn: (values: Record<string, any>) => T,
-): TrackingResult<T> {
-	const deps: string[] = [];
-
-	const proxy = new Proxy(values, {
-		get(target, prop: string) {
-			if (typeof prop === "string" && !prop.startsWith("_")) {
-				deps.push(prop);
-			}
-			return target[prop];
-		},
-	});
-
-	const result = fn(proxy);
-	return { result, deps: [...new Set(deps)] }; // dedupe
-}
+import { trackDependencies } from "../utils/dependency-tracker.js";
 
 // ============================================================================
 // Types
@@ -187,6 +153,7 @@ export function useFieldHooks({
 
 	// Track dependencies for loadOptions (stored in state to trigger re-render when detected)
 	const [loadOptionsDeps, setLoadOptionsDeps] = React.useState<string[]>([]);
+	const [computeDeps, setComputeDeps] = React.useState<string[]>([]);
 
 	// Create stable hook context
 	const hookCtx = React.useMemo(
@@ -195,62 +162,91 @@ export function useFieldHooks({
 	);
 
 	// ========================================================================
-	// Watch form values reactively (React best practice: useWatch hook)
-	// ========================================================================
-
-	// Watch all form values for compute reactivity
-	// useWatch properly integrates with React's lifecycle
-	const watchedValues = useWatch({ control: form.control });
-	const allValues = React.useMemo(
-		() => (watchedValues ?? {}) as Record<string, any>,
-		[watchedValues],
-	);
-
-	// ========================================================================
-	// Detect loadOptions dependencies (run once)
+	// Detect compute dependencies
 	// ========================================================================
 
 	React.useEffect(() => {
-		if (!loadOptions) return;
-
-		// Run loadOptions once with a tracking proxy to detect deps
-		const values = form.getValues();
-		const deps: string[] = [];
-		const proxy = new Proxy(values, {
-			get(target, prop: string) {
-				if (typeof prop === "string" && !prop.startsWith("_")) {
-					deps.push(prop);
-				}
-				return target[prop];
-			},
-		});
-
-		// Call loadOptions to track deps, catch and ignore errors
-		try {
-			loadOptions(proxy);
-		} catch {
-			// Ignore - we just wanted to track access
+		if (!compute) {
+			setComputeDeps([]);
+			return;
 		}
 
-		const uniqueDeps = [...new Set(deps)];
-		setLoadOptionsDeps(uniqueDeps);
+		const values = (form.getValues() ?? {}) as Record<string, any>;
+		const tracked = trackDependencies(values, compute);
+		setComputeDeps([...new Set(tracked.deps)]);
+	}, [compute, form]);
+
+	// ========================================================================
+	// Detect loadOptions dependencies
+	// ========================================================================
+
+	React.useEffect(() => {
+		if (!loadOptions) {
+			setLoadOptionsDeps([]);
+			return;
+		}
+
+		// Run loadOptions once with a tracking proxy to detect deps
+		const values = (form.getValues() ?? {}) as Record<string, any>;
+		const tracked = trackDependencies(values, (proxyValues) => {
+			void loadOptions(proxyValues);
+			return null;
+		});
+
+		setLoadOptionsDeps([...new Set(tracked.deps)]);
 	}, [loadOptions, form]);
+
+	const watchedDeps = React.useMemo(
+		() => [...new Set([...computeDeps, ...loadOptionsDeps])],
+		[computeDeps, loadOptionsDeps],
+	);
+
+	const watchedDepValues = useWatch({
+		control: form.control,
+		name: watchedDeps as any,
+		disabled: watchedDeps.length === 0,
+	});
+
+	const watchedDepMap = React.useMemo(() => {
+		const depMap: Record<string, unknown> = {};
+
+		if (watchedDeps.length === 0) {
+			return depMap;
+		}
+
+		const values = Array.isArray(watchedDepValues)
+			? watchedDepValues
+			: [watchedDepValues];
+
+		for (const [index, dep] of watchedDeps.entries()) {
+			depMap[dep] = values[index];
+		}
+
+		return depMap;
+	}, [watchedDeps, watchedDepValues]);
+
+	const computeDepKey = React.useMemo(() => {
+		if (!computeDeps.length) return "";
+		return JSON.stringify(computeDeps.map((dep) => watchedDepMap[dep]));
+	}, [computeDeps, watchedDepMap]);
 
 	// ========================================================================
 	// Computed Value (reactive via useWatch + useMemo)
 	// ========================================================================
 
-	// Use useMemo for computed value - recomputes when allValues change
+	// Use useMemo for computed value - recomputes when tracked deps change
 	// This is the proper React pattern: derived state via useMemo
 	const computedValue = React.useMemo(() => {
 		if (!compute) return undefined;
 		try {
-			return compute(allValues);
+			void computeDepKey;
+			const values = (form.getValues() ?? {}) as Record<string, any>;
+			return compute(values);
 		} catch (error) {
 			console.error(`Compute error for ${fieldName}:`, error);
 			return undefined;
 		}
-	}, [compute, allValues, fieldName]);
+	}, [compute, form, fieldName, computeDepKey]);
 
 	// ========================================================================
 	// Default Value Effect
@@ -302,17 +298,11 @@ export function useFieldHooks({
 	// Async Options Loader (reactive via tracked deps)
 	// ========================================================================
 
-	// Extract only the tracked dependency values for comparison
-	const trackedDepValues = React.useMemo(() => {
-		if (!loadOptionsDeps.length) return [];
-		return loadOptionsDeps.map((dep) => allValues[dep]);
-	}, [loadOptionsDeps, allValues]);
-
-	// Stable serialization for deep comparison
-	const trackedDepKey = React.useMemo(
-		() => JSON.stringify(trackedDepValues),
-		[trackedDepValues],
-	);
+	// Stable serialization for tracked loadOptions dependency values
+	const trackedDepKey = React.useMemo(() => {
+		if (!loadOptionsDeps.length) return "";
+		return JSON.stringify(loadOptionsDeps.map((dep) => watchedDepMap[dep]));
+	}, [loadOptionsDeps, watchedDepMap]);
 
 	const initialOptionsLoadDone = React.useRef(false);
 	const prevDepKeyRef = React.useRef<string>("");
@@ -338,8 +328,8 @@ export function useFieldHooks({
 		const fetchOptions = async () => {
 			setOptionsLoading(true);
 			try {
-				// Use allValues (from useWatch) for the loadOptions call
-				const options = await loadOptions(allValues);
+				const values = (form.getValues() ?? {}) as Record<string, any>;
+				const options = await loadOptions(values);
 				setAsyncOptions(options);
 			} catch (error) {
 				console.error(`Failed to load options for ${fieldName}:`, error);
@@ -350,7 +340,7 @@ export function useFieldHooks({
 		};
 
 		fetchOptions();
-	}, [loadOptions, loadOptionsDeps, trackedDepKey, allValues, fieldName]);
+	}, [loadOptions, loadOptionsDeps, trackedDepKey, form, fieldName]);
 
 	// ========================================================================
 	// onChange Handler

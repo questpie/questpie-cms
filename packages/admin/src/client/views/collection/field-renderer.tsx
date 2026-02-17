@@ -16,6 +16,10 @@ import { useGlobalMeta } from "../../hooks/use-global-meta";
 import { useResolveText } from "../../i18n/hooks";
 import { useScopedLocale } from "../../runtime";
 import {
+	scopeDependencies,
+	trackDependencies,
+} from "../../utils/dependency-tracker";
+import {
 	buildComponentProps,
 	type FieldContext,
 	getFieldContext,
@@ -83,6 +87,38 @@ function stripFieldUiOptions(options: Record<string, any>) {
 	} = options;
 
 	return rest;
+}
+
+const DYNAMIC_FIELD_OPTION_KEYS = [
+	"hidden",
+	"readOnly",
+	"disabled",
+	"required",
+	"options",
+	"label",
+	"description",
+	"placeholder",
+] as const;
+
+function collectFieldOptionDependencies(
+	fieldOptions: Record<string, any>,
+	values: Record<string, any>,
+): string[] {
+	const deps = new Set<string>();
+
+	for (const key of DYNAMIC_FIELD_OPTION_KEYS) {
+		const value = fieldOptions[key];
+		if (typeof value !== "function") {
+			continue;
+		}
+
+		const tracked = trackDependencies(values, value);
+		for (const dep of tracked.deps) {
+			deps.add(dep);
+		}
+	}
+
+	return [...deps];
 }
 
 /**
@@ -206,30 +242,65 @@ export function FieldRenderer({
 	const { locale } = useScopedLocale();
 	const resolveText = useResolveText();
 	const { data: adminConfig } = useAdminConfig();
-
-	// Use useWatch hook (React pattern) instead of form.getValues() method
-	// This ensures reactive updates when form values change
-	// Watch all form values - the fieldPrefix scoping is handled by getFieldContext
-	const watchedValues = useWatch({ control: form.control });
 	const fullFieldName = getFullFieldName(fieldName, fieldPrefix);
-	const watchedFieldValue = useWatch({
-		control: form.control,
-		name: fullFieldName,
-	} as any);
 
-	// Extract the scoped values if fieldPrefix is provided
+	// Get field options for context + hooks
+	const fieldOptions = React.useMemo(
+		() => getFieldOptions(fieldDef),
+		[fieldDef],
+	);
+
+	const [dynamicDependencyPaths, setDynamicDependencyPaths] = React.useState<
+		string[]
+	>([]);
+
+	React.useEffect(() => {
+		const scopedValues =
+			((fieldPrefix ? form.getValues(fieldPrefix) : form.getValues()) as
+				| Record<string, any>
+				| undefined) ?? {};
+
+		const trackedDeps = collectFieldOptionDependencies(
+			fieldOptions,
+			scopedValues,
+		);
+		const scopedDeps = scopeDependencies(trackedDeps, fieldPrefix);
+
+		setDynamicDependencyPaths((prev) => {
+			if (
+				prev.length === scopedDeps.length &&
+				prev.every((dep, index) => dep === scopedDeps[index])
+			) {
+				return prev;
+			}
+
+			return scopedDeps;
+		});
+	}, [fieldOptions, fieldPrefix, form]);
+
+	const watchNames = React.useMemo(() => {
+		return [...new Set([fullFieldName, ...dynamicDependencyPaths])];
+	}, [fullFieldName, dynamicDependencyPaths]);
+
+	const watchedDependencyValues = useWatch({
+		control: form.control,
+		name: watchNames as any,
+	});
+
+	const watchedFieldValue = Array.isArray(watchedDependencyValues)
+		? watchedDependencyValues[0]
+		: watchedDependencyValues;
+
+	// Extract scoped values from form snapshot when relevant dependencies change
 	const formValues = React.useMemo(() => {
-		if (!watchedValues) return {};
-		if (!fieldPrefix) return watchedValues as Record<string, any>;
-		// Navigate to the nested path
-		const parts = fieldPrefix.split(".");
-		let result: any = watchedValues;
-		for (const part of parts) {
-			result = result?.[part];
-			if (result === undefined) return {};
+		void watchedDependencyValues;
+
+		if (!fieldPrefix) {
+			return (form.getValues() ?? {}) as Record<string, any>;
 		}
-		return (result ?? {}) as Record<string, any>;
-	}, [watchedValues, fieldPrefix]);
+
+		return (form.getValues(fieldPrefix) ?? {}) as Record<string, any>;
+	}, [form, fieldPrefix, watchedDependencyValues]);
 
 	// Fetch entity metadata for inferring localized fields
 	// Use prop if provided, otherwise fetch from backend based on mode
@@ -254,9 +325,6 @@ export function FieldRenderer({
 		entityMeta,
 		formValues, // Pass pre-watched values to avoid calling form.watch() internally
 	});
-
-	// Get field options for hooks
-	const fieldOptions = getFieldOptions(fieldDef);
 
 	// Check if compute is client-side (function) vs server-side (object with handler)
 	// Server-side compute is handled by useReactiveFields in form-view.tsx

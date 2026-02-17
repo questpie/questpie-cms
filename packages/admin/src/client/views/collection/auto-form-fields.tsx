@@ -43,6 +43,10 @@ import { useCollectionFields } from "../../hooks/use-collection-fields";
 import { useGlobalFields } from "../../hooks/use-global-fields";
 import { useResolveText } from "../../i18n/hooks";
 import { cn } from "../../utils";
+import {
+	scopeDependencies,
+	trackDependencies,
+} from "../../utils/dependency-tracker";
 import { getFullFieldName, resolveValue } from "./field-context";
 import { FieldRenderer } from "./field-renderer";
 
@@ -153,6 +157,55 @@ function normalizeFieldItem(item: FieldLayoutItem): {
 function getGapStyle(gap?: number) {
 	if (gap === undefined) return undefined;
 	return `${gap * 0.25}rem`;
+}
+
+function trackDynamicValueDependencies(
+	value: unknown,
+	formValues: Record<string, any>,
+	deps: Set<string>,
+) {
+	if (typeof value !== "function") {
+		return;
+	}
+
+	const tracked = trackDependencies(
+		formValues,
+		value as (values: Record<string, any>) => unknown,
+	);
+
+	for (const dep of tracked.deps) {
+		deps.add(dep);
+	}
+}
+
+function collectLayoutDependencies(
+	fieldItems: FieldLayoutItem[] | undefined,
+	formValues: Record<string, any>,
+	deps: Set<string>,
+) {
+	if (!fieldItems?.length) return;
+
+	for (const item of fieldItems) {
+		if (typeof item !== "object" || item === null || !("type" in item)) {
+			continue;
+		}
+
+		if (item.type === "section") {
+			trackDynamicValueDependencies(item.hidden, formValues, deps);
+			trackDynamicValueDependencies(item.label, formValues, deps);
+			trackDynamicValueDependencies(item.description, formValues, deps);
+			collectLayoutDependencies(item.fields, formValues, deps);
+			continue;
+		}
+
+		if (item.type === "tabs") {
+			for (const tab of item.tabs) {
+				trackDynamicValueDependencies(tab.hidden, formValues, deps);
+				trackDynamicValueDependencies(tab.label, formValues, deps);
+				collectLayoutDependencies(tab.fields, formValues, deps);
+			}
+		}
+	}
 }
 
 // ============================================================================
@@ -382,14 +435,7 @@ function renderFieldLayoutItems({
 			// Check if excluded
 			if (excludedFields?.has(fieldName)) return null;
 
-			// Check if hidden
 			const fieldDef = fields[fieldName];
-			const fieldOptions = (fieldDef as any)["~options"] || {};
-			const isHidden =
-				typeof fieldOptions.hidden === "function"
-					? fieldOptions.hidden(formValues)
-					: fieldOptions.hidden === true;
-			if (isHidden) return null;
 
 			return (
 				<FieldRenderer
@@ -553,12 +599,6 @@ function renderSection({
 						if (excludedFields?.has(fieldName)) return null;
 
 						const fieldDef = fields[fieldName];
-						const fieldOptions = (fieldDef as any)["~options"] || {};
-						const isVis =
-							typeof fieldOptions.visible === "function"
-								? fieldOptions.visible(formValues)
-								: fieldOptions.visible !== false;
-						if (!isVis) return null;
 
 						return (
 							<FieldRenderer
@@ -860,24 +900,6 @@ export function AutoFormFields<T extends Questpie<any>, K extends string>({
 	const schema =
 		mode === "global" ? (globalResult.schema as any) : collectionResult.schema;
 	const form = useFormContext() as any;
-	// Use useWatch hook (React pattern) instead of form.watch() method
-	// Watch all form values - the fieldPrefix scoping is handled below
-	const watchedValues = useWatch({ control: form.control });
-
-	// Extract the scoped values if fieldPrefix is provided
-	const formValues = React.useMemo(() => {
-		if (!watchedValues) return {};
-		if (!fieldPrefix) return watchedValues as Record<string, any>;
-		// Navigate to the nested path
-		const parts = fieldPrefix.split(".");
-		let result: any = watchedValues;
-		for (const part of parts) {
-			result = result?.[part];
-			if (result === undefined) return {};
-		}
-		return (result ?? {}) as Record<string, any>;
-	}, [watchedValues, fieldPrefix]);
-
 	const resolveText = useResolveText();
 
 	// Get fields config
@@ -887,6 +909,46 @@ export function AutoFormFields<T extends Questpie<any>, K extends string>({
 	const schemaFormConfig = mapFormSchemaToConfig(schema?.admin?.form);
 	const formConfig =
 		(config?.form as any)?.["~config"] ?? config?.form ?? schemaFormConfig;
+
+	const initialScopedValues = React.useMemo(() => {
+		if (!fieldPrefix) {
+			return (form.getValues() ?? {}) as Record<string, any>;
+		}
+
+		return (form.getValues(fieldPrefix) ?? {}) as Record<string, any>;
+	}, [form, fieldPrefix]);
+
+	const layoutWatchDeps = React.useMemo(() => {
+		const deps = new Set<string>();
+
+		collectLayoutDependencies(formConfig?.fields, initialScopedValues, deps);
+
+		if (formConfig?.sidebar?.fields) {
+			collectLayoutDependencies(
+				formConfig.sidebar.fields,
+				initialScopedValues,
+				deps,
+			);
+		}
+
+		return scopeDependencies([...deps], fieldPrefix);
+	}, [formConfig, initialScopedValues, fieldPrefix]);
+
+	const watchedLayoutDeps = useWatch({
+		control: form.control,
+		name: layoutWatchDeps as any,
+		disabled: layoutWatchDeps.length === 0,
+	});
+
+	const formValues = React.useMemo(() => {
+		void watchedLayoutDeps;
+
+		if (!fieldPrefix) {
+			return (form.getValues() ?? {}) as Record<string, any>;
+		}
+
+		return (form.getValues(fieldPrefix) ?? {}) as Record<string, any>;
+	}, [form, fieldPrefix, watchedLayoutDeps]);
 
 	// Get all field names for auto-generation
 	const allFieldNames = Object.keys(fields);
