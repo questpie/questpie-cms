@@ -208,14 +208,14 @@ Relation operators generate SQL subqueries (EXISTS / NOT EXISTS).
 For advanced queries not covered by built-in operators:
 
 ```ts
-{ RAW: (table) => sql`${table.score} > ${table.threshold} * 1.5` }
+{ RAW: ({ table }) => sql`${table.score} > ${table.threshold} * 1.5` }
 ```
 
-With localized collections, you can use the optional second argument to access i18n aliases:
+With localized collections, use object args to access i18n aliases:
 
 ```ts
 {
-  RAW: (table, { i18nCurrentTable, i18nFallbackTable }) =>
+  RAW: ({ i18nCurrentTable, i18nFallbackTable }) =>
     sql`COALESCE(${i18nCurrentTable?.title}, ${i18nFallbackTable?.title}) ILIKE '%guide%'`
 }
 ```

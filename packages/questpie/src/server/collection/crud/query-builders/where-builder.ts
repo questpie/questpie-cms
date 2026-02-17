@@ -186,7 +186,8 @@ export function buildWhereClause(
 			}
 		} else if (key === "RAW" && typeof value === "function") {
 			conditions.push(
-				value(table, {
+				value({
+					table,
 					i18nCurrentTable,
 					i18nFallbackTable,
 				}),

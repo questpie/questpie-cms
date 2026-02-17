@@ -528,6 +528,13 @@ export type RawWhereContext = {
 	i18nFallbackTable?: any;
 };
 
+export type RawWhereArgs = RawWhereContext & {
+	/** Active base table for the current query */
+	table: any;
+};
+
+export type RawWhereOperator = (args: RawWhereArgs) => SQL;
+
 /**
  * WHERE clause for filtering
  * Supports field conditions, logical operators, and relations
@@ -554,7 +561,7 @@ type WhereFromFields<TFields = any, TRelations = any> = WhereFields<
 	OR?: WhereFromFields<TFields, TRelations>[];
 	NOT?: WhereFromFields<TFields, TRelations>;
 	// RAW allows custom SQL expressions
-	RAW?: (table: any, ctx?: RawWhereContext) => SQL;
+	RAW?: RawWhereOperator;
 } & RelationWhereFields<TFields, TRelations>;
 
 type WhereFromCollection<TCollection, TApp> =
@@ -565,7 +572,7 @@ type WhereFromCollection<TCollection, TApp> =
 						AND?: Where<TCollection, TApp>[];
 						OR?: Where<TCollection, TApp>[];
 						NOT?: Where<TCollection, TApp>;
-						RAW?: (table: any, ctx?: RawWhereContext) => SQL;
+						RAW?: RawWhereOperator;
 					}
 				: WhereFromFields<
 						CollectionSelectFromInfer<TCollection>,
