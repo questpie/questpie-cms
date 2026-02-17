@@ -15,3 +15,18 @@ Live preview now runs only for existing collection records (edit mode with an id
 Relation list cells now support `meta.admin.listCell` options for richer table rendering. Setting `display: "avatarChip"` shows relation chips with avatar thumbnails, with optional `avatarField` and `labelField` dot-paths.
 
 List view relation auto-expansion now detects nested avatar relation paths (for example `avatar.url`) and requests nested relation data so avatar chips render without manual `with` configuration.
+
+Add upload/system field introspection (including synthetic `preview`) so assets can render preview + upload metadata reliably from schema.
+
+Update default assets admin config to show preview in list and form sidebar.
+
+Add real user admin actions in defaults:
+- header `createUser` (name/email/password/role)
+- single-item `resetPassword` (new + confirm)
+- wired to Better Auth admin API calls with session bearer token
+
+Polish user form behavior:
+- email becomes read-only on existing records
+- ban reason/expiry only show when banned
+
+Improve server action client mapping/execution with real form field mapping, RPC execution, and effects handling.
