@@ -99,22 +99,6 @@ Set access control rules.
 
 **Parameter:** `{ read?, update? }` — each is `boolean | AccessFunction`. Globals only support `read` and `update` (no create/delete — they are singletons).
 
-### `.functions(fns)`
-
-Register RPC functions scoped to this global.
-
-```ts
-.functions({
-  resetToDefaults: q.fn({
-    handler: async ({ app }) => {
-      return app.api.globals.siteSettings.update({
-        data: { siteName: "My Site", maintenanceMode: false },
-      });
-    },
-  }),
-})
-```
-
 ## Admin Configuration
 
 ### `.admin(config)`

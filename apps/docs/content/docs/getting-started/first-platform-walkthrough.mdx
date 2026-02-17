@@ -384,7 +384,7 @@ export const handler = createFetchHandler(cms, {
 
 - **Circular relation references** — Define the junction collection (`barberServices`) before the collections that reference it, or use string references in `through`.
 - **Forgetting `onDelete` on junction relations** — Without `onDelete: "cascade"`, deleting a barber leaves orphaned junction rows.
-- **Duplicating sidebar items** — Collections not listed in the sidebar are auto-added. If you list them explicitly, remove them from the auto section or they'll appear twice.
+- **Expecting duplicate sidebar items** — Explicitly listed collections/globals are automatically excluded from the auto-generated section.
 
 ## Next Steps
 

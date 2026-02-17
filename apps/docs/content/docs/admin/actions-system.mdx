@@ -69,7 +69,7 @@ Use `getContext<AppCMS>(ctx)` as the standard cast point for typed app/db/sessio
 
 ## Common Mistakes
 
-- Defining actions with `.functions()` instead of `.actions()`.
+- Defining actions as RPC procedures instead of `.actions()`.
 - Using untyped `app` directly inside handlers and losing queue/API autocomplete.
 - Returning plain objects without `type` (`success`, `error`, `redirect`, `download`).
 

@@ -112,16 +112,6 @@ export type AdapterRoutes = {
 			params: { path: string[] },
 			context?: AdapterContext,
 		) => Promise<Response>;
-		collection: (
-			request: Request,
-			params: { collection: string; name: string },
-			context?: AdapterContext,
-		) => Promise<Response>;
-		global: (
-			request: Request,
-			params: { global: string; name: string },
-			context?: AdapterContext,
-		) => Promise<Response>;
 	};
 	realtime: {
 		/**

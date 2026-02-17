@@ -211,7 +211,19 @@ For advanced queries not covered by built-in operators:
 { RAW: (table) => sql`${table.score} > ${table.threshold} * 1.5` }
 ```
 
-Use sparingly — raw SQL bypasses type safety and operator validation.
+With localized collections, you can use the optional second argument to access i18n aliases:
+
+```ts
+{
+  RAW: (table, { i18nCurrentTable, i18nFallbackTable }) =>
+    sql`COALESCE(${i18nCurrentTable?.title}, ${i18nFallbackTable?.title}) ILIKE '%guide%'`
+}
+```
+
+Notes:
+- `table` is always the active base table for the current query.
+- Version history (`findVersions`) uses version tables internally; normal collection `where` filters run against the main collection table (+ optional i18n aliases).
+- Use sparingly — raw SQL bypasses type safety and operator validation.
 
 ## Operator Support by Field Type
 

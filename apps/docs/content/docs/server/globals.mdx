@@ -22,7 +22,6 @@ GlobalBuilder chain:
   .hooks(...)          → lifecycle callbacks (no create/delete)
   .access(...)         → read/update rules
   .options(...)        → timestamps, versioning
-  .functions(...)      → global-scoped RPC
 ```
 
 ## Basic Example
@@ -206,23 +205,10 @@ Lifecycle callbacks. Globals only support update and read hooks (no create or de
 })
 ```
 
-### `.functions({ ... })`
+### RPC Functions
 
-Global-scoped RPC functions:
-
-```ts
-.functions({
-  resetToDefaults: {
-    input: z.object({}),
-    handler: async ({ app }) => {
-      return app.api.globals.siteSettings.update({
-        shopName: "Default Shop",
-        contactEmail: "admin@example.com",
-      });
-    },
-  },
-})
-```
+Custom server procedures are defined with `rpc().router(...)` at the app level.
+See [RPC](/docs/server/rpc) for patterns and endpoint wiring.
 
 ## API Usage
 

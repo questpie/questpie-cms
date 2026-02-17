@@ -13,7 +13,6 @@ import type {
 	FieldDefinitionState,
 	RelationFieldMetadata,
 } from "#questpie/server/fields/types.js";
-import type { FunctionDefinition } from "#questpie/server/functions/types.js";
 import type { GlobalBuilderExtensions } from "#questpie/server/global/builder/extensions.js";
 import { Global } from "#questpie/server/global/builder/global.js";
 import type {
@@ -266,33 +265,6 @@ export class GlobalBuilder<TState extends GlobalBuilderState> {
 	}
 
 	/**
-	 * Define RPC functions for this global
-	 */
-	functions<TNewFunctions extends Record<string, FunctionDefinition>>(
-		functions: TNewFunctions,
-	): GlobalBuilder<
-		SetProperty<
-			TState,
-			"functions",
-			TypeMerge<
-				UnsetProperty<TState["functions"], keyof TNewFunctions>,
-				TNewFunctions
-			>
-		>
-	> {
-		const newState = {
-			...this.state,
-			functions: {
-				...this.state.functions,
-				...functions,
-			},
-		} as any;
-
-		const newBuilder = new GlobalBuilder(newState);
-		return newBuilder;
-	}
-
-	/**
 	 * Convert RelationFieldMetadata to RelationConfig for CRUD operations.
 	 * Similar to collection builder's convertRelationMetadataToConfig.
 	 */
@@ -484,7 +456,6 @@ export function global<TName extends string>(
 		options: {},
 		hooks: {},
 		access: {},
-		functions: {},
 		fieldDefinitions: {},
 		"~questpieApp": undefined,
 	}) as any;

@@ -165,26 +165,6 @@ Configure field validation.
 
 ## Features
 
-### `.functions(fns)`
-
-Register RPC functions scoped to this collection.
-
-```ts
-.functions({
-  publish: q.fn({
-    schema: z.object({ id: z.string() }),
-    handler: async ({ input, app }) => {
-      return app.api.collections.posts.update({
-        where: { id: input.id },
-        data: { status: "published", publishedAt: new Date() },
-      });
-    },
-  }),
-})
-```
-
-**Parameter:** `Record<string, FunctionDefinition>` — functions accessible via RPC at `collections/{name}/functions/{fnName}`.
-
 ### `.searchable(config)`
 
 Configure full-text search indexing.

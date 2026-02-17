@@ -14,7 +14,6 @@ import type {
 	CollectionBuilderIndexesFn,
 	CollectionBuilderState,
 	CollectionBuilderTitleFn,
-	CollectionFunctionsMap,
 	CollectionHooks,
 	CollectionOptions,
 	EmptyCollectionState,
@@ -557,54 +556,6 @@ export class CollectionBuilder<TState extends CollectionBuilderState> {
 	}
 
 	/**
-	 * Define RPC functions for this collection.
-	 *
-	 * @example
-	 * ```ts
-	 * collection("posts")
-	 *   .fields((f) => ({ ... }))
-	 *   .functions({
-	 *     publish: {
-	 *       input: z.object({ id: z.string() }),
-	 *       handler: async ({ input, app }) => {
-	 *         await app.api.collections.posts.updateById({
-	 *           id: input.id,
-	 *           data: { status: "published" },
-	 *         });
-	 *       },
-	 *     },
-	 *   })
-	 * ```
-	 */
-	functions<TNewFunctions extends CollectionFunctionsMap>(
-		functions: TNewFunctions,
-	): CollectionBuilder<
-		SetProperty<
-			TState,
-			"functions",
-			TypeMerge<
-				UnsetProperty<TState["functions"], keyof TNewFunctions>,
-				TNewFunctions
-			>
-		>
-	> {
-		const newState = {
-			...this.state,
-			functions: {
-				...this.state.functions,
-				...functions,
-			},
-		} as any;
-
-		const newBuilder = new CollectionBuilder(newState);
-
-		// Copy callback functions
-		newBuilder._indexesFn = this._indexesFn;
-
-		return newBuilder;
-	}
-
-	/**
 	 * Configure search indexing for this collection.
 	 * Enables full-text search with BM25 ranking, trigrams, and optional embeddings.
 	 *
@@ -904,7 +855,6 @@ export class CollectionBuilder<TState extends CollectionBuilderState> {
 				| "options"
 				| "hooks"
 				| "access"
-				| "functions"
 				| "searchable"
 			>,
 			{
@@ -919,10 +869,6 @@ export class CollectionBuilder<TState extends CollectionBuilderState> {
 				options: TState["options"] & TOtherState["options"];
 				hooks: CollectionHooks;
 				access: CollectionAccess;
-				functions: TypeMerge<
-					UnsetProperty<TState["functions"], keyof TOtherState["functions"]>,
-					TOtherState["functions"]
-				>;
 				searchable: TState["searchable"] | TOtherState["searchable"];
 			}
 		>
@@ -949,10 +895,6 @@ export class CollectionBuilder<TState extends CollectionBuilderState> {
 			options: { ...this.state.options, ...other.state.options },
 			hooks: mergedHooks,
 			access: mergedAccess,
-			functions: {
-				...this.state.functions,
-				...other.state.functions,
-			},
 			searchable: other.state.searchable ?? this.state.searchable,
 			fieldDefinitions: {
 				...(this.state.fieldDefinitions || {}),
@@ -1062,7 +1004,6 @@ export function collection<TName extends string>(
 		options: {},
 		hooks: {},
 		access: {},
-		functions: {},
 		searchable: undefined,
 		validation: undefined,
 		output: undefined,

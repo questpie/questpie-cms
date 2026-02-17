@@ -121,33 +121,12 @@ This creates the following RPC paths:
 - `reports/generateMonthly`
 - `reports/exportCsv`
 
-## Collection-Scoped Functions
-
-Functions can also be defined directly on collections:
-
-```ts
-const posts = q.collection("posts")
-  .functions({
-    publish: r.fn({
-      schema: z.object({ id: z.string() }),
-      handler: async ({ input, app }) => {
-        return app.api.collections.posts.update({
-          where: { id: input.id },
-          data: { status: "published" },
-        });
-      },
-    }),
-  });
-```
-
-Collection functions are accessible at `collections/{name}/functions/{fnName}`.
-
 ## Mounting RPC
 
 Pass the router to the fetch handler:
 
 ```ts
-import { createFetchHandler } from "@questpie/questpie";
+import { createFetchHandler } from "questpie";
 
 const handler = createFetchHandler(cms, {
   basePath: "/api/cms",
@@ -205,15 +184,6 @@ Response:
 { "slots": [...] }
 ```
 
-### Collection Functions via HTTP
-
-```
-POST /api/cms/collections/posts/functions/publish
-Content-Type: application/json
-
-{ "id": "post-123" }
-```
-
 ## Error Handling
 
 - Invalid input → `400 BAD_REQUEST` with Zod field errors
@@ -226,6 +196,5 @@ Content-Type: application/json
 - [RPC](/docs/server/rpc) — Conceptual guide with patterns
 - [Type-Safe Contexts](/docs/server/type-safe-contexts) — Typed `app`, `db`, and `session` patterns
 - [q Builder API](/docs/reference/q-builder-api) — `q.fn()` factory
-- [Collection Builder API](/docs/reference/collection-builder-api) — `.functions()` method
 - [Adapter API](/docs/reference/adapter-api) — Mounting the handler
 - [Error Codes](/docs/reference/error-codes) — Error responses

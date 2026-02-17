@@ -185,7 +185,12 @@ export function buildWhereClause(
 				conditions.push(not(subClause));
 			}
 		} else if (key === "RAW" && typeof value === "function") {
-			conditions.push(value(table));
+			conditions.push(
+				value(table, {
+					i18nCurrentTable,
+					i18nFallbackTable,
+				}),
+			);
 		} else if (
 			typeof value === "object" &&
 			value !== null &&

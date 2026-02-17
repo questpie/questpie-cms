@@ -1,6 +1,6 @@
 ---
 title: Installation
-description: Install the runtime baseline, then layer optional modules
+description: Install the runtime core, then layer optional modules
 ---
 
 # Installation
@@ -16,20 +16,23 @@ QUESTPIE installation is runtime-first: install the backend baseline, choose one
 | **TypeScript** | 5.0+ | Required for type inference |
 | **PostgreSQL** | 14+ | Primary database (PGlite supported for development) |
 
-## Required Baseline Packages
+## Required Core Package
 
-Every QUESTPIE project starts with this runtime baseline:
+Every QUESTPIE project starts with the core runtime:
 
 ```bash
-bun add questpie zod drizzle-orm postgres
+bun add questpie
 ```
 
 | Package | Purpose |
 |---|---|
 | `questpie` | Core platform: builders, fields, CRUD, hooks, access, RPC |
-| `zod` | Validation schemas for RPC inputs and field validation |
-| `drizzle-orm` | ORM used internally (also used for custom indexes and queries) |
-| `postgres` | PostgreSQL driver for runtime database connections |
+
+If your app imports these libraries directly (for custom schemas or SQL helpers), add them explicitly:
+
+```bash
+bun add zod drizzle-orm
+```
 
 ## Required Framework Adapter
 
@@ -129,7 +132,7 @@ Run with `bun run --bun your-file.ts` or `npx tsx your-file.ts` to verify.
 
 ## Common Mistakes
 
-- **Missing `drizzle-orm` or `postgres`** — QUESTPIE depends on Drizzle internals and a PostgreSQL driver in the baseline runtime.
+- **Importing `zod` or `drizzle-orm` without installing them** — add them to your app only when you import them directly.
 - **Installing admin too early** — Start from runtime baseline, then add `@questpie/admin` only when you need an internal UI.
 - **Using wrong admin subpath** — `@questpie/admin/server` is for builder augmentation and `@questpie/admin/client` is for interface rendering.
 - **Wrong PostgreSQL version** — QUESTPIE uses features like `jsonb`, full-text search, and `pg_trgm` that require PostgreSQL 14+.

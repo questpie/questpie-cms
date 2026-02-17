@@ -684,7 +684,6 @@ export class QuestpieBuilder<
 			options: {},
 			hooks: {},
 			access: {},
-			functions: {},
 			searchable: undefined,
 			validation: undefined,
 			output: undefined,
@@ -732,7 +731,6 @@ export class QuestpieBuilder<
 			options: {},
 			hooks: {},
 			access: {},
-			functions: {},
 			fieldDefinitions: undefined,
 			"~questpieApp": this,
 			"~fieldTypes": undefined, // Type only - passed via generics

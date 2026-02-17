@@ -521,6 +521,13 @@ type RelationWhereFields<TFields, TRelations> = [TRelations] extends [never]
 						}
 				: {};
 
+export type RawWhereContext = {
+	/** Aliased i18n table for the active locale (when localization is enabled) */
+	i18nCurrentTable?: any;
+	/** Aliased i18n fallback table (when locale fallback is enabled) */
+	i18nFallbackTable?: any;
+};
+
 /**
  * WHERE clause for filtering
  * Supports field conditions, logical operators, and relations
@@ -547,7 +554,7 @@ type WhereFromFields<TFields = any, TRelations = any> = WhereFields<
 	OR?: WhereFromFields<TFields, TRelations>[];
 	NOT?: WhereFromFields<TFields, TRelations>;
 	// RAW allows custom SQL expressions
-	RAW?: (table: any) => SQL;
+	RAW?: (table: any, ctx?: RawWhereContext) => SQL;
 } & RelationWhereFields<TFields, TRelations>;
 
 type WhereFromCollection<TCollection, TApp> =
@@ -558,7 +565,7 @@ type WhereFromCollection<TCollection, TApp> =
 						AND?: Where<TCollection, TApp>[];
 						OR?: Where<TCollection, TApp>[];
 						NOT?: Where<TCollection, TApp>;
-						RAW?: (table: any) => SQL;
+						RAW?: (table: any, ctx?: RawWhereContext) => SQL;
 					}
 				: WhereFromFields<
 						CollectionSelectFromInfer<TCollection>,

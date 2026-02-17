@@ -1,8 +1,6 @@
 import qs from "qs";
 import superjson from "superjson";
-import { createRealtimeAPI, type RealtimeAPI } from "./realtime/index.js";
 import type {
-	ExtractJsonFunctions,
 	InferFunctionInput,
 	InferFunctionOutput,
 	JsonFunctionDefinition,
@@ -11,13 +9,11 @@ import type { GlobalSchema } from "#questpie/server/global/introspection.js";
 import type {
 	AnyCollection,
 	AnyCollectionOrBuilder,
-	CollectionFunctions,
 	CollectionInsert,
 	CollectionRelations,
 	CollectionSelect,
 	CollectionUpdate,
 	GetCollection,
-	GlobalFunctions,
 	GlobalRelations,
 	GlobalSelect,
 	GlobalUpdate,
@@ -35,6 +31,7 @@ import type {
 	With,
 } from "../server/collection/crud/types.js";
 import type { GlobalUpdateInput } from "../server/global/crud/types.js";
+import { createRealtimeAPI, type RealtimeAPI } from "./realtime/index.js";
 
 // ============================================================================
 // Upload Types
@@ -231,28 +228,6 @@ type RpcClientAPI<TRouter> =
 			}
 		: {};
 
-type CollectionFunctionsAPI<TCollection> = {
-	[K in keyof ExtractJsonFunctions<
-		CollectionFunctions<TCollection>
-	>]: ExtractJsonFunctions<
-		CollectionFunctions<TCollection>
-	>[K] extends JsonFunctionDefinition<any, any>
-		? JsonFunctionCaller<
-				ExtractJsonFunctions<CollectionFunctions<TCollection>>[K]
-			>
-		: never;
-};
-
-type GlobalFunctionsAPI<TGlobal> = {
-	[K in keyof ExtractJsonFunctions<
-		GlobalFunctions<TGlobal>
-	>]: ExtractJsonFunctions<
-		GlobalFunctions<TGlobal>
-	>[K] extends JsonFunctionDefinition<any, any>
-		? JsonFunctionCaller<ExtractJsonFunctions<GlobalFunctions<TGlobal>>[K]>
-		: never;
-};
-
 /**
  * Type-safe collection API for a single collection
  */
@@ -407,7 +382,7 @@ type CollectionAPI<
 	 * Includes evaluated access control for the current user and JSON Schema for validation
 	 */
 	schema: () => Promise<CollectionSchema>;
-} & CollectionFunctionsAPI<TCollection>;
+};
 
 /**
  * Collections API proxy with type-safe collection methods
@@ -480,7 +455,7 @@ type GlobalAPI<
 	 * Get global metadata (timestamps, versioning, localized fields)
 	 */
 	meta: () => Promise<GlobalMeta>;
-} & GlobalFunctionsAPI<TGlobal>;
+};
 
 /**
  * Globals API proxy with type-safe global methods
@@ -1027,25 +1002,7 @@ export function createClient<
 				},
 			};
 
-			return new Proxy(base as any, {
-				get(target, prop) {
-					// Check if property exists on base object
-					if (Object.hasOwn(target, prop)) {
-						return target[prop as keyof typeof target];
-					}
-					if (typeof prop !== "string") return undefined;
-					// Fallback to RPC for custom functions
-					return async (input: any) => {
-						return request(
-							`${cmsBasePath}/collections/${collectionName}/rpc/${prop}`,
-							{
-								method: "POST",
-								body: JSON.stringify(input),
-							},
-						);
-					};
-				},
-			});
+			return base as any;
 		},
 	});
 
@@ -1110,18 +1067,7 @@ export function createClient<
 				},
 			};
 
-			return new Proxy(base as any, {
-				get(target, prop) {
-					if (prop in target) return target[prop];
-					if (typeof prop !== "string") return undefined;
-					return async (input: any) => {
-						return request(`${cmsBasePath}/globals/${globalName}/rpc/${prop}`, {
-							method: "POST",
-							body: JSON.stringify(input),
-						});
-					};
-				},
-			});
+			return base as any;
 		},
 	});
 

@@ -182,54 +182,6 @@ export const createFetchHandler = (
 			return routes.rpc.root(request, { path: rpcPath }, context);
 		}
 
-		// Collection RPC routes
-		if (segments[0] === "collections" && segments[2] === "rpc") {
-			const collectionName = segments[1];
-			const functionName = segments[3];
-			if (!collectionName) {
-				return errorResponse(
-					ApiError.badRequest("Collection not specified"),
-					request,
-				);
-			}
-			if (!functionName) {
-				return errorResponse(
-					ApiError.badRequest("Function not specified"),
-					request,
-				);
-			}
-
-			return routes.rpc.collection(
-				request,
-				{ collection: collectionName, name: functionName },
-				context,
-			);
-		}
-
-		// Global RPC routes
-		if (segments[0] === "globals" && segments[2] === "rpc") {
-			const globalName = segments[1];
-			const functionName = segments[3];
-			if (!globalName) {
-				return errorResponse(
-					ApiError.badRequest("Global not specified"),
-					request,
-				);
-			}
-			if (!functionName) {
-				return errorResponse(
-					ApiError.badRequest("Function not specified"),
-					request,
-				);
-			}
-
-			return routes.rpc.global(
-				request,
-				{ global: globalName, name: functionName },
-				context,
-			);
-		}
-
 		// Realtime route - unified POST endpoint for multiplexed subscriptions
 		if (segments[0] === "realtime") {
 			return routes.realtime.subscribe(request, {}, context);

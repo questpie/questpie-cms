@@ -44,7 +44,6 @@ export type DateInput = (Date | string) & {
 import type {
 	Collection,
 	CollectionBuilder,
-	FunctionDefinition,
 	Global,
 	GlobalBuilder,
 } from "#questpie/server/index.js";
@@ -204,16 +203,6 @@ export type CollectionState<T> = T extends { state: infer State }
 	: never;
 
 /**
- * Extract functions from a Collection or CollectionBuilder
- */
-export type CollectionFunctions<T> =
-	CollectionState<T> extends { functions: infer Functions }
-		? Functions extends Record<string, FunctionDefinition>
-			? Functions
-			: Record<string, FunctionDefinition>
-		: Record<string, FunctionDefinition>;
-
-/**
  * Check if a Record type has specific keys (not just an index signature or empty).
  */
 type HasSpecificKeys<T extends Record<string, any>> = string extends keyof T
@@ -326,16 +315,6 @@ export type GlobalUpdate<T> =
  * Extract the state from a Global or GlobalBuilder
  */
 export type GlobalState<T> = T extends { state: infer State } ? State : never;
-
-/**
- * Extract functions from a Global or GlobalBuilder
- */
-export type GlobalFunctions<T> =
-	GlobalState<T> extends { functions: infer F }
-		? F extends Record<string, FunctionDefinition>
-			? F
-			: Record<string, FunctionDefinition>
-		: Record<string, FunctionDefinition>;
 
 /**
  * Extract relations from a Global or GlobalBuilder.

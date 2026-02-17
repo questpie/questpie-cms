@@ -27,7 +27,6 @@ CollectionBuilder chain:
   .options(...)        → timestamps, softDelete, versioning
   .searchable(...)     → full-text search
   .validation(...)     → custom Zod refinements
-  .functions(...)      → collection-scoped RPC
   .upload(...)         → file upload behavior
   .preview(...)        → live preview config
 ```
@@ -282,22 +281,10 @@ Custom validation beyond field-level rules:
 })
 ```
 
-### `.functions({ ... })`
+### RPC Functions
 
-Collection-scoped RPC functions:
-
-```ts
-.functions({
-  publish: {
-    input: z.object({ id: z.string() }),
-    handler: async ({ input, app }) => {
-      return app.api.collections.posts.update(input.id, {
-        status: "published",
-      });
-    },
-  },
-})
-```
+Custom server procedures are defined with `rpc().router(...)` at the app level.
+See [RPC](/docs/server/rpc) for patterns and endpoint wiring.
 
 ### `.upload({ ... })`
 

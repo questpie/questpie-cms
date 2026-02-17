@@ -19,7 +19,6 @@ import type {
 	QuestpieContextExtension,
 } from "#questpie/server/config/types.js";
 import type { FieldDefinitionAccess } from "#questpie/server/fields/types.js";
-import type { FunctionDefinition } from "#questpie/server/functions/types.js";
 
 /**
  * Scope resolver function type for globals.
@@ -240,7 +239,6 @@ export interface GlobalBuilderState {
 	options: GlobalOptions;
 	hooks: GlobalHooks;
 	access: GlobalAccess;
-	functions: Record<string, FunctionDefinition>;
 	/**
 	 * Validation schemas for the global.
 	 * Auto-generated if not explicitly provided.
@@ -293,7 +291,6 @@ export type EmptyGlobalState<
 	options: {};
 	hooks: {};
 	access: {};
-	functions: {};
 	fieldDefinitions: undefined;
 	"~questpieApp": TQuestpieApp;
 	"~fieldTypes": TFieldTypes;

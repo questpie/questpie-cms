@@ -18,7 +18,6 @@ import type {
 	FieldDefinitionState,
 	FieldLocation,
 } from "#questpie/server/fields/types.js";
-import type { FunctionDefinition } from "#questpie/server/functions/types.js";
 import type { SearchableConfig } from "#questpie/server/integrated/search/index.js";
 
 /**
@@ -802,8 +801,6 @@ export interface CollectionAccess<TRow = any, TApp = any> {
 	fields?: Record<string, FieldDefinitionAccess | FieldAccess<TRow, TApp>>;
 }
 
-export type CollectionFunctionsMap = Record<string, FunctionDefinition>;
-
 // ============================================================================
 // Form Builder Types (for .form() with typed reactive behaviors)
 // ============================================================================
@@ -963,7 +960,6 @@ export interface CollectionBuilderState {
 	options: CollectionOptions;
 	hooks: CollectionHooks<any, any, any>;
 	access: CollectionAccess;
-	functions: CollectionFunctionsMap;
 	/**
 	 * Search indexing configuration.
 	 * - undefined: auto-index with defaults (title + auto-generated content)
@@ -1023,8 +1019,6 @@ export type ExtractHooks<TState extends CollectionBuilderState> =
 	TState["hooks"];
 export type ExtractAccess<TState extends CollectionBuilderState> =
 	TState["access"];
-export type ExtractFunctions<TState extends CollectionBuilderState> =
-	TState["functions"];
 
 /**
  * Default empty state for a new collection
@@ -1048,7 +1042,6 @@ export type EmptyCollectionState<
 	options: {};
 	hooks: CollectionHooks<any, any, any>;
 	access: {};
-	functions: {};
 	searchable: undefined;
 	validation: undefined;
 	output: undefined;
