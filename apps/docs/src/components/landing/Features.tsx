@@ -14,9 +14,9 @@ import { motion } from "motion/react";
 const features = [
 	{
 		icon: Blocks,
-		title: "Block Editor",
+		title: "Blocks System",
 		description:
-			"Visual page builder with drag-and-drop blocks. Define block types server-side, render them however you want.",
+			"Define reusable block types server-side, then render them in admin or custom frontends with the same schema.",
 		link: "admin/blocks-system",
 	},
 	{
@@ -82,13 +82,15 @@ export function Features() {
 					transition={{ duration: 0.6 }}
 				>
 					<h2 className="font-mono text-sm uppercase tracking-[0.2em] text-primary">
-						Batteries Included
+						Platform Capabilities
 					</h2>
 					<h3 className="text-3xl font-bold tracking-[-0.02em] text-balance md:text-4xl">
-						Everything ships in the box
+						Infrastructure and primitives built in
 					</h3>
 					<p className="text-muted-foreground text-balance">
-						Search, i18n, jobs, auth, versioning, block editor — all server-defined, all optional, all type-safe.
+						Search, i18n, jobs, auth, multitenancy, and blocks are all
+						configured in your server model, then projected into APIs, clients,
+						and interfaces.
 					</p>
 				</motion.div>
 
@@ -108,9 +110,7 @@ export function Features() {
 							<div className="mb-3 flex h-9 w-9 items-center justify-center border border-primary/20 bg-primary/10 text-primary transition-colors group-hover:bg-primary/20">
 								<feature.icon className="h-4 w-4" />
 							</div>
-							<h4 className="text-sm font-semibold mb-1">
-								{feature.title}
-							</h4>
+							<h4 className="text-sm font-semibold mb-1">{feature.title}</h4>
 							<p className="text-xs text-muted-foreground leading-relaxed">
 								{feature.description}
 							</p>
@@ -124,7 +124,7 @@ export function Features() {
 						params={{ _splat: "infrastructure" }}
 						className="inline-flex items-center gap-2 font-mono text-xs text-primary transition-colors hover:text-primary/80"
 					>
-						Explore all infrastructure →
+						Explore platform infrastructure →
 					</Link>
 				</div>
 			</div>

@@ -1,38 +1,97 @@
 ---
 title: Getting Started
-description: Start building with QUESTPIE's server-first architecture
+description: Start with the runtime, then add optional interface layers
 ---
 
 # Getting Started
 
-QUESTPIE is a server-first TypeScript CMS framework. You define your data schema, admin UI blueprint, access rules, and business logic on the server — the admin panel renders it automatically.
+QUESTPIE starts with a runtime contract. Define schema, behavior, access, and endpoints in `questpie` first. Then add interface layers like `@questpie/admin` only when needed.
 
 ## The Mental Model
 
 ```text
-Server (q + admin server module)
-  → fields, collections, globals         — your data schema
-  → .admin(), .list(), .form()           — admin UI blueprint
-  → .sidebar(), .dashboard()             — navigation layout
+Runtime (q)
+  → fields, collections, globals         — data contract
   → hooks, access, rpc, jobs             — behavior
-  → introspection contract               — bridge to admin
+  → HTTP handler + adapters              — API surface
 
-Client (qa + admin client module)
-  → field / view / component registries  — how things render
-  → widget/page registries               — client extensions
+Optional interface (@questpie/admin)
+  → server module                        — admin blueprint methods
+  → client module                        — rendering registries
 ```
 
-The server defines **WHAT** your CMS is. The client defines **HOW** it looks. If you keep this split clear, the framework stays simple at any scale.
+Keep this split clear: runtime defines **WHAT** exists, interfaces define **HOW** it renders.
 
-## Fast Path
+## Fast Path (Runtime Baseline)
 
-### 1. Install packages
+### 1. Install baseline packages
 
 ```bash
-bun add questpie @questpie/admin zod
+bun add questpie zod drizzle-orm postgres
+bun add @questpie/hono hono  # or @questpie/elysia, @questpie/next
 ```
 
-### 2. Create a server builder
+### 2. Define a collection
+
+```ts
+import { q } from "questpie";
+
+// src/questpie/server/collections/posts.ts
+export const posts = q.collection("posts").fields((f) => ({
+  title: f.text({ required: true }),
+  slug: f.text({ required: true, input: "optional" }),
+  content: f.richText(),
+  published: f.boolean({ default: false, required: true }),
+}));
+```
+
+### 3. Build runtime + RPC
+
+```ts
+// src/questpie/server/cms.ts
+import { q, rpc } from "questpie";
+import z from "zod";
+import { posts } from "./collections/posts";
+
+const r = rpc();
+
+export const healthcheck = r.fn({
+  schema: z.object({}),
+  handler: async () => ({ ok: true }),
+});
+
+export const appRpc = r.router({ healthcheck });
+
+export const cms = q({ name: "my-app" })
+  .collections({ posts })
+  .build({
+    db: { url: process.env.DATABASE_URL! },
+    app: { url: process.env.APP_URL || "http://localhost:3000" },
+  });
+
+export type AppCMS = typeof cms;
+```
+
+### 4. Mount your API handler
+
+```ts
+// src/routes/api/cms.ts
+import { createFetchHandler } from "questpie";
+import { appRpc, cms } from "@/questpie/server/cms";
+
+export const handler = createFetchHandler(cms, {
+  basePath: "/api/cms",
+  rpc: appRpc,
+});
+```
+
+## Optional: Add the Admin Interface
+
+Install and register `@questpie/admin` only when you want the generated admin UI:
+
+```bash
+bun add @questpie/admin
+```
 
 ```ts
 // src/questpie/server/builder.ts
@@ -42,72 +101,25 @@ import { q } from "questpie";
 export const qb = q.use(adminModule);
 ```
 
-### 3. Define a collection
-
 ```ts
-// src/questpie/server/collections/posts.ts
-import { qb } from "../builder";
-
-export const posts = qb
-  .collection("posts")
-  .fields((f) => ({
-    title: f.text({ label: { en: "Title" }, required: true }),
-    slug: f.text({ label: { en: "Slug" }, required: true, input: "optional" }),
-    content: f.richText({ label: { en: "Content" } }),
-    published: f.boolean({ label: { en: "Published" }, default: false, required: true }),
-  }))
-  .admin(({ c }) => ({
-    label: { en: "Posts" },
-    icon: c.icon("ph:article"),
-  }))
-  .list(({ v, f }) => v.table({ columns: [f.title, f.published] }))
-  .form(({ v, f }) =>
-    v.form({
-      fields: [f.title, f.content],
-      sidebar: { position: "right", fields: [f.slug, f.published] },
-    }),
-  );
-```
-
-### 4. Build and mount the CMS
-
-```ts
-// src/questpie/server/cms.ts
-import { q } from "questpie";
-import { adminModule } from "@questpie/admin/server";
-import { posts } from "./collections/posts";
-
-export const cms = q({ name: "my-cms" })
-  .use(adminModule)
-  .collections({ posts })
-  .build({
-    db: { url: process.env.DATABASE_URL },
-    app: { url: process.env.APP_URL || "http://localhost:3000" },
-  });
-
-export type AppCMS = typeof cms;
-```
-
-### 5. Configure the admin client
-
-```ts
-// src/questpie/admin/admin.ts
+// src/questpie/admin/builder.ts
 import { adminModule, qa } from "@questpie/admin/client";
 import type { AppCMS } from "../server/cms";
 
-export const admin = qa<AppCMS>()
-  .use(adminModule);
+export const admin = qa<AppCMS>().use(adminModule);
 ```
+
+When you need admin-specific view metadata, define those collections with `qb.collection(...)` and add `.admin()`, `.list()`, and `.form()`.
 
 ## Common Mistakes
 
-- **Duplicating schema in the client** — The server is the single source of truth. The client admin config should only handle registries and rendering overrides.
-- **Forgetting the server module** — You need `q.use(adminModule)` on the server side, not just `qa.use(adminModule)` on the client.
-- **Hardcoding views** — Use the registry pattern instead of hardcoding component references.
+- **Treating admin as required** — It is optional. Start with `questpie` runtime + one adapter.
+- **Duplicating schema in the client** — Keep schema in server builders; client code should consume contracts.
+- **Registering admin only on one side** — If you adopt admin, use `@questpie/admin/server` on server and `@questpie/admin/client` in UI.
 
 ## Next Steps
 
-- [Installation](/docs/getting-started/installation) — Prerequisites and package setup
-- [Quickstart](/docs/getting-started/quickstart) — Working CMS in 5 minutes
-- [Your First CMS](/docs/getting-started/your-first-cms) — Deeper walkthrough with multiple collections
+- [Installation](/docs/getting-started/installation) — Required baseline vs optional modules
+- [Quickstart](/docs/getting-started/quickstart) — Runtime-first walkthrough
 - [Project Structure](/docs/getting-started/project-structure) — Recommended file layout
+- [First Platform Walkthrough](/docs/getting-started/first-platform-walkthrough) — Full admin-enabled walkthrough

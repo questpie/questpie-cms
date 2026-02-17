@@ -1,4 +1,4 @@
-import { createFileRoute, notFound } from "@tanstack/react-router";
+import { createFileRoute, notFound, redirect } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
 import { lazy, Suspense } from "react";
 import {
@@ -14,10 +14,23 @@ const LazyDocsRouteContent = lazy(() =>
 	})),
 );
 
+const docsCompatRedirects = new Map<string, string>([
+	[
+		"getting-started/your-first-cms",
+		"/docs/getting-started/first-platform-walkthrough",
+	],
+]);
+
 export const Route = createFileRoute("/docs/$")({
 	component: Page,
 	loader: async ({ params }) => {
 		const slugs = params._splat?.split("/") ?? [];
+		const redirectTarget = docsCompatRedirects.get(slugs.join("/"));
+
+		if (redirectTarget) {
+			throw redirect({ href: redirectTarget });
+		}
+
 		return serverLoader({ data: slugs });
 	},
 	head: ({ loaderData }) => {

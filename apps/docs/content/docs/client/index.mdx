@@ -5,23 +5,26 @@ description: Type-safe client libraries, framework adapters, and OpenAPI generat
 
 # Client SDK
 
-QUESTPIE provides a complete client stack: a TanStack Query integration for type-safe data fetching, framework-specific adapters for Hono, Elysia, and Next.js, and automatic OpenAPI spec generation. Everything is typed end-to-end from your server schema.
+The client stack helps you consume a QUESTPIE runtime contract from frontend and service clients. It is runtime-driven: types flow from your server schema and RPC definitions.
 
 ## Why This Exists
 
-Your CMS has a REST API. The client SDK makes it easy to consume that API with full type safety — the same field types you defined on the server propagate through to your frontend `useQuery` calls. No code generation, no manual type definitions.
+Your runtime exposes HTTP endpoints. The client SDK makes them ergonomic and type-safe: the same field and RPC types from the server propagate to queries and mutations without code generation.
 
 ## Mental Model
 
 ```text
-Server Schema (collections, fields, RPC)
+Server Runtime (collections, globals, fields, RPC)
   │
   ├── Adapter (Hono/Elysia/Next)  → HTTP endpoints
   │     └── createFetchHandler()   → generic fetch handler
   │
+  ├── questpie/client
+  │     └── createClient()         → typed HTTP client
+  │
   ├── Client SDK (@questpie/tanstack-query)
   │     ├── createQuestpieQueryOptions()  → typed query/mutation options
-  │     └── sseSnapshotStream()           → realtime SSE streaming
+  │     └── realtime query options         → SSE-backed updates
   │
   └── OpenAPI (@questpie/openapi)
         └── generateOpenApiSpec()   → OpenAPI 3.1.0 spec + Scalar UI
@@ -30,8 +33,15 @@ Server Schema (collections, fields, RPC)
 ## Quick Example
 
 ```ts
+import { createClient } from "questpie/client";
 import { createQuestpieQueryOptions } from "@questpie/tanstack-query";
 import { useQuery, useMutation } from "@tanstack/react-query";
+import type { AppCMS, AppRpc } from "@/questpie/server/cms";
+
+const client = createClient<AppCMS, AppRpc>({
+  baseURL: "http://localhost:3000",
+  basePath: "/api/cms",
+});
 
 const cms = createQuestpieQueryOptions(client, {
   keyPrefix: "cms",
@@ -59,11 +69,14 @@ const { data: stats } = useQuery(
 
 | Package | Purpose |
 |---|---|
+| `questpie/client` | Typed runtime HTTP client |
 | `@questpie/tanstack-query` | TanStack Query integration with typed proxies |
 | `@questpie/hono` | Hono adapter (server middleware + client) |
 | `@questpie/elysia` | Elysia adapter (plugin + Eden Treaty client) |
 | `@questpie/next` | Next.js adapter (route handlers) |
 | `@questpie/openapi` | OpenAPI 3.1.0 spec generation + Scalar docs UI |
+
+`@questpie/admin` is documented separately in [Admin UI](/docs/admin). It is an optional interface layer, not required for client SDK usage.
 
 ## Pages in This Section
 

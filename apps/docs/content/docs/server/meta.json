@@ -16,6 +16,7 @@
 		"localization",
 		"modules-and-extensions",
 		"rpc",
-		"context-and-transactions"
+		"context-and-transactions",
+		"type-safe-contexts"
 	]
 }

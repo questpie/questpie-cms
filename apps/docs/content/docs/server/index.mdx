@@ -5,7 +5,7 @@ description: Core schema layer — collections, globals, fields, hooks, access, 
 
 # Server
 
-The server layer is the heart of QUESTPIE. It defines **WHAT** your CMS is — data structure, behavior, access rules, and the admin UI blueprint. Everything else (admin panel, client SDK, REST API) derives from it.
+The server layer is the heart of QUESTPIE. It defines **WHAT** your runtime does: schema, behavior, access rules, and integration surface. Admin UI is optional and attaches to this same contract.
 
 ## Mental Model
 
@@ -13,31 +13,44 @@ The server layer is the heart of QUESTPIE. It defines **WHAT** your CMS is — d
 QuestpieBuilder (q)
   ├── .collections({ ... })     → database tables + CRUD API
   ├── .globals({ ... })         → singleton records
-  ├── .sidebar() .dashboard()   → admin UI blueprint
   ├── .auth()                   → authentication
   ├── .locale()                 → i18n configuration
   ├── .jobs()                   → background processing
   ├── .messages()               → typed translations
   └── .build(runtimeConfig)     → Questpie instance
 
+Optional via @questpie/admin/server
+  ├── .sidebar() .dashboard()   → admin navigation and dashboard blueprint
+  └── collection .admin/.list/.form methods
+
 CollectionBuilder
   ├── .fields((f) => ...)       → field definitions → DB columns
   ├── .title()                  → display title strategy
-  ├── .admin()                  → collection metadata (label, icon)
-  ├── .list()                   → table view blueprint
-  ├── .form()                   → form view blueprint
   ├── .hooks()                  → lifecycle callbacks
   ├── .access()                 → operation-level security
   ├── .indexes()                → database constraints
   ├── .options()                → timestamps, softDelete, versioning
   ├── .searchable()             → full-text search config
   ├── .validation()             → custom Zod refinements
-  └── .functions()              → collection-scoped RPC
+  ├── .functions()              → collection-scoped RPC
+  └── .admin/.list/.form        → optional admin metadata (with module)
 ```
 
 ## Core + Extension Model
 
-`questpie` stays minimal by design. Capability is added via modules:
+`questpie` provides the runtime baseline. Capabilities are layered via modules.
+
+Runtime-only:
+
+```ts
+import { q } from "questpie";
+
+const cms = q({ name: "app" })
+  .collections({ ... })
+  .build({ db: { url: process.env.DATABASE_URL } });
+```
+
+Runtime + optional admin:
 
 ```ts
 import { q } from "questpie";
@@ -51,17 +64,19 @@ const cms = q({ name: "app" })
 
 ## Core Concepts
 
-**Collections** are your main entities. Each collection definition produces a database table, CRUD API endpoints, and admin UI views — all from a single source of truth.
+**Collections** are your main entities. Each collection definition produces a database table and CRUD API endpoints from a single source of truth.
 
 **Globals** are singletons. They work like collections but have exactly one record (site settings, feature flags, etc.).
 
-**Fields** are semantic type definitions. `f.text()`, `f.number()`, `f.relation()` — each field knows its database column type, validation schema, query operators, and admin metadata.
+**Fields** are semantic type definitions. `f.text()`, `f.number()`, `f.relation()` — each field knows its database column type, validation schema, and query operators.
 
 **Hooks** are lifecycle callbacks. They run before/after CRUD operations and can modify data, enforce rules, or trigger side effects.
 
 **Access control** determines who can read, create, update, and delete records — both at the operation level and the field level.
 
-**RPC** lets you define typed remote procedures alongside your collections, with Zod input validation and full access to the CMS instance.
+**RPC** lets you define typed remote procedures alongside your collections, with Zod input validation and full access to the runtime instance.
+
+**Admin blueprint methods** (`.admin()`, `.list()`, `.form()`, `.sidebar()`, `.dashboard()`) are optional extensions provided by `@questpie/admin/server`.
 
 ## Pages in This Section
 

@@ -15,22 +15,22 @@ const tabs: { id: TabId; label: string; description: string }[] = [
 	{
 		id: "dashboard",
 		label: "Dashboard",
-		description: "Stats, charts, and recent activity",
+		description: "Server-defined stats and activity",
 	},
 	{
 		id: "table",
 		label: "Table View",
-		description: "Search, filter, sort, and paginate",
+		description: "List projection with filters and sorting",
 	},
 	{
 		id: "form",
 		label: "Form View",
-		description: "Content editing with sidebar",
+		description: "Schema-driven editor projection",
 	},
 	{
 		id: "sidebar",
 		label: "Sidebar",
-		description: "Navigation, groups, structure",
+		description: "Navigation generated from builder config",
 	},
 ];
 
@@ -232,14 +232,15 @@ export function AdminShowcase() {
 					transition={{ duration: 0.6 }}
 				>
 					<h2 className="font-mono text-sm uppercase tracking-[0.2em] text-primary">
-						Admin Panel
+						Admin Interface
 					</h2>
 					<h3 className="text-3xl font-bold tracking-[-0.02em] text-balance md:text-4xl">
-						The admin panel writes itself
+						One interface generated from your server model
 					</h3>
 					<p className="text-muted-foreground text-balance">
-						Dashboard, tables, forms, sidebar — generated from server
-						definitions. Customize every view through registries.
+						The admin consumes the same introspection and projection data as
+						your API and SDK layers. Swap UI pieces through registries when you
+						need product-specific UX.
 					</p>
 				</motion.div>
 
@@ -510,7 +511,7 @@ export function AdminShowcase() {
 						params={{ _splat: "admin" }}
 						className="inline-flex items-center gap-2 font-mono text-xs text-primary transition-colors hover:text-primary/80 group"
 					>
-						Explore the admin system
+						Explore the admin module
 						<span className="transition-transform group-hover:translate-x-1">
 							→
 						</span>

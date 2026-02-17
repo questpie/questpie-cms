@@ -38,7 +38,7 @@ export function CallToAction() {
 					viewport={{ once: true }}
 					transition={{ duration: 0.6, delay: 0.15 }}
 				>
-					Start shipping in minutes
+					Start with the platform. Add interfaces as you grow.
 				</motion.h2>
 
 				<motion.p
@@ -48,7 +48,8 @@ export function CallToAction() {
 					viewport={{ once: true }}
 					transition={{ duration: 0.6, delay: 0.2 }}
 				>
-					Follow the quickstart or explore the barbershop demo — a full booking system built with QUESTPIE.
+					Follow the quickstart to model your backend, then layer in the
+					generated admin module and custom clients when you need them.
 				</motion.p>
 
 				<motion.div
@@ -63,7 +64,7 @@ export function CallToAction() {
 						params={{ _splat: "getting-started/quickstart" }}
 						className="group inline-flex h-11 items-center justify-center bg-primary px-7 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
 					>
-						Read the Quickstart
+						Start with Quickstart
 						<ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-0.5" />
 					</Link>
 					<Link
@@ -73,7 +74,7 @@ export function CallToAction() {
 						}}
 						className="inline-flex h-11 items-center justify-center border border-border bg-card/10 backdrop-blur-sm px-7 text-sm font-medium transition-colors hover:border-primary/30"
 					>
-						Barbershop Example
+						Architecture Example
 					</Link>
 					<a
 						href="https://github.com/questpie/questpie-cms"
@@ -95,10 +96,14 @@ export function CallToAction() {
 					transition={{ duration: 0.5, delay: 0.3 }}
 				>
 					<Terminal className="h-4 w-4 text-primary" />
-					<span>
-						<span className="text-primary">$</span> bun i questpie
-						@questpie/admin
-					</span>
+					<div className="text-left leading-tight">
+						<div>
+							<span className="text-primary">$</span> bun i questpie
+						</div>
+						<div className="text-[10px] text-muted-foreground/80">
+							add @questpie/admin for the generated interface
+						</div>
+					</div>
 				</motion.div>
 			</div>
 		</section>

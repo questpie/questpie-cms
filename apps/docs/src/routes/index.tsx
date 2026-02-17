@@ -74,11 +74,11 @@ function Home() {
 					<Hero />
 					<NumbersStrip />
 					<SchemaToEverything />
-					<AdminShowcase />
+					<Composability />
 					<Features />
 					<RealtimeDemo />
-					<Composability />
 					<Frameworks />
+					<AdminShowcase />
 					<CallToAction />
 				</main>
 

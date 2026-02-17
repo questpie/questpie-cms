@@ -1,13 +1,12 @@
-import { cn } from "@/lib/utils";
 import { Link } from "@tanstack/react-router";
 import { ArrowRight, Github, Lock, Sparkles, Terminal } from "lucide-react";
 import { motion } from "motion/react";
 import { useEffect, useState } from "react";
 import { PrismLight as SyntaxHighlighter } from "react-syntax-highlighter";
 import typescript from "react-syntax-highlighter/dist/esm/languages/prism/typescript";
+import { cn } from "@/lib/utils";
 
 SyntaxHighlighter.registerLanguage("typescript", typescript);
-
 
 const rows = [
 	{ id: 1, title: "Homepage Redesign", author: "Alex K.", status: "published" },
@@ -103,7 +102,7 @@ export function Hero() {
 						>
 							<span className="inline-flex items-center gap-2 border border-primary/20 bg-primary/[0.05] px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.22em] text-primary rounded-sm">
 								<Sparkles className="h-3 w-3" />
-							Open Source
+								Open Source
 							</span>
 						</motion.div>
 
@@ -113,9 +112,9 @@ export function Hero() {
 							animate={{ opacity: 1, y: 0 }}
 							transition={{ duration: 0.6, delay: 0.08 }}
 						>
-							The modern backend that{" "}
+							Build your server platform once.{" "}
 							<span className="relative inline-block">
-								<span className="text-primary">builds itself</span>
+								<span className="text-primary">Project it everywhere</span>
 								<motion.span
 									className="absolute -bottom-1 left-0 h-[2px] bg-primary/30"
 									initial={{ width: 0 }}
@@ -131,10 +130,31 @@ export function Hero() {
 							animate={{ opacity: 1, y: 0 }}
 							transition={{ duration: 0.6, delay: 0.16 }}
 						>
-							TypeScript framework with built-in realtime. Define your
-							collections once — get a REST API, realtime admin panel, and
-							type-safe SDK out of the box.
+							Define schema, access, and workflows in TypeScript. QUESTPIE
+							introspects your server model and projects REST, RPC, realtime,
+							typed clients, and an admin interface from the same source of
+							truth.
 						</motion.p>
+
+						<motion.div
+							className="mt-6 flex flex-wrap gap-2"
+							initial={{ opacity: 0, y: 14 }}
+							animate={{ opacity: 1, y: 0 }}
+							transition={{ duration: 0.5, delay: 0.2 }}
+						>
+							{[
+								"Server-first by default",
+								"Schema introspection powered",
+								"Admin is one interface",
+							].map((pill) => (
+								<span
+									key={pill}
+									className="inline-flex items-center border border-border bg-card/10 px-3 py-1 font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground"
+								>
+									{pill}
+								</span>
+							))}
+						</motion.div>
 
 						<motion.div
 							className="mt-8 flex flex-col gap-3 sm:flex-row"
@@ -173,13 +193,12 @@ export function Hero() {
 							animate={{ opacity: 1, y: 0 }}
 							transition={{ duration: 0.5, delay: 0.32 }}
 							onClick={() => {
-								navigator.clipboard.writeText("bun i questpie @questpie/admin");
+								navigator.clipboard.writeText("bun i questpie");
 							}}
 						>
 							<Terminal className="h-4 w-4 text-primary" />
 							<span>
 								<span className="text-primary">$</span> bun i questpie
-								@questpie/admin
 							</span>
 							<motion.span
 								className="text-[10px] text-primary opacity-0 group-hover:opacity-100 transition-opacity"
@@ -190,7 +209,7 @@ export function Hero() {
 						</motion.div>
 					</div>
 
-					{/* Right — live admin preview */}
+					{/* Right — live interface projection preview */}
 					<motion.div
 						className="relative"
 						initial={{ opacity: 0, x: 20 }}
@@ -217,7 +236,7 @@ export function Hero() {
 										<span className="relative inline-flex h-1.5 w-1.5 bg-primary" />
 									</span>
 									<span className="text-[9px] font-medium text-primary">
-										LIVE
+										SYNCED
 									</span>
 								</span>
 							</div>
@@ -226,7 +245,7 @@ export function Hero() {
 							<div className="relative flex items-center justify-between border-b border-border px-4 py-3 bg-card/5">
 								<div className="flex items-center gap-2">
 									<span className="text-sm font-semibold text-foreground">
-										Posts
+										Posts Interface
 									</span>
 								</div>
 								<div className="flex items-center gap-2">

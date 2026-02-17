@@ -10,22 +10,34 @@ const schemaFields = [
 
 const outputs = [
 	{
-		id: "api",
-		label: "REST API",
-		sublabel: "Full CRUD auto-generated",
-		items: ["GET /posts", "POST /posts", "GET /posts/:id", "PATCH /posts/:id", "DELETE /posts/:id"],
+		id: "introspection",
+		label: "Introspection",
+		sublabel: "Server metadata graph",
+		items: [
+			"CollectionSchema + FieldSchema",
+			"Operators, access, and hooks metadata",
+			"View and component references",
+		],
+	},
+	{
+		id: "projections",
+		label: "Runtime Projections",
+		sublabel: "Interfaces from one model",
+		items: [
+			"REST + RPC endpoints",
+			"Streamed queries and events",
+			"Typed client and query helpers",
+		],
 	},
 	{
 		id: "admin",
-		label: "Admin Panel",
-		sublabel: "Table + Form views",
-		items: ["Table with sort & filter", "Form editor with sidebar", "Search built-in"],
-	},
-	{
-		id: "sdk",
-		label: "Typed SDK",
-		sublabel: "Full autocomplete",
-		items: ["client.posts.find()", "client.posts.create({...})", "TypedPostResponse"],
+		label: "Admin Interface",
+		sublabel: "One platform consumer",
+		items: [
+			"List and form projections",
+			"Sidebar and dashboard from config",
+			"Registry overrides for custom UI",
+		],
 	},
 ];
 
@@ -42,13 +54,15 @@ export function SchemaToEverything() {
 					transition={{ duration: 0.6 }}
 				>
 					<h2 className="font-mono text-sm uppercase tracking-[0.2em] text-primary">
-						One Schema
+						Schema to Introspection to Projections
 					</h2>
 					<h3 className="text-3xl font-bold tracking-[-0.02em] text-balance md:text-4xl">
-						Write your schema. Ship the rest.
+						Model once, project everywhere.
 					</h3>
 					<p className="text-muted-foreground text-balance">
-						One collection definition generates REST endpoints, an admin panel, and a fully typed client SDK. Zero config.
+						Your server schema becomes introspection data that powers APIs,
+						realtime, typed clients, and the admin UI. The model stays central;
+						interfaces stay in sync.
 					</p>
 				</motion.div>
 
@@ -83,9 +97,7 @@ export function SchemaToEverything() {
 									<span className="inline-flex h-5 w-5 items-center justify-center border border-primary/20 bg-primary/10 text-[10px] font-mono text-primary">
 										{field.icon}
 									</span>
-									<span className="text-sm text-foreground">
-										{field.name}
-									</span>
+									<span className="text-sm text-foreground">{field.name}</span>
 									<span className="ml-auto text-xs text-muted-foreground">
 										{field.type}
 									</span>
@@ -121,9 +133,7 @@ export function SchemaToEverything() {
 								}}
 							>
 								<div className="mb-2 flex items-center justify-between">
-									<span className="text-sm font-semibold">
-										{output.label}
-									</span>
+									<span className="text-sm font-semibold">{output.label}</span>
 									<span className="font-mono text-[10px] text-muted-foreground">
 										{output.sublabel}
 									</span>

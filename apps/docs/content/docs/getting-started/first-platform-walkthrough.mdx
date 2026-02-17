@@ -1,11 +1,11 @@
 ---
-title: Your First CMS
-description: Build a complete CMS with multiple collections, relations, sidebar, and dashboard
+title: First Platform Walkthrough
+description: Build a complete server-first backend with multiple collections, relations, sidebar, and dashboard
 ---
 
-# Your First CMS
+# First Platform Walkthrough
 
-This walkthrough goes beyond the quickstart. You'll build a mini content management system with multiple collections, relations between them, a custom sidebar, reactive fields, and a typed RPC function — the same patterns used in the Barbershop reference project.
+This walkthrough goes beyond the quickstart. You'll build a schema-first backend with multiple collections, relations between them, a custom sidebar, reactive fields, and a typed RPC function — the same patterns used in the Barbershop reference project.
 
 ## What You'll Build
 
@@ -300,7 +300,7 @@ export const getActiveBarbers = r.fn({
 
 export const appRpc = r.router({ getActiveBarbers });
 
-export const cms = q({ name: "my-first-cms" })
+export const cms = q({ name: "my-first-platform" })
   .use(adminModule)
   .collections({ barbers, services, barberServices })
   .sidebar(({ s, c }) =>
@@ -329,7 +329,7 @@ export const cms = q({ name: "my-first-cms" })
       ],
     }),
   )
-  .branding({ name: { en: "My First CMS" } })
+  .branding({ name: { en: "My Platform" } })
   .auth({
     emailAndPassword: { enabled: true },
     baseURL: process.env.APP_URL || "http://localhost:3000",

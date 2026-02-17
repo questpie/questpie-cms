@@ -103,7 +103,7 @@ export function Navbar() {
 							params={{ _splat: "getting-started/quickstart" }}
 							className="inline-flex h-9 items-center justify-center border border-primary/30 bg-primary/10 px-4 font-mono text-[11px] font-medium uppercase tracking-wider text-primary transition-all hover:bg-primary/20"
 						>
-							Start Building
+							Build Platform
 						</Link>
 					</div>
 
@@ -168,7 +168,7 @@ export function Navbar() {
 									className="inline-flex h-8 items-center justify-center border border-primary/30 bg-primary/10 px-3 font-mono text-[11px] uppercase tracking-wider text-primary"
 									onClick={() => setIsMobileMenuOpen(false)}
 								>
-									Start
+									Build
 								</Link>
 							</div>
 						</div>

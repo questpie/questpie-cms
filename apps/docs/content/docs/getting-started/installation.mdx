@@ -1,11 +1,11 @@
 ---
 title: Installation
-description: Prerequisites, packages, and environment setup for QUESTPIE
+description: Install the runtime baseline, then layer optional modules
 ---
 
 # Installation
 
-QUESTPIE requires a Node.js-compatible runtime, TypeScript, and PostgreSQL. This page covers everything you need to install before building your first CMS.
+QUESTPIE installation is runtime-first: install the backend baseline, choose one HTTP adapter, then add optional packages like admin UI, TanStack Query, or OpenAPI.
 
 ## Prerequisites
 
@@ -16,24 +16,24 @@ QUESTPIE requires a Node.js-compatible runtime, TypeScript, and PostgreSQL. This
 | **TypeScript** | 5.0+ | Required for type inference |
 | **PostgreSQL** | 14+ | Primary database (PGlite supported for development) |
 
-## Core Packages
+## Required Baseline Packages
 
-Every QUESTPIE project needs these:
+Every QUESTPIE project starts with this runtime baseline:
 
 ```bash
-bun add questpie @questpie/admin zod drizzle-orm
+bun add questpie zod drizzle-orm postgres
 ```
 
 | Package | Purpose |
 |---|---|
-| `questpie` | Core framework: builders, fields, CRUD, hooks, access, RPC |
-| `@questpie/admin` | Admin module: server augmentation + client UI |
+| `questpie` | Core platform: builders, fields, CRUD, hooks, access, RPC |
 | `zod` | Validation schemas for RPC inputs and field validation |
-| `drizzle-orm` | ORM used internally (you need it for custom indexes and queries) |
+| `drizzle-orm` | ORM used internally (also used for custom indexes and queries) |
+| `postgres` | PostgreSQL driver for runtime database connections |
 
-## Framework Adapter
+## Required Framework Adapter
 
-Choose the adapter that matches your web framework:
+Add exactly one adapter that matches your web framework:
 
 ```bash
 # Hono (recommended for new projects)
@@ -46,7 +46,22 @@ bun add @questpie/elysia elysia
 bun add @questpie/next next
 ```
 
-You only need **one** adapter. It creates the fetch handler that turns your CMS into HTTP endpoints.
+You only need **one** adapter. It creates the fetch handler that turns your backend runtime into HTTP endpoints.
+
+## Optional Admin Interface
+
+If you want the generated admin interface, add `@questpie/admin`:
+
+```bash
+bun add @questpie/admin
+```
+
+Usage notes:
+
+- Server side: import `adminModule` from `@questpie/admin/server` and register it with `q.use(adminModule)`.
+- Client side: import `qa` and `adminModule` from `@questpie/admin/client` to configure registries and rendering.
+- Runtime-only path: skip this package and keep only your server runtime + API handlers.
+- Admin login requires auth to be configured on the runtime (`.auth({ ... })`).
 
 ## Client SDK (Optional)
 
@@ -64,11 +79,7 @@ For auto-generated API documentation:
 bun add @questpie/openapi
 ```
 
-## Database Driver
-
-```bash
-bun add drizzle-orm postgres
-```
+## Local Database Alternative
 
 For local development without a PostgreSQL server:
 
@@ -85,7 +96,7 @@ Create a `.env` file in your project root:
 DATABASE_URL=postgres://postgres:postgres@localhost:5432/mydb
 APP_URL=http://localhost:3000
 
-# Auth (required for admin login)
+# Required when using auth/admin login
 BETTER_AUTH_SECRET=replace-me-in-production
 
 # Optional: storage, email, etc.
@@ -95,27 +106,36 @@ BETTER_AUTH_SECRET=replace-me-in-production
 
 ## Verify Installation
 
-Create a simple test file to confirm everything resolves:
+Create a simple test file to confirm the baseline runtime resolves:
 
 ```ts
-import { q, rpc, createFetchHandler } from "questpie";
+import { q } from "questpie";
+
+// If this compiles, you're ready
+const builder = q({ name: "test" });
+```
+
+If you're using the admin interface, also verify these imports resolve:
+
+```ts
 import { adminModule } from "@questpie/admin/server";
 import { qa } from "@questpie/admin/client";
 
-// If this compiles, you're ready
-const builder = q({ name: "test" }).use(adminModule);
+void adminModule;
+void qa;
 ```
 
 Run with `bun run --bun your-file.ts` or `npx tsx your-file.ts` to verify.
 
 ## Common Mistakes
 
-- **Missing `drizzle-orm`** — QUESTPIE uses Drizzle internally for schema generation. You need it installed even if you don't write Drizzle code directly.
-- **Forgetting the server module** — `@questpie/admin` exports from two subpaths: `@questpie/admin/server` (for the builder) and `@questpie/admin/client` (for the UI). You need both.
+- **Missing `drizzle-orm` or `postgres`** — QUESTPIE depends on Drizzle internals and a PostgreSQL driver in the baseline runtime.
+- **Installing admin too early** — Start from runtime baseline, then add `@questpie/admin` only when you need an internal UI.
+- **Using wrong admin subpath** — `@questpie/admin/server` is for builder augmentation and `@questpie/admin/client` is for interface rendering.
 - **Wrong PostgreSQL version** — QUESTPIE uses features like `jsonb`, full-text search, and `pg_trgm` that require PostgreSQL 14+.
 
 ## Related Pages
 
-- [Quickstart](/docs/getting-started/quickstart) — Build a working CMS in 5 minutes
+- [Quickstart](/docs/getting-started/quickstart) — Build a working backend in 5 minutes
 - [Project Structure](/docs/getting-started/project-structure) — Recommended file layout
 - [Database & Migrations](/docs/infrastructure/database-and-migrations) — Database setup in depth

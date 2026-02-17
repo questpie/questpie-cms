@@ -23,10 +23,12 @@ function generateLLMSTxt(baseUrl: string, pages: LLMSPage[]) {
 	const sections: string[] = [];
 
 	const sectionOrder: Array<{ key: string; title: string }> = [
-		{ key: "getting-started", title: "Getting Started" },
-		{ key: "mentality", title: "Mentality" },
-		{ key: "server", title: "Server" },
-		{ key: "admin", title: "Admin" },
+		{ key: "getting-started", title: "Platform Quickstart" },
+		{ key: "mentality", title: "Architecture Principles" },
+		{ key: "server", title: "Server Model" },
+		{ key: "infrastructure", title: "Infrastructure Modules" },
+		{ key: "client", title: "Client Projections" },
+		{ key: "admin", title: "Admin Interface" },
 		{ key: "guides", title: "Guides" },
 		{ key: "examples", title: "Examples" },
 		{ key: "reference", title: "Reference" },
@@ -62,20 +64,22 @@ function generateLLMSTxt(baseUrl: string, pages: LLMSPage[]) {
 
 	return `# QUESTPIE Documentation
 
-> Server-first TypeScript CMS framework
+> Server-first TypeScript backend platform
 
-QUESTPIE helps you define schema, admin behavior, and runtime workflows in one server-first architecture.
+QUESTPIE helps you model schema, access, and workflows once, then uses introspection to project APIs, realtime streams, typed clients, and interfaces from the same server model.
 
-## Documentation
+## Documentation Surfaces
 
-- Full documentation: ${baseUrl}/llms-full.txt
-- Individual pages: ${baseUrl}/docs/{path}.mdx
+- Full documentation corpus: ${baseUrl}/llms-full.txt
+- Individual docs pages: ${baseUrl}/docs/{path}.mdx
 
 ${sections.join("\n")}
 ## Architecture Notes
 
-- Server defines WHAT (schema, introspection, policies, workflows)
-- Client defines HOW (registry-based rendering and design system integration)
+- Schema is the source of truth for data and behavior.
+- Introspection is the contract between server model and interfaces.
+- Runtime projections expose REST, RPC, realtime, and typed clients.
+- Interfaces (admin and custom apps) resolve these projections via registries.
 `;
 }
 
