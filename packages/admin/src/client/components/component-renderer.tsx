@@ -172,11 +172,12 @@ export function ComponentRenderer({
 	fallback = null,
 	additionalProps,
 }: ComponentRendererProps): React.ReactNode {
+	const admin = useAdminStore(selectAdmin);
+
 	if (!reference) {
 		return fallback;
 	}
 
-	const admin = useAdminStore(selectAdmin);
 	const contextRegistry =
 		(admin?.getComponents?.() as ComponentRendererRegistry | undefined) ?? {};
 	const mergedRegistry = registry ?? contextRegistry;
