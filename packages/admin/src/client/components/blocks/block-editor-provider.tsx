@@ -1,28 +1,28 @@
 /**
  * Block Editor Provider
  *
- * Provides state and actions for the block editor.
+ * Provides selector-driven state and actions for the block editor.
  */
 
 "use client";
 
 import * as React from "react";
+import type { StoreApi } from "zustand";
+import { createStore } from "zustand";
 import type { BlockSchema } from "#questpie/admin/server";
 import type { BlockContent, BlockNode } from "../../blocks/types.js";
 import {
 	type BlockEditorActions,
 	BlockEditorContextProvider,
-	type BlockEditorState,
+	type BlockEditorStore,
 } from "./block-editor-context.js";
 import {
 	duplicateBlockInTree,
-	findBlockById,
 	getAllBlockIds,
 	getDefaultValues,
-	type InsertPosition,
 	insertBlockInTree,
-	reorderBlockInTree,
 	removeBlockFromTree,
+	reorderBlockInTree,
 } from "./utils/tree-utils.js";
 
 // ============================================================================
@@ -56,202 +56,240 @@ export function BlockEditorProvider({
 	locale = "en",
 	children,
 }: BlockEditorProviderProps) {
-	// Selection state
-	const [selectedBlockId, setSelectedBlockId] = React.useState<string | null>(
-		null,
-	);
+	const onChangeRef = React.useRef(onChange);
+	onChangeRef.current = onChange;
 
-	// Expanded blocks state
-	const [expandedBlockIds, setExpandedBlockIds] = React.useState<Set<string>>(
-		() => new Set(),
-	);
+	const storeRef = React.useRef<StoreApi<BlockEditorStore>>(
+		createStore<BlockEditorStore>((set, get) => {
+			const actions: BlockEditorActions = {
+				// Selection
+				selectBlock: (id) => {
+					set((prev) => ({
+						selectedBlockId: id,
+						isLibraryOpen: id !== null ? false : prev.isLibraryOpen,
+						insertPosition: id !== null ? null : prev.insertPosition,
+					}));
+				},
 
-	// Library state
-	const [isLibraryOpen, setIsLibraryOpen] = React.useState(false);
-	const [insertPosition, setInsertPosition] =
-		React.useState<InsertPosition | null>(null);
+				toggleExpanded: (id) => {
+					set((prev) => {
+						const next = new Set(prev.expandedBlockIds);
+						if (next.has(id)) {
+							next.delete(id);
+						} else {
+							next.add(id);
+						}
+						return { expandedBlockIds: next };
+					});
+				},
 
-	// Actions
-	const actions: BlockEditorActions = React.useMemo(
-		() => ({
-			// Selection
-			selectBlock: (id) => {
-				setSelectedBlockId(id);
-				// Close library when selecting a block
-				if (id !== null) {
-					setIsLibraryOpen(false);
-					setInsertPosition(null);
-				}
-			},
+				expandAll: () => {
+					const allIds = getAllBlockIds(get().content._tree);
+					set({ expandedBlockIds: new Set(allIds) });
+				},
 
-			toggleExpanded: (id) => {
-				setExpandedBlockIds((prev) => {
-					const next = new Set(prev);
-					if (next.has(id)) {
-						next.delete(id);
-					} else {
-						next.add(id);
+				collapseAll: () => {
+					set({ expandedBlockIds: new Set() });
+				},
+
+				// CRUD
+				addBlock: (type, position) => {
+					const state = get();
+					const blockDef = state.blocks[type];
+					if (!blockDef) {
+						if (process.env.NODE_ENV !== "production") {
+							console.warn(`Block type "${type}" not found`);
+						}
+						return;
 					}
-					return next;
-				});
-			},
 
-			expandAll: () => {
-				const allIds = getAllBlockIds(value._tree);
-				setExpandedBlockIds(new Set(allIds));
-			},
+					const newBlock: BlockNode = {
+						id: crypto.randomUUID(),
+						type,
+						children: [],
+					};
 
-			collapseAll: () => {
-				setExpandedBlockIds(new Set());
-			},
+					const newValues = getDefaultValues(
+						blockDef.fields as Record<
+							string,
+							{ "~options"?: { defaultValue?: unknown } }
+						>,
+					);
 
-			// CRUD
-			addBlock: (type, position) => {
-				const blockDef = blocks[type];
-				if (!blockDef) {
-					if (process.env.NODE_ENV !== "production") {
-						console.warn(`Block type "${type}" not found`);
-					}
-					return;
-				}
+					const nextContent: BlockContent = {
+						_tree: insertBlockInTree(state.content._tree, newBlock, position),
+						_values: { ...state.content._values, [newBlock.id]: newValues },
+					};
 
-				const newBlock: BlockNode = {
-					id: crypto.randomUUID(),
-					type,
-					children: [],
-				};
+					onChangeRef.current(nextContent);
 
-				const newValues = getDefaultValues(
-					blockDef.fields as Record<
-						string,
-						{ "~options"?: { defaultValue?: unknown } }
-					>,
-				);
+					set((prev) => ({
+						content: nextContent,
+						selectedBlockId: newBlock.id,
+						isLibraryOpen: false,
+						insertPosition: null,
+						expandedBlockIds: position.parentId
+							? new Set([...prev.expandedBlockIds, position.parentId])
+							: prev.expandedBlockIds,
+					}));
+				},
 
-				onChange({
-					_tree: insertBlockInTree(value._tree, newBlock, position),
-					_values: { ...value._values, [newBlock.id]: newValues },
-				});
+				removeBlock: (id) => {
+					const state = get();
+					const { newTree, removedIds } = removeBlockFromTree(
+						state.content._tree,
+						id,
+					);
 
-				// Select the new block and close library
-				setSelectedBlockId(newBlock.id);
-				setIsLibraryOpen(false);
-				setInsertPosition(null);
-
-				// Expand parent if inserting as child
-				if (position.parentId) {
-					setExpandedBlockIds((prev) => new Set([...prev, position.parentId!]));
-				}
-			},
-
-			removeBlock: (id) => {
-				const { newTree, removedIds } = removeBlockFromTree(value._tree, id);
-				const newValues = { ...value._values };
-				for (const removedId of removedIds) {
-					delete newValues[removedId];
-				}
-
-				onChange({ _tree: newTree, _values: newValues });
-
-				// Clear selection if removed block was selected
-				if (selectedBlockId === id || removedIds.includes(selectedBlockId!)) {
-					setSelectedBlockId(null);
-				}
-
-				// Clear from expanded
-				setExpandedBlockIds((prev) => {
-					const next = new Set(prev);
+					const newValues = { ...state.content._values };
 					for (const removedId of removedIds) {
-						next.delete(removedId);
+						delete newValues[removedId];
 					}
-					return next;
-				});
-			},
 
-			duplicateBlock: (id) => {
-				const { newTree, newIds, newValues } = duplicateBlockInTree(
-					value._tree,
-					value._values,
-					id,
-				);
+					const nextContent: BlockContent = {
+						_tree: newTree,
+						_values: newValues,
+					};
 
-				onChange({
-					_tree: newTree,
-					_values: { ...value._values, ...newValues },
-				});
+					onChangeRef.current(nextContent);
 
-				// Select the first duplicated block
-				if (newIds.length > 0) {
-					setSelectedBlockId(newIds[0]);
-				}
-			},
+					set((prev) => {
+						const nextExpanded = new Set(prev.expandedBlockIds);
+						for (const removedId of removedIds) {
+							nextExpanded.delete(removedId);
+						}
 
-			// Reorder (same-parent only, uses arrayMove for correct index handling)
-			moveBlock: (_id, parentId, fromIndex, toIndex) => {
-				onChange({
-					...value,
-					_tree: reorderBlockInTree(value._tree, parentId, fromIndex, toIndex),
-				});
-			},
+						const selectedBlockRemoved =
+							prev.selectedBlockId === id ||
+							(prev.selectedBlockId
+								? removedIds.includes(prev.selectedBlockId)
+								: false);
 
-			// Values
-			updateBlockValues: (id, newValues) => {
-				onChange({
-					...value,
-					_values: {
-						...value._values,
-						[id]: { ...value._values[id], ...newValues },
-					},
-				});
-			},
+						return {
+							content: nextContent,
+							expandedBlockIds: nextExpanded,
+							selectedBlockId: selectedBlockRemoved
+								? null
+								: prev.selectedBlockId,
+						};
+					});
+				},
 
-			// Library
-			openLibrary: (position) => {
-				setInsertPosition(position);
-				setIsLibraryOpen(true);
-				setSelectedBlockId(null);
-			},
+				duplicateBlock: (id) => {
+					const state = get();
+					const { newTree, newIds, newValues } = duplicateBlockInTree(
+						state.content._tree,
+						state.content._values,
+						id,
+					);
 
-			closeLibrary: () => {
-				setIsLibraryOpen(false);
-				setInsertPosition(null);
-			},
+					const nextContent: BlockContent = {
+						_tree: newTree,
+						_values: { ...state.content._values, ...newValues },
+					};
+
+					onChangeRef.current(nextContent);
+
+					set({
+						content: nextContent,
+						selectedBlockId:
+							newIds.length > 0 ? newIds[0] : state.selectedBlockId,
+					});
+				},
+
+				// Reorder (same-parent only)
+				moveBlock: (_id, parentId, fromIndex, toIndex) => {
+					const state = get();
+					const nextContent: BlockContent = {
+						...state.content,
+						_tree: reorderBlockInTree(
+							state.content._tree,
+							parentId,
+							fromIndex,
+							toIndex,
+						),
+					};
+
+					onChangeRef.current(nextContent);
+					set({ content: nextContent });
+				},
+
+				// Values
+				updateBlockValues: (id, newValues) => {
+					const state = get();
+					const nextContent: BlockContent = {
+						...state.content,
+						_values: {
+							...state.content._values,
+							[id]: { ...state.content._values[id], ...newValues },
+						},
+					};
+
+					onChangeRef.current(nextContent);
+					set({ content: nextContent });
+				},
+
+				// Library
+				openLibrary: (position) => {
+					set({
+						insertPosition: position,
+						isLibraryOpen: true,
+						selectedBlockId: null,
+					});
+				},
+
+				closeLibrary: () => {
+					set({
+						isLibraryOpen: false,
+						insertPosition: null,
+					});
+				},
+			};
+
+			return {
+				content: value,
+				selectedBlockId: null,
+				expandedBlockIds: new Set<string>(),
+				isLibraryOpen: false,
+				insertPosition: null,
+				blocks,
+				allowedBlocks: allowedBlocks ?? null,
+				locale,
+				actions,
+			};
 		}),
-		[value, onChange, blocks, selectedBlockId],
 	);
 
-	// State object
-	const state: BlockEditorState = React.useMemo(
-		() => ({
-			content: value,
-			selectedBlockId,
-			expandedBlockIds,
-			isLibraryOpen,
-			insertPosition,
-			blocks,
-			allowedBlocks: allowedBlocks || null,
-			locale,
-		}),
-		[
-			value,
-			selectedBlockId,
-			expandedBlockIds,
-			isLibraryOpen,
-			insertPosition,
-			blocks,
-			allowedBlocks,
-			locale,
-		],
-	);
+	React.useEffect(() => {
+		const store = storeRef.current;
+		const state = store.getState();
+		const nextAllowedBlocks = allowedBlocks ?? null;
 
-	// Context value
-	const contextValue = React.useMemo(
-		() => ({ state, actions }),
-		[state, actions],
-	);
+		const patch: Partial<BlockEditorStore> = {};
+
+		if (state.content !== value) {
+			patch.content = value;
+		}
+
+		if (state.blocks !== blocks) {
+			patch.blocks = blocks;
+		}
+
+		if (state.allowedBlocks !== nextAllowedBlocks) {
+			patch.allowedBlocks = nextAllowedBlocks;
+		}
+
+		if (state.locale !== locale) {
+			patch.locale = locale;
+		}
+
+		if (Object.keys(patch).length > 0) {
+			store.setState(patch);
+		}
+	}, [value, blocks, allowedBlocks, locale]);
 
 	return (
-		<BlockEditorContextProvider value={contextValue}>
+		<BlockEditorContextProvider value={storeRef.current}>
 			{children}
 		</BlockEditorContextProvider>
 	);

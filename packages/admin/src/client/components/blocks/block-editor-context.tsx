@@ -1,14 +1,16 @@
 /**
  * Block Editor Context
  *
- * Context and hooks for the block editor state management.
+ * Context and selector hooks for block editor state management.
  */
 
 "use client";
 
 import * as React from "react";
+import type { StoreApi } from "zustand";
+import { useStore } from "zustand";
 import type { BlockSchema } from "#questpie/admin/server";
-import type { BlockContent } from "../../blocks/types.js";
+import type { BlockContent, BlockNode } from "../../blocks/types.js";
 import type { InsertPosition } from "./utils/tree-utils.js";
 
 // ============================================================================
@@ -76,66 +78,134 @@ export type BlockEditorContextValue = {
 	actions: BlockEditorActions;
 };
 
+export type BlockEditorStore = BlockEditorState & {
+	actions: BlockEditorActions;
+};
+
 // ============================================================================
 // Context
 // ============================================================================
 
-const BlockEditorContext = React.createContext<BlockEditorContextValue | null>(
-	null,
-);
+const BlockEditorContext =
+	React.createContext<StoreApi<BlockEditorStore> | null>(null);
+
+export const BlockEditorContextProvider = BlockEditorContext.Provider;
+
+/**
+ * Selector hook for block editor store.
+ */
+export function useBlockEditorStore<T>(
+	selector: (state: BlockEditorStore) => T,
+): T {
+	const store = React.useContext(BlockEditorContext);
+	if (!store) {
+		throw new Error("useBlockEditor must be used within BlockEditorProvider");
+	}
+
+	return useStore(store, selector);
+}
 
 /**
  * Hook to access block editor state and actions.
  * Must be used within BlockEditorProvider.
  */
 export function useBlockEditor(): BlockEditorContextValue {
-	const ctx = React.useContext(BlockEditorContext);
-	if (!ctx) {
-		throw new Error("useBlockEditor must be used within BlockEditorProvider");
-	}
-	return ctx;
+	const state = useBlockEditorState();
+	const actions = useBlockEditorActions();
+
+	return { state, actions };
 }
 
 /**
  * Hook to access only block editor state.
  */
 export function useBlockEditorState(): BlockEditorState {
-	return useBlockEditor().state;
+	return useBlockEditorStore((state) => ({
+		content: state.content,
+		selectedBlockId: state.selectedBlockId,
+		expandedBlockIds: state.expandedBlockIds,
+		isLibraryOpen: state.isLibraryOpen,
+		insertPosition: state.insertPosition,
+		blocks: state.blocks,
+		allowedBlocks: state.allowedBlocks,
+		locale: state.locale,
+	}));
 }
 
 /**
  * Hook to access only block editor actions.
  */
 export function useBlockEditorActions(): BlockEditorActions {
-	return useBlockEditor().actions;
+	return useBlockEditorStore((state) => state.actions);
+}
+
+/**
+ * Hook to access current block tree.
+ */
+export function useBlockTree(): BlockNode[] {
+	return useBlockEditorStore((state) => state.content._tree);
+}
+
+/**
+ * Hook to access values for a specific block.
+ */
+export function useBlockValues(
+	blockId: string,
+): Record<string, unknown> | undefined {
+	return useBlockEditorStore((state) => state.content._values[blockId]);
+}
+
+/**
+ * Hook to access registered block definitions.
+ */
+export function useBlockRegistry(): Record<string, BlockSchema> {
+	return useBlockEditorStore((state) => state.blocks);
+}
+
+/**
+ * Hook to access allowed block type filter.
+ */
+export function useAllowedBlockTypes(): string[] | null {
+	return useBlockEditorStore((state) => state.allowedBlocks);
+}
+
+/**
+ * Hook to access current insert position.
+ */
+export function useBlockInsertPosition(): InsertPosition | null {
+	return useBlockEditorStore((state) => state.insertPosition);
+}
+
+/**
+ * Hook to check if block library is open.
+ */
+export function useBlockLibraryOpen(): boolean {
+	return useBlockEditorStore((state) => state.isLibraryOpen);
 }
 
 /**
  * Hook to check if a block is selected.
  */
 export function useIsBlockSelected(blockId: string): boolean {
-	const { state } = useBlockEditor();
-	return state.selectedBlockId === blockId;
+	return useBlockEditorStore((state) => state.selectedBlockId === blockId);
 }
 
 /**
  * Hook to check if a block is expanded.
  */
 export function useIsBlockExpanded(blockId: string): boolean {
-	const { state } = useBlockEditor();
-	return state.expandedBlockIds.has(blockId);
+	return useBlockEditorStore((state) => state.expandedBlockIds.has(blockId));
 }
 
 /**
  * Hook to get a block schema by type.
  */
 export function useBlockSchema(blockType: string): BlockSchema | undefined {
-	const { state } = useBlockEditor();
-	return state.blocks[blockType];
+	return useBlockEditorStore((state) => state.blocks[blockType]);
 }
 
 /**
- * Hook to get the selected block's schema.
+ * Hook to get a block schema by type.
  * @deprecated Use useBlockSchema instead
  */
 export function useBlockDefinition(blockType: string): BlockSchema | undefined {
@@ -146,16 +216,17 @@ export function useBlockDefinition(blockType: string): BlockSchema | undefined {
  * Hook to get the selected block's schema.
  */
 export function useSelectedBlockSchema(): BlockSchema | undefined {
-	const { state } = useBlockEditor();
-	if (!state.selectedBlockId) return undefined;
+	return useBlockEditorStore((state) => {
+		if (!state.selectedBlockId) return undefined;
 
-	const blockNode = findBlockNodeById(
-		state.content._tree,
-		state.selectedBlockId,
-	);
-	if (!blockNode) return undefined;
+		const blockNode = findBlockNodeById(
+			state.content._tree,
+			state.selectedBlockId,
+		);
+		if (!blockNode) return undefined;
 
-	return state.blocks[blockNode.type];
+		return state.blocks[blockNode.type];
+	});
 }
 
 /**
@@ -170,22 +241,15 @@ export function useSelectedBlockDefinition(): BlockSchema | undefined {
  * Hook to get the selected block's values.
  */
 export function useSelectedBlockValues(): Record<string, unknown> | undefined {
-	const { state } = useBlockEditor();
-	if (!state.selectedBlockId) return undefined;
-	return state.content._values[state.selectedBlockId];
+	return useBlockEditorStore((state) => {
+		if (!state.selectedBlockId) return undefined;
+		return state.content._values[state.selectedBlockId];
+	});
 }
-
-// ============================================================================
-// Provider Component
-// ============================================================================
-
-export const BlockEditorContextProvider = BlockEditorContext.Provider;
 
 // ============================================================================
 // Helpers
 // ============================================================================
-
-import type { BlockNode } from "../../blocks/types.js";
 
 function findBlockNodeById(
 	tree: BlockNode[],

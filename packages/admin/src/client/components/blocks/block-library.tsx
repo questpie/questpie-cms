@@ -13,7 +13,12 @@ import type { BlockCategoryConfig, BlockSchema } from "#questpie/admin/server";
 import { cn } from "../../lib/utils.js";
 import { Button } from "../ui/button.js";
 import { Input } from "../ui/input.js";
-import { useBlockEditor, useBlockEditorState } from "./block-editor-context.js";
+import {
+	useAllowedBlockTypes,
+	useBlockEditorActions,
+	useBlockInsertPosition,
+	useBlockRegistry,
+} from "./block-editor-context.js";
 import { BlockIcon } from "./block-type-icon.js";
 
 // ============================================================================
@@ -46,7 +51,8 @@ export function BlockLibraryContent({
 	showHeader = false,
 	onClose,
 }: BlockLibraryContentProps) {
-	const state = useBlockEditorState();
+	const blockRegistry = useBlockRegistry();
+	const allowedBlocks = useAllowedBlockTypes();
 	const [search, setSearch] = React.useState("");
 
 	// Group blocks by category
@@ -59,9 +65,9 @@ export function BlockLibraryContent({
 			order: 999,
 		};
 
-		for (const [name, def] of Object.entries(state.blocks)) {
+		for (const [name, def] of Object.entries(blockRegistry)) {
 			// Filter by allowed blocks
-			if (state.allowedBlocks && !state.allowedBlocks.includes(name)) {
+			if (allowedBlocks && !allowedBlocks.includes(name)) {
 				continue;
 			}
 
@@ -93,7 +99,7 @@ export function BlockLibraryContent({
 			if (!categoryMap.has(key)) {
 				categoryMap.set(key, { key, config, blocks: [] });
 			}
-			categoryMap.get(key)!.blocks.push({ ...def, name });
+			categoryMap.get(key)?.blocks.push({ ...def, name });
 		}
 
 		// Convert to array and sort
@@ -110,7 +116,7 @@ export function BlockLibraryContent({
 		}
 
 		return result;
-	}, [state.blocks, state.allowedBlocks, search]);
+	}, [blockRegistry, allowedBlocks, search]);
 
 	// Focus search on mount
 	const searchInputRef = React.useRef<HTMLInputElement>(null);
@@ -213,11 +219,12 @@ export function BlockLibraryContent({
 // ============================================================================
 
 export function BlockLibrary() {
-	const { state, actions } = useBlockEditor();
+	const actions = useBlockEditorActions();
+	const insertPosition = useBlockInsertPosition();
 
 	const handleSelect = (type: string) => {
-		if (state.insertPosition) {
-			actions.addBlock(type, state.insertPosition);
+		if (insertPosition) {
+			actions.addBlock(type, insertPosition);
 		}
 	};
 

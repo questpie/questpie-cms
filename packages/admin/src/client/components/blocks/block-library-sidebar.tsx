@@ -20,8 +20,10 @@ import {
 	SheetTitle,
 } from "../ui/sheet.js";
 import {
+	useAllowedBlockTypes,
 	useBlockEditorActions,
-	useBlockEditorState,
+	useBlockInsertPosition,
+	useBlockRegistry,
 } from "./block-editor-context.js";
 import { BlockIcon } from "./block-type-icon.js";
 
@@ -52,8 +54,10 @@ export function BlockLibrarySidebar({
 	open,
 	onClose,
 }: BlockLibrarySidebarProps) {
-	const state = useBlockEditorState();
 	const actions = useBlockEditorActions();
+	const blockRegistry = useBlockRegistry();
+	const allowedBlocks = useAllowedBlockTypes();
+	const insertPosition = useBlockInsertPosition();
 	const [search, setSearch] = React.useState("");
 
 	// Group blocks by category
@@ -66,9 +70,9 @@ export function BlockLibrarySidebar({
 			order: 999,
 		};
 
-		for (const [name, def] of Object.entries(state.blocks)) {
+		for (const [name, def] of Object.entries(blockRegistry)) {
 			// Filter by allowed blocks
-			if (state.allowedBlocks && !state.allowedBlocks.includes(name)) {
+			if (allowedBlocks && !allowedBlocks.includes(name)) {
 				continue;
 			}
 
@@ -117,7 +121,7 @@ export function BlockLibrarySidebar({
 		}
 
 		return result;
-	}, [state.blocks, state.allowedBlocks, search]);
+	}, [blockRegistry, allowedBlocks, search]);
 
 	// Focus search on open
 	const searchInputRef = React.useRef<HTMLInputElement>(null);
@@ -130,8 +134,8 @@ export function BlockLibrarySidebar({
 
 	// Handle block selection
 	const handleSelectBlock = (type: string) => {
-		if (state.insertPosition) {
-			actions.addBlock(type, state.insertPosition);
+		if (insertPosition) {
+			actions.addBlock(type, insertPosition);
 		}
 		onClose();
 		setSearch("");

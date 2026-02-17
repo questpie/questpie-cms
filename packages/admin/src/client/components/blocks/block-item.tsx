@@ -15,8 +15,9 @@ import type { BlockNode } from "../../blocks/types.js";
 import { cn } from "../../lib/utils.js";
 import { Card, CardContent, CardHeader } from "../ui/card.js";
 import {
-	useBlockEditor,
+	useBlockEditorActions,
 	useBlockSchema,
+	useBlockValues,
 	useIsBlockExpanded,
 } from "./block-editor-context.js";
 import { BlockFieldsRenderer } from "./block-fields-renderer.js";
@@ -50,8 +51,9 @@ export function BlockItem({
 	index: _index,
 	parentId: _parentId,
 }: BlockItemProps) {
-	const { state, actions } = useBlockEditor();
+	const actions = useBlockEditorActions();
 	const blockSchema = useBlockSchema(block.type);
+	const values = useBlockValues(block.id);
 	const isExpanded = useIsBlockExpanded(block.id);
 	const canHaveChildren = blockSchema?.allowChildren ?? false;
 
@@ -76,7 +78,6 @@ export function BlockItem({
 	const showDropIndicator = isOver && active?.id !== block.id;
 
 	// Get block label from values or definition
-	const values = state.content._values[block.id];
 	const blockLabel = getBlockLabel(block, blockSchema, values);
 
 	// Handlers
@@ -122,11 +123,7 @@ export function BlockItem({
 			)}
 
 			{/* Block card */}
-			<Card
-				className={cn(
-					"overflow-hidden transition-shadow p-0 gap-0",
-				)}
-			>
+			<Card className={cn("overflow-hidden transition-shadow p-0 gap-0")}>
 				{/* Header - clickable to expand/collapse */}
 				<CardHeader
 					role="button"

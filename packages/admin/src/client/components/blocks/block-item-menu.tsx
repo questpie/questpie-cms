@@ -31,7 +31,13 @@ import {
 	DropdownMenuSubTrigger,
 	DropdownMenuTrigger,
 } from "../ui/dropdown-menu.js";
-import { useBlockEditor } from "./block-editor-context.js";
+import {
+	useAllowedBlockTypes,
+	useBlockEditorActions,
+	useBlockRegistry,
+	useBlockTree,
+	useIsBlockExpanded,
+} from "./block-editor-context.js";
 import { BlockTypeIcon } from "./block-type-icon.js";
 import { findBlockById, findBlockPosition } from "./utils/tree-utils.js";
 
@@ -86,30 +92,34 @@ function MenuItems({
 	onClose,
 }: MenuItemsProps) {
 	const { t } = useTranslation();
-	const { state, actions } = useBlockEditor();
+	const actions = useBlockEditorActions();
+	const blockRegistry = useBlockRegistry();
+	const allowedBlocks = useAllowedBlockTypes();
+	const blockTree = useBlockTree();
+	const isExpanded = useIsBlockExpanded(blockId);
 
 	// Get available block types for add actions
 	const blockTypes = React.useMemo(() => {
-		return Object.entries(state.blocks)
+		return Object.entries(blockRegistry)
 			.filter(([type]) => {
-				if (!state.allowedBlocks) return true;
-				return state.allowedBlocks.includes(type);
+				if (!allowedBlocks) return true;
+				return allowedBlocks.includes(type);
 			})
 			.map(([type, def]) => ({
 				type,
 				label: getBlockLabel(def),
 			}))
 			.sort((a, b) => a.label.localeCompare(b.label));
-	}, [state.blocks, state.allowedBlocks]);
+	}, [blockRegistry, allowedBlocks]);
 
 	const blockPosition = React.useMemo(
-		() => findBlockPosition(state.content._tree, blockId),
-		[state.content._tree, blockId],
+		() => findBlockPosition(blockTree, blockId),
+		[blockTree, blockId],
 	);
 
 	const handleAddChild = (blockType: string) => {
 		// Find current block to get children count
-		const block = findBlockById(state.content._tree, blockId);
+		const block = findBlockById(blockTree, blockId);
 		const childrenCount = block?.children.length ?? 0;
 
 		actions.addBlock(blockType, {
@@ -118,7 +128,7 @@ function MenuItems({
 		});
 
 		// Make sure block is expanded
-		if (!state.expandedBlockIds.has(blockId)) {
+		if (!isExpanded) {
 			actions.toggleExpanded(blockId);
 		}
 

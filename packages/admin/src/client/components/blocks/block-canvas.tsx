@@ -22,8 +22,9 @@ import { sortableKeyboardCoordinates } from "@dnd-kit/sortable";
 import { Icon } from "@iconify/react";
 import * as React from "react";
 import {
-	useBlockEditor,
 	useBlockEditorActions,
+	useBlockRegistry,
+	useBlockTree,
 } from "./block-editor-context.js";
 import { BlockTree } from "./block-tree.js";
 import { BlockIcon } from "./block-type-icon.js";
@@ -34,8 +35,9 @@ import { findBlockById, findBlockPosition } from "./utils/tree-utils.js";
 // ============================================================================
 
 export function BlockCanvas() {
-	const { state } = useBlockEditor();
 	const actions = useBlockEditorActions();
+	const tree = useBlockTree();
+	const blocksByType = useBlockRegistry();
 	const [activeId, setActiveId] = React.useState<string | null>(null);
 
 	// Configure drag sensors with keyboard support
@@ -68,8 +70,8 @@ export function BlockCanvas() {
 		const overId = over.id as string;
 
 		// Find positions of both blocks
-		const activePosition = findBlockPosition(state.content._tree, draggedId);
-		const overPosition = findBlockPosition(state.content._tree, overId);
+		const activePosition = findBlockPosition(tree, draggedId);
+		const overPosition = findBlockPosition(tree, overId);
 
 		if (!activePosition || !overPosition) {
 			return;
@@ -94,10 +96,8 @@ export function BlockCanvas() {
 	};
 
 	// Get active block for overlay
-	const activeBlock = activeId
-		? findBlockById(state.content._tree, activeId)
-		: null;
-	const activeBlockSchema = activeBlock ? state.blocks[activeBlock.type] : null;
+	const activeBlock = activeId ? findBlockById(tree, activeId) : null;
+	const activeBlockSchema = activeBlock ? blocksByType[activeBlock.type] : null;
 
 	return (
 		<DndContext
@@ -107,7 +107,7 @@ export function BlockCanvas() {
 			onDragEnd={handleDragEnd}
 			onDragCancel={handleDragCancel}
 		>
-			<BlockTree blocks={state.content._tree} level={0} parentId={null} />
+			<BlockTree blocks={tree} level={0} parentId={null} />
 
 			{/* Drag overlay - shows what's being dragged */}
 			<DragOverlay>
