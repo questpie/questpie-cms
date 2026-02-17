@@ -142,6 +142,38 @@ export interface ComponentRendererProps {
 	additionalProps?: Record<string, unknown>;
 }
 
+type RegistryRendererProps = {
+	reference: ComponentReference;
+	registry?: ComponentRendererRegistry;
+	fallback?: React.ReactNode;
+	additionalProps?: Record<string, unknown>;
+};
+
+function RegistryComponentRenderer({
+	reference,
+	registry,
+	fallback,
+	additionalProps,
+}: RegistryRendererProps): React.ReactNode {
+	const admin = useAdminStore(selectAdmin);
+	const contextRegistry =
+		(admin?.getComponents?.() as ComponentRendererRegistry | undefined) ?? {};
+	const mergedRegistry = registry ?? contextRegistry;
+	const Component = mergedRegistry[reference.type];
+
+	if (!Component) {
+		if (process.env.NODE_ENV === "development") {
+			console.warn(
+				`[ComponentRenderer] Unknown component type: "${reference.type}". ` +
+					`Available types: ${Object.keys(mergedRegistry).join(", ")}`,
+			);
+		}
+		return fallback ?? null;
+	}
+
+	return <Component {...reference.props} {...additionalProps} />;
+}
+
 /**
  * Renders a server-defined component reference.
  *
@@ -172,28 +204,28 @@ export function ComponentRenderer({
 	fallback = null,
 	additionalProps,
 }: ComponentRendererProps): React.ReactNode {
-	const admin = useAdminStore(selectAdmin);
-
 	if (!reference) {
 		return fallback;
 	}
 
-	const contextRegistry =
-		(admin?.getComponents?.() as ComponentRendererRegistry | undefined) ?? {};
-	const mergedRegistry = registry ?? contextRegistry;
-	const Component = mergedRegistry[reference.type];
+	if (reference.type === "icon") {
+		const iconProps = (reference.props ?? {}) as Record<string, unknown>;
+		const iconName = iconProps.name;
 
-	if (!Component) {
-		if (process.env.NODE_ENV === "development") {
-			console.warn(
-				`[ComponentRenderer] Unknown component type: "${reference.type}". ` +
-					`Available types: ${Object.keys(mergedRegistry).join(", ")}`,
-			);
+		if (typeof iconName === "string") {
+			const { name: _name, ...rest } = iconProps;
+			return <Icon icon={iconName} {...rest} {...additionalProps} />;
 		}
-		return fallback;
 	}
 
-	return <Component {...reference.props} {...additionalProps} />;
+	return (
+		<RegistryComponentRenderer
+			reference={reference}
+			registry={registry}
+			fallback={fallback}
+			additionalProps={additionalProps}
+		/>
+	);
 }
 
 // ============================================================================
