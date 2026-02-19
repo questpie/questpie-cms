@@ -17,13 +17,14 @@ const createModule = () => {
 		}))
 		.options({
 			softDelete: true,
-			versioning: true,
-			workflow: {
-				initialStage: "draft",
-				stages: {
-					draft: { transitions: ["review"] },
-					review: { transitions: ["draft", "published"] },
-					published: {},
+			versioning: {
+				workflow: {
+					initialStage: "draft",
+					stages: {
+						draft: { transitions: ["review"] },
+						review: { transitions: ["draft", "published"] },
+						published: {},
+					},
 				},
 			},
 		});
@@ -34,18 +35,22 @@ const createModule = () => {
 			siteName: f.text({ required: true }),
 		}))
 		.options({
-			versioning: true,
-			workflow: {
-				initialStage: "draft",
-				stages: {
-					draft: { transitions: ["review"] },
-					review: { transitions: ["draft", "published"] },
-					published: {},
+			versioning: {
+				workflow: {
+					initialStage: "draft",
+					stages: {
+						draft: { transitions: ["review"] },
+						review: { transitions: ["draft", "published"] },
+						published: {},
+					},
 				},
 			},
 		});
 
-	return q.collections({ posts }).globals({ settings });
+	return q
+		.collections({ posts })
+		.globals({ settings })
+		.defaultAccess({ read: true, create: true, update: true, delete: true });
 };
 
 describe("adapter versioning routes", () => {

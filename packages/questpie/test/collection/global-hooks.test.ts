@@ -2,9 +2,11 @@ import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { defaultFields } from "../../src/server/fields/builtin/defaults.js";
 import { questpie } from "../../src/server/index.js";
 import { buildMockApp } from "../utils/mocks/mock-app-builder";
+import { createTestContext } from "../utils/test-context";
 import { runTestDbMigrations } from "../utils/test-db";
 
-const q = questpie({ name: "test-global-hooks" }).fields(defaultFields);
+const createBuilder = () =>
+	questpie({ name: "test-global-hooks" }).fields(defaultFields);
 
 describe("global hooks injection", () => {
 	describe("collection global hooks via .hooks()", () => {
@@ -14,8 +16,9 @@ describe("global hooks injection", () => {
 			operation: string;
 		}>;
 
-		const createModule = (calls: typeof hookCalls) =>
-			q
+		const createModule = (calls: typeof hookCalls) => {
+			const q = createBuilder();
+			return q
 				.collections({
 					articles: q.collection("articles").fields((f) => ({
 						title: f.textarea({ required: true }),
@@ -42,6 +45,7 @@ describe("global hooks injection", () => {
 						},
 					},
 				});
+		};
 
 		let setup: Awaited<ReturnType<typeof buildMockApp>>;
 
@@ -85,9 +89,7 @@ describe("global hooks injection", () => {
 		});
 
 		it("fires afterChange hook on update", async () => {
-			const created = await (
-				setup.app as any
-			).api.collections.articles.create({
+			const created = await (setup.app as any).api.collections.articles.create({
 				title: "Original",
 			});
 
@@ -108,9 +110,7 @@ describe("global hooks injection", () => {
 		});
 
 		it("fires afterDelete hook", async () => {
-			const created = await (
-				setup.app as any
-			).api.collections.articles.create({
+			const created = await (setup.app as any).api.collections.articles.create({
 				title: "To Delete",
 			});
 
@@ -133,8 +133,9 @@ describe("global hooks injection", () => {
 	describe("collection global hooks with include/exclude", () => {
 		let hookCalls: Array<{ collection: string; operation: string }>;
 
-		const createModule = (calls: typeof hookCalls) =>
-			q
+		const createModule = (calls: typeof hookCalls) => {
+			const q = createBuilder();
+			return q
 				.collections({
 					articles: q.collection("articles").fields((f) => ({
 						title: f.textarea({ required: true }),
@@ -157,6 +158,7 @@ describe("global hooks injection", () => {
 						},
 					},
 				});
+		};
 
 		let setup: Awaited<ReturnType<typeof buildMockApp>>;
 
@@ -192,7 +194,10 @@ describe("global hooks injection", () => {
 	describe("global hooks from .use() composition", () => {
 		let hookCalls: Array<{ collection: string; source: string }>;
 
-		const createModuleA = (calls: typeof hookCalls) =>
+		const createModuleA = (
+			calls: typeof hookCalls,
+			q: ReturnType<typeof createBuilder>,
+		) =>
 			q.hooks({
 				collections: {
 					afterChange: async (ctx) => {
@@ -204,7 +209,10 @@ describe("global hooks injection", () => {
 				},
 			});
 
-		const createModuleB = (calls: typeof hookCalls) =>
+		const createModuleB = (
+			calls: typeof hookCalls,
+			q: ReturnType<typeof createBuilder>,
+		) =>
 			q.hooks({
 				collections: {
 					afterChange: async (ctx) => {
@@ -220,8 +228,9 @@ describe("global hooks injection", () => {
 
 		beforeEach(async () => {
 			hookCalls = [];
-			const moduleA = createModuleA(hookCalls);
-			const moduleB = createModuleB(hookCalls);
+			const q = createBuilder();
+			const moduleA = createModuleA(hookCalls, q);
+			const moduleB = createModuleB(hookCalls, q);
 			const module = q
 				.collections({
 					articles: q.collection("articles").fields((f) => ({
@@ -240,21 +249,22 @@ describe("global hooks injection", () => {
 		});
 
 		it("fires hooks from both modules", async () => {
-			await (setup.app as any).api.collections.articles.create({
-				title: "Test",
-			});
+			await (setup.app as any).api.collections.articles.create(
+				{
+					title: "Test",
+				},
+				createTestContext(),
+			);
 
 			expect(hookCalls).toHaveLength(2);
-			expect(hookCalls.map((c) => c.source)).toEqual([
-				"moduleA",
-				"moduleB",
-			]);
+			expect(hookCalls.map((c) => c.source)).toEqual(["moduleA", "moduleB"]);
 		});
 	});
 
 	describe("global hooks creating records in other collections (audit-like)", () => {
-		const createModule = () =>
-			q
+		const createModule = () => {
+			const q = createBuilder();
+			return q
 				.collections({
 					articles: q.collection("articles").fields((f) => ({
 						title: f.textarea({ required: true }),
@@ -273,13 +283,12 @@ describe("global hooks injection", () => {
 							await app.api.collections.auditLog.create({
 								action: ctx.operation,
 								resource: ctx.collection,
-								resourceId: ctx.data?.id
-									? String(ctx.data.id)
-									: null,
+								resourceId: ctx.data?.id ? String(ctx.data.id) : null,
 							});
 						},
 					},
 				});
+		};
 
 		let setup: Awaited<ReturnType<typeof buildMockApp>>;
 
@@ -297,9 +306,7 @@ describe("global hooks injection", () => {
 				title: "Test Article",
 			});
 
-			const logs = await (
-				setup.app as any
-			).api.collections.auditLog.find();
+			const logs = await (setup.app as any).api.collections.auditLog.find();
 			expect(logs.docs).toHaveLength(1);
 			expect(logs.docs[0].action).toBe("create");
 			expect(logs.docs[0].resource).toBe("articles");
@@ -311,9 +318,7 @@ describe("global hooks injection", () => {
 				resource: "test",
 			});
 
-			const logs = await (
-				setup.app as any
-			).api.collections.auditLog.find();
+			const logs = await (setup.app as any).api.collections.auditLog.find();
 			// Should only have the one we just created, no recursive audit entry
 			expect(logs.docs).toHaveLength(1);
 			expect(logs.docs[0].action).toBe("manual");
@@ -321,8 +326,9 @@ describe("global hooks injection", () => {
 	});
 
 	describe("beforeChange global hooks can modify data", () => {
-		const createModule = () =>
-			q
+		const createModule = () => {
+			const q = createBuilder();
+			return q
 				.collections({
 					articles: q.collection("articles").fields((f) => ({
 						title: f.textarea({ required: true }),
@@ -340,6 +346,7 @@ describe("global hooks injection", () => {
 						},
 					},
 				});
+		};
 
 		let setup: Awaited<ReturnType<typeof buildMockApp>>;
 
@@ -353,9 +360,7 @@ describe("global hooks injection", () => {
 		});
 
 		it("allows beforeChange to mutate data", async () => {
-			const result = await (
-				setup.app as any
-			).api.collections.articles.create({
+			const result = await (setup.app as any).api.collections.articles.create({
 				title: "Hello World",
 			});
 

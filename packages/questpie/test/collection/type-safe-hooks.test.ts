@@ -243,9 +243,106 @@ describe("Type-Safe Hooks", () => {
     expect(posts.name).toBe("posts");
   });
 
-  // TODO: Add tests for hooks with field builder localized fields (f.text({ localized: true }))
-  test.skip("hooks with localized fields", () => {});
-  test.skip("hooks with localized fields maintain correct types across lifecycle", () => {});
+  test("hooks with localized fields", () => {
+    const posts = q
+      .collection("posts")
+      .fields((f) => ({
+        title: f.text({ required: true, localized: true }),
+        slug: f.text({ required: true }),
+        description: f.textarea({ localized: true }),
+      }))
+      .hooks({
+        beforeChange: async ({ data, operation }) => {
+          // Localized fields have the same plain scalar types in hooks
+          if (operation === "create") {
+            expectTypeOf(data).toMatchTypeOf<{
+              title: string;
+              slug: string;
+              description?: string | null | undefined;
+            }>();
+          } else {
+            expectTypeOf(data).toMatchTypeOf<{
+              title?: string | undefined;
+              slug?: string | undefined;
+              description?: string | null | undefined;
+            }>();
+          }
+        },
+        afterChange: async ({ data }) => {
+          // After change, localized fields are plain values for the current locale
+          expectTypeOf(data).toMatchTypeOf<{
+            id: string;
+            title: string;
+            slug: string;
+            description: string | null;
+            createdAt: string;
+            updatedAt: string;
+          }>();
+        },
+      });
+
+    expect(posts.name).toBe("posts");
+  });
+
+  test("hooks with localized fields maintain correct types across lifecycle", () => {
+    const articles = q
+      .collection("articles")
+      .fields((f) => ({
+        title: f.textarea({ required: true, localized: true }),
+        body: f.textarea({ localized: true }),
+        category: f.text({ required: true }),
+      }))
+      .hooks({
+        beforeValidate: async ({ data, operation }) => {
+          if (operation === "create") {
+            expectTypeOf(data).toMatchTypeOf<{
+              title: string;
+              category: string;
+              body?: string | null | undefined;
+            }>();
+          }
+        },
+        beforeChange: async ({ data }) => {
+          // Mutate localized field in place
+          if (data.title) {
+            data.title = data.title.trim();
+          }
+        },
+        afterChange: async ({ data, original, operation }) => {
+          expectTypeOf(data).toMatchTypeOf<{
+            id: string;
+            title: string;
+            category: string;
+            body: string | null;
+            createdAt: string;
+            updatedAt: string;
+          }>();
+
+          if (operation === "update" && original) {
+            expectTypeOf(original).toMatchTypeOf<{
+              id: string;
+              title: string;
+              category: string;
+              body: string | null;
+              createdAt: string;
+              updatedAt: string;
+            }>();
+          }
+        },
+        afterRead: async ({ data }) => {
+          expectTypeOf(data).toMatchTypeOf<{
+            id: string;
+            title: string;
+            category: string;
+            body: string | null;
+            createdAt: string;
+            updatedAt: string;
+          }>();
+        },
+      });
+
+    expect(articles.name).toBe("articles");
+  });
 
   test("hooks should not allow return values", () => {
     const articles = q

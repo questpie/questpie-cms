@@ -783,10 +783,17 @@ describe("realtime", () => {
 				}),
 			}));
 
-			const testModule = q.collections({
-				users,
-				messages,
-			});
+			const testModule = q
+				.collections({
+					users,
+					messages,
+				})
+				.defaultAccess({
+					read: true,
+					create: true,
+					update: true,
+					delete: true,
+				});
 
 			setup = await buildMockApp(testModule, { realtime: { adapter } });
 			await runTestDbMigrations(setup.app);
@@ -1004,9 +1011,16 @@ describe("realtime", () => {
 				.global("settings")
 				.fields((f) => ({ title: f.textarea() }));
 
-			const testModule = q.globals({
-				settings,
-			});
+			const testModule = q
+				.globals({
+					settings,
+				})
+				.defaultAccess({
+					read: true,
+					create: true,
+					update: true,
+					delete: true,
+				});
 
 			setup = await buildMockApp(testModule, { realtime: { adapter } });
 			await runTestDbMigrations(setup.app);
@@ -1052,7 +1066,15 @@ describe("realtime", () => {
 				}),
 			}));
 
-			const testModule = q.collections({ categories }).globals({ settings });
+			const testModule = q
+				.collections({ categories })
+				.globals({ settings })
+				.defaultAccess({
+					read: true,
+					create: true,
+					update: true,
+					delete: true,
+				});
 
 			setup = await buildMockApp(testModule, { realtime: { adapter } });
 			await runTestDbMigrations(setup.app);
@@ -1678,9 +1700,16 @@ describe("realtime", () => {
 				value: f.number({ required: true, default: 0 }),
 			}));
 
-			const testModule = q.collections({
-				counters,
-			});
+			const testModule = q
+				.collections({
+					counters,
+				})
+				.defaultAccess({
+					read: true,
+					create: true,
+					update: true,
+					delete: true,
+				});
 
 			setup = await buildMockApp(testModule, { realtime: { adapter } });
 			await runTestDbMigrations(setup.app);
@@ -1754,9 +1783,16 @@ describe("realtime", () => {
 				.collection("items")
 				.fields((f) => ({ name: f.textarea({ required: true }) }));
 
-			const testModule = q.collections({
-				items,
-			});
+			const testModule = q
+				.collections({
+					items,
+				})
+				.defaultAccess({
+					read: true,
+					create: true,
+					update: true,
+					delete: true,
+				});
 
 			setup = await buildMockApp(testModule, { realtime: { adapter } });
 			await runTestDbMigrations(setup.app);

@@ -332,8 +332,8 @@ export const createGlobalRoutes = <
 				const result = await auditCrud.find(
 					{
 						where: {
-							resource: { equals: params.global },
-							resourceType: { equals: "global" },
+							resource: params.global,
+							resourceType: "global",
 						},
 						sort: { createdAt: "desc" },
 						...(Number.isFinite(limit) ? { limit: Math.floor(limit) } : {}),

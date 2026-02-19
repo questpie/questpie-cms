@@ -485,8 +485,8 @@ export const createCollectionRoutes = <
 				const result = await auditCrud.find(
 					{
 						where: {
-							resource: { equals: params.collection },
-							resourceId: { equals: params.id },
+							resource: params.collection,
+							resourceId: params.id,
 						},
 						sort: { createdAt: "desc" },
 						...(Number.isFinite(limit) ? { limit: Math.floor(limit) } : {}),
