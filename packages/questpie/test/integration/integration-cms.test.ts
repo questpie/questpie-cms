@@ -577,10 +577,10 @@ describe("integration: full app workflow", () => {
 
 		expect(author.name).toBe("System Author");
 
-		// Query in user mode should work for reads (default access)
+		// Query in user mode with session should work for reads (default access)
 		const found = await authorsCrud.findOne(
 			{ where: { id: author.id } },
-			createTestContext({ accessMode: "user" }),
+			createTestContext({ accessMode: "user", role: "user" }),
 		);
 
 		expect(found?.name).toBe("System Author");

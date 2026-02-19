@@ -503,10 +503,10 @@ describe("adminModule - Composition", () => {
 
 	test("adminModule should have hidden internal collections", () => {
 		const sessionState = (adminModule.state.collections.session as any).state;
-		expect(sessionState.admin).toEqual({ hidden: true });
+		expect(sessionState.admin).toEqual({ hidden: true, audit: false });
 
 		const accountState = (adminModule.state.collections.account as any).state;
-		expect(accountState.admin).toEqual({ hidden: true });
+		expect(accountState.admin).toEqual({ hidden: true, audit: false });
 	});
 
 	test(".use(adminModule) should propagate sidebar to consumer", () => {

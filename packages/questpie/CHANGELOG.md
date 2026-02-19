@@ -4,7 +4,7 @@
 
 ### Major Changes
 
-- [#16](https://github.com/questpie/questpie-cms/pull/16) [`dd3ea44`](https://github.com/questpie/questpie-cms/commit/dd3ea441d30a38705084c6068f229af21d5fd8d4) Thanks [@drepkovsky](https://github.com/drepkovsky)! - ## Ship field builder platform, server-driven admin, and standalone RPC API
+- [#16](https://github.com/questpie/questpie/pull/16) [`dd3ea44`](https://github.com/questpie/questpie/commit/dd3ea441d30a38705084c6068f229af21d5fd8d4) Thanks [@drepkovsky](https://github.com/drepkovsky)! - ## Ship field builder platform, server-driven admin, and standalone RPC API
 
   ### `questpie` (core)
 
@@ -207,13 +207,13 @@
 
 ### Patch Changes
 
-- [`7172275`](https://github.com/questpie/questpie-cms/commit/71722757a95e1f30521ac1eeca1080a8691bb9fc) Thanks [@drepkovsky](https://github.com/drepkovsky)! - fix: public uploads set visibility flag
+- [`7172275`](https://github.com/questpie/questpie/commit/71722757a95e1f30521ac1eeca1080a8691bb9fc) Thanks [@drepkovsky](https://github.com/drepkovsky)! - fix: public uploads set visibility flag
 
 ## 1.1.0
 
 ### Minor Changes
 
-- [`a7efd1e`](https://github.com/questpie/questpie-cms/commit/a7efd1e7d8d5a9cc61de0f420d7d651df34c7002) Thanks [@drepkovsky](https://github.com/drepkovsky)! - feat: add defaultAccess for global access control defaults
+- [`a7efd1e`](https://github.com/questpie/questpie/commit/a7efd1e7d8d5a9cc61de0f420d7d651df34c7002) Thanks [@drepkovsky](https://github.com/drepkovsky)! - feat: add defaultAccess for global access control defaults
 
   New `defaultAccess` option in CMS config sets default access rules for all collections and globals:
 
@@ -412,13 +412,13 @@
 
 ### Patch Changes
 
-- [`a043841`](https://github.com/questpie/questpie-cms/commit/a0438419b01421ef16ca4b7621cb3ec7562cbec9) Thanks [@drepkovsky](https://github.com/drepkovsky)! - refactor: use cms.api.collections for CRUD operations
+- [`a043841`](https://github.com/questpie/questpie/commit/a0438419b01421ef16ca4b7621cb3ec7562cbec9) Thanks [@drepkovsky](https://github.com/drepkovsky)! - refactor: use cms.api.collections for CRUD operations
 
 ## 1.0.4
 
 ### Patch Changes
 
-- [`01562df`](https://github.com/questpie/questpie-cms/commit/01562dfb6771a47eddcb797f36f951ae434f29c8) Thanks [@drepkovsky](https://github.com/drepkovsky)! - feat: add Prettify to admin builder types and improve DX
+- [`01562df`](https://github.com/questpie/questpie/commit/01562dfb6771a47eddcb797f36f951ae434f29c8) Thanks [@drepkovsky](https://github.com/drepkovsky)! - feat: add Prettify to admin builder types and improve DX
   - Add `Prettify` wrapper to merged types in AdminBuilder for better IDE tooltips
   - Add default `ConsoleAdapter` for email in development mode (no config needed)
   - Fix package.json dependencies: move runtime deps (pino, drizzle-orm, zod) to dependencies, keep optional adapters (pg, ioredis, nodemailer, pg-boss) as optional peer deps
@@ -429,7 +429,7 @@
 
 ### Patch Changes
 
-- [`eb98bb9`](https://github.com/questpie/questpie-cms/commit/eb98bb9d86c3971e439d9d3081ed0efb3bcb1f77) Thanks [@drepkovsky](https://github.com/drepkovsky)! - Fix npm publish by converting workspace:\* to actual versions
+- [`eb98bb9`](https://github.com/questpie/questpie/commit/eb98bb9d86c3971e439d9d3081ed0efb3bcb1f77) Thanks [@drepkovsky](https://github.com/drepkovsky)! - Fix npm publish by converting workspace:\* to actual versions
   - Remove internal @questpie/typescript-config package (inline tsconfig)
   - Add publish script that converts workspace:\* references before changeset publish
   - Fixes installation errors when installing packages from npm
@@ -438,7 +438,7 @@
 
 ### Patch Changes
 
-- [`87c7afb`](https://github.com/questpie/questpie-cms/commit/87c7afbfad14e3f20ab078a803f11abf173aae99) Thanks [@drepkovsky](https://github.com/drepkovsky)! - Remove internal @questpie/typescript-config package and inline tsconfig settings
+- [`87c7afb`](https://github.com/questpie/questpie/commit/87c7afbfad14e3f20ab078a803f11abf173aae99) Thanks [@drepkovsky](https://github.com/drepkovsky)! - Remove internal @questpie/typescript-config package and inline tsconfig settings
 
   This removes the workspace:\* dependency that was causing issues when installing published packages from npm.
 
@@ -446,7 +446,7 @@
 
 ### Minor Changes
 
-- [`934c362`](https://github.com/questpie/questpie-cms/commit/934c362c22a5f29df20fa12432659b3b10400389) Thanks [@drepkovsky](https://github.com/drepkovsky)! - Initial public release of QUESTPIE CMS framework.
+- [`934c362`](https://github.com/questpie/questpie/commit/934c362c22a5f29df20fa12432659b3b10400389) Thanks [@drepkovsky](https://github.com/drepkovsky)! - Initial public release of QUESTPIE CMS framework.
 
 ## 0.0.2
 

@@ -13,10 +13,11 @@ const workflow_posts = q
 		title: f.text({ required: true }),
 	}))
 	.options({
-		versioning: true,
-		workflow: {
-			stages: ["draft", "published"],
-			initialStage: "draft",
+		versioning: {
+			workflow: {
+				stages: ["draft", "published"],
+				initialStage: "draft",
+			},
 		},
 	});
 
@@ -26,14 +27,15 @@ const guarded_posts = q
 		title: f.text({ required: true }),
 	}))
 	.options({
-		versioning: true,
-		workflow: {
-			stages: {
-				draft: { transitions: ["review"] },
-				review: { transitions: ["published"] },
-				published: { transitions: [] },
+		versioning: {
+			workflow: {
+				stages: {
+					draft: { transitions: ["review"] },
+					review: { transitions: ["published"] },
+					published: { transitions: [] },
+				},
+				initialStage: "draft",
 			},
-			initialStage: "draft",
 		},
 	});
 
@@ -53,10 +55,11 @@ const transition_access_posts = q
 		title: f.text({ required: true }),
 	}))
 	.options({
-		versioning: true,
-		workflow: {
-			stages: ["draft", "published"],
-			initialStage: "draft",
+		versioning: {
+			workflow: {
+				stages: ["draft", "published"],
+				initialStage: "draft",
+			},
 		},
 	})
 	.access({
@@ -76,10 +79,11 @@ const hooked_posts = q
 		title: f.text({ required: true }),
 	}))
 	.options({
-		versioning: true,
-		workflow: {
-			stages: ["draft", "published"],
-			initialStage: "draft",
+		versioning: {
+			workflow: {
+				stages: ["draft", "published"],
+				initialStage: "draft",
+			},
 		},
 	})
 	.hooks({
@@ -103,10 +107,11 @@ const blocking_hooks_posts = q
 		title: f.text({ required: true }),
 	}))
 	.options({
-		versioning: true,
-		workflow: {
-			stages: ["draft", "published"],
-			initialStage: "draft",
+		versioning: {
+			workflow: {
+				stages: ["draft", "published"],
+				initialStage: "draft",
+			},
 		},
 	})
 	.hooks({
@@ -153,11 +158,10 @@ describe("collection transitionStage", () => {
 		expect(result.id).toBe(created.id);
 
 		// Verify the record is now readable from the published stage
-		const published =
-			await setup.app.api.collections.workflow_posts.findOne(
-				{ where: { id: created.id }, stage: "published" },
-				ctx,
-			);
+		const published = await setup.app.api.collections.workflow_posts.findOne(
+			{ where: { id: created.id }, stage: "published" },
+			ctx,
+		);
 		expect(published).not.toBeNull();
 		expect(published?.title).toBe("My Post");
 	});
@@ -219,9 +223,7 @@ describe("collection transitionStage", () => {
 				{ id: created.id, stage: "published" },
 				ctx,
 			),
-		).rejects.toThrow(
-			'Transition from "draft" to "published" is not allowed',
-		);
+		).rejects.toThrow('Transition from "draft" to "published" is not allowed');
 
 		// draft -> review should succeed
 		await setup.app.api.collections.guarded_posts.transitionStage(
@@ -241,9 +243,7 @@ describe("collection transitionStage", () => {
 				{ id: created.id, stage: "draft" },
 				ctx,
 			),
-		).rejects.toThrow(
-			'Transition from "published" to "draft" is not allowed',
-		);
+		).rejects.toThrow('Transition from "published" to "draft" is not allowed');
 	});
 
 	it("does not mutate record data during transition", async () => {
@@ -260,11 +260,10 @@ describe("collection transitionStage", () => {
 		);
 
 		// Draft stage should still have the original data
-		const draftRow =
-			await setup.app.api.collections.workflow_posts.findOne(
-				{ where: { id: created.id } },
-				ctx,
-			);
+		const draftRow = await setup.app.api.collections.workflow_posts.findOne(
+			{ where: { id: created.id } },
+			ctx,
+		);
 		expect(draftRow?.title).toBe("Original Title");
 	});
 
@@ -312,7 +311,7 @@ describe("collection transitionStage", () => {
 			ctx,
 		);
 
-		const userCtx = createTestContext({ accessMode: "user" });
+		const userCtx = createTestContext({ accessMode: "user", role: "user" });
 		const result =
 			await setup.app.api.collections.workflow_posts.transitionStage(
 				{ id: created.id, stage: "published" },
@@ -351,11 +350,10 @@ describe("collection transitionStage", () => {
 
 	it("aborts transition when beforeTransition hook throws", async () => {
 		const ctx = createTestContext({ accessMode: "system" });
-		const created =
-			await setup.app.api.collections.blocking_hooks_posts.create(
-				{ id: crypto.randomUUID(), title: "Blocked" },
-				ctx,
-			);
+		const created = await setup.app.api.collections.blocking_hooks_posts.create(
+			{ id: crypto.randomUUID(), title: "Blocked" },
+			ctx,
+		);
 
 		await expect(
 			setup.app.api.collections.blocking_hooks_posts.transitionStage(
@@ -401,11 +399,10 @@ describe("collection transitionStage", () => {
 
 		expect(result.id).toBe(created.id);
 
-		const published =
-			await setup.app.api.collections.workflow_posts.findOne(
-				{ where: { id: created.id }, stage: "published" },
-				ctx,
-			);
+		const published = await setup.app.api.collections.workflow_posts.findOne(
+			{ where: { id: created.id }, stage: "published" },
+			ctx,
+		);
 		expect(published).not.toBeNull();
 		expect(published?.title).toBe("Past Schedule");
 	});

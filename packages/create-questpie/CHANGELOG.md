@@ -4,7 +4,7 @@
 
 ### Major Changes
 
-- [#16](https://github.com/questpie/questpie-cms/pull/16) [`dd3ea44`](https://github.com/questpie/questpie-cms/commit/dd3ea441d30a38705084c6068f229af21d5fd8d4) Thanks [@drepkovsky](https://github.com/drepkovsky)! - ## Ship field builder platform, server-driven admin, and standalone RPC API
+- [#16](https://github.com/questpie/questpie/pull/16) [`dd3ea44`](https://github.com/questpie/questpie/commit/dd3ea441d30a38705084c6068f229af21d5fd8d4) Thanks [@drepkovsky](https://github.com/drepkovsky)! - ## Ship field builder platform, server-driven admin, and standalone RPC API
 
   ### `questpie` (core)
 

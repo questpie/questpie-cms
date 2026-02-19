@@ -55,10 +55,11 @@ const workflow_posts = q
 		title: f.text({ required: true }),
 	}))
 	.options({
-		versioning: true,
-		workflow: {
-			stages: ["draft", "published"],
-			initialStage: "draft",
+		versioning: {
+			workflow: {
+				stages: ["draft", "published"],
+				initialStage: "draft",
+			},
 		},
 	});
 
@@ -68,14 +69,15 @@ const guarded_workflow_posts = q
 		title: f.text({ required: true }),
 	}))
 	.options({
-		versioning: true,
-		workflow: {
-			stages: {
-				draft: { transitions: ["review"] },
-				review: { transitions: ["published"] },
-				published: { transitions: [] },
+		versioning: {
+			workflow: {
+				stages: {
+					draft: { transitions: ["review"] },
+					review: { transitions: ["published"] },
+					published: { transitions: [] },
+				},
+				initialStage: "draft",
 			},
-			initialStage: "draft",
 		},
 	});
 

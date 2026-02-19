@@ -82,7 +82,10 @@ describe("default access control", () => {
 
 	describe("collections without explicit access", () => {
 		it("should deny access when no session (defaultAccess applied)", async () => {
-			const noSessionCtx = createTestContext({ session: null });
+			const noSessionCtx = createTestContext({
+				accessMode: "user",
+				session: null,
+			});
 
 			await expect(
 				setup.app.api.collections.public_posts.create(
@@ -149,7 +152,10 @@ describe("default access control", () => {
 	describe("all CRUD operations", () => {
 		it("should deny read when no session (defaultAccess applied)", async () => {
 			const systemCtx = createTestContext({ accessMode: "system" });
-			const noSessionCtx = createTestContext({ session: null });
+			const noSessionCtx = createTestContext({
+				accessMode: "user",
+				session: null,
+			});
 
 			// Create a post first with system access
 			const post = await setup.app.api.collections.public_posts.create(
@@ -168,7 +174,10 @@ describe("default access control", () => {
 
 		it("should deny update when no session (defaultAccess applied)", async () => {
 			const systemCtx = createTestContext({ accessMode: "system" });
-			const noSessionCtx = createTestContext({ session: null });
+			const noSessionCtx = createTestContext({
+				accessMode: "user",
+				session: null,
+			});
 
 			// Create a post first with system access
 			const post = await setup.app.api.collections.public_posts.create(
@@ -187,7 +196,10 @@ describe("default access control", () => {
 
 		it("should deny delete when no session (defaultAccess applied)", async () => {
 			const systemCtx = createTestContext({ accessMode: "system" });
-			const noSessionCtx = createTestContext({ session: null });
+			const noSessionCtx = createTestContext({
+				accessMode: "user",
+				session: null,
+			});
 
 			// Create a post first with system access
 			const post = await setup.app.api.collections.public_posts.create(
@@ -206,7 +218,10 @@ describe("default access control", () => {
 
 		it("should deny delete when no session (defaultAccess applied)", async () => {
 			const systemCtx = createTestContext({ accessMode: "system" });
-			const noSessionCtx = createTestContext({ session: null });
+			const noSessionCtx = createTestContext({
+				accessMode: "user",
+				session: null,
+			});
 
 			// Create a post first with system access
 			const post = await setup.app.api.collections.public_posts.create(
@@ -265,7 +280,10 @@ describe("default access control", () => {
 	describe("partial access override", () => {
 		it("should use explicit read access (public) while defaultAccess applies to create", async () => {
 			const systemCtx = createTestContext({ accessMode: "system" });
-			const noSessionCtx = createTestContext({ session: null });
+			const noSessionCtx = createTestContext({
+				accessMode: "user",
+				session: null,
+			});
 
 			// Create with system access first
 			const post = await setup.app.api.collections.partial_access_posts.create(
@@ -292,7 +310,10 @@ describe("default access control", () => {
 
 		it("should fallback to defaultAccess for update/delete when only read is defined", async () => {
 			const systemCtx = createTestContext({ accessMode: "system" });
-			const noSessionCtx = createTestContext({ session: null });
+			const noSessionCtx = createTestContext({
+				accessMode: "user",
+				session: null,
+			});
 			const userCtx = createTestContext({ accessMode: "user", role: "user" });
 
 			// Create with system access
@@ -330,7 +351,10 @@ describe("default access control", () => {
 	describe("globals defaultAccess", () => {
 		it("should deny global read when no session (defaultAccess applied)", async () => {
 			const systemCtx = createTestContext({ accessMode: "system" });
-			const noSessionCtx = createTestContext({ session: null });
+			const noSessionCtx = createTestContext({
+				accessMode: "user",
+				session: null,
+			});
 
 			// Initialize global first with system access
 			await setup.app.api.globals.site_settings.update(
@@ -364,7 +388,10 @@ describe("default access control", () => {
 
 		it("should deny global update when no session (defaultAccess applied)", async () => {
 			const systemCtx = createTestContext({ accessMode: "system" });
-			const noSessionCtx = createTestContext({ session: null });
+			const noSessionCtx = createTestContext({
+				accessMode: "user",
+				session: null,
+			});
 
 			// Initialize global first with system access
 			await setup.app.api.globals.site_settings.update(

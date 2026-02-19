@@ -6,6 +6,7 @@
  */
 
 import { and, eq, inArray, not, or, type SQL, sql } from "drizzle-orm";
+import { ApiError } from "#questpie/server/errors/base.js";
 import type { PgTable } from "drizzle-orm/pg-core";
 import type {
 	CollectionBuilderState,
@@ -304,7 +305,7 @@ export function buildWhereClause(
 
 			if (!column) {
 				if (isNonQueryableVirtualField(key, state)) {
-					throw new Error(
+					throw ApiError.badRequest(
 						`Field '${key}' uses 'virtual: true' and is not queryable. Use 'virtual: sql\`...\`' to filter by this field.`,
 					);
 				}

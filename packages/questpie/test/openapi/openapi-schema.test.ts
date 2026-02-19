@@ -189,10 +189,11 @@ describe("OpenAPI schema generation", () => {
 					title: f.text({ required: true }),
 				}))
 				.options({
-					versioning: true,
-					workflow: {
-						stages: ["draft", "published"],
-						initialStage: "draft",
+					versioning: {
+						workflow: {
+							stages: ["draft", "published"],
+							initialStage: "draft",
+						},
 					},
 				});
 
@@ -289,10 +290,11 @@ describe("OpenAPI schema generation", () => {
 					siteName: f.text({ required: true }),
 				}))
 				.options({
-					versioning: true,
-					workflow: {
-						stages: ["draft", "published"],
-						initialStage: "draft",
+					versioning: {
+						workflow: {
+							stages: ["draft", "published"],
+							initialStage: "draft",
+						},
 					},
 				});
 

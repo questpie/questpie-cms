@@ -19,6 +19,7 @@
 import { z } from "zod";
 import { job } from "#questpie/server/integrated/queue/job.js";
 import type { Questpie } from "#questpie/server/config/questpie.js";
+import { ApiError } from "#questpie/server/errors/base.js";
 
 /**
  * Schema for scheduled transition job payload
@@ -61,9 +62,7 @@ export const scheduledTransitionJob = job({
 		if (payload.type === "collection") {
 			const crud = app.api.collections[payload.collection as any];
 			if (!crud) {
-				throw new Error(
-					`Collection "${payload.collection}" not found for scheduled transition`,
-				);
+				throw ApiError.notFound("Collection", payload.collection);
 			}
 			await crud.transitionStage(
 				{ id: payload.recordId, stage: payload.stage },
@@ -72,9 +71,7 @@ export const scheduledTransitionJob = job({
 		} else {
 			const globalConfig = app.getGlobalConfig(payload.global as any);
 			if (!globalConfig) {
-				throw new Error(
-					`Global "${payload.global}" not found for scheduled transition`,
-				);
+				throw ApiError.notFound("Global", payload.global);
 			}
 			const crud = globalConfig.generateCRUD(app.db, app);
 			await crud.transitionStage(

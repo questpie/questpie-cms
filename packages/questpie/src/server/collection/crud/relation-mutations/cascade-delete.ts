@@ -5,6 +5,7 @@
  * These trigger hooks (unlike database FK constraints).
  */
 
+import { ApiError } from "#questpie/server/errors/base.js";
 import type { RelationConfig } from "#questpie/server/collection/builder/types.js";
 import type { resolveFieldKey as ResolveFieldKeyFn } from "#questpie/server/collection/crud/shared/field-resolver.js";
 import type {
@@ -129,7 +130,7 @@ async function checkRestrictViolation(
   );
 
   if (totalDocs > 0) {
-    throw new Error(
+    throw ApiError.conflict(
       `Cannot delete: related records exist in "${relation.collection}" (relation: ${relationName}, onDelete: restrict)`,
     );
   }

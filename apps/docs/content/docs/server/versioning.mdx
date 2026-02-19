@@ -140,7 +140,7 @@ Use `beforeTransition` and `afterTransition` hooks to inject logic around stage 
 .hooks({
   beforeTransition: ({ fromStage, toStage, data }) => {
     if (toStage === "published" && !data.title) {
-      throw new Error("Cannot publish without a title");
+      throw ApiError.badRequest("Cannot publish without a title");
     }
   },
   afterTransition: async ({ fromStage, toStage, data, app }) => {
@@ -292,6 +292,207 @@ When workflow is enabled, the admin form view automatically shows:
 - **History sidebar** — Transitions appear in the audit timeline (when `auditModule` is enabled) with stage change details
 
 No additional configuration is needed — the admin detects workflow from the schema introspection and renders the UI automatically.
+
+## Practical Examples
+
+### Simple Blog Publishing
+
+The simplest workflow: posts start as drafts, editors publish when ready.
+
+```ts
+const posts = qb
+  .collection("posts")
+  .fields((f) => ({
+    title: f.text({ required: true }),
+    content: f.richText({}),
+    author: f.relation({ to: "users", required: true }),
+  }))
+  .options({
+    versioning: {
+      workflow: true, // shorthand: stages ["draft", "published"], initialStage "draft"
+    },
+  });
+```
+
+Your public site always reads from the published stage:
+
+```ts
+// Admin sees drafts (default stage = main table)
+const drafts = await app.api.collections.posts.find({}, adminCtx);
+
+// Public site reads only published content
+const published = await app.api.collections.posts.find(
+  { stage: "published" },
+  publicCtx,
+);
+
+// Publish a post
+await app.api.collections.posts.transitionStage(
+  { id: post.id, stage: "published" },
+  adminCtx,
+);
+```
+
+### Editorial Review with Email Notifications
+
+A three-stage workflow where authors submit drafts for review, reviewers approve or reject, and only admins can publish. Email notifications fire on each transition.
+
+```ts
+import { ApiError } from "questpie/server/errors";
+
+const articles = qb
+  .collection("articles")
+  .fields((f) => ({
+    title: f.text({ required: true }),
+    content: f.richText({}),
+    author: f.relation({ to: "users", required: true }),
+  }))
+  .options({
+    versioning: {
+      workflow: {
+        initialStage: "draft",
+        stages: {
+          draft: { transitions: ["review"] },
+          review: { transitions: ["draft", "published"] },
+          published: { transitions: ["draft"] },
+        },
+      },
+    },
+  })
+  .access({
+    // Anyone can edit drafts
+    update: () => true,
+    // Only reviewers and admins can transition stages
+    transition: ({ session }) =>
+      ["reviewer", "admin"].includes(session?.user?.role),
+  })
+  .hooks({
+    beforeTransition: ({ toStage, data }) => {
+      // Require content before publishing — returns 400 with a structured error
+      if (toStage === "published" && !data.content) {
+        throw ApiError.badRequest("Cannot publish an article without content");
+      }
+    },
+    afterTransition: async ({ fromStage, toStage, data, app, context }) => {
+      if (toStage === "review") {
+        // Notify reviewers that a new article is waiting
+        await app.email.send({
+          to: "reviewers@company.com",
+          subject: `Review requested: ${data.title}`,
+          text: `A new article "${data.title}" is ready for review.`,
+        });
+      }
+
+      if (toStage === "published") {
+        // Notify the author their article was published
+        const author = await app.api.collections.users.findOne(
+          { where: { id: data.author } },
+          context,
+        );
+        if (author?.email) {
+          await app.email.send({
+            to: author.email,
+            subject: `Your article "${data.title}" is now live!`,
+            text: `Congratulations! Your article has been published.`,
+          });
+        }
+      }
+
+      if (fromStage === "review" && toStage === "draft") {
+        // Article was sent back — notify the author
+        await app.email.send({
+          to: "author@company.com",
+          subject: `Revisions needed: ${data.title}`,
+          text: `Your article "${data.title}" needs revisions.`,
+        });
+      }
+    },
+  });
+```
+
+The workflow enforced by this configuration:
+
+```text
+draft ──→ review ──→ published
+             │              │
+             └──→ draft ←───┘
+```
+
+Authors submit to review, reviewers can send it back to draft or approve to published, and published articles can be unpublished back to draft.
+
+### Scheduled Publishing
+
+Combine workflow transitions with scheduled dates to publish content at a specific time. Requires a [queue adapter](/docs/infrastructure/queue-and-jobs).
+
+```ts
+// Schedule an article to go live on Monday morning
+await app.api.collections.articles.transitionStage(
+  {
+    id: article.id,
+    stage: "published",
+    scheduledAt: new Date("2026-03-03T09:00:00Z"),
+  },
+  ctx,
+);
+```
+
+The transition is enqueued as a job. When the scheduled time arrives, the queue worker executes the transition. If `scheduledAt` is in the past, the transition executes immediately.
+
+Via HTTP:
+
+```
+POST /questpie/articles/{id}/transition
+Content-Type: application/json
+
+{
+  "stage": "published",
+  "scheduledAt": "2026-03-03T09:00:00Z"
+}
+```
+
+### Global Settings with Staged Rollout
+
+Workflow works on globals too — useful for site-wide configuration that needs approval before going live.
+
+```ts
+const siteConfig = qb
+  .global("site_config")
+  .fields((f) => ({
+    siteName: f.text({ required: true }),
+    maintenanceMode: f.boolean({ default: false }),
+    announcement: f.textarea(),
+  }))
+  .options({
+    versioning: {
+      workflow: {
+        initialStage: "draft",
+        stages: ["draft", "published"],
+      },
+    },
+  });
+```
+
+The marketing team edits the draft config, an admin reviews and transitions to published, and the public site always reads `{ stage: "published" }`:
+
+```ts
+// Marketing edits the draft
+await app.api.globals.site_config.update(
+  { announcement: "Big sale this weekend!" },
+  marketingCtx,
+);
+
+// Admin publishes when ready
+await app.api.globals.site_config.transitionStage(
+  { stage: "published" },
+  adminCtx,
+);
+
+// Public site always reads published config
+const config = await app.api.globals.site_config.get(
+  { stage: "published" },
+  publicCtx,
+);
+```
 
 ## Common Mistakes
 
