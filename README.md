@@ -4,6 +4,19 @@
 
 A batteries-optional backend engine built with Drizzle ORM. Opt into authentication, storage, background jobs, email, and realtime as needed.
 
+<p align="center">
+  <img src="https://img.shields.io/github/license/questpie/questpie" />
+  <img src="https://img.shields.io/github/stars/questpie/questpie?style=social" />
+  <img src="https://img.shields.io/npm/v/questpie" />
+  <img src="https://img.shields.io/badge/types-TypeScript-blue" />
+  <img src="https://img.shields.io/badge/runtime-Bun%20%7C%20Node-black" />
+</p>
+
+QUESTPIE is a server-first TypeScript framework where backend architecture becomes executable.
+
+Instead of manually building APIs, admin dashboards, and operational tooling,
+QUESTPIE derives them automatically from your backend schema.
+
 ## Why QUESTPIE?
 
 - **Type-Safe End-to-End** - Full TypeScript from schema to API
@@ -14,14 +27,14 @@ A batteries-optional backend engine built with Drizzle ORM. Opt into authenticat
 
 ## Packages
 
-| Package                                                 | Description                                           |
-| ------------------------------------------------------- | ----------------------------------------------------- |
-| [`questpie`](./packages/questpie)                       | Core backend engine with collections, globals, and hooks  |
-| [`@questpie/admin`](./packages/admin)                   | Config-driven admin UI (React + Tailwind v4 + shadcn) |
-| [`@questpie/hono`](./packages/hono)                     | Hono framework adapter with unified client            |
-| [`@questpie/elysia`](./packages/elysia)                 | Elysia framework adapter with Eden Treaty support     |
-| [`@questpie/next`](./packages/next)                     | Next.js App Router adapter                            |
-| [`@questpie/tanstack-query`](./packages/tanstack-query) | TanStack Query integration with query options factory |
+| Package                                                 | Description                                              |
+| ------------------------------------------------------- | -------------------------------------------------------- |
+| [`questpie`](./packages/questpie)                       | Core backend engine with collections, globals, and hooks |
+| [`@questpie/admin`](./packages/admin)                   | Config-driven admin UI (React + Tailwind v4 + shadcn)    |
+| [`@questpie/hono`](./packages/hono)                     | Hono framework adapter with unified client               |
+| [`@questpie/elysia`](./packages/elysia)                 | Elysia framework adapter with Eden Treaty support        |
+| [`@questpie/next`](./packages/next)                     | Next.js App Router adapter                               |
+| [`@questpie/tanstack-query`](./packages/tanstack-query) | TanStack Query integration with query options factory    |
 
 ## Quick Start
 
@@ -371,11 +384,11 @@ bun questpie migrate:fresh     # Reset + run all migrations
 
 ## Framework Adapters
 
-| Adapter | Package            | Client                                          |
-| ------- | ------------------ | ----------------------------------------------- |
+| Adapter | Package            | Client                                      |
+| ------- | ------------------ | ------------------------------------------- |
 | Hono    | `@questpie/hono`   | `createClientFromHono` (CRUD + Hono RPC)    |
 | Elysia  | `@questpie/elysia` | `createClientFromEden` (CRUD + Eden Treaty) |
-| Next.js | `@questpie/next`   | `createClient` from `questpie/client`           |
+| Next.js | `@questpie/next`   | `createClient` from `questpie/client`       |
 
 ## Examples
 
