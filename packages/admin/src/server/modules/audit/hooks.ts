@@ -30,7 +30,7 @@ function isAuditDisabled(
  * Compute field-level changes between original and current data.
  * Returns an object of `{ field: { from, to } }` or null if no meaningful changes.
  */
-export function computeChanges(
+function computeChanges(
 	original: Record<string, any> | undefined,
 	current: Record<string, any>,
 ): Record<string, { from: any; to: any }> | null {
@@ -60,7 +60,7 @@ export function computeChanges(
 /**
  * Extract a display label from data, trying common field names.
  */
-export function extractLabel(
+function extractLabel(
 	data: Record<string, any> | null | undefined,
 ): string | null {
 	if (!data) return null;

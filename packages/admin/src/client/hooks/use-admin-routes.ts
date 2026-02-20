@@ -25,12 +25,12 @@ import {
 // Types
 // ============================================================================
 
-export interface UseAdminRoutesOptions {
+interface UseAdminRoutesOptions {
   /** Override the base path (default: from context or "/admin") */
   basePath?: string;
 }
 
-export interface UseAdminRoutesResult<TApp extends Questpie<any>> {
+interface UseAdminRoutesResult<TApp extends Questpie<any>> {
   /** Routes builder */
   routes: AdminRoutes<TApp>;
 
@@ -200,7 +200,7 @@ export function useAdminRoutes<TApp extends Questpie<any>>(
  * }
  * ```
  */
-export function useAdminRoutesStandalone<TApp extends Questpie<any>>(options: {
+function useAdminRoutesStandalone<TApp extends Questpie<any>>(options: {
   admin: import("../builder/admin").Admin;
   basePath?: string;
   navigate: (path: string) => void;

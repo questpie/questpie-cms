@@ -176,14 +176,14 @@ export interface DashboardConfig {
 /**
  * Sidebar configuration
  */
-export interface SidebarConfig<TSectionIds extends string = string> {
+interface SidebarConfig<TSectionIds extends string = string> {
 	sections: SidebarSection<TSectionIds>[];
 }
 
 /**
  * Sidebar section with required ID for targeting
  */
-export interface SidebarSection<TId extends string = string> {
+interface SidebarSection<TId extends string = string> {
 	/** Unique ID for targeting this section (required for extend) */
 	id: TId;
 	/** Display title - supports inline translations */
@@ -201,14 +201,14 @@ export interface SidebarSection<TId extends string = string> {
 /**
  * Sidebar item types
  */
-export type SidebarItem =
+type SidebarItem =
 	| SidebarCollectionItem
 	| SidebarGlobalItem
 	| SidebarPageItem
 	| SidebarLinkItem
 	| SidebarDividerItem;
 
-export interface SidebarCollectionItem {
+interface SidebarCollectionItem {
 	type: "collection";
 	/** Collection name */
 	collection: string;
@@ -218,7 +218,7 @@ export interface SidebarCollectionItem {
 	icon?: IconComponent | ComponentReference;
 }
 
-export interface SidebarGlobalItem {
+interface SidebarGlobalItem {
 	type: "global";
 	/** Global name */
 	global: string;
@@ -228,7 +228,7 @@ export interface SidebarGlobalItem {
 	icon?: IconComponent | ComponentReference;
 }
 
-export interface SidebarPageItem {
+interface SidebarPageItem {
 	type: "page";
 	/** Page ID */
 	pageId: string;
@@ -238,7 +238,7 @@ export interface SidebarPageItem {
 	icon?: IconComponent | ComponentReference;
 }
 
-export interface SidebarLinkItem {
+interface SidebarLinkItem {
 	type: "link";
 	/** Display label - supports inline translations */
 	label: I18nText;
@@ -250,14 +250,14 @@ export interface SidebarLinkItem {
 	external?: boolean;
 }
 
-export interface SidebarDividerItem {
+interface SidebarDividerItem {
 	type: "divider";
 }
 
 /**
  * Branding configuration
  */
-export interface BrandingConfig {
+interface BrandingConfig {
 	/** Brand name - supports inline translations */
 	name?: I18nText;
 	logo?: IconComponent | ComponentReference;

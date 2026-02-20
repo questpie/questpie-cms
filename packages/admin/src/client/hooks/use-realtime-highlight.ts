@@ -13,7 +13,7 @@ type DocWithId = {
 	[key: string]: unknown;
 };
 
-export type UseRealtimeHighlightOptions = {
+type UseRealtimeHighlightOptions = {
 	/** Duration in ms to keep highlight active (default: 1500) */
 	highlightDuration?: number;
 	/** Whether realtime is enabled */
@@ -26,7 +26,7 @@ export type UseRealtimeHighlightOptions = {
 	initializationGracePeriod?: number;
 };
 
-export type UseRealtimeHighlightResult<T extends DocWithId> = {
+type UseRealtimeHighlightResult<T extends DocWithId> = {
 	/** Set of row IDs that should be highlighted (updated/new) */
 	highlightedIds: Set<string>;
 	/** Check if a specific row should be highlighted as updated/new */

@@ -31,7 +31,7 @@ import { BlockIcon } from "./block-type-icon.js";
 // Types
 // ============================================================================
 
-export type BlockLibrarySidebarProps = {
+type BlockLibrarySidebarProps = {
 	/** Whether the sidebar is open */
 	open: boolean;
 	/** Callback when sidebar closes */

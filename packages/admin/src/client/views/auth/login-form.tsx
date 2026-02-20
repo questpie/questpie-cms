@@ -25,7 +25,7 @@ export type LoginFormValues = {
   rememberMe?: boolean;
 };
 
-export type LoginFormProps = {
+type LoginFormProps = {
   /** Called when form is submitted with valid data */
   onSubmit: (values: LoginFormValues) => Promise<void>;
   /** Called when sign up link is clicked */

@@ -15,7 +15,7 @@ import { WidgetCard } from "./widget-card";
 // Types
 // ============================================================================
 
-export interface DashboardWidgetProps {
+interface DashboardWidgetProps {
 	/**
 	 * Widget configuration
 	 */

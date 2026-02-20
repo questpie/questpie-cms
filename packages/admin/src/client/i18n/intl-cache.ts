@@ -96,7 +96,7 @@ export function getDisplayNames(
 /**
  * Clear all caches - useful for testing or when locale changes significantly
  */
-export function clearIntlCache(): void {
+function clearIntlCache(): void {
   dateTimeFormatCache.clear();
   numberFormatCache.clear();
   pluralRulesCache.clear();

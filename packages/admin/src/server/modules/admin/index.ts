@@ -47,9 +47,7 @@ import { translationFunctions } from "./functions/translations.js";
 import { widgetDataFunctions } from "./functions/widget-data.js";
 
 // Re-export admin preferences collection
-export { adminPreferencesCollection } from "../admin-preferences/collections/admin-preferences.collection.js";
 // Re-export locks collection
-export { locksCollection } from "../admin-preferences/collections/locks.collection.js";
 // Re-export saved views types
 export {
 	type FilterOperator,
@@ -59,10 +57,6 @@ export {
 	type ViewConfiguration,
 } from "../admin-preferences/collections/saved-views.collection.js";
 // Re-export admin config functions
-export {
-	adminConfigFunctions,
-	getAdminConfig,
-} from "./functions/admin-config.js";
 // Re-export action functions
 export {
 	actionFunctions,
@@ -74,15 +68,12 @@ export {
 	getActionsConfigFn,
 } from "./functions/execute-action.js";
 // Re-export locale functions for individual use
-export { getContentLocales, localeFunctions } from "./functions/locales.js";
 // Re-export server-only preview functions (crypto-based token verification)
 // For browser-safe utilities (isDraftMode, createDraftModeCookie, etc.), use @questpie/admin/shared
 export {
 	createPreviewFunctions,
 	createPreviewTokenVerifier,
-	getPreviewUrl,
 	type PreviewTokenPayload,
-	previewFunctions,
 	verifyPreviewTokenDirect,
 } from "./functions/preview.js";
 // Re-export reactive field functions
@@ -98,11 +89,6 @@ export {
 	setupFunctions,
 } from "./functions/setup.js";
 // Re-export translation functions for individual use
-export {
-	getAdminLocales,
-	getAdminTranslations,
-	translationFunctions,
-} from "./functions/translations.js";
 // Re-export widget data functions
 export {
 	fetchWidgetData,

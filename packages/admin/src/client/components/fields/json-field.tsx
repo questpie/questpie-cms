@@ -24,9 +24,9 @@ import {
 import { Textarea } from "../ui/textarea";
 import type { BaseFieldProps } from "./field-types";
 
-export type JsonFieldMode = "code" | "form";
+type JsonFieldMode = "code" | "form";
 
-export type JsonFieldProps = BaseFieldProps & {
+type JsonFieldProps = BaseFieldProps & {
   /**
    * Is the field readonly
    */

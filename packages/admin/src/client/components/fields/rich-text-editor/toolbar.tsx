@@ -40,7 +40,7 @@ export const EDITOR_ICONS = {
   alignJustify: "ph:text-align-justify",
 } as const;
 
-export type ToolbarButtonProps = {
+type ToolbarButtonProps = {
   active?: boolean;
   disabled?: boolean;
   title?: string;
@@ -106,11 +106,11 @@ export function ToolbarButton({
 /**
  * Toolbar button group with divider
  */
-export function ToolbarGroup({ children }: { children: React.ReactNode }) {
+function ToolbarGroup({ children }: { children: React.ReactNode }) {
   return <div className="flex items-center gap-1">{children}</div>;
 }
 
-export type RichTextToolbarProps = {
+type RichTextToolbarProps = {
   editor: Editor;
   features: Required<RichTextFeatures>;
   disabled?: boolean;

@@ -29,7 +29,7 @@ import {
 // Props
 // ============================================================================
 
-export type BlockEditorProviderProps = {
+type BlockEditorProviderProps = {
 	/** Initial/controlled content */
 	value: BlockContent;
 	/** Change handler */

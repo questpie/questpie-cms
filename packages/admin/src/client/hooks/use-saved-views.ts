@@ -71,7 +71,7 @@ export function useSaveView(collectionName: string) {
 /**
  * Hook to update an existing view
  */
-export function useUpdateSavedView(collectionName: string) {
+function useUpdateSavedView(collectionName: string) {
   const client = useAdminStore((s) => s.client);
   const queryClient = useQueryClient();
 

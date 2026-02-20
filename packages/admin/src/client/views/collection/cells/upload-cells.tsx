@@ -31,7 +31,7 @@ export function UploadCell({ value }: { value: unknown }) {
 /**
  * Upload many cell - displays multiple assets count or thumbnails
  */
-export function UploadManyCell({ value }: { value: unknown }) {
+function UploadManyCell({ value }: { value: unknown }) {
   if (value === null || value === undefined) {
     return <span className="text-muted-foreground">-</span>;
   }

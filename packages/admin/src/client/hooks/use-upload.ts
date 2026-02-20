@@ -26,7 +26,7 @@ import { useUploadCollection } from "./use-upload-collection";
 /**
  * Upload error with additional context
  */
-export class UploadError extends Error {
+class UploadError extends Error {
 	constructor(
 		message: string,
 		public readonly status?: number,
@@ -63,7 +63,7 @@ export interface Asset {
 /**
  * Options for upload operations
  */
-export interface UploadOptions {
+interface UploadOptions {
 	/**
 	 * Target collection for upload (must have .upload() enabled)
 	 */
@@ -83,7 +83,7 @@ export interface UploadOptions {
 /**
  * Options for uploadMany operation
  */
-export interface UploadManyOptions extends UploadOptions {
+interface UploadManyOptions extends UploadOptions {
 	/**
 	 * Progress callback receives overall progress (0-100)
 	 * and optionally individual file progress
@@ -94,7 +94,7 @@ export interface UploadManyOptions extends UploadOptions {
 /**
  * Return type for useUpload hook
  */
-export interface UseUploadReturn {
+interface UseUploadReturn {
 	/**
 	 * Upload a single file
 	 */

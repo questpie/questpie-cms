@@ -67,7 +67,7 @@ const BreadcrumbContext = React.createContext<BreadcrumbContextValue | null>(
 // Provider
 // ============================================================================
 
-export interface BreadcrumbProviderProps {
+interface BreadcrumbProviderProps {
   children: React.ReactNode;
 }
 
@@ -99,7 +99,7 @@ export function BreadcrumbProvider({
  * Get breadcrumb context
  * @throws if used outside BreadcrumbProvider
  */
-export function useBreadcrumbContext(): BreadcrumbContextValue {
+function useBreadcrumbContext(): BreadcrumbContextValue {
   const context = React.useContext(BreadcrumbContext);
   if (!context) {
     throw new Error(
@@ -112,7 +112,7 @@ export function useBreadcrumbContext(): BreadcrumbContextValue {
 /**
  * Get breadcrumb context (optional - returns null if not in provider)
  */
-export function useBreadcrumbContextOptional(): BreadcrumbContextValue | null {
+function useBreadcrumbContextOptional(): BreadcrumbContextValue | null {
   return React.useContext(BreadcrumbContext);
 }
 
@@ -132,7 +132,7 @@ export function useBreadcrumbContextOptional(): BreadcrumbContextValue | null {
  * }
  * ```
  */
-export function useBreadcrumbs(breadcrumbs: Breadcrumb[]): void {
+function useBreadcrumbs(breadcrumbs: Breadcrumb[]): void {
   const context = useBreadcrumbContextOptional();
 
   React.useEffect(() => {

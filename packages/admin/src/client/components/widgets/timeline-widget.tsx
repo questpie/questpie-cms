@@ -23,7 +23,7 @@ import { TimelineWidgetSkeleton } from "./widget-skeletons";
 /**
  * Timeline widget props
  */
-export interface TimelineWidgetProps {
+interface TimelineWidgetProps {
 	config: TimelineWidgetConfig;
 	/** Navigate function for item clicks */
 	navigate?: (path: string) => void;

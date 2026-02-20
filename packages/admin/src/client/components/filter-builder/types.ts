@@ -9,11 +9,10 @@ import type { ViewConfiguration } from "../../../shared/types/saved-views.types.
 
 // Re-export shared types for client usage
 export type {
-  FilterOperator,
-  FilterRule,
-  FilterValue,
-  SortConfig,
-  ViewConfiguration,
+	FilterOperator,
+	FilterRule,
+	SortConfig,
+	ViewConfiguration,
 } from "../../../shared/types/saved-views.types.js";
 
 /**

@@ -20,7 +20,7 @@ import type {
 /**
  * Slash command list component
  */
-export const SlashCommandList = React.forwardRef<
+const SlashCommandList = React.forwardRef<
   SlashCommandListHandle,
   SlashCommandListProps
 >(function SlashCommandList({ items, command }, ref) {

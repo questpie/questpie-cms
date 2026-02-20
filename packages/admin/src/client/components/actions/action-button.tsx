@@ -21,7 +21,7 @@ import { selectAuthClient, useAdminStore } from "../../runtime/provider";
 import { Button } from "../ui/button";
 import { ConfirmationDialog } from "./confirmation-dialog";
 
-export interface ActionButtonProps<TItem = any> {
+interface ActionButtonProps<TItem = any> {
   /** Action definition */
   action: ActionDefinition<TItem>;
   /** Collection name */

@@ -4,7 +4,7 @@ import { useAdminConfig } from "./use-admin-config";
 
 type UploadConfig = AdminConfigResponse["uploads"];
 
-export type UploadCollectionResolution = {
+type UploadCollectionResolution = {
 	collection?: string;
 	collections: string[];
 };
@@ -15,7 +15,7 @@ function normalizeCollectionName(value: unknown): string | undefined {
 	return trimmed.length > 0 ? trimmed : undefined;
 }
 
-export function resolveUploadCollection(
+function resolveUploadCollection(
 	preferred?: string,
 	uploads?: UploadConfig,
 ): string | undefined {

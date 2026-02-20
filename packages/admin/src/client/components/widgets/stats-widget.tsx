@@ -22,7 +22,7 @@ import { StatsWidgetSkeleton } from "./widget-skeletons";
 /**
  * Stats widget config (local type for component props)
  */
-export type StatsWidgetConfig = {
+type StatsWidgetConfig = {
 	id: string;
 	collection: string;
 	label?: string;
@@ -49,7 +49,7 @@ export type StatsWidgetConfig = {
 /**
  * Stats widget props
  */
-export type StatsWidgetProps = {
+type StatsWidgetProps = {
 	config: StatsWidgetConfig;
 };
 

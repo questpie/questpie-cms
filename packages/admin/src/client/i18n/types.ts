@@ -28,7 +28,7 @@ import type * as React from "react";
  * ```
  */
 // biome-ignore lint/suspicious/noEmptyInterface: Augmentation target for user's message types
-export interface MessageRegistry {
+interface MessageRegistry {
   // Augment this interface to provide type-safe message keys:
   // declare module "@questpie/admin" {
   //   interface MessageRegistry {
@@ -40,7 +40,7 @@ export interface MessageRegistry {
 /**
  * Extract message keys from MessageRegistry if augmented, otherwise string.
  */
-export type MessageKey = MessageRegistry extends { messages: infer T }
+type MessageKey = MessageRegistry extends { messages: infer T }
   ? keyof T & string
   : string;
 

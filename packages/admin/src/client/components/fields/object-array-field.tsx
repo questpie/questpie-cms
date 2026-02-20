@@ -36,7 +36,7 @@ import { LocaleBadge } from "./locale-badge";
 // Types
 // ============================================================================
 
-export interface ObjectArrayFieldProps
+interface ObjectArrayFieldProps
 	extends BaseFieldProps,
 		Pick<
 			ArrayFieldConfig,

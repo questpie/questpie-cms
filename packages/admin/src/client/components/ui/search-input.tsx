@@ -13,7 +13,7 @@ import { Kbd } from "./kbd";
 // Types
 // ============================================================================
 
-export interface SearchInputProps extends Omit<
+interface SearchInputProps extends Omit<
   React.ComponentProps<"input">,
   "type"
 > {

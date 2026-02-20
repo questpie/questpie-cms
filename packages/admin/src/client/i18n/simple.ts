@@ -44,7 +44,7 @@ export type PluralMessages = {
 /**
  * Options for createSimpleI18n
  */
-export interface SimpleI18nOptions {
+interface SimpleI18nOptions {
   /** Initial locale */
   locale: string;
 

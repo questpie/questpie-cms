@@ -101,12 +101,12 @@ export interface ComponentReference<
 /**
  * Icon component reference with typed props.
  */
-export type IconReference = ComponentReference<"icon", { name: string }>;
+type IconReference = ComponentReference<"icon", { name: string }>;
 
 /**
  * Badge component reference with typed props.
  */
-export type BadgeReference = ComponentReference<
+type BadgeReference = ComponentReference<
 	"badge",
 	{ text: string; color?: string }
 >;
@@ -1469,7 +1469,7 @@ export type EditViewFactory<TEditViewNames extends string = string> = {
 /**
  * Context for list view config functions
  */
-export interface ListViewConfigContext<
+interface ListViewConfigContext<
 	TFields extends Record<string, any> = Record<string, any>,
 	TListViewNames extends string = string,
 > {
@@ -1497,7 +1497,7 @@ export interface ListViewConfigContext<
 /**
  * Context for form view config functions
  */
-export interface FormViewConfigContext<
+interface FormViewConfigContext<
 	TFields extends Record<string, any> = Record<string, any>,
 	TEditViewNames extends string = string,
 > {
@@ -1523,7 +1523,7 @@ export interface FormViewConfigContext<
  * builder.listView("table"); // now has type support
  * ```
  */
-export interface QuestpieBuilderAdminMethods<
+interface QuestpieBuilderAdminMethods<
 	TComponentNames extends string = string,
 > {
 	/** Create a list view definition */
@@ -1639,7 +1639,7 @@ export interface QuestpieBuilderAdminMethods<
 /**
  * Admin methods added to CollectionBuilder via monkey patching.
  */
-export interface CollectionBuilderAdminMethods<
+interface CollectionBuilderAdminMethods<
 	TFields extends Record<string, any> = Record<string, any>,
 	TListViewNames extends string = string,
 	TEditViewNames extends string = string,
@@ -1708,7 +1708,7 @@ export interface CollectionBuilderAdminMethods<
 /**
  * Admin methods added to GlobalBuilder via monkey patching.
  */
-export interface GlobalBuilderAdminMethods<
+interface GlobalBuilderAdminMethods<
 	TFields extends Record<string, any> = Record<string, any>,
 	TEditViewNames extends string = string,
 	TComponentNames extends string = string,

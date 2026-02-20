@@ -110,7 +110,7 @@ export interface FieldComponentProps<TValue = any> extends BaseFieldProps {
 /**
  * Props for embedded collection fields
  */
-export interface EmbeddedCollectionProps extends BaseFieldProps {
+interface EmbeddedCollectionProps extends BaseFieldProps {
 	/**
 	 * Target collection name
 	 */
@@ -352,7 +352,7 @@ export interface SelectOption {
 /**
  * Relation field configuration
  */
-export interface RelationFieldConfig {
+interface RelationFieldConfig {
 	/**
 	 * Target collection name
 	 */
@@ -382,7 +382,7 @@ export interface RelationFieldConfig {
 /**
  * Embedded collection configuration
  */
-export interface EmbeddedFieldConfig {
+interface EmbeddedFieldConfig {
 	/**
 	 * Target collection name
 	 */
@@ -407,7 +407,7 @@ export interface EmbeddedFieldConfig {
 /**
  * Rich text editor configuration
  */
-export interface RichTextConfig {
+interface RichTextConfig {
 	/**
 	 * Enable image uploads
 	 */
@@ -441,7 +441,7 @@ export interface RichTextConfig {
 /**
  * Array field configuration
  */
-export interface ArrayFieldConfig {
+interface ArrayFieldConfig {
 	/**
 	 * Placeholder text for items
 	 */
@@ -600,7 +600,7 @@ export interface TabsLayout<TData = any> {
 /**
  * Context passed to reactive handlers.
  */
-export interface FieldReactiveContext<TData = any> {
+interface FieldReactiveContext<TData = any> {
 	data: TData;
 	sibling: Record<string, any>;
 	ctx?: Record<string, any>;
@@ -613,7 +613,7 @@ export interface FieldReactiveContext<TData = any> {
 /**
  * Reactive handler config (short function form or object form).
  */
-export type FieldReactiveHandlerConfig<TData = any, TReturn = any> =
+type FieldReactiveHandlerConfig<TData = any, TReturn = any> =
 	| ((ctx: FieldReactiveContext<TData>) => TReturn | Promise<TReturn>)
 	| {
 			handler: (ctx: FieldReactiveContext<TData>) => TReturn | Promise<TReturn>;
@@ -624,7 +624,7 @@ export type FieldReactiveHandlerConfig<TData = any, TReturn = any> =
 /**
  * Serialized reactive config from server introspection.
  */
-export interface SerializedReactiveDepsConfig {
+interface SerializedReactiveDepsConfig {
 	deps: string[];
 	debounce?: number;
 }
@@ -633,7 +633,7 @@ export interface SerializedReactiveDepsConfig {
  * Reactive field config for form layout.
  * Handlers are executed server-side; deps tracked for client reactivity.
  */
-export interface FieldReactiveConfig<TData = any> {
+interface FieldReactiveConfig<TData = any> {
 	/** Hide field conditionally */
 	hidden?:
 		| boolean
@@ -708,7 +708,7 @@ export function getFieldName<TData = any>(
 /**
  * Helper to get className from field layout item
  */
-export function getFieldClassName<TData = any>(
+function getFieldClassName<TData = any>(
 	item: FieldLayoutItem<TData>,
 ): string | undefined {
 	return typeof item === "string"

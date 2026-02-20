@@ -16,7 +16,7 @@ import type { ColumnField, ComputeDefaultColumnsOptions } from "./types";
 /**
  * System fields that are typically auto-generated and not user-editable
  */
-export const SYSTEM_FIELDS = new Set([
+const SYSTEM_FIELDS = new Set([
 	"id",
 	"createdAt",
 	"updatedAt",
@@ -29,7 +29,7 @@ export const SYSTEM_FIELDS = new Set([
  * Field types that are typically not shown by default in list view
  * (too complex or take up too much space)
  */
-export const EXCLUDED_DEFAULT_FIELD_TYPES = new Set([
+const EXCLUDED_DEFAULT_FIELD_TYPES = new Set([
 	"relation",
 	"reverseRelation",
 	"upload",
@@ -43,7 +43,7 @@ export const EXCLUDED_DEFAULT_FIELD_TYPES = new Set([
 /**
  * Maximum number of content fields to show by default
  */
-export const MAX_DEFAULT_CONTENT_FIELDS = 4;
+const MAX_DEFAULT_CONTENT_FIELDS = 4;
 
 // ============================================================================
 // Default Column Computation

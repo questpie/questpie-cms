@@ -1,6 +1,6 @@
 import * as React from "react";
 
-export type RenderProfilerProps = {
+type RenderProfilerProps = {
 	id: string;
 	children: React.ReactNode;
 	minDurationMs?: number;

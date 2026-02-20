@@ -7,15 +7,15 @@
 
 import type { FieldDefinition } from "../builder/field/field";
 
-export type AutoExpandWithValue =
+type AutoExpandWithValue =
 	| boolean
 	| {
 			with?: Record<string, boolean>;
 	  };
 
-export type AutoExpandWith = Record<string, AutoExpandWithValue>;
+type AutoExpandWith = Record<string, AutoExpandWithValue>;
 
-export interface AutoExpandFieldsConfig {
+interface AutoExpandFieldsConfig {
 	/**
 	 * Collection fields configuration
 	 */

@@ -25,7 +25,7 @@ export type AcceptInviteFormValues = {
   confirmPassword: string;
 };
 
-export type AcceptInviteFormProps = {
+type AcceptInviteFormProps = {
   /** Called when form is submitted with valid data */
   onSubmit: (values: AcceptInviteFormValues) => Promise<void>;
   /** Email from the invitation (display only) */

@@ -82,6 +82,6 @@ export function useCollectionSchema<K extends ResolvedCollectionNames>(
  * Query key for collection schema
  * Useful for prefetching or invalidation
  */
-export function getCollectionSchemaQueryKey(collection: string) {
+function getCollectionSchemaQueryKey(collection: string) {
   return ["questpie", "collections", collection, "schema"] as const;
 }

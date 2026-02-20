@@ -15,7 +15,7 @@ import {
 	getRelationItemLabelWithField,
 } from "./cell-helpers";
 
-export interface RelationChipProps {
+interface RelationChipProps {
 	/**
 	 * Relation item (object with id, name, title, etc.)
 	 */

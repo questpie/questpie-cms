@@ -40,7 +40,7 @@ import {
   ResponsiveDialogTitle,
 } from "../ui/responsive-dialog";
 
-export interface ActionDialogProps<TItem = any> {
+interface ActionDialogProps<TItem = any> {
   /** Whether the dialog is open */
   open: boolean;
   /** Callback when dialog should close */

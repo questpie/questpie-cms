@@ -108,7 +108,7 @@ interface GlobalSheetProps extends ResourceSheetBaseProps {
 /**
  * Discriminated union of all resource sheet props
  */
-export type ResourceSheetProps = CollectionSheetProps | GlobalSheetProps;
+type ResourceSheetProps = CollectionSheetProps | GlobalSheetProps;
 
 // ============================================================================
 // Component

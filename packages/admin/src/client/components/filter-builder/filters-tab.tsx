@@ -20,7 +20,7 @@ import {
 } from "../ui/select.js";
 import type { AvailableField, FilterOperator, FilterRule } from "./types.js";
 
-export interface FiltersTabProps {
+interface FiltersTabProps {
   fields: AvailableField[];
   filters: FilterRule[];
   onFiltersChange: (filters: FilterRule[]) => void;

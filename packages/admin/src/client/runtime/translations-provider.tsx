@@ -56,7 +56,7 @@ export function getUiLocaleFromCookie(): string | null {
   return getCookie(UI_LOCALE_COOKIE);
 }
 
-export function setUiLocaleCookie(locale: string): void {
+function setUiLocaleCookie(locale: string): void {
   setCookie(UI_LOCALE_COOKIE, locale);
 }
 
@@ -64,7 +64,7 @@ export function setUiLocaleCookie(locale: string): void {
 // Types
 // ============================================================================
 
-export interface TranslationsProviderProps {
+interface TranslationsProviderProps {
   /** Initial UI locale */
   initialLocale?: string;
   /** Children to render */
@@ -93,7 +93,7 @@ export interface TranslationsProviderProps {
  * });
  * ```
  */
-export function getAdminTranslationsQueryOptions(client: any, locale: string) {
+function getAdminTranslationsQueryOptions(client: any, locale: string) {
   return {
     queryKey: ["questpie", "adminTranslations", locale] as const,
     queryFn: async () => {
@@ -133,7 +133,7 @@ export function getAdminTranslationsQueryOptions(client: any, locale: string) {
  * });
  * ```
  */
-export function getAdminLocalesQueryOptions(client: any) {
+function getAdminLocalesQueryOptions(client: any) {
   return {
     queryKey: ["questpie", "adminLocales"] as const,
     queryFn: async () => {

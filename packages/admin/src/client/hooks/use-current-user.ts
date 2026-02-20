@@ -32,7 +32,7 @@ import { useAuthClientSafe } from "./use-auth";
  * Basic user type from Better Auth session
  * Extended by the actual user schema
  */
-export interface BasicUser {
+interface BasicUser {
   id: string;
   email: string;
   name?: string | null;
@@ -46,7 +46,7 @@ export interface BasicUser {
 /**
  * Session state returned by useSession hooks
  */
-export interface SessionState<TUser = BasicUser> {
+interface SessionState<TUser = BasicUser> {
   user: TUser | null;
   isPending: boolean;
   error: Error | null;
@@ -128,7 +128,7 @@ export function useSessionState<TUser = BasicUser>(): SessionState<TUser> {
  * if (!isAuthenticated) return <LoginButton />;
  * ```
  */
-export function useIsAuthenticated(): boolean {
+function useIsAuthenticated(): boolean {
   const authClient = useAuthClientSafe();
 
   if (!authClient) {
@@ -148,7 +148,7 @@ export function useIsAuthenticated(): boolean {
  * if (!isAdmin) return <AccessDenied />;
  * ```
  */
-export function useIsAdmin(): boolean {
+function useIsAdmin(): boolean {
   const user = useCurrentUser();
   return user?.role === "admin";
 }
@@ -161,7 +161,7 @@ export function useIsAdmin(): boolean {
  * const canEdit = useHasRole("admin") || useHasRole("editor");
  * ```
  */
-export function useHasRole(role: string): boolean {
+function useHasRole(role: string): boolean {
   const user = useCurrentUser();
   return user?.role === role;
 }
@@ -174,7 +174,7 @@ export function useHasRole(role: string): boolean {
  * const canManageUsers = useHasAnyRole(["admin", "moderator"]);
  * ```
  */
-export function useHasAnyRole(roles: string[]): boolean {
+function useHasAnyRole(roles: string[]): boolean {
   const user = useCurrentUser();
   return user?.role != null && roles.includes(user.role);
 }

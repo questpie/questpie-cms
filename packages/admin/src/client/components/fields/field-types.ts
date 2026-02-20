@@ -5,7 +5,7 @@ import type { I18nText } from "../../i18n/types.js";
 /**
  * Dynamic I18n text resolver (supports functions based on form values)
  */
-export type DynamicI18nText =
+type DynamicI18nText =
 	| I18nText
 	| ((values: Record<string, any>) => I18nText);
 
@@ -20,8 +20,6 @@ import type {
 
 // Re-export SelectOption for backwards compatibility
 export type SelectOption<TValue = string> = PrimitiveSelectOption<TValue>;
-export type { SelectOptionGroup };
-
 /**
  * Base props shared by all field components (runtime).
  * These integrate with react-hook-form via Controller.
@@ -54,7 +52,7 @@ export type BaseFieldProps = {
  * Base props for field config (builder level).
  * These support I18nText and are resolved before passing to components.
  */
-export type BaseFieldConfigProps = {
+type BaseFieldConfigProps = {
 	/** Field label - supports inline translations and dynamic resolvers */
 	label?: DynamicI18nText;
 	/** Helper text - supports inline translations and dynamic resolvers */
@@ -68,7 +66,7 @@ export type BaseFieldConfigProps = {
 /**
  * Field types supported by the FormField component
  */
-export type FormFieldType =
+type FormFieldType =
 	| "text"
 	| "email"
 	| "password"
@@ -90,7 +88,7 @@ export type FormFieldType =
 /**
  * Props for the generic FormField component
  */
-export type FormFieldProps = BaseFieldProps & {
+type FormFieldProps = BaseFieldProps & {
 	type?: FormFieldType;
 	options?: SelectOption[];
 	component?: React.ComponentType<any>;
@@ -166,7 +164,7 @@ export type TimeFieldProps = BaseFieldProps & {
 /**
  * Props for date range field
  */
-export type DateRangeFieldProps = BaseFieldProps & {
+type DateRangeFieldProps = BaseFieldProps & {
 	minDate?: Date;
 	maxDate?: Date;
 };
@@ -174,7 +172,7 @@ export type DateRangeFieldProps = BaseFieldProps & {
 /**
  * Props for tags field
  */
-export type TagsFieldProps = BaseFieldProps & {
+type TagsFieldProps = BaseFieldProps & {
 	suggestions?: string[];
 	maxTags?: number;
 	allowDuplicates?: boolean;
@@ -182,12 +180,10 @@ export type TagsFieldProps = BaseFieldProps & {
 };
 
 // BooleanFieldProps is now in ./boolean-field.tsx
-export type { BooleanFieldProps } from "./boolean-field";
-
 /**
  * Props for checkbox group field
  */
-export type CheckboxGroupFieldProps<TValue = string> = BaseFieldProps & {
+type CheckboxGroupFieldProps<TValue = string> = BaseFieldProps & {
 	options: SelectOption<TValue>[];
 	orientation?: "horizontal" | "vertical";
 };
@@ -195,7 +191,7 @@ export type CheckboxGroupFieldProps<TValue = string> = BaseFieldProps & {
 /**
  * Props for radio group field
  */
-export type RadioGroupFieldProps<TValue = string> = BaseFieldProps & {
+type RadioGroupFieldProps<TValue = string> = BaseFieldProps & {
 	options: SelectOption<TValue>[];
 	orientation?: "horizontal" | "vertical";
 };
@@ -644,7 +640,7 @@ export type ArrayItemType = "text" | "number" | "email" | "textarea" | "select";
  * })
  * ```
  */
-export type ReverseRelationFieldConfig = {
+type ReverseRelationFieldConfig = {
 	/** Source collection (where the relation is defined) */
 	sourceCollection: string;
 	/** Field name on source collection that references this collection */
@@ -731,7 +727,7 @@ export type ReverseRelationFieldConfig = {
  * - `"drawer"` - Click edit to open side panel (slides from right).
  *   Best for items that need context from the main form while editing.
  */
-export type ArrayFieldMode = "inline" | "modal" | "drawer";
+type ArrayFieldMode = "inline" | "modal" | "drawer";
 
 /**
  * Array field config - for arrays of primitives or objects.
@@ -915,7 +911,7 @@ export type RichTextFieldConfig = {
  * })
  * ```
  */
-export type EmbeddedFieldConfig = {
+type EmbeddedFieldConfig = {
 	/** Embedded collection name */
 	collection: string;
 	/** Display mode */

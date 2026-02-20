@@ -38,7 +38,7 @@ import { selectClient, useAdminStore } from "../runtime";
 // Types
 // ============================================================================
 
-export interface TransitionStageParams {
+interface TransitionStageParams {
 	/** Record ID (required for collections, ignored for globals) */
 	id?: string;
 	/** Target stage name */
@@ -47,11 +47,11 @@ export interface TransitionStageParams {
 	scheduledAt?: string | Date;
 }
 
-export interface TransitionStageResult {
+interface TransitionStageResult {
 	[key: string]: unknown;
 }
 
-export interface UseTransitionStageOptions {
+interface UseTransitionStageOptions {
 	/**
 	 * Whether this is a collection or global transition.
 	 * @default "collection"

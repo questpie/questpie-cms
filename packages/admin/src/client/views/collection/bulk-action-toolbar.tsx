@@ -37,7 +37,7 @@ import { selectAuthClient, useAdminStore } from "../../runtime/provider";
 // Types
 // ============================================================================
 
-export interface BulkActionToolbarProps<TItem = any> {
+interface BulkActionToolbarProps<TItem = any> {
 	/** TanStack Table instance */
 	table: Table<TItem>;
 	/** Bulk actions to display */

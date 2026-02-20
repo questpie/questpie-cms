@@ -16,7 +16,7 @@ import {
 } from "../utils/build-field-definitions-from-schema";
 import { useCollectionSchema } from "./use-collection-schema";
 
-export interface UseCollectionFieldsOptions {
+interface UseCollectionFieldsOptions {
   /**
    * React Query options for schema fetching
    */

@@ -19,12 +19,12 @@ export { messages } from "./messages/index.js";
 // Export individual locale messages for direct access
 export const adminMessagesEN = messages.en;
 export const adminMessagesSK = messages.sk;
-export const adminMessagesCS = messages.cs;
-export const adminMessagesDE = messages.de;
-export const adminMessagesFR = messages.fr;
-export const adminMessagesES = messages.es;
-export const adminMessagesPT = messages.pt;
-export const adminMessagesPL = messages.pl;
+const adminMessagesCS = messages.cs;
+const adminMessagesDE = messages.de;
+const adminMessagesFR = messages.fr;
+const adminMessagesES = messages.es;
+const adminMessagesPT = messages.pt;
+const adminMessagesPL = messages.pl;
 
 /**
  * Message value type - string or plural form

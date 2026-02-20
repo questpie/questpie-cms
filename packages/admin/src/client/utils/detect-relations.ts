@@ -8,7 +8,7 @@
 import type { CollectionSchema } from "questpie/client";
 import type { FieldDefinition } from "../builder/field/field";
 
-export interface DetectRelationsConfig {
+interface DetectRelationsConfig {
 	/**
 	 * Collection fields configuration
 	 */

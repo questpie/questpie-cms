@@ -30,7 +30,7 @@ import {
 } from "../ui/dropdown-menu";
 import { ActionButton } from "./action-button";
 
-export interface HeaderActionsProps<TItem = any> {
+interface HeaderActionsProps<TItem = any> {
   /** Header actions config with primary/secondary */
   actions: HeaderActionsConfig<TItem>;
   /** Collection name */

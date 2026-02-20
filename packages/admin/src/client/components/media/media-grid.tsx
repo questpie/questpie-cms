@@ -31,7 +31,7 @@ import { Skeleton } from "../ui/skeleton";
 // Types
 // ============================================================================
 
-export interface MediaGridProps {
+interface MediaGridProps {
 	/**
 	 * Assets to display
 	 */
@@ -232,7 +232,6 @@ function AssetItem({
 // ============================================================================
 
 export function MediaGrid({
-	"use no memo";
 	assets,
 	selectedIds = new Set(),
 	onSelectionChange,
@@ -242,6 +241,7 @@ export function MediaGrid({
 	columns = 4,
 	className,
 }: MediaGridProps) {
+	"use no memo";
 	// Handle toggle selection
 	const handleToggle = (assetId: string) => {
 		if (!onSelectionChange) return;

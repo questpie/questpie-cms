@@ -37,7 +37,7 @@ export function getAdminPreferenceQueryKey(
  * );
  * ```
  */
-export function getAdminPreferenceQueryOptions<T>(
+function getAdminPreferenceQueryOptions<T>(
 	client: any,
 	userId: string | undefined,
 	key: string,
@@ -61,7 +61,7 @@ export function getAdminPreferenceQueryOptions<T>(
 /**
  * Admin Preference entity from the database
  */
-export interface AdminPreference<T = unknown> {
+interface AdminPreference<T = unknown> {
 	id: string;
 	userId: string;
 	key: string;
@@ -181,7 +181,7 @@ export function useSetAdminPreference<T = unknown>(key: string) {
  * };
  * ```
  */
-export function useDeleteAdminPreference(key: string) {
+function useDeleteAdminPreference(key: string) {
 	const client = useAdminStore((s) => s.client);
 	const user = useCurrentUser();
 	const queryClient = useQueryClient();
@@ -251,7 +251,7 @@ export function useDeleteAdminPreference(key: string) {
  * </Suspense>
  * ```
  */
-export function useSuspenseAdminPreference<T = unknown>(
+function useSuspenseAdminPreference<T = unknown>(
 	key: string,
 	userId: string,
 ) {

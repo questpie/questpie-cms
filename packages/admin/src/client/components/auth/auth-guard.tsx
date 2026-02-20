@@ -26,7 +26,7 @@ import { AuthLoading } from "./auth-loading";
 // Types
 // ============================================================================
 
-export interface AuthGuardProps {
+interface AuthGuardProps {
   /**
    * Content to render when authenticated
    */

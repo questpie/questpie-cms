@@ -19,20 +19,20 @@ import { useQuestpieQueryOptions } from "./use-questpie-query-options";
  * Lock expires if not refreshed within this time.
  * Form should call refresh() on user activity (typing, clicking).
  */
-export const LOCK_DURATION_MS = 60_000;
+const LOCK_DURATION_MS = 60_000;
 
 // ============================================================================
 // Types
 // ============================================================================
 
-export interface LockUser {
+interface LockUser {
 	id: string;
 	name?: string | null;
 	email: string;
 	image?: string | null;
 }
 
-export interface LockInfo {
+interface LockInfo {
 	id: string;
 	resourceType: "collection" | "global";
 	resource: string;
@@ -51,7 +51,7 @@ export function getLockUser(lock: LockInfo): LockUser | null {
 }
 
 /** Helper to get user ID from lock */
-export function getLockUserId(lock: LockInfo): string {
+function getLockUserId(lock: LockInfo): string {
 	if (typeof lock.user === "string") return lock.user;
 	return lock.user.id;
 }
@@ -74,7 +74,7 @@ function getSessionId(): string {
 	return sessionId;
 }
 
-export interface UseLockOptions {
+interface UseLockOptions {
 	/** Resource type: collection or global */
 	resourceType: "collection" | "global";
 	/** Resource name (collection slug or global slug) */
@@ -91,7 +91,7 @@ export interface UseLockOptions {
 	onReleased?: () => void;
 }
 
-export interface UseLockResult {
+interface UseLockResult {
 	/** Current lock info if we have the lock */
 	lock: LockInfo | null;
 	/** Lock info if someone else has the lock */
@@ -112,7 +112,7 @@ export interface UseLockResult {
 	refresh: () => Promise<void>;
 }
 
-export interface UseLocksOptions {
+interface UseLocksOptions {
 	/** Resource type: collection or global */
 	resourceType: "collection" | "global";
 	/** Resource name (collection slug or global slug) */
@@ -121,7 +121,7 @@ export interface UseLocksOptions {
 	realtime?: boolean;
 }
 
-export interface UseLocksResult {
+interface UseLocksResult {
 	/** Map of resourceId -> lock info */
 	locks: Map<string, LockInfo>;
 	/** Check if a specific resource is locked */

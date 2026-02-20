@@ -45,13 +45,13 @@ const EMPTY_GLOBAL_COMPONENTS: Record<string, any> = {};
  * Collection config as used by AdminRouter.
  * Compatible with CollectionBuilderState from admin.getCollections().
  */
-export type CollectionRouterConfig = Record<string, any>;
+type CollectionRouterConfig = Record<string, any>;
 
 /**
  * Global config as used by AdminRouter.
  * Compatible with GlobalBuilderState from admin.getGlobals().
  */
-export type GlobalRouterConfig = Record<string, any>;
+type GlobalRouterConfig = Record<string, any>;
 
 export interface AdminRouterProps {
 	/**

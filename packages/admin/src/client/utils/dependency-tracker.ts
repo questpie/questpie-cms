@@ -6,7 +6,7 @@
 
 type AnyRecord = Record<string, any>;
 
-export interface DependencyTrackingResult<T> {
+interface DependencyTrackingResult<T> {
 	result: T | undefined;
 	deps: string[];
 	error: Error | null;

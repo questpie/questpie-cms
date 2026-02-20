@@ -47,7 +47,7 @@ function toImageUrl(value: unknown): string | null {
  * Get display label for a relation item
  * Prefers _title (backend computed), then common label fields, then id
  */
-export function getRelationItemLabel(item: unknown): string {
+function getRelationItemLabel(item: unknown): string {
 	if (typeof item === "object" && item !== null) {
 		const obj = item as Record<string, unknown>;
 		// Prefer _title computed field from backend

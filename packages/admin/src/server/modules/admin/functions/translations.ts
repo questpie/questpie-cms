@@ -93,7 +93,7 @@ const getAdminLocalesOutputSchema = z.object({
  * // messages contains all admin UI strings in Slovak
  * ```
  */
-export const getAdminTranslations = fn({
+const getAdminTranslations = fn({
 	type: "query",
 	schema: getAdminTranslationsSchema,
 	outputSchema: getAdminTranslationsOutputSchema,
@@ -156,7 +156,7 @@ export const getAdminTranslations = fn({
  * // defaultLocale: "en"
  * ```
  */
-export const getAdminLocales = fn({
+const getAdminLocales = fn({
 	type: "query",
 	schema: getAdminLocalesSchema,
 	outputSchema: getAdminLocalesOutputSchema,

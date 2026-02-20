@@ -13,7 +13,7 @@ import { Spinner } from "../ui/spinner";
 // Types
 // ============================================================================
 
-export interface AuthLoadingProps {
+interface AuthLoadingProps {
   /**
    * Custom class name for the container
    */

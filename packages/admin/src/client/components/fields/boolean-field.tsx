@@ -5,7 +5,7 @@ import type { BaseFieldProps } from "./field-types";
 import { useResolvedControl } from "./field-utils";
 import { FieldWrapper } from "./field-wrapper";
 
-export interface BooleanFieldProps extends BaseFieldProps {
+interface BooleanFieldProps extends BaseFieldProps {
   /**
    * Display mode for the boolean field.
    * @default "checkbox"
@@ -72,5 +72,3 @@ export function BooleanField({
 }
 
 // Re-export old names for backwards compatibility
-export { BooleanField as CheckboxField };
-export { BooleanField as SwitchField };

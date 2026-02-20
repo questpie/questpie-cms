@@ -61,7 +61,7 @@ const getContentLocalesOutputSchema = z.object({
  * // }
  * ```
  */
-export const getContentLocales = fn({
+const getContentLocales = fn({
   type: "query",
   schema: getContentLocalesSchema,
   outputSchema: getContentLocalesOutputSchema,

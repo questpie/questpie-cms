@@ -13,7 +13,7 @@ import type { ActionsConfig } from "./action-types";
 /**
  * Collection metadata for navigation and display
  */
-export interface CollectionMeta {
+interface CollectionMeta {
   /** Display label - supports inline translations */
   label?: I18nText;
   icon?: IconComponent | ComponentReference | string;
@@ -95,7 +95,7 @@ export interface ColumnConfigObject<TFieldNames extends string = string> {
 /**
  * Helper to normalize column config to field name
  */
-export function getColumnFieldName<T extends string>(
+function getColumnFieldName<T extends string>(
   column: ColumnConfig<T>,
 ): T {
   return typeof column === "string" ? column : column.field;
@@ -186,7 +186,7 @@ export interface ListViewConfig<TFieldNames extends string = string> {
 /**
  * Collection configuration - runtime config object
  */
-export interface CollectionConfig<TFieldNames extends string = string> {
+interface CollectionConfig<TFieldNames extends string = string> {
   /**
    * Collection name
    */

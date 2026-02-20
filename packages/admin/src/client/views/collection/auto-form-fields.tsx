@@ -72,7 +72,7 @@ type AdminFormSchema = CollectionSchema["admin"] extends infer TAdmin
 		: undefined
 	: undefined;
 
-export interface AutoFormFieldsProps<
+interface AutoFormFieldsProps<
 	T extends Questpie<any> = Questpie<any>,
 	K extends string = string,
 > {

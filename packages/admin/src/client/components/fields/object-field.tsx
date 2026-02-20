@@ -21,7 +21,7 @@ import { FieldWrapper } from "./field-wrapper";
 // Types
 // ============================================================================
 
-export interface ObjectFieldProps
+interface ObjectFieldProps
 	extends BaseFieldProps,
 		Omit<ObjectFieldConfig, "fields"> {
 	/**

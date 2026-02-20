@@ -74,7 +74,7 @@ function SkeletonRow() {
 // Quick Actions Widget Skeleton
 // ============================================================================
 
-export function QuickActionsWidgetSkeleton({
+function QuickActionsWidgetSkeleton({
   count = 3,
   layout = "list",
 }: {
@@ -247,7 +247,7 @@ export function ValueWidgetSkeleton({
 // Generic Widget Skeleton
 // ============================================================================
 
-export function GenericWidgetSkeleton() {
+function GenericWidgetSkeleton() {
   return (
     <div className="space-y-4">
       <Skeleton className="h-20 w-full" />

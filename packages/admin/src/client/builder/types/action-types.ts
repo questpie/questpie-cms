@@ -102,7 +102,7 @@ export interface ActionContext<TItem = any> {
 /**
  * Navigate handler - navigates to a path
  */
-export interface NavigateHandler<TItem = any> {
+interface NavigateHandler<TItem = any> {
   type: "navigate";
   /** Path to navigate to (can be a function for dynamic paths) */
   path: string | ((item: TItem) => string);
@@ -173,7 +173,7 @@ export interface FormHandler<TItem = any> {
 /**
  * API handler - calls an API endpoint
  */
-export interface ApiHandler {
+interface ApiHandler {
   type: "api";
   /** Endpoint path (can include {id} placeholder) */
   endpoint: string;
@@ -186,7 +186,7 @@ export interface ApiHandler {
 /**
  * Custom handler - runs arbitrary code
  */
-export interface CustomHandler<TItem = any> {
+interface CustomHandler<TItem = any> {
   type: "custom";
   /** Handler function */
   fn: (ctx: ActionContext<TItem>) => void | Promise<void>;
@@ -196,7 +196,7 @@ export interface CustomHandler<TItem = any> {
  * Server handler - executes action on the server via API.
  * Used for server-defined actions where the handler runs server-side.
  */
-export interface ServerHandler {
+interface ServerHandler {
   type: "server";
   /** Server action ID (matches ServerActionDefinition.id) */
   actionId: string;

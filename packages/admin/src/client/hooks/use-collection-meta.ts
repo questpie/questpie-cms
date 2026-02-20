@@ -81,7 +81,7 @@ export function useCollectionMeta<K extends ResolvedCollectionNames>(
  * Query key for collection meta
  * Useful for prefetching or invalidation
  */
-export function getCollectionMetaQueryKey(collection: string) {
+function getCollectionMetaQueryKey(collection: string) {
 	return ["questpie", "collections", collection, "meta"] as const;
 }
 
@@ -105,7 +105,7 @@ export function getCollectionMetaQueryKey(collection: string) {
  * });
  * ```
  */
-export function getCollectionMetaQueryOptions(collection: string, client: any) {
+function getCollectionMetaQueryOptions(collection: string, client: any) {
 	return {
 		queryKey: getCollectionMetaQueryKey(collection),
 		queryFn: async (): Promise<CollectionMeta> => {

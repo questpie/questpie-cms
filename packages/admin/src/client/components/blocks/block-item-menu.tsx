@@ -45,7 +45,7 @@ import { findBlockById, findBlockPosition } from "./utils/tree-utils.js";
 // Types
 // ============================================================================
 
-export interface BlockItemMenuProps {
+interface BlockItemMenuProps {
 	/** Block ID */
 	blockId: string;
 	/** Whether this block can have children */
@@ -236,11 +236,11 @@ function MenuItems({
 // Context Menu Wrapper
 // ============================================================================
 
-export interface BlockItemContextMenuProps extends BlockItemMenuProps {
+interface BlockItemContextMenuProps extends BlockItemMenuProps {
 	children: React.ReactNode;
 }
 
-export function BlockItemContextMenu({
+function BlockItemContextMenu({
 	children,
 	...menuProps
 }: BlockItemContextMenuProps) {
@@ -265,7 +265,7 @@ export function BlockItemContextMenu({
 // Dropdown Menu Button
 // ============================================================================
 
-export interface BlockItemDropdownMenuProps extends BlockItemMenuProps {
+interface BlockItemDropdownMenuProps extends BlockItemMenuProps {
 	className?: string;
 }
 

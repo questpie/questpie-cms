@@ -57,7 +57,7 @@ import { DashboardWidget } from "./dashboard-widget";
 // Types
 // ============================================================================
 
-export interface DashboardGridProps {
+interface DashboardGridProps {
 	/**
 	 * Dashboard configuration
 	 */

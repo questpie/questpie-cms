@@ -63,7 +63,7 @@ export interface BlockSchema {
 /**
  * Category info extracted from blocks for UI rendering.
  */
-export interface CategoryInfo {
+interface CategoryInfo {
 	/** Category key (derived from label or auto-generated) */
 	key: string;
 	/** Category configuration */

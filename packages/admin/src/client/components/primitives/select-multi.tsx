@@ -30,7 +30,7 @@ import { flattenOptions } from "./types";
 const EMPTY_VALUE: string[] = [];
 const EMPTY_OPTIONS: SelectOptions<string> = [];
 
-export interface SelectMultiProps<TValue extends string = string>
+interface SelectMultiProps<TValue extends string = string>
 	extends BasePrimitiveProps {
 	/** Selected values */
 	value: TValue[];

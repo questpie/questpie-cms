@@ -144,7 +144,7 @@ export interface DateRangeInputProps extends BasePrimitiveProps {
 // Special Inputs
 // =============================================================================
 
-export interface TagInputProps extends BasePrimitiveProps {
+interface TagInputProps extends BasePrimitiveProps {
   value: string[];
   onChange: (value: string[]) => void;
   /** Suggestions for autocomplete */
@@ -157,7 +157,7 @@ export interface TagInputProps extends BasePrimitiveProps {
   pattern?: RegExp;
 }
 
-export interface ColorInputProps extends BasePrimitiveProps {
+interface ColorInputProps extends BasePrimitiveProps {
   value: string; // hex color
   onChange: (value: string) => void;
   /** Preset colors */
@@ -166,7 +166,7 @@ export interface ColorInputProps extends BasePrimitiveProps {
   alpha?: boolean;
 }
 
-export interface SliderInputProps extends BasePrimitiveProps {
+interface SliderInputProps extends BasePrimitiveProps {
   value: number | [number, number];
   onChange: (value: number | [number, number]) => void;
   min: number;
@@ -176,7 +176,7 @@ export interface SliderInputProps extends BasePrimitiveProps {
   showValue?: boolean;
 }
 
-export interface JsonEditorProps extends BasePrimitiveProps {
+interface JsonEditorProps extends BasePrimitiveProps {
   value: unknown;
   onChange: (value: unknown) => void;
   /** Max height */

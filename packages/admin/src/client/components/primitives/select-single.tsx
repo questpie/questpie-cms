@@ -30,7 +30,7 @@ import { flattenOptions } from "./types";
 // Module-level constant for empty options to avoid recreating on each render
 const EMPTY_OPTIONS: SelectOptions<string> = [];
 
-export interface SelectSingleProps<TValue extends string = string>
+interface SelectSingleProps<TValue extends string = string>
 	extends BasePrimitiveProps {
 	/** Selected value */
 	value: TValue | null;

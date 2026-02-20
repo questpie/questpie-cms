@@ -112,7 +112,7 @@ export interface AdminLayoutSharedProps {
 	layoutMode?: LayoutMode;
 }
 
-export interface AdminLayoutProps extends AdminLayoutSharedProps {
+interface AdminLayoutProps extends AdminLayoutSharedProps {
 	/**
 	 * Brand name for sidebar.
 	 * If not provided, reads from AdminProvider context.

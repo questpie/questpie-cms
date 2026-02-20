@@ -21,7 +21,7 @@ import { useResolveText, useTranslation } from "../../i18n/hooks";
 import { Checkbox } from "../ui/checkbox";
 import type { AvailableField } from "./types.js";
 
-export interface ColumnsTabProps {
+interface ColumnsTabProps {
   fields: AvailableField[];
   visibleColumns: string[];
   onVisibleColumnsChange: (columns: string[]) => void;

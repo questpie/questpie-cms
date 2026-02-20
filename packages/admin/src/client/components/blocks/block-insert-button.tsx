@@ -17,7 +17,7 @@ import type { InsertPosition } from "./utils/tree-utils.js";
 // Types
 // ============================================================================
 
-export type BlockInsertButtonProps = {
+type BlockInsertButtonProps = {
 	/** Position where the block will be inserted */
 	position: InsertPosition;
 	/** Compact style (shows on hover between blocks) */

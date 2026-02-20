@@ -33,7 +33,7 @@ export type InviteFormValues = {
   message?: string;
 };
 
-export type InviteFormProps = {
+type InviteFormProps = {
   /** Called when form is submitted with valid data */
   onSubmit: (values: InviteFormValues) => Promise<void>;
   /** Available roles for selection */

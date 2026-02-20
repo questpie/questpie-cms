@@ -12,7 +12,7 @@ import { useTranslation } from "../../../i18n/hooks";
 import { EDITOR_ICONS, ToolbarButton } from "./toolbar";
 import type { RichTextFeatures } from "./types";
 
-export type RichTextBubbleMenuProps = {
+type RichTextBubbleMenuProps = {
   editor: Editor;
   features: Required<RichTextFeatures>;
   disabled?: boolean;

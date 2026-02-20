@@ -17,7 +17,7 @@ import { ProgressWidgetSkeleton } from "./widget-skeletons";
 /**
  * Progress widget props
  */
-export interface ProgressWidgetProps {
+interface ProgressWidgetProps {
 	config: ProgressWidgetConfig;
 }
 

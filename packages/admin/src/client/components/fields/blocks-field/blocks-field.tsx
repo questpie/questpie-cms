@@ -39,14 +39,14 @@ export type BlocksFieldConfig<TAllowed extends string = string> = {
 	maxBlocks?: number;
 };
 
-export type BlocksFieldProps = BaseFieldProps & BlocksFieldConfig;
+type BlocksFieldProps = BaseFieldProps & BlocksFieldConfig;
 
 /**
  * Blocks field component.
  *
  * Renders the visual block editor for editing block content.
  */
-export function BlocksField({
+function BlocksField({
 	name,
 	value,
 	onChange,

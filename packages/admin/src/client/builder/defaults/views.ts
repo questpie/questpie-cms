@@ -9,12 +9,12 @@ import { listView, editView } from "../view/view";
 /**
  * Table list view
  */
-export const tableView = listView("table", { component: TableView });
+const tableView = listView("table", { component: TableView });
 
 /**
  * Form edit view
  */
-export const formView = editView("form", { component: FormView });
+const formView = editView("form", { component: FormView });
 
 /**
  * All built-in views

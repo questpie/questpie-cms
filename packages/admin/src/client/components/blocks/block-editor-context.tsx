@@ -73,7 +73,7 @@ export type BlockEditorActions = {
 /**
  * Block editor context value.
  */
-export type BlockEditorContextValue = {
+type BlockEditorContextValue = {
 	state: BlockEditorState;
 	actions: BlockEditorActions;
 };
@@ -94,7 +94,7 @@ export const BlockEditorContextProvider = BlockEditorContext.Provider;
 /**
  * Selector hook for block editor store.
  */
-export function useBlockEditorStore<T>(
+function useBlockEditorStore<T>(
 	selector: (state: BlockEditorStore) => T,
 ): T {
 	const store = React.useContext(BlockEditorContext);
@@ -109,7 +109,7 @@ export function useBlockEditorStore<T>(
  * Hook to access block editor state and actions.
  * Must be used within BlockEditorProvider.
  */
-export function useBlockEditor(): BlockEditorContextValue {
+function useBlockEditor(): BlockEditorContextValue {
 	const state = useBlockEditorState();
 	const actions = useBlockEditorActions();
 
@@ -119,7 +119,7 @@ export function useBlockEditor(): BlockEditorContextValue {
 /**
  * Hook to access only block editor state.
  */
-export function useBlockEditorState(): BlockEditorState {
+function useBlockEditorState(): BlockEditorState {
 	return useBlockEditorStore((state) => ({
 		content: state.content,
 		selectedBlockId: state.selectedBlockId,
@@ -186,7 +186,7 @@ export function useBlockLibraryOpen(): boolean {
 /**
  * Hook to check if a block is selected.
  */
-export function useIsBlockSelected(blockId: string): boolean {
+function useIsBlockSelected(blockId: string): boolean {
 	return useBlockEditorStore((state) => state.selectedBlockId === blockId);
 }
 
@@ -215,7 +215,7 @@ export function useBlockDefinition(blockType: string): BlockSchema | undefined {
 /**
  * Hook to get the selected block's schema.
  */
-export function useSelectedBlockSchema(): BlockSchema | undefined {
+function useSelectedBlockSchema(): BlockSchema | undefined {
 	return useBlockEditorStore((state) => {
 		if (!state.selectedBlockId) return undefined;
 
@@ -233,14 +233,14 @@ export function useSelectedBlockSchema(): BlockSchema | undefined {
  * Hook to get the selected block's definition.
  * @deprecated Use useSelectedBlockSchema instead
  */
-export function useSelectedBlockDefinition(): BlockSchema | undefined {
+function useSelectedBlockDefinition(): BlockSchema | undefined {
 	return useSelectedBlockSchema();
 }
 
 /**
  * Hook to get the selected block's values.
  */
-export function useSelectedBlockValues(): Record<string, unknown> | undefined {
+function useSelectedBlockValues(): Record<string, unknown> | undefined {
 	return useBlockEditorStore((state) => {
 		if (!state.selectedBlockId) return undefined;
 		return state.content._values[state.selectedBlockId];

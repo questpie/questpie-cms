@@ -30,7 +30,7 @@ import { BlockIcon } from "./block-type-icon.js";
 // Types
 // ============================================================================
 
-export type BlockItemProps = {
+type BlockItemProps = {
 	/** Block node data */
 	block: BlockNode;
 	/** Nesting level (0 = root) */

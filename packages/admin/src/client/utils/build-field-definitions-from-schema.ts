@@ -27,7 +27,7 @@ import { formatLabel } from "../lib/utils";
  * Field registry type - maps field type names to FieldBuilder instances
  * This is what Admin.getFields() returns
  */
-export type FieldRegistry = Record<string, FieldBuilder<any>>;
+type FieldRegistry = Record<string, FieldBuilder<any>>;
 
 /**
  * Options for building field definitions
@@ -52,7 +52,7 @@ export interface BuildFieldDefinitionsOptions {
 /**
  * Result of building field definitions
  */
-export type FieldDefinitionsResult = Record<string, FieldDefinition>;
+type FieldDefinitionsResult = Record<string, FieldDefinition>;
 
 // ============================================================================
 // Main Function

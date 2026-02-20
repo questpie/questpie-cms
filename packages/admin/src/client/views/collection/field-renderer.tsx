@@ -29,7 +29,7 @@ import {
 // Types
 // ============================================================================
 
-export interface FieldRendererProps {
+interface FieldRendererProps {
 	fieldName: string;
 	fieldDef?: FieldDefinition;
 	collection: string;

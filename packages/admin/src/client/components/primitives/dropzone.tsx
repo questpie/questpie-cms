@@ -22,7 +22,7 @@ import { cn } from "../../lib/utils";
 // Types
 // ============================================================================
 
-export interface DropzoneProps {
+interface DropzoneProps {
   /**
    * Called when files are dropped or selected
    */
@@ -92,7 +92,7 @@ export interface DropzoneProps {
   onValidationError?: (errors: ValidationError[]) => void;
 }
 
-export interface ValidationError {
+interface ValidationError {
   file: File;
   type: "type" | "size";
   message: string;

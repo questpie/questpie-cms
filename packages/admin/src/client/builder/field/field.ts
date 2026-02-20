@@ -46,7 +46,7 @@ export type CreateZodFn<TOptions = any> = (
 /**
  * Field state options (readOnly, disabled, hidden)
  */
-export interface FieldStateOptions {
+interface FieldStateOptions {
   /**
    * Whether field is read-only (can be dynamic based on form values).
    * Read-only fields look normal but cannot be edited.
@@ -73,7 +73,7 @@ export interface FieldStateOptions {
 /**
  * Hook options for field interactivity
  */
-export interface FieldHookOptions {
+interface FieldHookOptions {
   /**
    * Compute field value from other fields (proxy-tracked dependencies).
    * Makes the field read-only and virtual (not submitted to backend).
@@ -146,7 +146,7 @@ export interface FieldHookOptions {
  * UI options that can be set when defining a field in a collection.
  * These are the "soft" options from BaseFieldProps that make sense in config.
  */
-export type FieldUIOptions = Partial<
+type FieldUIOptions = Partial<
   Pick<
     BaseFieldConfigProps,
     "label" | "description" | "placeholder" | "required"

@@ -90,11 +90,10 @@ function CardFooter({ className, ...props }: React.ComponentProps<"div">) {
 }
 
 export {
-  Card,
-  CardHeader,
-  CardFooter,
-  CardTitle,
-  CardAction,
-  CardDescription,
-  CardContent,
+	Card,
+	CardHeader,
+	CardTitle,
+	CardAction,
+	CardDescription,
+	CardContent,
 };

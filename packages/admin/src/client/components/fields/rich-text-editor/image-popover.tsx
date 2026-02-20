@@ -24,7 +24,7 @@ import {
 } from "../../ui/popover";
 import { sanitizeFilename } from "../field-utils";
 
-export type ImagePopoverProps = {
+type ImagePopoverProps = {
 	editor: Editor | null;
 	open: boolean;
 	onOpenChange: (open: boolean) => void;

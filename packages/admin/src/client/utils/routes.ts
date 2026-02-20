@@ -344,7 +344,7 @@ export function createAdminRoutes<TApp extends Questpie<any>>(
  * routes.collections.list('posts')
  * ```
  */
-export function createAdminRoutesSimple(
+function createAdminRoutesSimple(
   options: { basePath?: string; pages?: Record<string, { path: string }> } = {},
 ) {
   const basePath = options.basePath ?? "/admin";
@@ -391,7 +391,7 @@ export function createAdminRoutesSimple(
 /**
  * Build a query string from params
  */
-export function buildQueryString(
+function buildQueryString(
   params: Record<string, string | number | boolean | undefined | null>,
 ): string {
   const entries = Object.entries(params)
@@ -407,7 +407,7 @@ export function buildQueryString(
 /**
  * Build a route with query params
  */
-export function withQuery(
+function withQuery(
   path: string,
   params: Record<string, string | number | boolean | undefined | null>,
 ): string {
@@ -417,7 +417,7 @@ export function withQuery(
 /**
  * Extract collection info from a route path
  */
-export function parseCollectionRoute(
+function parseCollectionRoute(
   pathname: string,
   basePath = "/admin",
 ): {
@@ -449,7 +449,7 @@ export function parseCollectionRoute(
 /**
  * Extract global info from a route path
  */
-export function parseGlobalRoute(
+function parseGlobalRoute(
   pathname: string,
   basePath = "/admin",
 ): { global: string } | null {

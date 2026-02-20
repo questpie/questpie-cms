@@ -18,7 +18,7 @@ export type RichTextPreset = "minimal" | "simple" | "standard" | "advanced";
  * Features: Bold, Italic, Underline, Link
  * UI: No toolbar, only bubble menu on selection
  */
-export const PRESET_MINIMAL: Required<RichTextFeatures> = {
+const PRESET_MINIMAL: Required<RichTextFeatures> = {
   toolbar: false,
   bubbleMenu: true,
   slashCommands: false,
@@ -49,7 +49,7 @@ export const PRESET_MINIMAL: Required<RichTextFeatures> = {
  * Features: Headings, formatting, lists, quotes, links
  * UI: Compact toolbar with essential controls
  */
-export const PRESET_SIMPLE: Required<RichTextFeatures> = {
+const PRESET_SIMPLE: Required<RichTextFeatures> = {
   toolbar: true,
   bubbleMenu: true,
   slashCommands: true,
@@ -80,7 +80,7 @@ export const PRESET_SIMPLE: Required<RichTextFeatures> = {
  * Features: All formatting, alignment, images, basic tables
  * UI: Full toolbar with all standard controls
  */
-export const PRESET_STANDARD: Required<RichTextFeatures> = {
+const PRESET_STANDARD: Required<RichTextFeatures> = {
   toolbar: true,
   bubbleMenu: true,
   slashCommands: true,
@@ -111,7 +111,7 @@ export const PRESET_STANDARD: Required<RichTextFeatures> = {
  * Features: Everything in standard + advanced table controls
  * UI: Full toolbar with all advanced controls
  */
-export const PRESET_ADVANCED: Required<RichTextFeatures> = {
+const PRESET_ADVANCED: Required<RichTextFeatures> = {
   ...PRESET_STANDARD,
   // Advanced preset currently same as standard
   // Reserved for future advanced features like:
@@ -125,7 +125,7 @@ export const PRESET_ADVANCED: Required<RichTextFeatures> = {
 /**
  * Get preset configuration by name
  */
-export function getPreset(preset: RichTextPreset): Required<RichTextFeatures> {
+function getPreset(preset: RichTextPreset): Required<RichTextFeatures> {
   switch (preset) {
     case "minimal":
       return PRESET_MINIMAL;

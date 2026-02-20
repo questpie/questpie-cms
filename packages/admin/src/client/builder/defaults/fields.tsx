@@ -27,7 +27,7 @@ import type {
 } from "../../components/fields/field-types.js";
 import { ArrayField } from "../../components/fields/array-field.js";
 import { AssetPreviewField } from "../../components/fields/asset-preview-field.js";
-import { BlocksField } from "../../components/fields/blocks-field.js";
+import { BlocksField } from "../../components/fields/blocks-field/blocks-field.js";
 import { BooleanField } from "../../components/fields/boolean-field.js";
 import { DateField } from "../../components/fields/date-field.js";
 import { DatetimeField } from "../../components/fields/datetime-field.js";
@@ -82,7 +82,7 @@ function wrapOptional<T extends z.ZodTypeAny>(
  * Creates a field registry proxy for nested fields callbacks.
  * This allows `fields: ({ r }) => ({ name: r.text() })` to work.
  */
-export function createRegistryProxy(
+function createRegistryProxy(
 	registry: Record<string, any>,
 ): Record<string, (opts?: any) => any> {
 	return new Proxy({} as Record<string, (opts?: any) => any>, {
@@ -117,7 +117,7 @@ function buildNestedSchema(
 // Text-based Fields
 // ============================================================================
 
-export const textField = field("text", {
+const textField = field("text", {
 	component: TextField,
 	cell: TextCell,
 	config: {} as TextFieldConfig,
@@ -147,7 +147,7 @@ export const textField = field("text", {
 	},
 });
 
-export const numberField = field("number", {
+const numberField = field("number", {
 	component: NumberField,
 	cell: NumberCell,
 	config: {} as NumberFieldConfig,
@@ -163,7 +163,7 @@ export const numberField = field("number", {
 	},
 });
 
-export const emailField = field("email", {
+const emailField = field("email", {
 	component: EmailField,
 	cell: EmailCell,
 	config: {} as TextFieldConfig,
@@ -179,7 +179,7 @@ export const emailField = field("email", {
 	},
 });
 
-export const textareaField = field("textarea", {
+const textareaField = field("textarea", {
 	component: TextareaField,
 	cell: TextCell,
 	config: {} as TextareaFieldConfig,
@@ -209,7 +209,7 @@ export const textareaField = field("textarea", {
  * Boolean field - renders as checkbox (default) or switch based on displayAs option.
  * Maps to server field type "boolean".
  */
-export const booleanField = field("boolean", {
+const booleanField = field("boolean", {
 	component: BooleanField,
 	cell: BooleanCell,
 	config: {} as BooleanFieldConfig,
@@ -223,7 +223,7 @@ export const booleanField = field("boolean", {
 // Select Fields
 // ============================================================================
 
-export const selectField = field("select", {
+const selectField = field("select", {
 	component: SelectField,
 	cell: SelectCell,
 	config: {} as SelectFieldConfig,
@@ -249,7 +249,7 @@ export const selectField = field("select", {
 // Date/Time Fields
 // ============================================================================
 
-export const dateField = field("date", {
+const dateField = field("date", {
 	component: DateField,
 	cell: DateCell,
 	config: {} as DateFieldConfig,
@@ -262,7 +262,7 @@ export const dateField = field("date", {
 	},
 });
 
-export const datetimeField = field("datetime", {
+const datetimeField = field("datetime", {
 	component: DatetimeField,
 	cell: DateTimeCell,
 	config: {} as DateTimeFieldConfig,
@@ -274,7 +274,7 @@ export const datetimeField = field("datetime", {
 	},
 });
 
-export const timeField = field("time", {
+const timeField = field("time", {
 	component: TimeField,
 	cell: TimeCell,
 	config: {} as TimeFieldConfig,
@@ -294,7 +294,7 @@ export const timeField = field("time", {
 // Relation Fields
 // ============================================================================
 
-export const relationField = field("relation", {
+const relationField = field("relation", {
 	component: RelationField,
 	cell: RelationCell,
 	config: {} as RelationFieldConfig,
@@ -320,7 +320,7 @@ export const relationField = field("relation", {
 // Complex Fields
 // ============================================================================
 
-export const jsonField = field("json", {
+const jsonField = field("json", {
 	component: JsonField,
 	cell: JsonCell,
 	config: {} as JsonFieldConfig,
@@ -330,7 +330,7 @@ export const jsonField = field("json", {
 	},
 });
 
-export const objectField = field("object", {
+const objectField = field("object", {
 	component: ObjectField,
 	cell: ObjectCell,
 	config: {} as ObjectFieldConfig,
@@ -349,7 +349,7 @@ export const objectField = field("object", {
 	},
 });
 
-export const arrayField = field("array", {
+const arrayField = field("array", {
 	component: ArrayField,
 	cell: ArrayCell,
 	config: {} as ArrayFieldConfig,
@@ -417,7 +417,7 @@ export const arrayField = field("array", {
 // Upload Fields
 // ============================================================================
 
-export const uploadField = field("upload", {
+const uploadField = field("upload", {
 	component: UploadField,
 	cell: UploadCell,
 	config: {} as UploadFieldConfig,
@@ -439,7 +439,7 @@ export const uploadField = field("upload", {
 	},
 });
 
-export const assetPreviewField = field("assetPreview", {
+const assetPreviewField = field("assetPreview", {
 	component: AssetPreviewField,
 	cell: ({ row }: { value: unknown; row?: any }) => {
 		return <AssetThumbnail asset={row?.original} size="sm" />;
@@ -455,7 +455,7 @@ export const assetPreviewField = field("assetPreview", {
 // Rich Text & Embedded
 // ============================================================================
 
-export const richTextField = field("richText", {
+const richTextField = field("richText", {
 	component: RichTextField,
 	cell: RichTextCell,
 	config: {} as RichTextFieldConfig,
@@ -470,7 +470,7 @@ export const richTextField = field("richText", {
 // Block Fields
 // ============================================================================
 
-export const blocksField = field("blocks", {
+const blocksField = field("blocks", {
 	component: BlocksField,
 	cell: BlocksCell,
 	config: {} as BlocksFieldConfig,

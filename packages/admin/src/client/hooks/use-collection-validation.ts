@@ -17,7 +17,7 @@ import { useValidationErrorMap } from "./use-validation-error-map";
 /**
  * Result of useCollectionValidation hook
  */
-export interface CollectionValidationResult {
+interface CollectionValidationResult {
   /** Zod schema for the collection's fields */
   schema: z.ZodTypeAny | undefined;
   /** Error map for i18n support */

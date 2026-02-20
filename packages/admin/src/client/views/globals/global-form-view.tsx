@@ -85,7 +85,7 @@ function extractReactiveConfigs(
 /**
  * Props for GlobalFormView component
  */
-export interface GlobalFormViewProps {
+interface GlobalFormViewProps {
 	/**
 	 * Global name
 	 */

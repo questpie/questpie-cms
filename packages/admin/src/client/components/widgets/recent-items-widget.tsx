@@ -14,7 +14,7 @@ import { RecentItemsWidgetSkeleton } from "./widget-skeletons";
 /**
  * Recent items widget config (local type for component props)
  */
-export type RecentItemsWidgetConfig = {
+type RecentItemsWidgetConfig = {
   collection: string;
   limit?: number;
   /** Field to use as title (default: "_title") */
@@ -34,7 +34,7 @@ export type RecentItemsWidgetConfig = {
 /**
  * Recent items widget props
  */
-export type RecentItemsWidgetProps = {
+type RecentItemsWidgetProps = {
   config: RecentItemsWidgetConfig;
 };
 

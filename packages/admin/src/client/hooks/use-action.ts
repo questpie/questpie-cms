@@ -41,19 +41,19 @@ const QUERY_KEY_PREFIX = ["questpie", "collections"] as const;
 // Types
 // ============================================================================
 
-export interface UseActionHelpersOptions {
+interface UseActionHelpersOptions {
   /** Collection name */
   collection: string;
   /** Custom refresh callback */
   onRefresh?: () => void;
 }
 
-export interface UseActionHelpersReturn {
+interface UseActionHelpersReturn {
   /** Action helpers to pass to action components */
   helpers: ActionHelpers;
 }
 
-export interface UseActionsOptions<TItem = any> {
+interface UseActionsOptions<TItem = any> {
   /** Collection name */
   collection: string;
   /** Actions configuration from collection config */
@@ -62,7 +62,7 @@ export interface UseActionsOptions<TItem = any> {
   onRefresh?: () => void;
 }
 
-export interface UseActionsReturn<TItem = any> {
+interface UseActionsReturn<TItem = any> {
   /** Action helpers */
   helpers: ActionHelpers;
   /** Resolved actions config (with defaults) */
@@ -101,7 +101,7 @@ export interface UseActionsReturn<TItem = any> {
  * );
  * ```
  */
-export function useActionHelpers({
+function useActionHelpers({
   collection,
   onRefresh,
 }: UseActionHelpersOptions): UseActionHelpersReturn {
@@ -327,7 +327,7 @@ export function useActions<TItem = any>({
 // useActionExecution Hook
 // ============================================================================
 
-export interface UseActionExecutionOptions<TItem = any> {
+interface UseActionExecutionOptions<TItem = any> {
   /** Collection name */
   collection: string;
   /** Action helpers */
@@ -340,7 +340,7 @@ export interface UseActionExecutionOptions<TItem = any> {
  * Provides a function to execute an action with proper error handling
  * and loading state management.
  */
-export function useActionExecution<TItem = any>({
+function useActionExecution<TItem = any>({
   collection,
   helpers,
 }: UseActionExecutionOptions<TItem>) {

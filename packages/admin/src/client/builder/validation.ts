@@ -238,7 +238,7 @@ export function buildValidationSchema(
  * @param registry - Field registry from admin builder
  * @returns Zod schema with superRefine for custom validators
  */
-export function buildValidationSchemaWithCustom(
+function buildValidationSchemaWithCustom(
   fields: FieldsMap,
   registry: FieldRegistry,
 ): z.ZodTypeAny {
@@ -325,6 +325,3 @@ export function createFormSchema(
 // ============================================================================
 // Re-exports for convenience
 // ============================================================================
-
-export type { ZodBuildContext } from "./field/field";
-export { createFieldRegistryProxy as createRegistryProxy } from "./proxies";

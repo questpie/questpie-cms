@@ -68,7 +68,7 @@ import { AdminLayout, type AdminLayoutSharedProps } from "./admin-layout";
 // Types
 // ============================================================================
 
-export interface AdminLayoutProviderProps<
+interface AdminLayoutProviderProps<
   TApp extends Questpie<any> = Questpie<any>,
 > extends AdminLayoutSharedProps {
   /**

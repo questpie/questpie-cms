@@ -22,7 +22,7 @@ import type { FormViewActionsConfig } from "./field-types";
 /**
  * Proxy type for building actions with autocomplete
  */
-export interface ActionRegistryProxy<TItem = any> {
+interface ActionRegistryProxy<TItem = any> {
 	/**
 	 * Create action - navigates to create page (header action)
 	 */
@@ -292,7 +292,7 @@ export function createActionRegistryProxy<
 /**
  * Get default header actions for a collection
  */
-export function getDefaultHeaderActions<
+function getDefaultHeaderActions<
 	TItem = any,
 >(): HeaderActionsConfig<TItem> {
 	return {
@@ -304,7 +304,7 @@ export function getDefaultHeaderActions<
 /**
  * Get default bulk actions for a collection
  */
-export function getDefaultBulkActions<
+function getDefaultBulkActions<
 	TItem = any,
 >(): ActionDefinition<TItem>[] {
 	return [

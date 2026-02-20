@@ -115,7 +115,7 @@ export function removeBlockFromTree(
  * Move a block to a new position in the tree (remove + insert).
  * Used for cross-parent moves (e.g., from context menu).
  */
-export function moveBlockInTree(
+function moveBlockInTree(
   tree: BlockNode[],
   blockId: string,
   toPosition: InsertPosition,

@@ -58,7 +58,7 @@ export function parsePrefillParams(
 /**
  * Parse prefill parameters from URL string
  */
-export function parsePrefillParamsFromUrl(
+function parsePrefillParamsFromUrl(
   url: string,
 ): Record<string, unknown> {
   try {
@@ -74,7 +74,7 @@ export function parsePrefillParamsFromUrl(
  *
  * @returns Object with field names as keys and prefill values
  */
-export function usePrefillParams(): Record<string, unknown> {
+function usePrefillParams(): Record<string, unknown> {
   const [prefill, setPrefill] = React.useState<Record<string, unknown>>({});
 
   React.useEffect(() => {

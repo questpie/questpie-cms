@@ -27,7 +27,7 @@ import { TableWidgetSkeleton } from "./widget-skeletons";
 /**
  * Table widget props
  */
-export interface TableWidgetProps {
+interface TableWidgetProps {
   config: TableWidgetConfig;
   /** Base path for navigation */
   basePath?: string;

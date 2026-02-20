@@ -15,7 +15,7 @@ import { useResolveText } from "../../i18n/hooks";
 import { RelationPicker, type RelationPickerProps } from "./relation-picker";
 import { RelationSelect, type RelationSelectProps } from "./relation-select";
 
-export type RelationFieldProps<T extends Questpie<any>> = {
+type RelationFieldProps<T extends Questpie<any>> = {
   /**
    * Field name (for react-hook-form)
    */

@@ -62,7 +62,7 @@ export function CheckboxInput({
  * />
  * ```
  */
-export function CheckboxGroup<TValue extends string = string>({
+function CheckboxGroup<TValue extends string = string>({
   value,
   onChange,
   options,
@@ -139,7 +139,7 @@ export function CheckboxGroup<TValue extends string = string>({
  * />
  * ```
  */
-export function RadioGroup<TValue extends string = string>({
+function RadioGroup<TValue extends string = string>({
   value,
   onChange,
   options,

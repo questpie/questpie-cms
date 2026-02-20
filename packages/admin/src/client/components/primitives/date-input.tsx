@@ -298,7 +298,7 @@ export function DateTimeInput({
  * />
  * ```
  */
-export function DateRangeInput({
+function DateRangeInput({
   value,
   onChange,
   minDate,

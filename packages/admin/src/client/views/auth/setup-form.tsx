@@ -25,7 +25,7 @@ export type SetupFormValues = {
   confirmPassword: string;
 };
 
-export type SetupFormProps = {
+type SetupFormProps = {
   /** Called when form is submitted with valid data */
   onSubmit: (values: SetupFormValues) => Promise<void>;
   /** Default values */

@@ -26,7 +26,7 @@ const SEARCH_PARAMS_EVENT = "questpie:searchparamschange";
 // Types
 // ============================================================================
 
-export type BlockEditorLayoutProps = {
+type BlockEditorLayoutProps = {
 	/** Custom class name */
 	className?: string;
 	/** Minimum height for the editor */

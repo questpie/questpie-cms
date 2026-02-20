@@ -20,7 +20,7 @@ import {
 import { Button } from "../ui/button";
 import type { ConfirmationConfig } from "../../builder/types/action-types";
 
-export interface ConfirmationDialogProps {
+interface ConfirmationDialogProps {
   /** Whether the dialog is open */
   open: boolean;
   /** Callback when dialog should close */

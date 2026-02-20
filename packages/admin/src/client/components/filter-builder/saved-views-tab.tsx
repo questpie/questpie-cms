@@ -5,7 +5,7 @@ import { Button } from "../ui/button.js";
 import { Input } from "../ui/input.js";
 import type { FilterBuilderProps, SavedView } from "./types.js";
 
-export interface SavedViewsTabProps {
+interface SavedViewsTabProps {
 	collection: string;
 	currentConfig: FilterBuilderProps["currentConfig"];
 	savedViews: SavedView[];

@@ -435,12 +435,12 @@ const SaveSubmitButton = React.memo(function SaveSubmitButton({
  *
  * Re-exports FormViewConfig for type consistency between builder and component.
  */
-export type FormViewRegistryConfig = FormViewConfig;
+type FormViewRegistryConfig = FormViewConfig;
 
 /**
  * Props for FormView component
  */
-export interface FormViewProps {
+interface FormViewProps {
 	/**
 	 * Collection name
 	 */

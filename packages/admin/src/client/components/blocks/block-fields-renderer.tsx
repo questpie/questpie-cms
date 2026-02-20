@@ -18,7 +18,7 @@ import { buildFieldDefinitionsFromMetadata } from "../../utils/build-field-defin
 // Types
 // ============================================================================
 
-export type BlockFieldsRendererProps = {
+type BlockFieldsRendererProps = {
 	/** Block ID for scoping field names */
 	blockId: string;
 	/** Block schema containing field definitions */

@@ -11,10 +11,10 @@ import { selectClient, useAdminStore } from "../runtime";
 import type { AdminConfigResponse } from "../types/admin-config";
 
 /** Query key for admin config */
-export const adminConfigQueryKey = ["questpie", "admin", "config"] as const;
+const adminConfigQueryKey = ["questpie", "admin", "config"] as const;
 
 /** Query options factory for admin config */
-export function getAdminConfigQueryOptions(client: unknown) {
+function getAdminConfigQueryOptions(client: unknown) {
 	return {
 		queryKey: adminConfigQueryKey,
 		queryFn: async (): Promise<AdminConfigResponse> => {

@@ -20,7 +20,7 @@ import { selectClient, useAdminStore } from "./provider";
 // Types
 // ============================================================================
 
-export interface ContentLocale {
+interface ContentLocale {
   /** Locale code (e.g. "en", "sk", "en-US") */
   code: string;
   /** Human-readable label (e.g. "English", "Slovenčina") */
@@ -31,7 +31,7 @@ export interface ContentLocale {
   flagCountryCode?: string;
 }
 
-export interface ContentLocalesData {
+interface ContentLocalesData {
   /** Available content locales */
   locales: ContentLocale[];
   /** Default locale code */
@@ -40,7 +40,7 @@ export interface ContentLocalesData {
   fallbacks?: Record<string, string>;
 }
 
-export interface ContentLocalesContextValue extends ContentLocalesData {
+interface ContentLocalesContextValue extends ContentLocalesData {
   /** Check if localization is enabled (more than one locale) */
   isLocalized: boolean;
   /** Get the human-readable label for a locale code */
@@ -76,7 +76,7 @@ const DEFAULT_LOCALES: ContentLocalesData = {
 // Provider Component
 // ============================================================================
 
-export interface ContentLocalesProviderProps {
+interface ContentLocalesProviderProps {
   children: ReactNode;
 }
 
@@ -185,7 +185,7 @@ export function ContentLocalesProvider({
  * }
  * ```
  */
-export function useContentLocales(): ContentLocalesContextValue {
+function useContentLocales(): ContentLocalesContextValue {
   const context = useContext(ContentLocalesContext);
   if (!context) {
     throw new Error(

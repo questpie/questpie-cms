@@ -20,7 +20,7 @@ import { BlockItem } from "./block-item.js";
 // Types
 // ============================================================================
 
-export type BlockTreeProps = {
+type BlockTreeProps = {
 	/** Block nodes to render */
 	blocks: BlockNode[];
 	/** Nesting level (0 = root) */

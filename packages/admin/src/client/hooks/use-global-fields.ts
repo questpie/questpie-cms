@@ -15,7 +15,7 @@ import {
 } from "../utils/build-field-definitions-from-schema";
 import { useGlobalSchema } from "./use-global-schema";
 
-export interface UseGlobalFieldsOptions {
+interface UseGlobalFieldsOptions {
   /**
    * React Query options for schema fetching
    */

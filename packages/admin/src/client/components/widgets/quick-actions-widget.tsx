@@ -16,7 +16,7 @@ import { WidgetCard } from "../../views/dashboard/widget-card";
 /**
  * Quick actions widget props
  */
-export interface QuickActionsWidgetProps {
+interface QuickActionsWidgetProps {
   config: QuickActionsWidgetConfig;
   basePath?: string;
   navigate?: (path: string) => void;

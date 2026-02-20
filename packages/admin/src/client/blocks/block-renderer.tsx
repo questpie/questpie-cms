@@ -31,7 +31,7 @@ const EMPTY_DATA: Record<string, unknown> = {};
  * Block renderer function type.
  * Consumers provide their own renderers mapped by block type.
  */
-export type BlockRendererFn = (props: {
+type BlockRendererFn = (props: {
 	id: string;
 	type: string;
 	values: Record<string, unknown>;

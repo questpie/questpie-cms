@@ -88,7 +88,7 @@ function normalizeAccept(
 // Types
 // ============================================================================
 
-export interface UploadFieldProps extends BaseFieldProps {
+interface UploadFieldProps extends BaseFieldProps {
 	/**
 	 * Target collection for uploads
 	 */

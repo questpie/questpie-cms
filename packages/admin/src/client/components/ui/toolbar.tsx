@@ -5,7 +5,7 @@ import { cn } from "../../lib/utils";
 // Toolbar
 // ============================================================================
 
-export interface ToolbarProps extends React.ComponentProps<"div"> {
+interface ToolbarProps extends React.ComponentProps<"div"> {
   /**
    * Children elements
    */
@@ -52,7 +52,7 @@ export function Toolbar({
 // ToolbarSection
 // ============================================================================
 
-export interface ToolbarSectionProps extends React.ComponentProps<"div"> {
+interface ToolbarSectionProps extends React.ComponentProps<"div"> {
   /**
    * Children elements
    */
@@ -82,7 +82,7 @@ export function ToolbarSection({
 // ToolbarSeparator
 // ============================================================================
 
-export interface ToolbarSeparatorProps extends React.ComponentProps<"div"> {}
+interface ToolbarSeparatorProps extends React.ComponentProps<"div"> {}
 
 /**
  * ToolbarSeparator - Vertical separator between toolbar sections
@@ -104,7 +104,7 @@ export function ToolbarSeparator({
 // ToolbarGroup
 // ============================================================================
 
-export interface ToolbarGroupProps extends React.ComponentProps<"div"> {
+interface ToolbarGroupProps extends React.ComponentProps<"div"> {
   /**
    * Children elements
    */
@@ -114,7 +114,7 @@ export interface ToolbarGroupProps extends React.ComponentProps<"div"> {
 /**
  * ToolbarGroup - Tightly grouped toolbar buttons (no gap)
  */
-export function ToolbarGroup({
+function ToolbarGroup({
   children,
   className,
   ...props

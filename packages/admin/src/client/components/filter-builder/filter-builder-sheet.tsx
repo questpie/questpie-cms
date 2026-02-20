@@ -22,7 +22,7 @@ import type {
 // Module-level constant for empty array to avoid recreating on each render
 const EMPTY_SAVED_VIEWS: SavedView[] = [];
 
-export interface FilterBuilderSheetProps extends FilterBuilderProps {
+interface FilterBuilderSheetProps extends FilterBuilderProps {
 	/** Default columns from .list() config or auto-detection, used for reset */
 	defaultColumns?: string[];
 

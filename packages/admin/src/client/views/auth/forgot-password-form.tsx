@@ -21,7 +21,7 @@ export type ForgotPasswordFormValues = {
   email: string;
 };
 
-export type ForgotPasswordFormProps = {
+type ForgotPasswordFormProps = {
   /** Called when form is submitted with valid data */
   onSubmit: (values: ForgotPasswordFormValues) => Promise<void>;
   /** Called when back to login link is clicked */

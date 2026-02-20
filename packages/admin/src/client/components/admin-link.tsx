@@ -18,7 +18,7 @@ import type { CollectionNames, GlobalNames } from "../builder";
 // Types
 // ============================================================================
 
-export interface AdminLinkProps<TApp extends Questpie<any>> extends Omit<
+interface AdminLinkProps<TApp extends Questpie<any>> extends Omit<
   React.AnchorHTMLAttributes<HTMLAnchorElement>,
   "href"
 > {
@@ -134,7 +134,7 @@ export function AdminLink<TApp extends Questpie<any>>({
 /**
  * Link to a collection list
  */
-export function CollectionLink<TApp extends Questpie<any>>({
+function CollectionLink<TApp extends Questpie<any>>({
   collection,
   ...rest
 }: Omit<AdminLinkProps<TApp>, "to" | "global" | "pageId" | "action" | "id"> & {
@@ -146,7 +146,7 @@ export function CollectionLink<TApp extends Questpie<any>>({
 /**
  * Link to create a new item in a collection
  */
-export function CollectionCreateLink<TApp extends Questpie<any>>({
+function CollectionCreateLink<TApp extends Questpie<any>>({
   collection,
   ...rest
 }: Omit<AdminLinkProps<TApp>, "to" | "global" | "pageId" | "action" | "id"> & {
@@ -174,7 +174,7 @@ export function CollectionEditLink<TApp extends Questpie<any>>({
 /**
  * Link to a global settings page
  */
-export function GlobalLink<TApp extends Questpie<any>>({
+function GlobalLink<TApp extends Questpie<any>>({
   global,
   ...rest
 }: Omit<
@@ -189,7 +189,7 @@ export function GlobalLink<TApp extends Questpie<any>>({
 /**
  * Link to dashboard
  */
-export function DashboardLink<TApp extends Questpie<any>>(
+function DashboardLink<TApp extends Questpie<any>>(
   props: Omit<
     AdminLinkProps<TApp>,
     "to" | "collection" | "global" | "pageId" | "action" | "id"

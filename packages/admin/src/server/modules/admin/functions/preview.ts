@@ -302,7 +302,7 @@ const getPreviewUrlOutputSchema = z.object({
  * // Returns: "/about?preview=true"
  * ```
  */
-export const getPreviewUrl = fn({
+const getPreviewUrl = fn({
 	type: "query",
 	schema: getPreviewUrlSchema,
 	outputSchema: getPreviewUrlOutputSchema,

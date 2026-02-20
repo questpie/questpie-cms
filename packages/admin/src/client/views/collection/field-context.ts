@@ -57,7 +57,7 @@ export type FieldContext = {
  * Get field type from FieldDefinition
  * FieldDefinition.name contains the type name (e.g., "text", "relation")
  */
-export function getFieldType(
+function getFieldType(
 	fieldDef: FieldDefinition | undefined,
 ): string | undefined {
 	if (!fieldDef) return undefined;
@@ -81,7 +81,7 @@ export function getFieldOptions(
  * Get field component from FieldDefinition
  * Component is stored in field.component
  */
-export function getFieldComponent(
+function getFieldComponent(
 	fieldDef: FieldDefinition | undefined,
 ): React.ComponentType<any> | undefined {
 	if (!fieldDef?.field?.component) return undefined;
@@ -120,7 +120,7 @@ export function resolveValue<T>(
  * const context = getFieldContext({ ..., formValues: watchedValues });
  * ```
  */
-export function getFormValues(form: any, fieldPrefix?: string) {
+function getFormValues(form: any, fieldPrefix?: string) {
 	if (!form?.watch) return {};
 	const values = fieldPrefix ? form.watch(fieldPrefix) : form.watch();
 	return values ?? {};
@@ -134,7 +134,7 @@ export function getFullFieldName(fieldName: string, fieldPrefix?: string) {
 // Field Context Factory
 // ============================================================================
 
-export interface GetFieldContextParams {
+interface GetFieldContextParams {
 	fieldName: string;
 	fieldDef?: FieldDefinition;
 	collection: string;
@@ -248,7 +248,7 @@ export function getFieldContext({
 /**
  * Raw component props with I18nText (needs resolution before passing to components)
  */
-export type RawComponentProps = {
+type RawComponentProps = {
 	name: string;
 	value: any;
 	onChange: (value: any) => void;

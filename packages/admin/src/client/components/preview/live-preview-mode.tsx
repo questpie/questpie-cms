@@ -54,7 +54,7 @@ export function useLivePreviewContext() {
 // Types
 // ============================================================================
 
-export interface LivePreviewModeProps {
+interface LivePreviewModeProps {
   /** Whether preview mode is open */
   open: boolean;
   /** Callback to close preview mode */
@@ -367,12 +367,12 @@ export function LivePreviewMode({
 // Trigger Button Component
 // ============================================================================
 
-export interface LivePreviewButtonProps {
+interface LivePreviewButtonProps {
   onClick: () => void;
   disabled?: boolean;
 }
 
-export function LivePreviewButton({
+function LivePreviewButton({
   onClick,
   disabled,
 }: LivePreviewButtonProps) {

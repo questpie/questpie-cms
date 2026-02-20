@@ -16,7 +16,7 @@ import { useBlockDefinition } from "./block-editor-context.js";
 // Types
 // ============================================================================
 
-export type BlockTypeIconProps = {
+type BlockTypeIconProps = {
 	/** Block type name */
 	type: string;
 	/** Custom class name */

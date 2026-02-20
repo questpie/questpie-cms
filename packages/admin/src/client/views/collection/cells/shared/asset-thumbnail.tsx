@@ -17,7 +17,7 @@ import { cn } from "../../../../lib/utils";
 // Types
 // ============================================================================
 
-export interface AssetThumbnailProps {
+interface AssetThumbnailProps {
 	/**
 	 * Asset object or ID
 	 */

@@ -24,7 +24,7 @@ export type ResetPasswordFormValues = {
   confirmPassword: string;
 };
 
-export type ResetPasswordFormProps = {
+type ResetPasswordFormProps = {
   /** Reset token from URL */
   token: string;
   /** Called when form is submitted with valid data */

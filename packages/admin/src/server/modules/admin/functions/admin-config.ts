@@ -510,7 +510,7 @@ const getAdminConfigOutputSchema = z.object({
  * const config = await client.rpc.getAdminConfig({});
  * ```
  */
-export const getAdminConfig = fn({
+const getAdminConfig = fn({
 	type: "query",
 	schema: getAdminConfigSchema,
 	outputSchema: getAdminConfigOutputSchema,

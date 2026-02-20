@@ -60,7 +60,7 @@ export function useGlobalMeta<K extends ResolvedGlobalNames>(
  * Query key for global meta
  * Useful for prefetching or invalidation
  */
-export function getGlobalMetaQueryKey(global: string) {
+function getGlobalMetaQueryKey(global: string) {
 	return ["questpie", "globals", global, "meta"] as const;
 }
 
@@ -80,7 +80,7 @@ export function getGlobalMetaQueryKey(global: string) {
  * });
  * ```
  */
-export function getGlobalMetaQueryOptions(global: string, client: any) {
+function getGlobalMetaQueryOptions(global: string, client: any) {
 	return {
 		queryKey: getGlobalMetaQueryKey(global),
 		queryFn: async (): Promise<GlobalMeta> => {
@@ -111,7 +111,7 @@ export function getGlobalMetaQueryOptions(global: string, client: any) {
  * </Suspense>
  * ```
  */
-export function useSuspenseGlobalMeta<K extends ResolvedGlobalNames>(
+function useSuspenseGlobalMeta<K extends ResolvedGlobalNames>(
 	global: K,
 ) {
 	const client = useAdminStore(selectClient);

@@ -17,6 +17,7 @@ import {
 	useEffect,
 	useMemo,
 	useRef,
+	useState,
 } from "react";
 import { createStore, useStore } from "zustand";
 import type { adminModule } from "#questpie/admin/server/index.js";
@@ -588,7 +589,7 @@ export function useAdminStore<T>(selector: (state: AdminState) => T): T {
  * const hasProvider = useHasAdminProvider();
  * ```
  */
-export function useHasAdminProvider(): boolean {
+function useHasAdminProvider(): boolean {
 	const store = useContext(AdminStoreContext);
 	return store !== null;
 }
@@ -597,7 +598,7 @@ export function useHasAdminProvider(): boolean {
  * Get the raw store from context (or null if outside provider).
  * For advanced use cases where you need conditional store access.
  */
-export function useAdminStoreRaw(): AdminStore | null {
+function useAdminStoreRaw(): AdminStore | null {
 	return useContext(AdminStoreContext);
 }
 

@@ -201,7 +201,7 @@ export function RelationCell({
  * Shows count badge with tooltip listing all items for navigation
  * Opens detail sheet on click
  */
-export function ReverseRelationCell({
+function ReverseRelationCell({
 	value,
 	fieldDef,
 }: {

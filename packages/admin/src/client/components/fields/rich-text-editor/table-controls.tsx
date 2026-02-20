@@ -17,7 +17,7 @@ import {
   PopoverTrigger,
 } from "../../ui/popover";
 
-export type TableControlsProps = {
+type TableControlsProps = {
   editor: Editor;
   disabled?: boolean;
   inTable: boolean;

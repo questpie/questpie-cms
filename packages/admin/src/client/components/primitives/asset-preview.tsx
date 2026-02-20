@@ -25,7 +25,7 @@ import { Skeleton } from "../ui/skeleton";
 // Types
 // ============================================================================
 
-export interface AssetPreviewProps {
+interface AssetPreviewProps {
 	/**
 	 * Asset data (from upload or existing record)
 	 */

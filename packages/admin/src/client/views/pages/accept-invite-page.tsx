@@ -23,7 +23,7 @@ import { Button } from "../../components/ui/button";
 import { Spinner } from "../../components/ui/spinner";
 import { Icon } from "@iconify/react";
 
-export interface AcceptInvitePageProps {
+interface AcceptInvitePageProps {
   /**
    * Invitation token from URL
    */

@@ -10,7 +10,7 @@ import type { IconComponent } from "./common";
 /**
  * Global metadata for navigation and display
  */
-export interface GlobalMeta {
+interface GlobalMeta {
   /** Display label - supports inline translations */
   label?: I18nText;
   /** Description - supports inline translations */
@@ -21,7 +21,7 @@ export interface GlobalMeta {
   hidden?: boolean;
 }
 
-export interface GlobalConfig<TApp = any> {
+interface GlobalConfig<TApp = any> {
   /**
    * Global metadata (for navigation/display)
    */

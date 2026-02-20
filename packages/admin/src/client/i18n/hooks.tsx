@@ -87,7 +87,7 @@ export function I18nProvider({
 /**
  * Get the i18n adapter (throws if not in provider)
  */
-export function useI18n(): I18nAdapter {
+function useI18n(): I18nAdapter {
   const adapter = useContext(I18nContext);
   if (!adapter) {
     throw new Error("useI18n must be used within I18nProvider");
@@ -131,21 +131,21 @@ export function useTranslation(): UseTranslationResult {
 /**
  * Get just the translate function
  */
-export function useT(): I18nAdapter["t"] {
+function useT(): I18nAdapter["t"] {
   return useI18n().t;
 }
 
 /**
  * Get current locale
  */
-export function useLocale(): string {
+function useLocale(): string {
   return useI18n().locale;
 }
 
 /**
  * Get locale setter
  */
-export function useSetLocale(): I18nAdapter["setLocale"] {
+function useSetLocale(): I18nAdapter["setLocale"] {
   return useI18n().setLocale;
 }
 
@@ -275,7 +275,7 @@ export function useResolveText(): (
  *
  * @param locale - Optional locale to use for locale maps (defaults to "en")
  */
-export function resolveTextSync(
+function resolveTextSync(
   text: I18nText | undefined,
   fallback = "",
   locale = DEFAULT_LOCALE,
@@ -309,7 +309,7 @@ export function resolveTextSync(
  * <Text text={{ key: "common.save" }} />
  * ```
  */
-export function Text({
+function Text({
   text,
   fallback = "",
   as: Component = "span",

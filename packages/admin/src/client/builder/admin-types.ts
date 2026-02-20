@@ -41,7 +41,7 @@ export type WidgetDefinitionMap = Record<string, WidgetDefinition<string, any>>;
 export type ComponentDefinitionMap = Record<string, MaybeLazyComponent<any>>;
 export type BlockDefinitionMap = Record<string, never>;
 
-export type EmptyMap = Record<never, never>;
+type EmptyMap = Record<never, never>;
 
 // ============================================================================
 // Admin Builder State
@@ -87,7 +87,7 @@ export interface AdminBuilderState<
 /**
  * Empty builder state - starting point
  */
-export interface EmptyBuilderState extends AdminBuilderState<any> {
+interface EmptyBuilderState extends AdminBuilderState<any> {
 	"~app": any;
 	fields: EmptyMap;
 	components: EmptyMap;
@@ -107,7 +107,7 @@ export interface EmptyBuilderState extends AdminBuilderState<any> {
 /**
  * Extract backend app type from AdminBuilder
  */
-export type ExtractBackendApp<TAdminBuilder> = TAdminBuilder extends {
+type ExtractBackendApp<TAdminBuilder> = TAdminBuilder extends {
 	state: { "~app": infer TApp };
 }
 	? TApp
@@ -116,7 +116,7 @@ export type ExtractBackendApp<TAdminBuilder> = TAdminBuilder extends {
 /**
  * Extract fields from AdminBuilder state
  */
-export type ExtractFields<TAdminBuilder> = TAdminBuilder extends {
+type ExtractFields<TAdminBuilder> = TAdminBuilder extends {
 	state: { fields: infer TFields };
 }
 	? TFields
@@ -125,7 +125,7 @@ export type ExtractFields<TAdminBuilder> = TAdminBuilder extends {
 /**
  * Extract list views from AdminBuilder state
  */
-export type ExtractListViews<TAdminBuilder> = TAdminBuilder extends {
+type ExtractListViews<TAdminBuilder> = TAdminBuilder extends {
 	state: { listViews: infer TViews };
 }
 	? TViews
@@ -134,7 +134,7 @@ export type ExtractListViews<TAdminBuilder> = TAdminBuilder extends {
 /**
  * Extract edit views from AdminBuilder state
  */
-export type ExtractEditViews<TAdminBuilder> = TAdminBuilder extends {
+type ExtractEditViews<TAdminBuilder> = TAdminBuilder extends {
 	state: { editViews: infer TViews };
 }
 	? TViews
@@ -143,7 +143,7 @@ export type ExtractEditViews<TAdminBuilder> = TAdminBuilder extends {
 /**
  * Extract blocks from AdminBuilder state
  */
-export type ExtractBlocks<TAdminBuilder> = TAdminBuilder extends {
+type ExtractBlocks<TAdminBuilder> = TAdminBuilder extends {
 	state: { blocks: infer TBlocks };
 }
 	? TBlocks
@@ -157,7 +157,7 @@ export type ExtractBlocks<TAdminBuilder> = TAdminBuilder extends {
  * Get view kind from either Builder (state.kind) or Definition (kind)
  * Normalizes the two patterns into one
  */
-export type GetViewKind<T> = T extends { state: { kind: infer K } }
+type GetViewKind<T> = T extends { state: { kind: infer K } }
 	? K
 	: T extends { kind: infer K }
 		? K

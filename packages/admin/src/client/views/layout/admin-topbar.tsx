@@ -13,12 +13,12 @@ import type { Breadcrumb } from "../../contexts/breadcrumb-context";
 import { useResolveText } from "../../i18n/hooks";
 import { cn } from "../../lib/utils";
 
-export type Theme = "light" | "dark" | "system";
+type Theme = "light" | "dark" | "system";
 
 // Module-level constant for empty array to avoid recreating on each render
 const EMPTY_BREADCRUMBS: Breadcrumb[] = [];
 
-export interface AdminTopbarProps {
+interface AdminTopbarProps {
 	onSearchOpen: () => void;
 	breadcrumbs?: Breadcrumb[];
 	theme?: Theme;

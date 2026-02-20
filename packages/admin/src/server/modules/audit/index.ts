@@ -12,14 +12,6 @@ import {
 } from "./hooks.js";
 
 export { auditLogCollection } from "./collections/audit-log.collection.js";
-export { auditCleanupJob } from "./jobs/audit-cleanup.job.js";
-export {
-	computeChanges,
-	createCollectionAuditHooks,
-	createGlobalAuditHooks,
-	extractLabel,
-} from "./hooks.js";
-
 /**
  * Options for the audit module.
  */

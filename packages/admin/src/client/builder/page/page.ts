@@ -13,7 +13,7 @@ export interface PageDefinition<TName extends string = string> {
   readonly path?: string;
 }
 
-export interface PageBuilderState {
+interface PageBuilderState {
   readonly name: string;
   readonly component: any;
   readonly path?: string;

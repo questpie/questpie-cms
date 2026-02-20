@@ -26,8 +26,7 @@ export type PreviewPaneRef = {
   sendFocusToPreview: (fieldPath: string) => void;
 };
 
-export type PreviewPaneProps = {
-  "use no memo";
+type PreviewPaneProps = {
   /** Preview URL */
   url: string;
   /** Selected block ID (for block editor integration) */
@@ -290,7 +289,7 @@ PreviewPane.displayName = "PreviewPane";
 // Preview Toggle Button
 // ============================================================================
 
-export type PreviewToggleButtonProps = {
+type PreviewToggleButtonProps = {
   /** Whether preview is currently visible */
   isPreviewVisible: boolean;
   /** Toggle handler */
@@ -302,7 +301,7 @@ export type PreviewToggleButtonProps = {
 /**
  * Button to toggle preview pane visibility.
  */
-export function PreviewToggleButton({
+function PreviewToggleButton({
   isPreviewVisible,
   onToggle,
   className,

@@ -72,7 +72,7 @@ export const gridColumnClasses: Record<number, string> = {
  * Grid column classes using container queries.
  * Parent must have @container class for these to work.
  */
-export const containerGridColumnClasses: Record<number, string> = {
+const containerGridColumnClasses: Record<number, string> = {
   1: "grid-cols-1",
   2: "grid-cols-1 @sm:grid-cols-2",
   3: "grid-cols-1 @sm:grid-cols-2 @lg:grid-cols-3",

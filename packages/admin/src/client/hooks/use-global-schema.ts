@@ -40,6 +40,6 @@ export function useGlobalSchema<K extends ResolvedGlobalNames>(
   });
 }
 
-export function getGlobalSchemaQueryKey(global: string) {
+function getGlobalSchemaQueryKey(global: string) {
   return ["questpie", "globals", global, "schema"] as const;
 }

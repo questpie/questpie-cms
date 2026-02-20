@@ -37,7 +37,7 @@ import { ChartWidgetSkeleton } from "./widget-skeletons";
 /**
  * Chart widget config (local type for component props)
  */
-export type ChartWidgetConfig = {
+type ChartWidgetConfig = {
   id: string;
   collection: string;
   /** Field to aggregate by (e.g., "createdAt" for time series, "status" for categories) */
@@ -63,7 +63,7 @@ export type ChartWidgetConfig = {
 /**
  * Chart widget props
  */
-export type ChartWidgetProps = {
+type ChartWidgetProps = {
   config: ChartWidgetConfig;
 };
 

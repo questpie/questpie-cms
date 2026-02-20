@@ -45,7 +45,7 @@ export function useDebouncedValue<T>(value: T, delay: number): T {
 /**
  * Facet definition for search queries
  */
-export interface SearchFacetDefinition {
+interface SearchFacetDefinition {
   field: string;
   limit?: number;
   sortBy?: "count" | "alpha";
@@ -54,7 +54,7 @@ export interface SearchFacetDefinition {
 /**
  * Search options for the hook
  */
-export interface UseSearchOptions {
+interface UseSearchOptions {
   /**
    * Collection to search in (required)
    */
@@ -99,7 +99,7 @@ export interface UseSearchOptions {
 /**
  * Search metadata attached to each result
  */
-export interface SearchMeta {
+interface SearchMeta {
   /** Relevance score from search */
   score: number;
   /** Highlighted snippets with <mark> tags */
@@ -116,7 +116,7 @@ export interface SearchMeta {
 /**
  * Populated search result - full record with search metadata
  */
-export interface PopulatedSearchResult<T = Record<string, any>> {
+interface PopulatedSearchResult<T = Record<string, any>> {
   /** Full record data (spread at top level) */
   [key: string]: any;
   /** Collection name */
@@ -128,7 +128,7 @@ export interface PopulatedSearchResult<T = Record<string, any>> {
 /**
  * Facet value with count
  */
-export interface SearchFacetValue {
+interface SearchFacetValue {
   value: string;
   count: number;
 }
@@ -136,7 +136,7 @@ export interface SearchFacetValue {
 /**
  * Facet result
  */
-export interface SearchFacetResult {
+interface SearchFacetResult {
   field: string;
   values: SearchFacetValue[];
   stats?: {
@@ -148,7 +148,7 @@ export interface SearchFacetResult {
 /**
  * Search response with populated records
  */
-export interface SearchResponse<T = Record<string, any>> {
+interface SearchResponse<T = Record<string, any>> {
   /** Full records with search metadata */
   docs: PopulatedSearchResult<T>[];
   /** Total count (accurate after access filtering) */
@@ -257,7 +257,7 @@ export function useSearch<T = Record<string, any>>(
  * await reindex("posts");
  * ```
  */
-export function useReindex() {
+function useReindex() {
   const client = useAdminStore(selectClient);
 
   return {
@@ -274,7 +274,7 @@ export function useReindex() {
 /**
  * Search options for global search (across all collections)
  */
-export interface UseGlobalSearchOptions {
+interface UseGlobalSearchOptions {
   /**
    * Search query string
    */

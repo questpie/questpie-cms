@@ -34,7 +34,7 @@ interface ErrorBoundaryState {
  * </ErrorBoundary>
  * ```
  */
-export class ErrorBoundary extends React.Component<
+class ErrorBoundary extends React.Component<
 	ErrorBoundaryProps,
 	ErrorBoundaryState
 > {
@@ -121,7 +121,7 @@ export function WidgetErrorBoundary({
  * </ViewErrorBoundary>
  * ```
  */
-export function ViewErrorBoundary({
+function ViewErrorBoundary({
 	children,
 	viewType,
 	collection,

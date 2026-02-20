@@ -31,7 +31,7 @@ import { cn } from "../../lib/utils";
 // Types
 // ============================================================================
 
-export interface WidgetCardProps {
+interface WidgetCardProps {
 	/** Widget title */
 	title?: string;
 	/** Widget description */

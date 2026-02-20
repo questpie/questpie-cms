@@ -12,15 +12,15 @@ import {
   DropdownMenuTrigger,
 } from "./ui/dropdown-menu";
 
-export type LocaleOption = {
+type LocaleOption = {
   code: string;
   label?: I18nText;
   flagCountryCode?: string;
 };
 
-export type LocaleSwitcherLabelMode = "code" | "name" | "both" | "none";
+type LocaleSwitcherLabelMode = "code" | "name" | "both" | "none";
 
-export interface LocaleSwitcherProps {
+interface LocaleSwitcherProps {
   locales: LocaleOption[];
   value?: string;
   onChange?: (locale: string) => void;

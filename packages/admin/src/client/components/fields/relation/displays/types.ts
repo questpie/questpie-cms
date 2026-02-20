@@ -173,7 +173,7 @@ const FIELD_TYPES_NEEDING_FIELD_DEF = new Set([
 /**
  * Resolved cell info for rendering
  */
-export interface ResolvedCell {
+interface ResolvedCell {
 	component: React.ComponentType<{
 		value: unknown;
 		row?: unknown;

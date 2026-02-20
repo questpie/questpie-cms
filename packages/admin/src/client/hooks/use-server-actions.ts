@@ -218,12 +218,12 @@ function mapServerAction(
 // Hook
 // ============================================================================
 
-export interface UseServerActionsOptions {
+interface UseServerActionsOptions {
 	/** Collection name */
 	collection: string;
 }
 
-export interface UseServerActionsReturn {
+interface UseServerActionsReturn {
 	/** Server-defined actions mapped to client ActionDefinitions */
 	serverActions: ActionDefinition[];
 	/** Whether schema is loading */

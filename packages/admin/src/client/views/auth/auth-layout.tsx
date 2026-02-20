@@ -12,7 +12,7 @@ import {
 } from "../../components/ui/card";
 import { cn } from "../../lib/utils";
 
-export type AuthLayoutProps = {
+type AuthLayoutProps = {
   /** Page title */
   title: string;
   /** Page description */

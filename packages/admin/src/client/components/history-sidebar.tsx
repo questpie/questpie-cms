@@ -25,7 +25,7 @@ type VersionItem = {
 	versionCreatedAt?: string | Date;
 };
 
-export interface HistorySidebarProps {
+interface HistorySidebarProps {
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
 	// Activity tab

@@ -21,7 +21,7 @@ import { ValueWidgetSkeleton } from "./widget-skeletons";
 /**
  * Value widget props
  */
-export interface ValueWidgetProps {
+interface ValueWidgetProps {
   config: ValueWidgetConfig;
 }
 

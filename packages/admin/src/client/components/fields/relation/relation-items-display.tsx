@@ -26,7 +26,7 @@ import { GridDisplay } from "./displays/grid-display";
 import { ListDisplay } from "./displays/list-display";
 import { TableDisplay } from "./displays/table-display";
 
-export interface RelationItemsDisplayProps {
+interface RelationItemsDisplayProps {
 	/**
 	 * Display mode
 	 */
@@ -173,10 +173,4 @@ export function RelationItemsDisplay({
 }
 
 // Re-export types for convenience
-export type {
-	CollectionFieldsConfig,
-	RelationDisplayFields,
-	RelationDisplayMode,
-	RelationDisplayProps,
-	RelationItemActions,
-} from "./displays";
+export type { RelationDisplayFields, RelationDisplayMode } from "./displays";

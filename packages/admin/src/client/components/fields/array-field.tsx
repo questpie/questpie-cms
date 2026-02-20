@@ -18,14 +18,14 @@ import type { ArrayFieldConfig } from "./field-types";
 import { LocaleBadge } from "./locale-badge";
 import { ObjectArrayField } from "./object-array-field";
 
-export type ArrayFieldItemType =
+type ArrayFieldItemType =
   | "text"
   | "number"
   | "email"
   | "textarea"
   | "select";
 
-export interface ArrayFieldProps
+interface ArrayFieldProps
   extends
     FieldComponentProps<any[]>,
     Pick<

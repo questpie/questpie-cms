@@ -5,7 +5,7 @@ import { cn } from "../../lib/utils";
 // Types
 // ============================================================================
 
-export interface EmptyStateProps {
+interface EmptyStateProps {
   /**
    * Title text (displayed in mono uppercase)
    * @example "NO_DATA_FOUND"

@@ -25,7 +25,7 @@ import type { RichTextEditorProps } from "./types";
  * />
  * ```
  */
-export function RichTextMinimal(props: Omit<RichTextEditorProps, "preset">) {
+function RichTextMinimal(props: Omit<RichTextEditorProps, "preset">) {
   return <RichTextEditor {...props} preset="minimal" />;
 }
 
@@ -47,7 +47,7 @@ export function RichTextMinimal(props: Omit<RichTextEditorProps, "preset">) {
  * />
  * ```
  */
-export function RichTextSimple(props: Omit<RichTextEditorProps, "preset">) {
+function RichTextSimple(props: Omit<RichTextEditorProps, "preset">) {
   return <RichTextEditor {...props} preset="simple" />;
 }
 
@@ -67,7 +67,7 @@ export function RichTextSimple(props: Omit<RichTextEditorProps, "preset">) {
  * />
  * ```
  */
-export function RichTextStandard(props: Omit<RichTextEditorProps, "preset">) {
+function RichTextStandard(props: Omit<RichTextEditorProps, "preset">) {
   return <RichTextEditor {...props} preset="standard" />;
 }
 
@@ -88,6 +88,6 @@ export function RichTextStandard(props: Omit<RichTextEditorProps, "preset">) {
  * />
  * ```
  */
-export function RichTextAdvanced(props: Omit<RichTextEditorProps, "preset">) {
+function RichTextAdvanced(props: Omit<RichTextEditorProps, "preset">) {
   return <RichTextEditor {...props} preset="advanced" />;
 }

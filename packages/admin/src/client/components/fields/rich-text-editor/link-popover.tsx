@@ -18,7 +18,7 @@ import {
 	PopoverTrigger,
 } from "../../ui/popover";
 
-export type LinkPopoverProps = {
+type LinkPopoverProps = {
 	editor: Editor | null;
 	open: boolean;
 	onOpenChange: (open: boolean) => void;

@@ -44,7 +44,7 @@ type ExtractAuthOptions<T extends Questpie<any>> =
 /**
  * Options for creating admin auth client
  */
-export type AdminAuthClientOptions = {
+type AdminAuthClientOptions = {
   /**
    * Base URL of the app API
    * @example 'http://localhost:3000'
@@ -135,7 +135,7 @@ export function createAdminAuthClient<T extends Questpie<any>>(
  * type MyAuthClient = AdminAuthClient<typeof app>
  * ```
  */
-export type AdminAuthClient<T extends Questpie<any>> = ReturnType<
+type AdminAuthClient<T extends Questpie<any>> = ReturnType<
   typeof createAdminAuthClient<T>
 >;
 
@@ -151,7 +151,7 @@ export type AdminAuthClient<T extends Questpie<any>> = ReturnType<
  * // Includes: { user: { id, email, name, role, ... }, session: { ... } }
  * ```
  */
-export type AdminSession<T extends Questpie<any>> =
+type AdminSession<T extends Questpie<any>> =
   AdminAuthClient<T>["$Infer"]["Session"];
 
 /**
@@ -165,7 +165,7 @@ export type AdminSession<T extends Questpie<any>> =
  * type MyUser = AdminUser<typeof app>
  * ```
  */
-export type AdminUser<T extends Questpie<any>> = AdminSession<T>["user"];
+type AdminUser<T extends Questpie<any>> = AdminSession<T>["user"];
 
 // ============================================================================
 // Hooks

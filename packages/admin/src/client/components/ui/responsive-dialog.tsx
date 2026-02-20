@@ -59,7 +59,7 @@ function useResponsiveDialog() {
   return context;
 }
 
-export interface ResponsiveDialogProps {
+interface ResponsiveDialogProps {
   children: React.ReactNode;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
@@ -124,7 +124,7 @@ function ResponsiveDialogTrigger({
   );
 }
 
-export interface ResponsiveDialogContentProps {
+interface ResponsiveDialogContentProps {
   children: React.ReactNode;
   className?: string;
 }
@@ -256,13 +256,10 @@ function ResponsiveDialogClose({
 }
 
 export {
-  ResponsiveDialog,
-  ResponsiveDialogTrigger,
-  ResponsiveDialogContent,
-  ResponsiveDialogHeader,
-  ResponsiveDialogTitle,
-  ResponsiveDialogDescription,
-  ResponsiveDialogFooter,
-  ResponsiveDialogClose,
-  useResponsiveDialog,
+	ResponsiveDialog,
+	ResponsiveDialogContent,
+	ResponsiveDialogHeader,
+	ResponsiveDialogTitle,
+	ResponsiveDialogDescription,
+	ResponsiveDialogFooter,
 };

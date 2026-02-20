@@ -69,12 +69,12 @@ type ResolvedCollectionNames =
 /**
  * Validation mode for the hook
  */
-export type ValidationMode = "create" | "update";
+type ValidationMode = "create" | "update";
 
 /**
  * Options for useServerValidation hook
  */
-export interface UseServerValidationOptions {
+interface UseServerValidationOptions {
 	/** Validation mode - determines which JSON Schema to use */
 	mode?: ValidationMode;
 	/** Whether to enable validation (defaults to true) */
@@ -84,7 +84,7 @@ export interface UseServerValidationOptions {
 /**
  * Result of useServerValidation hook
  */
-export interface ServerValidationResult<TFieldValues extends FieldValues> {
+interface ServerValidationResult<TFieldValues extends FieldValues> {
 	/** Resolver for react-hook-form, undefined if schema not available */
 	resolver: Resolver<TFieldValues> | undefined;
 	/** Whether server validation schema is available */
@@ -158,7 +158,7 @@ const DEFAULT_AJV_OPTIONS: AjvOptions = {
  * }
  * ```
  */
-export function useServerValidation<
+function useServerValidation<
 	K extends ResolvedCollectionNames,
 	TFieldValues extends FieldValues = FieldValues,
 >(

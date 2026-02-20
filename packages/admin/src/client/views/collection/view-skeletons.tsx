@@ -127,7 +127,7 @@ export function FormViewSkeleton() {
  *
  * Shows a loading state that mimics the rich text editor.
  */
-export function RichTextEditorSkeleton() {
+function RichTextEditorSkeleton() {
 	return (
 		<div className="space-y-2">
 			{/* Toolbar */}

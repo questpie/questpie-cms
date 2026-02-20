@@ -15,7 +15,7 @@ import {
 import { AuthLayout } from "../auth/auth-layout";
 import { InviteForm, type InviteFormValues } from "../auth/invite-form";
 
-export interface InvitePageProps {
+interface InvitePageProps {
   /**
    * Title shown on the invite page
    * @default "Invite User"

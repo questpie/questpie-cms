@@ -14,7 +14,7 @@ import { page } from "../page/page";
 /**
  * Login page - email/password authentication
  */
-export const loginPage = page("login", {
+const loginPage = page("login", {
   component: () => import("../../views/pages/login-page"),
   showInNav: false,
 }).path("/login");
@@ -22,7 +22,7 @@ export const loginPage = page("login", {
 /**
  * Forgot password page - request password reset email
  */
-export const forgotPasswordPage = page("forgot-password", {
+const forgotPasswordPage = page("forgot-password", {
   component: () => import("../../views/pages/forgot-password-page"),
   showInNav: false,
 }).path("/forgot-password");
@@ -30,7 +30,7 @@ export const forgotPasswordPage = page("forgot-password", {
 /**
  * Reset password page - set new password with token
  */
-export const resetPasswordPage = page("reset-password", {
+const resetPasswordPage = page("reset-password", {
   component: () => import("../../views/pages/reset-password-page"),
   showInNav: false,
 }).path("/reset-password");
@@ -38,7 +38,7 @@ export const resetPasswordPage = page("reset-password", {
 /**
  * Setup page - create first admin account
  */
-export const setupPage = page("setup", {
+const setupPage = page("setup", {
   component: () => import("../../views/pages/setup-page"),
   showInNav: false,
 }).path("/setup");
@@ -50,7 +50,7 @@ export const setupPage = page("setup", {
 /**
  * Dashboard page - main admin dashboard (already added as hardcoded item in buildNavigation)
  */
-export const dashboardPage = page("dashboard", {
+const dashboardPage = page("dashboard", {
   component: () => import("../../views/pages/dashboard-page"),
   showInNav: false,
 }).path("/");
@@ -74,7 +74,7 @@ export const builtInPages = {
  * Auth-only pages (without dashboard)
  * Includes setup page for first-time admin creation
  */
-export const authPages = {
+const authPages = {
   login: loginPage,
   forgotPassword: forgotPasswordPage,
   resetPassword: resetPasswordPage,

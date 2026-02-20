@@ -65,7 +65,7 @@ export function useValidationErrorMap(): ZodErrorMapFn {
  * @param t - Translate function
  * @returns Zod error map function
  */
-export function createAdminZodErrorMap(
+function createAdminZodErrorMap(
   t: (key: string, params?: Record<string, unknown>) => string,
 ): ZodErrorMapFn {
   return createZodErrorMap(t);

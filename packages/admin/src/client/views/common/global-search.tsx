@@ -45,7 +45,7 @@ interface SearchItem {
 	highlights?: { title?: string };
 }
 
-export interface GlobalSearchProps {
+interface GlobalSearchProps {
 	isOpen: boolean;
 	onClose: () => void;
 	navigate: (path: string) => void;

@@ -19,7 +19,7 @@ import { formatLabel } from "../lib/utils";
 /**
  * Collection route helpers
  */
-export type CollectionRoutes<TName extends string> = {
+type CollectionRoutes<TName extends string> = {
 	list: () => string;
 	create: () => string;
 	edit: (id: string) => string;
@@ -29,21 +29,21 @@ export type CollectionRoutes<TName extends string> = {
 /**
  * Global route helpers
  */
-export type GlobalRoutes = {
+type GlobalRoutes = {
 	edit: () => string;
 };
 
 /**
  * Page route helpers
  */
-export type PageRoutes = {
+type PageRoutes = {
 	view: () => string;
 };
 
 /**
  * All routes for an admin instance
  */
-export type AdminRoutes<TApp extends Questpie<any>> = {
+type AdminRoutes<TApp extends Questpie<any>> = {
 	dashboard: () => string;
 	collections: {
 		[K in CollectionNames<TApp> & string]: CollectionRoutes<K>;
@@ -67,7 +67,7 @@ export type AdminRoutes<TApp extends Questpie<any>> = {
 /**
  * Options for building routes
  */
-export type BuildRoutesOptions = {
+type BuildRoutesOptions = {
 	/**
 	 * Base path for admin routes (default: "/admin")
 	 */
@@ -91,7 +91,7 @@ export type BuildRoutesOptions = {
  * routes.globals.settings.edit(); // "/admin/globals/settings"
  * ```
  */
-export function buildRoutes<TApp extends Questpie<any>>(
+function buildRoutes<TApp extends Questpie<any>>(
 	admin: Admin,
 	options: BuildRoutesOptions = {},
 ): AdminRoutes<TApp> {

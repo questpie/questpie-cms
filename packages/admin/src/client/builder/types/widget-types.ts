@@ -538,7 +538,7 @@ export interface ProgressWidgetConfig extends BaseWidgetConfig {
 /**
  * Known widget types (for type narrowing)
  */
-export type KnownWidgetType =
+type KnownWidgetType =
   | "stats"
   | "chart"
   | "recentItems"
@@ -621,7 +621,7 @@ export interface WidgetComponentProps<TData = any> {
 /**
  * Widget data source configuration
  */
-export interface WidgetDataSource {
+interface WidgetDataSource {
   /**
    * Data source type
    */
@@ -695,7 +695,7 @@ export interface WidgetAction {
 /**
  * Extended dashboard configuration with widgets
  */
-export interface DashboardWidgetConfig {
+interface DashboardWidgetConfig {
   /**
    * Dashboard layout
    */

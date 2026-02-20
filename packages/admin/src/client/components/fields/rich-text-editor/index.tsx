@@ -29,18 +29,10 @@ import {
 	isSameValue,
 } from "./utils";
 
-export type { RichTextPreset } from "./presets";
 // Re-export types
-export type { RichTextEditorProps, RichTextFeatures } from "./types";
+export type { RichTextEditorProps } from "./types";
 
 // Re-export variant components
-export {
-	RichTextAdvanced,
-	RichTextMinimal,
-	RichTextSimple,
-	RichTextStandard,
-} from "./variants";
-
 /**
  * Main RichText Editor Component
  */

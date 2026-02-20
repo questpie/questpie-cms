@@ -112,7 +112,7 @@ import { TableViewSkeleton } from "./view-skeletons";
  *
  * Re-exports ListViewConfig for type consistency between builder and component.
  */
-export type TableViewConfig = ListViewConfig;
+type TableViewConfig = ListViewConfig;
 
 const actionRegistry = createActionRegistryProxy<any>();
 
@@ -215,7 +215,7 @@ function mapListSchemaToConfig(list?: {
 /**
  * Props for TableView component
  */
-export interface TableViewProps {
+interface TableViewProps {
 	/**
 	 * Collection name
 	 */

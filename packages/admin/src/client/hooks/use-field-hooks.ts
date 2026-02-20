@@ -22,7 +22,7 @@ import { trackDependencies } from "../utils/dependency-tracker.js";
 // Types
 // ============================================================================
 
-export interface UseFieldHooksOptions {
+interface UseFieldHooksOptions {
 	/**
 	 * Field name
 	 */
@@ -67,7 +67,7 @@ export interface UseFieldHooksOptions {
 	staticOptions?: SelectOption[];
 }
 
-export interface UseFieldHooksResult {
+interface UseFieldHooksResult {
 	/**
 	 * Wrapped onChange handler that calls user's onChange hook
 	 */

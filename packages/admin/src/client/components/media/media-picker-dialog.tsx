@@ -52,7 +52,7 @@ import { MediaGrid } from "./media-grid";
 // Types
 // ============================================================================
 
-export interface MediaPickerDialogProps {
+interface MediaPickerDialogProps {
 	/**
 	 * Dialog open state
 	 */
