@@ -164,6 +164,7 @@ export default function GlobalFormView({
 	onSuccess,
 	onError,
 }: GlobalFormViewProps) {
+	"use no memo";
 	const { t } = useTranslation();
 	const resolveText = useResolveText();
 

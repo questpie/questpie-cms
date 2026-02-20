@@ -15,14 +15,13 @@
 
 import { Icon } from "@iconify/react";
 import * as React from "react";
-import type {
-	ComponentRegistry,
-	DashboardConfig,
-	DefaultViewsConfig,
-	MaybeLazyComponent,
-	PageDefinition,
-} from "../../builder";
-import { Card, Skeleton } from "../../components/index.js";
+import type { DashboardConfig } from "../../builder/types/ui-config.js";
+import type { ComponentRegistry } from "../../builder/types/field-types.js";
+import type { DefaultViewsConfig } from "../../builder/types/views.js";
+import type { MaybeLazyComponent } from "../../builder/types/common.js";
+import type { PageDefinition } from "../../builder/page/page.js";
+import { Card } from "../../components/ui/card.js";
+import { Skeleton } from "../../components/ui/skeleton.js";
 import { useSuspenseAdminConfig } from "../../hooks/use-admin-config";
 import { useCollectionSchema } from "../../hooks/use-collection-schema";
 import { useGlobalSchema } from "../../hooks/use-global-schema";
@@ -187,27 +186,29 @@ function useRouterConfig(props: {
 	// Build collection/global configs from server config keys
 	// Hidden collections are included - they can be accessed via ResourceSheet
 	// but won't appear in navigation (handled by sidebar)
-	const serverCollections = React.useMemo<Record<string, any>>(() => {
-		if (props.collections) return props.collections;
-		const result: Record<string, any> = {};
+	let serverCollections: Record<string, any>;
+	if (props.collections) {
+		serverCollections = props.collections;
+	} else {
+		serverCollections = {};
 		if (serverConfig?.collections) {
 			for (const [name, meta] of Object.entries(serverConfig.collections)) {
-				result[name] = meta ?? {};
+				serverCollections[name] = meta ?? {};
 			}
 		}
-		return result;
-	}, [props.collections, serverConfig?.collections]);
+	}
 
-	const serverGlobals = React.useMemo<Record<string, any>>(() => {
-		if (props.globals) return props.globals;
-		const result: Record<string, any> = {};
+	let serverGlobals: Record<string, any>;
+	if (props.globals) {
+		serverGlobals = props.globals;
+	} else {
+		serverGlobals = {};
 		if (serverConfig?.globals) {
 			for (const [name, meta] of Object.entries(serverConfig.globals)) {
-				result[name] = meta ?? {};
+				serverGlobals[name] = meta ?? {};
 			}
 		}
-		return result;
-	}, [props.globals, serverConfig?.globals]);
+	}
 
 	// Server dashboard takes priority
 	const mergedDashboard = React.useMemo<DashboardConfig | undefined>(() => {
@@ -536,6 +537,7 @@ function DefaultDashboard({
 }: {
 	config?: DefaultViewsConfig["dashboard"];
 }) {
+	"use no memo";
 	const date = new Date().toLocaleDateString("en-US", {
 		weekday: "long",
 		year: "numeric",
@@ -638,6 +640,7 @@ function RestrictedAccess({
 }
 
 function LazyPageRenderer({ config }: { config: PageDefinition<string> }) {
+	"use no memo";
 	const [Component, setComponent] = React.useState<React.ComponentType | null>(
 		null,
 	);

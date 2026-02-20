@@ -120,6 +120,7 @@ export function RelationSelect<T extends Questpie<any>>({
 	renderOption,
 	renderValue,
 }: RelationSelectProps<T>) {
+	"use no memo";
 	const { t } = useTranslation();
 	const resolveText = useResolveText();
 	const resolvedLabel = label ? resolveText(label) : undefined;

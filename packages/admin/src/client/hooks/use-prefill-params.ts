@@ -131,4 +131,3 @@ export function buildPrefillUrl(
   return url.pathname + url.search;
 }
 
-export default usePrefillParams;

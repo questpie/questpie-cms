@@ -362,4 +362,3 @@ export function AdminLayoutProvider<TApp extends Questpie<any>>({
   return <QueryClientProvider client={qc}>{content}</QueryClientProvider>;
 }
 
-export default AdminLayoutProvider;

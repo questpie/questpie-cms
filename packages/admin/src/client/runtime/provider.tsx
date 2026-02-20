@@ -323,30 +323,28 @@ function LegacyI18nProvider({
 	customI18nAdapter,
 	children,
 }: LegacyI18nProviderProps): ReactElement {
-	const i18nAdapterRef = useRef<I18nAdapter | null>(null);
-	if (!i18nAdapterRef.current) {
+	const [i18nAdapter] = useState<I18nAdapter>(() => {
 		if (customI18nAdapter) {
-			i18nAdapterRef.current = customI18nAdapter;
-		} else {
-			// Get translations from admin builder state
-			const translations = admin.getTranslations() as
-				| Record<string, SimpleMessages>
-				| undefined;
-			const messages = mergeMessages(adminMessages, translations);
-
-			i18nAdapterRef.current = createSimpleI18n({
-				locale,
-				locales: localeConfig.supported ?? [DEFAULT_LOCALE],
-				messages,
-				fallbackLocale: defaultLocale,
-				// Persist UI locale to cookie when it changes
-				onLocaleChange: setUiLocaleCookie,
-			});
+			return customI18nAdapter;
 		}
-	}
+		// Get translations from admin builder state
+		const translations = admin.getTranslations() as
+			| Record<string, SimpleMessages>
+			| undefined;
+		const messages = mergeMessages(adminMessages, translations);
+
+		return createSimpleI18n({
+			locale,
+			locales: localeConfig.supported ?? [DEFAULT_LOCALE],
+			messages,
+			fallbackLocale: defaultLocale,
+			// Persist UI locale to cookie when it changes
+			onLocaleChange: setUiLocaleCookie,
+		});
+	});
 
 	return (
-		<I18nProvider adapter={i18nAdapterRef.current}>
+		<I18nProvider adapter={i18nAdapter}>
 			<ContentLocalesProvider>{children}</ContentLocalesProvider>
 		</I18nProvider>
 	);
@@ -425,8 +423,6 @@ export function AdminProvider({
 		initialContentLocale ?? getContentLocaleFromCookie() ?? defaultLocale;
 
 	// Create store (once per provider instance)
-	const storeRef = useRef<AdminStore | null>(null);
-
 	const realtimeConfig = useMemo(
 		() => ({
 			enabled:
@@ -435,8 +431,8 @@ export function AdminProvider({
 		[realtime],
 	);
 
-	if (!storeRef.current) {
-		storeRef.current = createAdminStore({
+	const [store] = useState(() =>
+		createAdminStore({
 			admin,
 			client,
 			authClient: authClient ?? null,
@@ -444,46 +440,43 @@ export function AdminProvider({
 			navigate,
 			realtime: realtimeConfig,
 			initialContentLocale: resolvedContentLocale,
-		});
-	}
+		}),
+	);
 
 	useEffect(() => {
-		if (storeRef.current) {
-			const store = storeRef.current;
-			const current = store.getState();
-			const nextAuthClient = authClient ?? null;
-			const patch: Partial<AdminState> = {};
+		const current = store.getState();
+		const nextAuthClient = authClient ?? null;
+		const patch: Partial<AdminState> = {};
 
-			if (current.admin !== admin || current.basePath !== basePath) {
-				patch.admin = admin;
-				patch.basePath = basePath;
-				patch.navigation = buildNavigation(admin, { basePath });
-			}
-
-			if (current.client !== client) {
-				patch.client = client as any;
-			}
-
-			if (current.authClient !== nextAuthClient) {
-				patch.authClient = nextAuthClient;
-			}
-
-			if (current.navigate !== navigate) {
-				patch.navigate = navigate;
-			}
-
-			if (current.realtime.enabled !== realtimeConfig.enabled) {
-				patch.realtime = realtimeConfig;
-			}
-
-			if (Object.keys(patch).length > 0) {
-				store.setState(patch);
-			}
+		if (current.admin !== admin || current.basePath !== basePath) {
+			patch.admin = admin;
+			patch.basePath = basePath;
+			patch.navigation = buildNavigation(admin, { basePath });
 		}
-	}, [admin, basePath, realtimeConfig, client, authClient, navigate]);
+
+		if (current.client !== client) {
+			patch.client = client as any;
+		}
+
+		if (current.authClient !== nextAuthClient) {
+			patch.authClient = nextAuthClient;
+		}
+
+		if (current.navigate !== navigate) {
+			patch.navigate = navigate;
+		}
+
+		if (current.realtime.enabled !== realtimeConfig.enabled) {
+			patch.realtime = realtimeConfig;
+		}
+
+		if (Object.keys(patch).length > 0) {
+			store.setState(patch);
+		}
+	}, [admin, basePath, realtimeConfig, client, authClient, navigate, store]);
 
 	// Get content locale from store for reactive updates
-	const contentLocale = useStore(storeRef.current, (s) => s.contentLocale);
+	const contentLocale = useStore(store, (s) => s.contentLocale);
 
 	// Sync content locale changes to API client
 	// This sets Accept-Language header for all API requests
@@ -514,7 +507,7 @@ export function AdminProvider({
 	);
 
 	return (
-		<AdminStoreContext.Provider value={storeRef.current}>
+		<AdminStoreContext.Provider value={store}>
 			<BrandingSync />
 			{i18nContent}
 		</AdminStoreContext.Provider>

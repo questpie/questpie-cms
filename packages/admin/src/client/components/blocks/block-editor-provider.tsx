@@ -57,9 +57,11 @@ export function BlockEditorProvider({
 	children,
 }: BlockEditorProviderProps) {
 	const onChangeRef = React.useRef(onChange);
-	onChangeRef.current = onChange;
+	React.useEffect(() => {
+		onChangeRef.current = onChange;
+	}, [onChange]);
 
-	const storeRef = React.useRef<StoreApi<BlockEditorStore>>(
+	const [store] = React.useState<StoreApi<BlockEditorStore>>(() =>
 		createStore<BlockEditorStore>((set, get) => {
 			const actions: BlockEditorActions = {
 				// Selection
@@ -261,7 +263,7 @@ export function BlockEditorProvider({
 	);
 
 	React.useEffect(() => {
-		const store = storeRef.current;
+		const store = store;
 		const state = store.getState();
 		const nextAllowedBlocks = allowedBlocks ?? null;
 
@@ -289,7 +291,7 @@ export function BlockEditorProvider({
 	}, [value, blocks, allowedBlocks, locale]);
 
 	return (
-		<BlockEditorContextProvider value={storeRef.current}>
+		<BlockEditorContextProvider value={store}>
 			{children}
 		</BlockEditorContextProvider>
 	);

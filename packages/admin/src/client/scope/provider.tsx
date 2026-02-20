@@ -9,7 +9,7 @@ import {
 	createContext,
 	useCallback,
 	useContext,
-	useEffect,
+
 	useState,
 } from "react";
 import type { ScopeContextValue, ScopeProviderProps } from "./types";
@@ -47,7 +47,6 @@ export function ScopeProvider({
 	storageKey,
 	defaultScope = null,
 }: ScopeProviderProps) {
-	const [isLoading, setIsLoading] = useState(!!storageKey);
 	const [scopeId, setScopeId] = useState<string | null>(() => {
 		// Don't access localStorage during SSR
 		if (typeof window === "undefined") {
@@ -60,16 +59,8 @@ export function ScopeProvider({
 		}
 		return defaultScope;
 	});
-
-	// Handle hydration mismatch - only run once on mount
-	// biome-ignore lint/correctness/useExhaustiveDependencies: intentionally only runs on mount
-	useEffect(() => {
-		if (storageKey && typeof window !== "undefined") {
-			const stored = localStorage.getItem(storageKey);
-			setScopeId(stored ?? defaultScope);
-			setIsLoading(false);
-		}
-	}, [storageKey]);
+	// Loading is only true during SSR - resolved immediately on client
+	const isLoading = false;
 
 	const setScope = useCallback(
 		(id: string | null) => {

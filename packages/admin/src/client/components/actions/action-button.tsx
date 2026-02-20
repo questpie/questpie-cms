@@ -66,6 +66,7 @@ export function ActionButton<TItem = any>({
   iconOnly = false,
   onOpenDialog,
 }: ActionButtonProps<TItem>): React.ReactElement | null {
+  "use no memo";
   const resolveText = useResolveText();
   const authClient = useAdminStore(selectAuthClient);
   const queryClient = useQueryClient();

@@ -63,7 +63,10 @@ export interface BulkUploadDialogProps {
 /**
  * File upload state
  */
+let fileIdCounter = 0;
+
 interface FileUploadState {
+	id: string;
 	file: File;
 	status: "pending" | "uploading" | "success" | "error";
 	progress: number;
@@ -206,6 +209,7 @@ export function BulkUploadDialog({
 	onClose,
 	onSuccess,
 }: BulkUploadDialogProps) {
+	"use no memo";
 	const { uploadMany } = useUpload();
 	const { t } = useTranslation();
 	const {
@@ -234,6 +238,7 @@ export function BulkUploadDialog({
 		});
 
 		const newFiles: FileUploadState[] = sanitizedFiles.map((file) => ({
+			id: `file-${++fileIdCounter}`,
 			file,
 			status: "pending",
 			progress: 0,
@@ -243,8 +248,8 @@ export function BulkUploadDialog({
 	};
 
 	// Handle remove file
-	const handleRemove = (index: number) => {
-		setFiles((prev) => prev.filter((_, i) => i !== index));
+	const handleRemove = (id: string) => {
+		setFiles((prev) => prev.filter((f) => f.id !== id));
 	};
 
 	// Handle upload all
@@ -267,33 +272,28 @@ export function BulkUploadDialog({
 		let failureCount = 0;
 
 		try {
-			// Get pending files
-			const filesToUpload = files
-				.filter((f) => f.status === "pending")
-				.map((f) => f.file);
+			// Get pending files with their IDs
+			const filesToUpload = files.filter((f) => f.status === "pending");
 
 			// Upload sequentially with progress tracking
-			for (let i = 0; i < filesToUpload.length; i++) {
-				const file = filesToUpload[i];
-				const fileIndex = files.findIndex(
-					(f) => f.file === file && f.status === "pending",
-				);
+			for (const fileState of filesToUpload) {
+				const fileId = fileState.id;
 
 				// Mark as uploading
 				setFiles((prev) =>
-					prev.map((f, idx) =>
-						idx === fileIndex ? { ...f, status: "uploading" as const } : f,
+					prev.map((f) =>
+						f.id === fileId ? { ...f, status: "uploading" as const } : f,
 					),
 				);
 
 				try {
 					// Upload file
-					const asset = await uploadMany([file], {
+					const asset = await uploadMany([fileState.file], {
 						to: resolvedCollection,
 						onProgress: (progress) => {
 							setFiles((prev) =>
-								prev.map((f, idx) =>
-									idx === fileIndex ? { ...f, progress } : f,
+								prev.map((f) =>
+									f.id === fileId ? { ...f, progress } : f,
 								),
 							);
 						},
@@ -301,8 +301,8 @@ export function BulkUploadDialog({
 
 					// Mark as success
 					setFiles((prev) =>
-						prev.map((f, idx) =>
-							idx === fileIndex
+						prev.map((f) =>
+							f.id === fileId
 								? {
 										...f,
 										status: "success" as const,
@@ -319,8 +319,8 @@ export function BulkUploadDialog({
 						err instanceof Error ? err.message : "Upload failed";
 
 					setFiles((prev) =>
-						prev.map((f, idx) =>
-							idx === fileIndex
+						prev.map((f) =>
+							f.id === fileId
 								? { ...f, status: "error" as const, error: errorMessage }
 								: f,
 						),
@@ -406,13 +406,13 @@ export function BulkUploadDialog({
 							</div>
 
 							<div className="space-y-2">
-								{files.map((file, index) => (
+								{files.map((file) => (
 									<FileItem
-										key={`${file.file.name}-${index}`}
+										key={file.id}
 										file={file}
 										onRemove={
 											file.status === "pending"
-												? () => handleRemove(index)
+												? () => handleRemove(file.id)
 												: undefined
 										}
 									/>

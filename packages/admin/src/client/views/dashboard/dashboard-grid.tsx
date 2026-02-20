@@ -356,7 +356,6 @@ function LayoutItemRenderer({
 	if (isSectionConfig(item)) {
 		return (
 			<SectionRenderer
-				key={`section-${index}`}
 				section={item}
 				basePath={basePath}
 				navigate={navigate}
@@ -371,7 +370,6 @@ function LayoutItemRenderer({
 	if (isTabsConfig(item)) {
 		return (
 			<TabsRenderer
-				key={`tabs-${index}`}
 				tabs={item}
 				basePath={basePath}
 				navigate={navigate}
@@ -737,4 +735,3 @@ export function DashboardGrid({
 	);
 }
 
-export default DashboardGrid;

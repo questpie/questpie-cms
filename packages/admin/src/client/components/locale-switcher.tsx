@@ -1,6 +1,6 @@
 import { Icon } from "@iconify/react";
 import type * as React from "react";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useResolveText } from "../i18n/hooks";
 import type { I18nText } from "../i18n/types";
 import { cn } from "../lib/utils";
@@ -54,15 +54,12 @@ export function LocaleSwitcher({
   const canSwitch = !!onChange && localeOptions.length > 1;
   const useDropdown = localeOptions.length >= DROPDOWN_THRESHOLD;
 
-  const flagMapping = useMemo(() => {
-    const mapping: Record<string, string> = {};
-    for (const locale of localeOptions) {
-      if (locale.flagCountryCode) {
-        mapping[locale.code.toLowerCase()] = locale.flagCountryCode;
-      }
+  const flagMapping: Record<string, string> = {};
+  for (const locale of localeOptions) {
+    if (locale.flagCountryCode) {
+      flagMapping[locale.code.toLowerCase()] = locale.flagCountryCode;
     }
-    return mapping;
-  }, [localeOptions]);
+  }
   const hasCustomMapping = Object.keys(flagMapping).length > 0;
 
   const getLocaleFlagUrl = (code: string, size = 24) =>
@@ -74,28 +71,30 @@ export function LocaleSwitcher({
   const nameLabel = currentLocale.label
     ? resolveText(currentLocale.label)
     : codeLabel;
-  const renderLabel = () => {
-    switch (labelMode) {
-      case "none":
-        return null;
-      case "name":
-        return <span className="font-medium">{nameLabel}</span>;
-      case "both":
-        return (
-          <span className="flex items-center gap-1">
-            <span className="uppercase tracking-wide">{codeLabel}</span>
-            {currentLocale.label && (
-              <span className="font-normal text-muted-foreground">
-                {resolveText(currentLocale.label)}
-              </span>
-            )}
-          </span>
-        );
-      case "code":
-      default:
-        return <span className="uppercase tracking-wide">{codeLabel}</span>;
-    }
-  };
+  let labelElement: React.ReactNode = null;
+  switch (labelMode) {
+    case "none":
+      break;
+    case "name":
+      labelElement = <span className="font-medium">{nameLabel}</span>;
+      break;
+    case "both":
+      labelElement = (
+        <span className="flex items-center gap-1">
+          <span className="uppercase tracking-wide">{codeLabel}</span>
+          {currentLocale.label && (
+            <span className="font-normal text-muted-foreground">
+              {resolveText(currentLocale.label)}
+            </span>
+          )}
+        </span>
+      );
+      break;
+    case "code":
+    default:
+      labelElement = <span className="uppercase tracking-wide">{codeLabel}</span>;
+      break;
+  }
 
   const baseClassName = cn(
     "inline-flex items-center gap-1 rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground",
@@ -117,7 +116,7 @@ export function LocaleSwitcher({
           onError={() => setImgError(true)}
         />
       )}
-      {renderLabel()}
+      {labelElement}
     </>
   );
 

@@ -93,6 +93,7 @@ export function LoginPage({
   showForgotPassword = true,
   showSignUp = false,
 }: LoginPageProps) {
+  "use no memo";
   const authClient = useAuthClient();
   const navigate = useAdminStore(selectNavigate);
   const basePath = useAdminStore(selectBasePath);
@@ -167,4 +168,3 @@ function DefaultLogo({ brandName }: { brandName: string }) {
   );
 }
 
-export default LoginPage;

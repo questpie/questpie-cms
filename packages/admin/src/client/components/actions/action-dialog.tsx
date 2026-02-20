@@ -208,6 +208,7 @@ function CustomDialogContent<TItem>({
   ctx: ActionContext<TItem>;
   onClose: () => void;
 }) {
+  "use no memo";
   const handler = action.handler as DialogHandler<TItem>;
   const [Component, setComponent] =
     React.useState<React.ComponentType<any> | null>(null);

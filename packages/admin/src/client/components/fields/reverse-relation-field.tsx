@@ -158,6 +158,7 @@ export function ReverseRelationField({
 	createLabel,
 	openInSheet = false,
 }: ReverseRelationFieldProps) {
+	"use no memo";
 	const { t } = useTranslation();
 	const resolveText = useResolveText();
 	const resolvedCreateLabel = createLabel

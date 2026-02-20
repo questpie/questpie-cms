@@ -4,7 +4,7 @@
 
 import { Icon } from "@iconify/react";
 import * as React from "react";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { Alert, AlertDescription } from "../../components/ui/alert";
 import { Button } from "../../components/ui/button";
 import {
@@ -76,7 +76,7 @@ export function SetupForm({
   const {
     register,
     handleSubmit,
-    watch,
+    control,
     formState: { errors, isSubmitting },
   } = useForm<SetupFormValues>({
     defaultValues: {
@@ -88,7 +88,7 @@ export function SetupForm({
     },
   });
 
-  const password = watch("password");
+  const password = useWatch({ control, name: "password" });
 
   const handleFormSubmit = handleSubmit(async (values) => {
     await onSubmit(values);

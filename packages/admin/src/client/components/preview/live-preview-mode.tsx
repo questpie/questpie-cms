@@ -23,12 +23,12 @@ import {
 import { useIsMobile } from "../../hooks/use-media-query.js";
 import { useTranslation } from "../../i18n/hooks.js";
 import { cn } from "../../lib/utils.js";
+import { LocaleScopeProvider } from "../../runtime/locale-scope.js";
 import {
-  LocaleScopeProvider,
   selectBasePath,
   selectNavigate,
   useAdminStore,
-} from "../../runtime/index.js";
+} from "../../runtime/provider.js";
 import FormView from "../../views/collection/form-view.js";
 import { Button } from "../ui/button.js";
 import { Tabs, TabsList, TabsTrigger } from "../ui/tabs.js";

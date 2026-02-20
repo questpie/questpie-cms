@@ -59,7 +59,9 @@ export function BlockEditorLayout({
 
 	// Initialize from URL on mount (for page refresh with ?sidebar=block-library)
 	const treeLengthRef = React.useRef(tree.length);
-	treeLengthRef.current = tree.length;
+	React.useEffect(() => {
+		treeLengthRef.current = tree.length;
+	}, [tree.length]);
 	React.useEffect(() => {
 		const params = new URLSearchParams(window.location.search);
 		if (params.get("sidebar") === "block-library") {

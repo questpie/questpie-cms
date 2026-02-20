@@ -46,6 +46,7 @@ export function ImagePopover({
 	imageCollection,
 	enableMediaLibrary,
 }: ImagePopoverProps) {
+	"use no memo";
 	const { t } = useTranslation();
 	const [imageUrl, setImageUrl] = React.useState("");
 	const [imageAlt, setImageAlt] = React.useState("");

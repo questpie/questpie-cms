@@ -198,4 +198,3 @@ export function DashboardLink<TApp extends Questpie<any>>(
   return <AdminLink<TApp> to="dashboard" {...props} />;
 }
 
-export default AdminLink;

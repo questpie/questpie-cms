@@ -1,6 +1,6 @@
 import { Icon } from "@iconify/react";
 import { useState } from "react";
-import { useTranslation } from "../../i18n/index.js";
+import { useTranslation } from "../../i18n/hooks.js";
 import { Button } from "../ui/button.js";
 import { Input } from "../ui/input.js";
 import type { FilterBuilderProps, SavedView } from "./types.js";

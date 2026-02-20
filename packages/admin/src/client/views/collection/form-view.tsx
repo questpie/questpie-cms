@@ -554,6 +554,7 @@ export default function FormView({
 	onSuccess,
 	onError,
 }: FormViewProps): React.ReactElement {
+	"use no memo";
 	const { t } = useTranslation();
 	const resolveText = useResolveText();
 	const isEditMode = !!id;

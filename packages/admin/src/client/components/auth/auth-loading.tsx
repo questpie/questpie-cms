@@ -64,4 +64,3 @@ export function AuthLoading({
   );
 }
 
-export default AuthLoading;

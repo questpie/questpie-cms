@@ -167,6 +167,7 @@ export function RelationPicker<T extends Questpie<any>>({
 	renderItem,
 	renderOption,
 }: RelationPickerProps<T>) {
+	"use no memo";
 	const resolvedValue = value ?? EMPTY_VALUE;
 	const { t } = useTranslation();
 	const resolveText = useResolveText();

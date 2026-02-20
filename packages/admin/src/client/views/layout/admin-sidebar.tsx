@@ -529,7 +529,8 @@ function NavItem({
 	}, [isMobile, setOpenMobile]);
 
 	if (renderNavItem) {
-		return <>{renderNavItem({ item, isActive, collapsed })}</>;
+		const NavItemRenderer = renderNavItem;
+		return <NavItemRenderer item={item} isActive={isActive} collapsed={collapsed} />;
 	}
 
 	const label = resolveText(item.label);
@@ -847,12 +848,12 @@ function UserFooter() {
 	}, [authClient, navigate, basePath, closeSidebarOnMobile, t]);
 
 	// Handle navigate to user profile
-	const handleMyAccount = React.useCallback(() => {
+	const handleMyAccount = () => {
 		if (user?.id) {
 			closeSidebarOnMobile();
 			navigate(`${basePath}/collections/user/${user.id}`);
 		}
-	}, [navigate, basePath, user?.id, closeSidebarOnMobile]);
+	};
 
 	// Show skeleton while loading
 	if (isPending) {

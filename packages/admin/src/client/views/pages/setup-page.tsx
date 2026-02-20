@@ -76,6 +76,7 @@ export function SetupPage({
   loginPath,
   showLoginLink = true,
 }: SetupPageProps) {
+  "use no memo";
   const client = useAdminStore(selectClient);
   const navigate = useAdminStore(selectNavigate);
   const basePath = useAdminStore(selectBasePath);
@@ -142,4 +143,3 @@ function DefaultLogo({ brandName }: { brandName: string }) {
   );
 }
 
-export default SetupPage;

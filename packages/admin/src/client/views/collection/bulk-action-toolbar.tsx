@@ -102,6 +102,7 @@ export function BulkActionToolbar<TItem = any>({
 	onClearFilters,
 	onOpenFilters,
 }: BulkActionToolbarProps<TItem>): React.ReactElement | null {
+	"use no memo";
 	const { t } = useTranslation();
 	const resolveText = useResolveText();
 	const authClient = useAdminStore(selectAuthClient);

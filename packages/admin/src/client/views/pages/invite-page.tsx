@@ -85,6 +85,7 @@ export function InvitePage({
   showMessage = true,
   onSuccess,
 }: InvitePageProps) {
+  "use no memo";
   const authClient = useAuthClient();
   const brandName = useAdminStore(selectBrandName);
 
@@ -140,4 +141,3 @@ function DefaultLogo({ brandName }: { brandName: string }) {
   );
 }
 
-export default InvitePage;

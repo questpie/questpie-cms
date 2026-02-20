@@ -22,7 +22,7 @@ import {
   selectContentLocale,
   selectSetContentLocale,
   useAdminStore,
-} from "./index";
+} from "./provider";
 
 // ============================================================================
 // Types

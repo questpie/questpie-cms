@@ -219,11 +219,184 @@ function normalizeValueForOperator(
   return value ?? "";
 }
 
+interface FilterValueInputProps {
+  field: AvailableField | undefined;
+  filter: FilterRule;
+  activeOperator: FilterOperator;
+  selectOptions: SelectOption[];
+  updateFilter: (id: string, updates: Partial<FilterRule>) => void;
+  createRelationLoader: (targetCollection: string) => (search: string) => Promise<SelectOption[]>;
+  resolveText: (text: any) => string;
+  t: (key: string, params?: any) => string;
+}
+
+function FilterValueInput({
+  field,
+  filter,
+  activeOperator,
+  selectOptions,
+  updateFilter,
+  createRelationLoader,
+  resolveText,
+  t,
+}: FilterValueInputProps) {
+  if (!field || isValuelessOperator(activeOperator)) return null;
+
+  if (field.type === "relation") {
+    const targetCollection = field.options?.targetCollection as string | undefined;
+    const expectsMulti =
+      field.options?.type === "multiple" || isMultiValueOperator(activeOperator);
+
+    if (!targetCollection) {
+      return (
+        <Input disabled className="h-8 text-xs" placeholder={t("viewOptions.valuePlaceholder")} />
+      );
+    }
+
+    const labelText = field.label ? resolveText(field.label) : field.name;
+
+    if (expectsMulti) {
+      const selectedValues = Array.isArray(filter.value)
+        ? filter.value.map((val) => String(val))
+        : filter.value
+          ? [String(filter.value)]
+          : [];
+
+      return (
+        <SelectMulti
+          value={selectedValues}
+          onChange={(values) => updateFilter(filter.id, { value: values })}
+          loadOptions={createRelationLoader(targetCollection)}
+          placeholder={t("viewOptions.valuePlaceholder")}
+          emptyMessage={t("relation.noResults", { name: labelText })}
+          drawerTitle={t("relation.select", { name: labelText })}
+          className="h-8 text-xs"
+        />
+      );
+    }
+
+    const selectedValue =
+      filter.value === null || filter.value === undefined ? null : String(filter.value);
+
+    return (
+      <SelectSingle
+        value={selectedValue}
+        onChange={(value) => updateFilter(filter.id, { value: value ?? "" })}
+        loadOptions={createRelationLoader(targetCollection)}
+        placeholder={t("viewOptions.valuePlaceholder")}
+        emptyMessage={t("relation.noResults", { name: labelText })}
+        drawerTitle={t("relation.select", { name: labelText })}
+        className="h-8 text-xs"
+      />
+    );
+  }
+
+  if (field.type === "select") {
+    const selectedValue =
+      filter.value === null || filter.value === undefined ? null : String(filter.value);
+
+    return (
+      <SelectSingle
+        value={selectedValue}
+        onChange={(value) => updateFilter(filter.id, { value: value ?? "" })}
+        options={selectOptions}
+        placeholder={t("viewOptions.valuePlaceholder")}
+        emptyMessage={t("table.noResults")}
+        className="h-8 text-xs"
+      />
+    );
+  }
+
+  if (field.type === "checkbox" || field.type === "switch") {
+    const booleanValue =
+      typeof filter.value === "boolean" ? String(filter.value) : undefined;
+
+    return (
+      <Select
+        value={booleanValue}
+        onValueChange={(value) => updateFilter(filter.id, { value: value === "true" })}
+      >
+        <SelectTrigger className="h-8 text-xs">
+          <SelectValue placeholder={t("viewOptions.valuePlaceholder")} />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="true">True</SelectItem>
+          <SelectItem value="false">False</SelectItem>
+        </SelectContent>
+      </Select>
+    );
+  }
+
+  if (field.type === "number") {
+    const numberValue =
+      filter.value === null || filter.value === undefined ? "" : String(filter.value);
+    return (
+      <Input
+        type="number"
+        className="h-8 text-xs"
+        placeholder={t("viewOptions.valuePlaceholder")}
+        value={numberValue}
+        onChange={(event) => {
+          const raw = event.target.value;
+          const next = raw.trim().length ? Number(raw) : null;
+          updateFilter(filter.id, { value: Number.isNaN(next) ? null : next });
+        }}
+      />
+    );
+  }
+
+  if (field.type === "date") {
+    const dateValue = typeof filter.value === "string" ? filter.value : "";
+    return (
+      <Input
+        type="date"
+        className="h-8 text-xs"
+        value={dateValue}
+        onChange={(event) => updateFilter(filter.id, { value: event.target.value })}
+      />
+    );
+  }
+
+  if (field.type === "datetime") {
+    const dateTimeValue = typeof filter.value === "string" ? filter.value : "";
+    return (
+      <Input
+        type="datetime-local"
+        className="h-8 text-xs"
+        value={dateTimeValue}
+        onChange={(event) => updateFilter(filter.id, { value: event.target.value })}
+      />
+    );
+  }
+
+  if (field.type === "time") {
+    const timeValue = typeof filter.value === "string" ? filter.value : "";
+    return (
+      <Input
+        type="time"
+        className="h-8 text-xs"
+        value={timeValue}
+        onChange={(event) => updateFilter(filter.id, { value: event.target.value })}
+      />
+    );
+  }
+
+  return (
+    <Input
+      className="h-8 text-xs"
+      placeholder={t("viewOptions.valuePlaceholder")}
+      value={typeof filter.value === "string" ? filter.value : ""}
+      onChange={(event) => updateFilter(filter.id, { value: event.target.value })}
+    />
+  );
+}
+
 export function FiltersTab({
   fields,
   filters,
   onFiltersChange,
 }: FiltersTabProps) {
+  "use no memo";
   const { t } = useTranslation();
   const resolveText = useResolveText();
   const client = useAdminStore(selectClient);
@@ -309,198 +482,6 @@ export function FiltersTab({
             ? normalizeSelectOptions(field.options?.options)
             : [];
 
-        const renderValueInput = () => {
-          if (!field || isValuelessOperator(activeOperator)) return null;
-
-          if (field.type === "relation") {
-            const targetCollection = field.options?.targetCollection as
-              | string
-              | undefined;
-            const expectsMulti =
-              field.options?.type === "multiple" ||
-              isMultiValueOperator(activeOperator);
-
-            if (!targetCollection) {
-              return (
-                <Input
-                  disabled
-                  className="h-8 text-xs"
-                  placeholder={t("viewOptions.valuePlaceholder")}
-                />
-              );
-            }
-
-            const labelText = field.label
-              ? resolveText(field.label)
-              : field.name;
-
-            if (expectsMulti) {
-              const selectedValues = Array.isArray(filter.value)
-                ? filter.value.map((val) => String(val))
-                : filter.value
-                  ? [String(filter.value)]
-                  : [];
-
-              return (
-                <SelectMulti
-                  value={selectedValues}
-                  onChange={(values) =>
-                    updateFilter(filter.id, { value: values })
-                  }
-                  loadOptions={createRelationLoader(targetCollection)}
-                  placeholder={t("viewOptions.valuePlaceholder")}
-                  emptyMessage={t("relation.noResults", { name: labelText })}
-                  drawerTitle={t("relation.select", { name: labelText })}
-                  className="h-8 text-xs"
-                />
-              );
-            }
-
-            const selectedValue =
-              filter.value === null || filter.value === undefined
-                ? null
-                : String(filter.value);
-
-            return (
-              <SelectSingle
-                value={selectedValue}
-                onChange={(value) =>
-                  updateFilter(filter.id, { value: value ?? "" })
-                }
-                loadOptions={createRelationLoader(targetCollection)}
-                placeholder={t("viewOptions.valuePlaceholder")}
-                emptyMessage={t("relation.noResults", { name: labelText })}
-                drawerTitle={t("relation.select", { name: labelText })}
-                className="h-8 text-xs"
-              />
-            );
-          }
-
-          if (field.type === "select") {
-            const selectedValue =
-              filter.value === null || filter.value === undefined
-                ? null
-                : String(filter.value);
-
-            return (
-              <SelectSingle
-                value={selectedValue}
-                onChange={(value) =>
-                  updateFilter(filter.id, { value: value ?? "" })
-                }
-                options={selectOptions}
-                placeholder={t("viewOptions.valuePlaceholder")}
-                emptyMessage={t("table.noResults")}
-                className="h-8 text-xs"
-              />
-            );
-          }
-
-          if (field.type === "checkbox" || field.type === "switch") {
-            const booleanValue =
-              typeof filter.value === "boolean"
-                ? String(filter.value)
-                : undefined;
-
-            return (
-              <Select
-                value={booleanValue}
-                onValueChange={(value) =>
-                  updateFilter(filter.id, { value: value === "true" })
-                }
-              >
-                <SelectTrigger className="h-8 text-xs">
-                  <SelectValue
-                    placeholder={t("viewOptions.valuePlaceholder")}
-                  />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="true">True</SelectItem>
-                  <SelectItem value="false">False</SelectItem>
-                </SelectContent>
-              </Select>
-            );
-          }
-
-          if (field.type === "number") {
-            const numberValue =
-              filter.value === null || filter.value === undefined
-                ? ""
-                : String(filter.value);
-            return (
-              <Input
-                type="number"
-                className="h-8 text-xs"
-                placeholder={t("viewOptions.valuePlaceholder")}
-                value={numberValue}
-                onChange={(event) => {
-                  const raw = event.target.value;
-                  const next = raw.trim().length ? Number(raw) : null;
-                  updateFilter(filter.id, {
-                    value: Number.isNaN(next) ? null : next,
-                  });
-                }}
-              />
-            );
-          }
-
-          if (field.type === "date") {
-            const dateValue =
-              typeof filter.value === "string" ? filter.value : "";
-            return (
-              <Input
-                type="date"
-                className="h-8 text-xs"
-                value={dateValue}
-                onChange={(event) =>
-                  updateFilter(filter.id, { value: event.target.value })
-                }
-              />
-            );
-          }
-
-          if (field.type === "datetime") {
-            const dateTimeValue =
-              typeof filter.value === "string" ? filter.value : "";
-            return (
-              <Input
-                type="datetime-local"
-                className="h-8 text-xs"
-                value={dateTimeValue}
-                onChange={(event) =>
-                  updateFilter(filter.id, { value: event.target.value })
-                }
-              />
-            );
-          }
-
-          if (field.type === "time") {
-            const timeValue =
-              typeof filter.value === "string" ? filter.value : "";
-            return (
-              <Input
-                type="time"
-                className="h-8 text-xs"
-                value={timeValue}
-                onChange={(event) =>
-                  updateFilter(filter.id, { value: event.target.value })
-                }
-              />
-            );
-          }
-
-          return (
-            <Input
-              className="h-8 text-xs"
-              placeholder={t("viewOptions.valuePlaceholder")}
-              value={typeof filter.value === "string" ? filter.value : ""}
-              onChange={(event) =>
-                updateFilter(filter.id, { value: event.target.value })
-              }
-            />
-          );
-        };
-
         return (
           <div
             key={filter.id}
@@ -583,7 +564,16 @@ export function FiltersTab({
                 </SelectContent>
               </Select>
             </div>
-            {renderValueInput()}
+            <FilterValueInput
+              field={field}
+              filter={filter}
+              activeOperator={activeOperator}
+              selectOptions={selectOptions}
+              updateFilter={updateFilter}
+              createRelationLoader={createRelationLoader}
+              resolveText={resolveText}
+              t={t}
+            />
           </div>
         );
       })}

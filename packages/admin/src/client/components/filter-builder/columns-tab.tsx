@@ -16,7 +16,7 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { Icon } from "@iconify/react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useResolveText, useTranslation } from "../../i18n/hooks";
 import { Checkbox } from "../ui/checkbox";
 import type { AvailableField } from "./types.js";
@@ -119,30 +119,30 @@ export function ColumnsTab({
   );
 
   // Sync when fields prop changes (but preserve user's reordering)
-  useEffect(() => {
-    setOrderedFields((prev) => {
-      // Keep existing order, add new fields at the end, remove deleted ones
-      const existingNames = new Set(prev.map((f) => f.name));
-      const newNames = new Set(fields.map((f) => f.name));
-
-      const kept = prev.filter((f) => newNames.has(f.name));
-      const added = fields.filter((f) => !existingNames.has(f.name));
-
-      return [...kept, ...added];
-    });
-  }, [fields]);
+  const [prevFields, setPrevFields] = useState(fields);
+  if (prevFields !== fields) {
+    setPrevFields(fields);
+    const existingNames = new Set(orderedFields.map((f) => f.name));
+    const newNames = new Set(fields.map((f) => f.name));
+    const kept = orderedFields.filter((f) => newNames.has(f.name));
+    const added = fields.filter((f) => !existingNames.has(f.name));
+    const merged = [...kept, ...added];
+    if (merged.length !== orderedFields.length || merged.some((f, i) => f.name !== orderedFields[i]?.name)) {
+      setOrderedFields(merged);
+    }
+  }
 
   // Sync when visibleColumns changes externally (e.g., loading a saved view)
-  // This ensures the field order in the picker matches the stored column order
-  useEffect(() => {
-    setOrderedFields((prev) => {
-      const sorted = sortFieldsByVisibleColumns(prev, visibleColumns);
-      // Only update if the order actually changed to avoid unnecessary re-renders
-      const prevOrder = prev.map((f) => f.name).join(",");
-      const newOrder = sorted.map((f) => f.name).join(",");
-      return prevOrder === newOrder ? prev : sorted;
-    });
-  }, [visibleColumns]);
+  const [prevVisible, setPrevVisible] = useState(visibleColumns);
+  if (prevVisible !== visibleColumns) {
+    setPrevVisible(visibleColumns);
+    const sorted = sortFieldsByVisibleColumns(orderedFields, visibleColumns);
+    const prevOrder = orderedFields.map((f) => f.name).join(",");
+    const newOrder = sorted.map((f) => f.name).join(",");
+    if (prevOrder !== newOrder) {
+      setOrderedFields(sorted);
+    }
+  }
 
   const sensors = useSensors(
     useSensor(PointerSensor),

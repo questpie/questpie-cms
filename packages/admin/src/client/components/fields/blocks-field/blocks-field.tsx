@@ -143,4 +143,3 @@ export function BlocksField({
 	);
 }
 
-export default BlocksField;

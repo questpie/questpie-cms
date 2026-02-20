@@ -276,7 +276,7 @@ class BlockRegistryImpl<
       return null;
     }
     const Component = renderer.component;
-    return <Component {...props} children={children} />;
+    return <Component {...props}>{children}</Component>;
   }
 }
 

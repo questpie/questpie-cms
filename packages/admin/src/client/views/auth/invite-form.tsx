@@ -4,7 +4,7 @@
 
 import { Icon } from "@iconify/react";
 import * as React from "react";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { Alert, AlertDescription } from "../../components/ui/alert";
 import { Button } from "../../components/ui/button";
 import {
@@ -98,7 +98,7 @@ export function InviteForm({
     register,
     handleSubmit,
     setValue,
-    watch,
+    control,
     reset,
     formState: { errors, isSubmitting },
   } = useForm<InviteFormValues>({
@@ -109,7 +109,7 @@ export function InviteForm({
     },
   });
 
-  const selectedRole = watch("role");
+  const selectedRole = useWatch({ control, name: "role" });
   const resolveText = useResolveText();
 
   const handleFormSubmit = handleSubmit(async (values) => {

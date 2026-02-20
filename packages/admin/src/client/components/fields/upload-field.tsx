@@ -274,6 +274,7 @@ function SingleUploadInner({
 	onUploadError,
 	className,
 }: SingleUploadInnerProps) {
+	"use no memo";
 	// Normalize accept to always be an array (supports both string and array from field config)
 	const normalizedAccept = normalizeAccept(accept);
 
@@ -486,6 +487,7 @@ function MultipleUploadInner({
 	onUploadError,
 	className,
 }: MultipleUploadInnerProps) {
+	"use no memo";
 	// Normalize accept to always be an array (supports both string and array from field config)
 	const normalizedAccept = normalizeAccept(accept);
 

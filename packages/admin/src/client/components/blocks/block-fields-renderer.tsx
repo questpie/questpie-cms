@@ -11,7 +11,7 @@ import * as React from "react";
 import type { BlockSchema } from "#questpie/admin/server";
 import type { FieldDefinition } from "../../builder/field/field.js";
 import { useResolveText } from "../../i18n/hooks.js";
-import { selectAdmin, useAdminStore } from "../../runtime/index.js";
+import { selectAdmin, useAdminStore } from "../../runtime/provider.js";
 import { buildFieldDefinitionsFromMetadata } from "../../utils/build-field-definitions-from-schema.js";
 
 // ============================================================================

@@ -15,7 +15,7 @@ import type {
   PreviewToAdminMessage,
 } from "../../preview/types.js";
 import { isPreviewToAdminMessage } from "../../preview/types.js";
-import { selectClient, useAdminStore } from "../../runtime/index.js";
+import { selectClient, useAdminStore } from "../../runtime/provider.js";
 
 // ============================================================================
 // Types
@@ -27,6 +27,7 @@ export type PreviewPaneRef = {
 };
 
 export type PreviewPaneProps = {
+  "use no memo";
   /** Preview URL */
   url: string;
   /** Selected block ID (for block editor integration) */

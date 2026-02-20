@@ -340,6 +340,7 @@ function TableViewInner({
 	emptyState,
 	actionsConfig,
 }: TableViewProps): React.ReactElement {
+	"use no memo";
 	const globalRealtimeConfig = useAdminStore(selectRealtime);
 	const { fields: resolvedFields, schema } = useCollectionFields(collection, {
 		fallbackFields: (config as any)?.fields,

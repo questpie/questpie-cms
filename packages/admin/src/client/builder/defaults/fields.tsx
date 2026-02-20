@@ -8,7 +8,7 @@
 
 import { z } from "zod";
 import type { AssetPreviewFieldProps } from "../../components/fields/asset-preview-field.js";
-import type { BlocksFieldConfig } from "../../components/fields/blocks-field/index.js";
+import type { BlocksFieldConfig } from "../../components/fields/blocks-field/blocks-field.js";
 import type {
 	ArrayFieldConfig,
 	BooleanFieldConfig,
@@ -25,43 +25,38 @@ import type {
 	TimeFieldConfig,
 	UploadFieldConfig,
 } from "../../components/fields/field-types.js";
+import { ArrayField } from "../../components/fields/array-field.js";
+import { AssetPreviewField } from "../../components/fields/asset-preview-field.js";
+import { BlocksField } from "../../components/fields/blocks-field.js";
+import { BooleanField } from "../../components/fields/boolean-field.js";
+import { DateField } from "../../components/fields/date-field.js";
+import { DatetimeField } from "../../components/fields/datetime-field.js";
+import { EmailField } from "../../components/fields/email-field.js";
+import { JsonField } from "../../components/fields/json-field.js";
+import { NumberField } from "../../components/fields/number-field.js";
+import { ObjectField } from "../../components/fields/object-field.js";
+import { RelationField } from "../../components/fields/relation-field.js";
+import { RichTextField } from "../../components/fields/rich-text-field.js";
+import { SelectField } from "../../components/fields/select-field.js";
+import { TextareaField } from "../../components/fields/textarea-field.js";
+import { TextField } from "../../components/fields/text-field.js";
+import { TimeField } from "../../components/fields/time-field.js";
+import { UploadField } from "../../components/fields/upload-field.js";
+import { ArrayCell, BlocksCell, JsonCell, ObjectCell } from "../../views/collection/cells/complex-cells.js";
 import {
-	ArrayField,
-	AssetPreviewField,
-	BlocksField,
-	BooleanField,
-	DateField,
-	DatetimeField,
-	EmailField,
-	JsonField,
-	NumberField,
-	ObjectField,
-	RelationField,
-	RichTextField,
-	SelectField,
-	TextareaField,
-	TextField,
-	TimeField,
-	UploadField,
-} from "../../components/fields/index.js";
-import {
-	ArrayCell,
-	AssetThumbnail,
-	BlocksCell,
 	BooleanCell,
 	DateCell,
 	DateTimeCell,
 	EmailCell,
-	JsonCell,
 	NumberCell,
-	ObjectCell,
-	RelationCell,
 	RichTextCell,
 	SelectCell,
 	TextCell,
 	TimeCell,
-	UploadCell,
-} from "../../views/collection/cells/index.js";
+} from "../../views/collection/cells/primitive-cells.js";
+import { RelationCell } from "../../views/collection/cells/relation-cells.js";
+import { AssetThumbnail } from "../../views/collection/cells/shared/asset-thumbnail.js";
+import { UploadCell } from "../../views/collection/cells/upload-cells.js";
 import {
 	type FieldDefinition,
 	field,

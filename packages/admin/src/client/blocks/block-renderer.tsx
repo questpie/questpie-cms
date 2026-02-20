@@ -105,15 +105,17 @@ export function BlockRenderer({
 				}
 			: undefined;
 
+		const BlockComponent = renderFn;
 		const blockElement = (
 			<BlockScopeProvider blockId={node.id} basePath="content._values">
-				{renderFn({
-					id: node.id,
-					type: node.type,
-					values,
-					data: blockData,
-					children: renderedChildren,
-				})}
+				<BlockComponent
+					id={node.id}
+					type={node.type}
+					values={values}
+					data={blockData}
+				>
+					{renderedChildren}
+				</BlockComponent>
 			</BlockScopeProvider>
 		);
 
@@ -154,4 +156,3 @@ export function BlockRenderer({
 	return <div className={className}>{content._tree.map(renderBlock)}</div>;
 }
 
-export default BlockRenderer;

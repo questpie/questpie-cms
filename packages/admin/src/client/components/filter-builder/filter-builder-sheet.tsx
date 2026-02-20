@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useTranslation } from "../../i18n/hooks.js";
 import { Button } from "../ui/button.js";
 import {
@@ -59,16 +59,16 @@ export function FilterBuilderSheet({
 	const resolvedSavedViews = savedViews ?? EMPTY_SAVED_VIEWS;
 	const { t } = useTranslation();
 
-	// Local state for pending changes
+	// Local state for pending changes - reset when sheet opens or config changes
 	const [localConfig, setLocalConfig] =
 		useState<ViewConfiguration>(currentConfig);
-
-	// Reset local config when sheet opens or currentConfig changes externally
-	useEffect(() => {
+	const [prev, setPrev] = useState({ isOpen, currentConfig });
+	if (prev.isOpen !== isOpen || prev.currentConfig !== currentConfig) {
+		setPrev({ isOpen, currentConfig });
 		if (isOpen) {
 			setLocalConfig(currentConfig);
 		}
-	}, [isOpen, currentConfig]);
+	}
 
 	const handleLoadView = (view: SavedView) => {
 		setLocalConfig(view.configuration);

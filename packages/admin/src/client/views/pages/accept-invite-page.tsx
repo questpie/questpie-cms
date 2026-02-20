@@ -94,6 +94,7 @@ export function AcceptInvitePage({
   loginPath,
   minPasswordLength = 8,
 }: AcceptInvitePageProps) {
+  "use no memo";
   const authClient = useAuthClient();
   const navigate = useAdminStore(selectNavigate);
   const basePath = useAdminStore(selectBasePath);
@@ -231,4 +232,3 @@ function DefaultLogo({ brandName }: { brandName: string }) {
   );
 }
 
-export default AcceptInvitePage;

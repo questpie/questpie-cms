@@ -14,7 +14,7 @@
  */
 
 import * as React from "react";
-import { useAuthClientSafe } from "../../hooks/use-auth";
+import { useAuthClient } from "../../hooks/use-auth";
 import {
   selectBasePath,
   selectNavigate,
@@ -80,17 +80,16 @@ export function AuthGuard({
   requiredRole = "admin",
   disabled = false,
 }: AuthGuardProps): React.ReactElement {
-  const authClient = useAuthClientSafe();
+  const authClient = useAuthClient();
   const basePath = useAdminStore(selectBasePath);
   const navigate = useAdminStore(selectNavigate);
 
-  // Determine if auth is enabled (not disabled and has auth client)
-  const authEnabled = !disabled && authClient !== null;
+  // Determine if auth is enabled (not disabled)
+  const authEnabled = !disabled;
 
-  // Use Better Auth's session hook - always call to follow Rules of Hooks
-  // When authClient is null, we use a stable mock that returns no session
-  const sessionResult = authClient?.useSession();
-  const session = authEnabled ? sessionResult?.data : null;
+  // Use Better Auth's session hook - always called unconditionally
+  const sessionResult = authClient.useSession();
+  const session = authEnabled ? (sessionResult?.data ?? null) : null;
   const isPending = authEnabled ? (sessionResult?.isPending ?? false) : false;
 
   // Handle redirect after render (useEffect for side effects)
@@ -137,4 +136,3 @@ export function AuthGuard({
   return <>{children}</>;
 }
 
-export default AuthGuard;

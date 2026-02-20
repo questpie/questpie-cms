@@ -286,4 +286,3 @@ export function getAdminLinkHref<TApp extends Questpie<any>>(
   return routes.dashboard();
 }
 
-export default useAdminRoutes;

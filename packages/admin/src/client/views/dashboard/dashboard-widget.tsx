@@ -71,6 +71,7 @@ function RegistryWidgetRenderer({
 	basePath,
 	navigate,
 }: RegistryWidgetRendererProps) {
+	"use no memo";
 	const [state, setState] = React.useState<{
 		Component: React.ComponentType<any> | null;
 		loading: boolean;
@@ -166,6 +167,7 @@ function CustomWidgetRenderer({
 	widgetConfig,
 	span,
 }: CustomWidgetRendererProps) {
+	"use no memo";
 	const [state, setState] = React.useState<{
 		Component: React.ComponentType<WidgetComponentProps> | null;
 		loading: boolean;
@@ -257,48 +259,43 @@ export function DashboardWidget({
 	const admin = useAdminStore(selectAdmin);
 	const registeredWidgets = admin.getWidgets() as Record<string, any>;
 
-	const renderWidget = (): React.ReactElement => {
+	let widgetElement: React.ReactElement;
+
+	if (config.type === "custom") {
 		// Handle custom widget type (inline component, not from registry)
-		if (config.type === "custom") {
-			return (
-				<CustomWidgetRenderer
-					loader={config.component}
-					widgetConfig={config.config || {}}
-					span={config.span}
-				/>
-			);
-		}
-
+		widgetElement = (
+			<CustomWidgetRenderer
+				loader={config.component}
+				widgetConfig={config.config || {}}
+				span={config.span}
+			/>
+		);
+	} else if (widgetRegistry?.[config.type]) {
 		// Check prop-based registry for overrides first
-		if (widgetRegistry?.[config.type]) {
-			const CustomWidget = widgetRegistry[config.type];
-			return <CustomWidget config={config as any} span={config.span} />;
-		}
-
+		const CustomWidget = widgetRegistry[config.type];
+		widgetElement = <CustomWidget config={config as any} span={config.span} />;
+	} else {
 		// Look up widget in the admin store registry (built-in + user-registered)
 		const widgetDef = registeredWidgets[config.type];
-		if (widgetDef) {
-			const component = widgetDef.component ?? widgetDef.state?.component;
-			if (component) {
-				return (
-					<RegistryWidgetRenderer
-						loader={component}
-						widgetConfig={config}
-						basePath={basePath}
-						navigate={navigate}
-					/>
-				);
-			}
+		const component = widgetDef?.component ?? widgetDef?.state?.component;
+		if (component) {
+			widgetElement = (
+				<RegistryWidgetRenderer
+					loader={component}
+					widgetConfig={config}
+					basePath={basePath}
+					navigate={navigate}
+				/>
+			);
+		} else {
+			widgetElement = <UnknownWidget type={config.type} />;
 		}
-
-		return <UnknownWidget type={config.type} />;
-	};
+	}
 
 	return (
 		<WidgetErrorBoundary widgetType={config.type}>
-			{renderWidget()}
+			{widgetElement}
 		</WidgetErrorBoundary>
 	);
 }
 
-export default DashboardWidget;
