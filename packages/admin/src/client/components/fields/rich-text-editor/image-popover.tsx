@@ -113,15 +113,22 @@ export function ImagePopover({
 					const uploadedAsset = (await upload(uploadFile, {
 						to: collection,
 					})) as Asset;
-					if (uploadedAsset && uploadedAsset.url) {
-						url = uploadedAsset.url;
+					if (uploadedAsset) {
+						if (uploadedAsset.url) {
+							url = uploadedAsset.url;
+						}
 					}
 					if (!url) {
 						throw new Error(t("upload.error"));
 					}
 				}
 				if (url) {
-					const altValue = imageAlt ? imageAlt : undefined;
+					let altValue: string | undefined;
+					if (imageAlt) {
+						altValue = imageAlt;
+					} else {
+						altValue = undefined;
+					}
 					editor
 						.chain()
 						.focus()

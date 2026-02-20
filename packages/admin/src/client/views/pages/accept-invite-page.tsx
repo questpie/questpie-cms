@@ -112,14 +112,23 @@ export function AcceptInvitePage({
           query: { token },
         });
 
-        if (result.error || !result.data) {
+        if (result.error) {
           let message = "Invalid or expired invitation";
-          if (result.error && result.error.message) {
-            message = result.error.message;
+          if (result.error) {
+            if (result.error.message) {
+              message = result.error.message;
+            }
           }
           setInvitation({
             status: "invalid",
             message,
+          });
+          return;
+        }
+        if (!result.data) {
+          setInvitation({
+            status: "invalid",
+            message: "Invalid or expired invitation",
           });
           return;
         }

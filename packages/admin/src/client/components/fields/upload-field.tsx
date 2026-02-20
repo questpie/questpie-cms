@@ -541,14 +541,19 @@ function MultipleUploadInner({
 					where: { id: { in: missingIds } },
 					limit: missingIds.length,
 				});
-				if (!cancelled && response?.docs) {
-					setFetchedAssets((prev) => {
-						const next = new Map(prev);
-						for (const asset of response.docs) {
-							next.set(asset.id, asset as Asset);
-						}
-						return next;
-					});
+				if (cancelled) {
+					return;
+				}
+				if (response) {
+					if (response.docs) {
+						setFetchedAssets((prev) => {
+							const next = new Map(prev);
+							for (const asset of response.docs) {
+								next.set(asset.id, asset as Asset);
+							}
+							return next;
+						});
+					}
 				}
 			} catch (fetchError) {
 				if (!cancelled) {

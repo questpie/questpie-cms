@@ -229,17 +229,32 @@ function CustomDialogContent<TItem>({
             // It's a lazy component, resolve it
             const resolved = await lazyComp._payload();
             if (mounted) {
-              const comp2 = resolved.default ? resolved.default : resolved;
+              let comp2: any;
+              if (resolved.default) {
+                comp2 = resolved.default;
+              } else {
+                comp2 = resolved;
+              }
               setComponent(() => comp2);
             }
           } else {
             // It's a direct component function or import
             const result = (comp as () => any)();
-            const hasThen = result != null && result.then;
+            let hasThen = false;
+            if (result != null) {
+              if (result.then) {
+                hasThen = true;
+              }
+            }
             if (hasThen) {
               const mod = await result;
               if (mounted) {
-                const comp2 = mod.default ? mod.default : mod;
+                let comp2: any;
+                if (mod.default) {
+                  comp2 = mod.default;
+                } else {
+                  comp2 = mod;
+                }
                 setComponent(() => comp2);
               }
             } else {
