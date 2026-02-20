@@ -396,14 +396,12 @@ function JsonFormEditor({
 
   if (!renderForm) return null;
 
-  return (
-    <div className="rounded-lg border p-4">
-      {renderForm({
-        value: safeValue,
-        onChange,
-        disabled,
-        readOnly,
-      })}
-    </div>
-  );
+  const formContent = renderForm({
+    value: safeValue,
+    onChange,
+    disabled,
+    readOnly,
+  });
+
+  return <div className="rounded-lg border p-4">{formContent}</div>;
 }

@@ -418,7 +418,7 @@ function getLayoutKey(item: SectionLayout | TabsLayout): string {
 	return fieldKey ? `section-${fieldKey}` : "section";
 }
 
-function renderFieldLayoutItems({
+function FieldLayoutItems({
 	fieldItems,
 	fields,
 	collection,
@@ -484,41 +484,39 @@ function renderFieldLayoutItems({
 			switch (item.type) {
 				case "tabs":
 					return (
-						<React.Fragment key={getLayoutKey(item)}>
-							{renderTabs({
-								tabsLayout: item,
-								fields,
-								collection,
-								mode,
-								registry,
-								fieldPrefix,
-								allCollectionsConfig,
-								excludedFields,
-								entityMeta,
-								formValues,
-								resolveText,
-							})}
-						</React.Fragment>
+						<TabsLayoutRenderer
+							key={getLayoutKey(item)}
+							tabsLayout={item}
+							fields={fields}
+							collection={collection}
+							mode={mode}
+							registry={registry}
+							fieldPrefix={fieldPrefix}
+							allCollectionsConfig={allCollectionsConfig}
+							excludedFields={excludedFields}
+							entityMeta={entityMeta}
+							formValues={formValues}
+							resolveText={resolveText}
+						/>
 					);
 
 				case "section":
 					return (
-						<React.Fragment key={getLayoutKey(item)}>
-							{renderSection({
-								section: item,
-								index,
-								fields,
-								collection,
-								mode,
-								registry,
-								fieldPrefix,
-								allCollectionsConfig,
-								excludedFields,
-								entityMeta,
-								formValues,
-								resolveText,
-							})}
-						</React.Fragment>
+						<SectionLayoutRenderer
+							key={getLayoutKey(item)}
+							section={item}
+							index={index}
+							fields={fields}
+							collection={collection}
+							mode={mode}
+							registry={registry}
+							fieldPrefix={fieldPrefix}
+							allCollectionsConfig={allCollectionsConfig}
+							excludedFields={excludedFields}
+							entityMeta={entityMeta}
+							formValues={formValues}
+							resolveText={resolveText}
+						/>
 					);
 
 				default:
@@ -542,7 +540,7 @@ function renderFieldLayoutItems({
  * Render a section layout
  * Mirrors object field: wrapper (flat|collapsible) + layout (stack|inline|grid)
  */
-function renderSection({
+function SectionLayoutRenderer({
 	section,
 	index,
 	fields,
@@ -652,19 +650,21 @@ function renderSection({
 		}
 
 		// Stack layout (default) - render using main function
-		return renderFieldLayoutItems({
-			fieldItems: section.fields,
-			fields,
-			collection,
-			mode,
-			registry,
-			fieldPrefix,
-			allCollectionsConfig,
-			excludedFields,
-			entityMeta,
-			formValues,
-			resolveText,
-		});
+		return (
+			<FieldLayoutItems
+				fieldItems={section.fields}
+				fields={fields}
+				collection={collection}
+				mode={mode}
+				registry={registry}
+				fieldPrefix={fieldPrefix}
+				allCollectionsConfig={allCollectionsConfig}
+				excludedFields={excludedFields}
+				entityMeta={entityMeta}
+				formValues={formValues}
+				resolveText={resolveText}
+			/>
+		);
 	};
 
 	const content = renderSectionFields();
@@ -729,7 +729,7 @@ function renderSection({
 /**
  * Render tabs layout
  */
-function renderTabs({
+function TabsLayoutRenderer({
 	tabsLayout,
 	fields,
 	collection,
@@ -778,19 +778,19 @@ function renderTabs({
 			</TabsList>
 			{visibleTabs.map((tab: TabConfig) => (
 				<TabsContent key={tab.id} value={tab.id} className="mt-4">
-					{renderFieldLayoutItems({
-						fieldItems: tab.fields,
-						fields,
-						collection,
-						mode,
-						registry,
-						fieldPrefix,
-						allCollectionsConfig,
-						excludedFields,
-						entityMeta,
-						formValues,
-						resolveText,
-					})}
+					<FieldLayoutItems
+						fieldItems={tab.fields}
+						fields={fields}
+						collection={collection}
+						mode={mode}
+						registry={registry}
+						fieldPrefix={fieldPrefix}
+						allCollectionsConfig={allCollectionsConfig}
+						excludedFields={excludedFields}
+						entityMeta={entityMeta}
+						formValues={formValues}
+						resolveText={resolveText}
+					/>
 				</TabsContent>
 			))}
 		</Tabs>
@@ -800,7 +800,7 @@ function renderTabs({
 /**
  * Render sidebar content
  */
-function renderSidebar({
+function SidebarRenderer({
 	sidebar,
 	fields,
 	collection,
@@ -827,18 +827,20 @@ function renderSidebar({
 		contextValues?: Record<string, any>,
 	) => string;
 }): React.ReactNode {
-	return renderFieldLayoutItems({
-		fieldItems: sidebar.fields,
-		fields,
-		collection,
-		mode,
-		registry,
-		fieldPrefix,
-		allCollectionsConfig,
-		entityMeta,
-		formValues,
-		resolveText,
-	});
+	return (
+		<FieldLayoutItems
+			fieldItems={sidebar.fields}
+			fields={fields}
+			collection={collection}
+			mode={mode}
+			registry={registry}
+			fieldPrefix={fieldPrefix}
+			allCollectionsConfig={allCollectionsConfig}
+			entityMeta={entityMeta}
+			formValues={formValues}
+			resolveText={resolveText}
+		/>
+	);
 }
 
 /**
@@ -1001,29 +1003,28 @@ export function AutoFormFields<T extends Questpie<any>, K extends string>({ app:
 		);
 	}
 
-	// Render main content based on form config
-	const renderMainContent = () => {
-		// If form config has fields, render them
-		if (formConfig?.fields?.length) {
-			return renderFieldLayoutItems({
-				fieldItems: formConfig.fields,
-				fields,
-				collection,
-				mode,
-				registry,
-				fieldPrefix,
-				allCollectionsConfig,
-				excludedFields: sidebarFieldNames,
-				entityMeta,
-				formValues,
-				resolveText,
-			});
-		}
-
-		// Auto-generate: render all fields not in sidebar
+	// Compute main content inline instead of using a render function
+	let mainContent: React.ReactNode = null;
+	if (formConfig?.fields?.length) {
+		mainContent = (
+			<FieldLayoutItems
+				fieldItems={formConfig.fields}
+				fields={fields}
+				collection={collection}
+				mode={mode}
+				registry={registry}
+				fieldPrefix={fieldPrefix}
+				allCollectionsConfig={allCollectionsConfig}
+				excludedFields={sidebarFieldNames}
+				entityMeta={entityMeta}
+				formValues={formValues}
+				resolveText={resolveText}
+			/>
+		);
+	} else {
 		const autoFields = allFieldNames.filter((f) => !sidebarFieldNames.has(f));
 		if (autoFields.length) {
-			return renderFields({
+			mainContent = renderFields({
 				fieldItems: autoFields,
 				fields,
 				collection,
@@ -1034,29 +1035,12 @@ export function AutoFormFields<T extends Questpie<any>, K extends string>({ app:
 				entityMeta,
 			});
 		}
-
-		return null;
-	};
-
-	const mainContent = renderMainContent();
+	}
 
 	// Check if sidebar layout is needed
 	const hasSidebar = formConfig?.sidebar?.fields?.length;
 
 	if (hasSidebar && formConfig?.sidebar) {
-		const sidebarContent = renderSidebar({
-			sidebar: formConfig.sidebar,
-			fields,
-			collection,
-			mode,
-			registry,
-			fieldPrefix,
-			allCollectionsConfig,
-			entityMeta,
-			formValues,
-			resolveText,
-		});
-
 		const sidebarPosition = formConfig.sidebar.position || "right";
 
 		// Single @container on outermost wrapper for all container queries
@@ -1069,18 +1053,27 @@ export function AutoFormFields<T extends Questpie<any>, K extends string>({ app:
 					)}
 				>
 					<div className="min-w-0 flex-1">{mainContent}</div>
-					{sidebarContent && (
-						<aside
-							className={cn(
-								"@2xl:border-l @max-2xl:border-b @max-2xl:pb-4 w-full border-border @2xl:pl-4",
-								"w-full @2xl:max-w-xs",
-							)}
-						>
-							<div className="space-y-4 @2xl:sticky @2xl:h-auto @2xl:top-4">
-								{sidebarContent}
-							</div>
-						</aside>
-					)}
+					<aside
+						className={cn(
+							"@2xl:border-l @max-2xl:border-b @max-2xl:pb-4 w-full border-border @2xl:pl-4",
+							"w-full @2xl:max-w-xs",
+						)}
+					>
+						<div className="space-y-4 @2xl:sticky @2xl:h-auto @2xl:top-4">
+							<SidebarRenderer
+								sidebar={formConfig.sidebar}
+								fields={fields}
+								collection={collection}
+								mode={mode}
+								registry={registry}
+								fieldPrefix={fieldPrefix}
+								allCollectionsConfig={allCollectionsConfig}
+								entityMeta={entityMeta}
+								formValues={formValues}
+								resolveText={resolveText}
+							/>
+						</div>
+					</aside>
 				</div>
 			</div>
 		);

@@ -930,23 +930,24 @@ function AdminRouterInner({
 		}
 
 		// Priority 2: Registry-resolved list view
+		const listComponentProps = {
+			collection: name,
+			config,
+			viewConfig: selectedListViewConfig,
+			navigate,
+			basePath,
+			showSearch: defaultViews?.collectionList?.showSearch,
+			showFilters: defaultViews?.collectionList?.showFilters,
+			showToolbar: defaultViews?.collectionList?.showToolbar,
+			realtime: defaultViews?.collectionList?.realtime,
+		};
 		return (
 			<RegistryViewRenderer
 				key={name}
 				loader={listViewLoader}
 				viewKind="list"
 				viewId={selectedListView}
-				componentProps={{
-					collection: name,
-					config,
-					viewConfig: selectedListViewConfig,
-					navigate,
-					basePath,
-					showSearch: defaultViews?.collectionList?.showSearch,
-					showFilters: defaultViews?.collectionList?.showFilters,
-					showToolbar: defaultViews?.collectionList?.showToolbar,
-					realtime: defaultViews?.collectionList?.realtime,
-				}}
+				componentProps={listComponentProps}
 			/>
 		);
 	}
@@ -1000,24 +1001,25 @@ function AdminRouterInner({
 				: undefined;
 
 		// Priority 2: Registry-resolved edit view
+		const editComponentProps = {
+			collection: name,
+			id,
+			config,
+			viewConfig: selectedEditViewConfig,
+			navigate,
+			basePath,
+			defaultValues,
+			registry,
+			allCollectionsConfig: collections,
+			showMeta: formDefaults?.showMeta,
+		};
 		return (
 			<RegistryViewRenderer
 				key={`${name}-${id ?? "create"}`}
 				loader={editViewLoader}
 				viewKind="edit"
 				viewId={selectedEditView}
-				componentProps={{
-					collection: name,
-					id,
-					config,
-					viewConfig: selectedEditViewConfig,
-					navigate,
-					basePath,
-					defaultValues,
-					registry,
-					allCollectionsConfig: collections,
-					showMeta: formDefaults?.showMeta,
-				}}
+				componentProps={editComponentProps}
 			/>
 		);
 	}
@@ -1068,21 +1070,22 @@ function AdminRouterInner({
 			return <custom.Form />;
 		}
 
+		const globalComponentProps = {
+			global: name,
+			config,
+			viewConfig: selectedEditViewConfig,
+			navigate,
+			basePath,
+			registry,
+			allGlobalsConfig: globals,
+		};
 		return (
 			<RegistryViewRenderer
 				key={name}
 				loader={globalViewLoader}
 				viewKind="edit"
 				viewId={selectedEditView}
-				componentProps={{
-					global: name,
-					config,
-					viewConfig: selectedEditViewConfig,
-					navigate,
-					basePath,
-					registry,
-					allGlobalsConfig: globals,
-				}}
+				componentProps={globalComponentProps}
 			/>
 		);
 	}

@@ -142,41 +142,6 @@ export function ObjectField({
 		return null;
 	}
 
-	// Render nested fields based on layout
-	const renderFields = () => {
-		const fieldElements = fieldEntries.map(([fieldName, fieldDef]) => (
-			<NestedFieldRenderer
-				key={fieldName}
-				fieldName={fieldName}
-				fieldDef={fieldDef as FieldDefinition}
-				parentName={name}
-				disabled={disabled}
-			/>
-		));
-
-		if (layout === "inline") {
-			return (
-				<div className="flex flex-wrap items-end gap-2">{fieldElements}</div>
-			);
-		}
-
-		if (layout === "grid") {
-			return (
-				<div
-					className={cn(
-						"grid gap-4",
-						gridColumnClasses[columns] || "grid-cols-2",
-					)}
-				>
-					{fieldElements}
-				</div>
-			);
-		}
-
-		// Default: stack
-		return <div className="space-y-4">{fieldElements}</div>;
-	};
-
 	// Collapsible wrapper (also support legacy layout="collapsible" for backwards compatibility)
 	if (wrapper === "collapsible" || (layout as string) === "collapsible") {
 		return (
@@ -209,7 +174,13 @@ export function ObjectField({
 								{resolveText(description)}
 							</p>
 						)}
-						{renderFields()}
+						<NestedFieldsLayout
+							fieldEntries={fieldEntries}
+							layout={layout}
+							columns={columns}
+							name={name}
+							disabled={disabled}
+						/>
 					</div>
 				)}
 			</div>
@@ -228,11 +199,81 @@ export function ObjectField({
 				localized={localized}
 				locale={locale}
 			>
-				<div className={cn("pt-1", className)}>{renderFields()}</div>
+				<div className={cn("pt-1", className)}>
+					<NestedFieldsLayout
+						fieldEntries={fieldEntries}
+						layout={layout}
+						columns={columns}
+						name={name}
+						disabled={disabled}
+					/>
+				</div>
 			</FieldWrapper>
 		);
 	}
 
 	// No label - just render fields
-	return <div className={className}>{renderFields()}</div>;
+	return (
+		<div className={className}>
+			<NestedFieldsLayout
+				fieldEntries={fieldEntries}
+				layout={layout}
+				columns={columns}
+				name={name}
+				disabled={disabled}
+			/>
+		</div>
+	);
+}
+
+// ============================================================================
+// Nested Fields Layout
+// ============================================================================
+
+interface NestedFieldsLayoutProps {
+	fieldEntries: [string, any][];
+	layout: ObjectFieldProps["layout"];
+	columns: number;
+	name: string;
+	disabled?: boolean;
+}
+
+function NestedFieldsLayout({
+	fieldEntries,
+	layout,
+	columns,
+	name,
+	disabled,
+}: NestedFieldsLayoutProps) {
+	const fieldElements = fieldEntries.map(([fieldName, fieldDef]) => (
+		<NestedFieldRenderer
+			key={fieldName}
+			fieldName={fieldName}
+			fieldDef={fieldDef as FieldDefinition}
+			parentName={name}
+			disabled={disabled}
+		/>
+	));
+
+	if (layout === "inline") {
+		return (
+			<div className="flex flex-wrap items-end gap-2">{fieldElements}</div>
+		);
+	}
+
+	if (layout === "grid") {
+		return (
+			<div
+				className={cn(
+					"grid gap-4",
+					gridColumnClasses[columns] || "grid-cols-2",
+				)}
+			>
+				{fieldElements}
+			</div>
+		);
+	}
+
+	// Default: stack
+	return <div className="space-y-4">{fieldElements}</div>;
 }

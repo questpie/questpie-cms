@@ -204,7 +204,7 @@ export default function ChartWidget({ config }: ChartWidgetProps) {
     ) : (
       <div className="h-48 w-full">
         <ResponsiveContainer width="100%" height="100%">
-          {renderChart(chartType, chartData, color, showGrid)}
+          <ChartRenderer type={chartType} data={chartData} color={color} showGrid={showGrid} />
         </ResponsiveContainer>
       </div>
     );
@@ -225,14 +225,19 @@ export default function ChartWidget({ config }: ChartWidgetProps) {
 }
 
 /**
- * Render the appropriate chart type
+ * Renders the appropriate chart type as a proper component
  */
-function renderChart(
-  type: ChartWidgetConfig["chartType"],
-  data: Array<{ name: string; value: number }>,
-  color: string,
-  showGrid: boolean,
-) {
+function ChartRenderer({
+  type,
+  data,
+  color,
+  showGrid,
+}: {
+  type: ChartWidgetConfig["chartType"];
+  data: Array<{ name: string; value: number }>;
+  color: string;
+  showGrid: boolean;
+}) {
   const commonProps = {
     data,
     margin: { top: 5, right: 5, left: -20, bottom: 5 },

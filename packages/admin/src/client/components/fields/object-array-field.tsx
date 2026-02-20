@@ -115,6 +115,70 @@ function ItemFieldRenderer({
 }
 
 // ============================================================================
+// Item Fields Layout
+// ============================================================================
+
+interface ObjectArrayItemFieldsProps {
+	fieldEntries: [string, any][];
+	layout: string;
+	columns: number;
+	name: string;
+	index: number;
+	disabled?: boolean;
+}
+
+function ObjectArrayItemFields({
+	fieldEntries,
+	layout,
+	columns,
+	name,
+	index,
+	disabled,
+}: ObjectArrayItemFieldsProps) {
+	if (fieldEntries.length === 0) {
+		return (
+			<div className="rounded-lg border border-dashed p-4 text-center">
+				<p className="text-sm text-muted-foreground">
+					No fields configured for items.
+				</p>
+			</div>
+		);
+	}
+
+	const fieldElements = fieldEntries.map(([fieldName, fieldDef]) => (
+		<ItemFieldRenderer
+			key={fieldName}
+			fieldName={fieldName}
+			fieldDef={fieldDef as FieldDefinition}
+			parentName={`${name}.${index}`}
+			disabled={disabled}
+		/>
+	));
+
+	if (layout === "inline") {
+		return (
+			<div className="flex flex-wrap items-end gap-2">{fieldElements}</div>
+		);
+	}
+
+	if (layout === "grid") {
+		return (
+			<div
+				className={cn(
+					"grid gap-4",
+					gridColumnClasses[columns] || "grid-cols-2",
+				)}
+			>
+				{fieldElements}
+			</div>
+		);
+	}
+
+	// Default: stack
+	return <div className="space-y-4">{fieldElements}</div>;
+}
+
+// ============================================================================
 // Main Component
 // ============================================================================
 
@@ -233,51 +297,6 @@ export function ObjectArrayField({
 		}
 	};
 
-	// Render fields for an item at given index
-	const renderItemFields = (index: number) => {
-		if (fieldEntries.length === 0) {
-			return (
-				<div className="rounded-lg border border-dashed p-4 text-center">
-					<p className="text-sm text-muted-foreground">
-						No fields configured for items.
-					</p>
-				</div>
-			);
-		}
-
-		const fieldElements = fieldEntries.map(([fieldName, fieldDef]) => (
-			<ItemFieldRenderer
-				key={fieldName}
-				fieldName={fieldName}
-				fieldDef={fieldDef as FieldDefinition}
-				parentName={`${name}.${index}`}
-				disabled={disabled}
-			/>
-		));
-
-		if (layout === "inline") {
-			return (
-				<div className="flex flex-wrap items-end gap-2">{fieldElements}</div>
-			);
-		}
-
-		if (layout === "grid") {
-			return (
-				<div
-					className={cn(
-						"grid gap-4",
-						gridColumnClasses[columns] || "grid-cols-2",
-					)}
-				>
-					{fieldElements}
-				</div>
-			);
-		}
-
-		// Default: stack
-		return <div className="space-y-4">{fieldElements}</div>;
-	};
-
 	const emptyState = (
 		<div className="rounded-lg border border-dashed p-4 text-center">
 			<p className="text-sm text-muted-foreground">
@@ -287,7 +306,16 @@ export function ObjectArrayField({
 	);
 
 	const editorContent =
-		activeIndex !== null ? renderItemFields(activeIndex) : null;
+		activeIndex !== null ? (
+			<ObjectArrayItemFields
+				fieldEntries={fieldEntries}
+				layout={layout}
+				columns={columns}
+				name={name}
+				index={activeIndex}
+				disabled={disabled}
+			/>
+		) : null;
 	const editorTitle =
 		activeIndex !== null
 			? resolveItemLabel(values?.[activeIndex], activeIndex)
@@ -401,7 +429,16 @@ export function ObjectArrayField({
 										</div>
 									</div>
 									{mode === "inline" && (
-										<div className="p-3">{renderItemFields(index)}</div>
+										<div className="p-3">
+										<ObjectArrayItemFields
+											fieldEntries={fieldEntries}
+											layout={layout}
+											columns={columns}
+											name={name}
+											index={index}
+											disabled={disabled}
+										/>
+									</div>
 									)}
 								</div>
 							);

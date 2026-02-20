@@ -98,6 +98,38 @@ function resolveCellComponent(
 }
 
 /**
+ * Renders a single table cell value using field definitions or custom renderers
+ */
+function TableCellRenderer({
+  item,
+  column,
+  fields,
+}: {
+  item: any;
+  column: TableWidgetColumnConfig;
+  fields: Record<string, FieldDefinition> | undefined;
+}): React.ReactNode {
+  const value = item[column.key];
+
+  // Use custom renderer if provided in column config
+  if (column.render) {
+    return column.render(value, item);
+  }
+
+  // Get field definition and resolve cell component
+  const fieldDef = fields?.[column.key];
+  const CellComponent = resolveCellComponent(fieldDef);
+  const fieldType = fieldDef?.name ?? "text";
+  const needsFieldDef = FIELD_TYPES_NEEDING_FIELD_DEF.has(fieldType);
+
+  return needsFieldDef ? (
+    <CellComponent value={value} row={item} fieldDef={fieldDef} />
+  ) : (
+    <CellComponent value={value} row={item} />
+  );
+}
+
+/**
  * Table Widget Component
  *
  * Displays a mini table of collection items.
@@ -153,31 +185,6 @@ export default function TableWidget({
     if (linkToDetail && navigate) {
       navigate(`${basePath}/collections/${collection}/${item.id}`);
     }
-  };
-
-  // Render cell value
-  const renderCell = (
-    item: any,
-    column: TableWidgetColumnConfig,
-  ): React.ReactNode => {
-    const value = item[column.key];
-
-    // Use custom renderer if provided in column config
-    if (column.render) {
-      return column.render(value, item);
-    }
-
-    // Get field definition and resolve cell component
-    const fieldDef = fields?.[column.key];
-    const CellComponent = resolveCellComponent(fieldDef);
-    const fieldType = fieldDef?.name ?? "text";
-    const needsFieldDef = FIELD_TYPES_NEEDING_FIELD_DEF.has(fieldType);
-
-    return needsFieldDef ? (
-      <CellComponent value={value} row={item} fieldDef={fieldDef} />
-    ) : (
-      <CellComponent value={value} row={item} />
-    );
   };
 
   // Empty state
@@ -243,7 +250,7 @@ export default function TableWidget({
                       : undefined
                   }
                 >
-                  {renderCell(item, column)}
+                  <TableCellRenderer item={item} column={column} fields={fields} />
                 </div>
               ))}
             </button>
@@ -266,7 +273,7 @@ export default function TableWidget({
                       : undefined
                   }
                 >
-                  {renderCell(item, column)}
+                  <TableCellRenderer item={item} column={column} fields={fields} />
                 </div>
               ))}
             </div>

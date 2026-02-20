@@ -324,9 +324,10 @@ export function resolveIconElement(
 
 	// Handle legacy string icon names by treating them as icon component references
 	if (typeof icon === "string") {
+		const reference = { type: "icon" as const, props: { name: icon } };
 		return (
 			<ComponentRenderer
-				reference={{ type: "icon", props: { name: icon } }}
+				reference={reference}
 				additionalProps={props}
 				registry={registry}
 			/>

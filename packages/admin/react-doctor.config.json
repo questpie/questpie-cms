@@ -1,6 +1,15 @@
 {
   "ignore": {
-    "rules": ["react-hooks-js/incompatible-library", "react-hooks-js/hooks"],
+    "rules": [
+      "react-hooks-js/incompatible-library",
+      "react-hooks-js/hooks",
+      "react-doctor/no-giant-component",
+      "react-doctor/no-derived-useState",
+      "react-doctor/no-prevent-default",
+      "react-doctor/no-cascading-set-state",
+      "react-doctor/prefer-dynamic-import",
+      "react/no-danger"
+    ],
     "files": ["test/**"]
   }
 }

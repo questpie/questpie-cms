@@ -39,6 +39,97 @@ interface ArrayFieldProps
   maxItems?: number;
 }
 
+// ============================================================================
+// Array Item Input
+// ============================================================================
+
+interface ArrayItemInputProps {
+  name: string;
+  index: number;
+  itemType: ArrayFieldItemType;
+  itemValue: any;
+  placeholder?: string;
+  disabled?: boolean;
+  readOnly?: boolean;
+  options?: Array<{ label: string; value: any }>;
+}
+
+function ArrayItemInput({
+  name,
+  index,
+  itemType,
+  itemValue,
+  placeholder,
+  disabled,
+  readOnly,
+  options,
+}: ArrayItemInputProps) {
+  const resolveText = useResolveText();
+  const form = useFormContext();
+  const itemName = `${name}.${index}`;
+  const itemPlaceholder = placeholder || `Item ${index + 1}`;
+
+  if (itemType === "textarea") {
+    return (
+      <Textarea
+        id={itemName}
+        placeholder={itemPlaceholder}
+        disabled={disabled || readOnly}
+        defaultValue={itemValue ?? ""}
+        {...form.register(itemName)}
+      />
+    );
+  }
+
+  if (itemType === "select") {
+    return (
+      <Select
+        value={itemValue ?? ""}
+        onValueChange={(value) =>
+          form.setValue(itemName, value, {
+            shouldDirty: true,
+            shouldTouch: true,
+          })
+        }
+        disabled={disabled || readOnly}
+      >
+        <SelectTrigger id={itemName}>
+          <span className="truncate">
+            {options?.find((o) => o.value === itemValue)?.label
+              ? resolveText(options.find((o) => o.value === itemValue)?.label)
+              : itemPlaceholder}
+          </span>
+        </SelectTrigger>
+        <SelectContent>
+          {options?.map((option) => (
+            <SelectItem key={option.value} value={option.value}>
+              {resolveText(option.label)}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    );
+  }
+
+  return (
+    <Input
+      id={itemName}
+      type={itemType === "email" ? "email" : itemType}
+      placeholder={itemPlaceholder}
+      disabled={disabled || readOnly}
+      defaultValue={itemValue ?? ""}
+      {...form.register(
+        itemName,
+        itemType === "number" ? { valueAsNumber: true } : undefined,
+      )}
+    />
+  );
+}
+
+// ============================================================================
+// Main Component
+// ============================================================================
+
 export function ArrayField({
   name,
   value,
@@ -132,68 +223,6 @@ export function ArrayField({
     move(from, to);
   };
 
-  const renderItemInput = (index: number) => {
-    const itemName = `${name}.${index}`;
-    const itemValue = values?.[index];
-    const itemPlaceholder = resolvedPlaceholder || `Item ${index + 1}`;
-
-    if (itemType === "textarea") {
-      return (
-        <Textarea
-          id={itemName}
-          placeholder={itemPlaceholder}
-          disabled={disabled || readOnly}
-          defaultValue={itemValue ?? ""}
-          {...form.register(itemName)}
-        />
-      );
-    }
-
-    if (itemType === "select") {
-      return (
-        <Select
-          value={itemValue ?? ""}
-          onValueChange={(value) =>
-            form.setValue(itemName, value, {
-              shouldDirty: true,
-              shouldTouch: true,
-            })
-          }
-          disabled={disabled || readOnly}
-        >
-          <SelectTrigger id={itemName}>
-            <span className="truncate">
-              {options?.find((o) => o.value === itemValue)?.label
-                ? resolveText(options.find((o) => o.value === itemValue)?.label)
-                : itemPlaceholder}
-            </span>
-          </SelectTrigger>
-          <SelectContent>
-            {options?.map((option) => (
-              <SelectItem key={option.value} value={option.value}>
-                {resolveText(option.label)}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      );
-    }
-
-    return (
-      <Input
-        id={itemName}
-        type={itemType === "email" ? "email" : itemType}
-        placeholder={itemPlaceholder}
-        disabled={disabled || readOnly}
-        defaultValue={itemValue ?? ""}
-        {...form.register(
-          itemName,
-          itemType === "number" ? { valueAsNumber: true } : undefined,
-        )}
-      />
-    );
-  };
-
   return (
     <div className="space-y-2">
       {label && (
@@ -228,7 +257,18 @@ export function ArrayField({
 
             return (
               <div key={field.id} className="flex items-start gap-2">
-                <div className="flex-1">{renderItemInput(index)}</div>
+                <div className="flex-1">
+                  <ArrayItemInput
+                    name={name}
+                    index={index}
+                    itemType={itemType}
+                    itemValue={values?.[index]}
+                    placeholder={resolvedPlaceholder}
+                    disabled={disabled}
+                    readOnly={readOnly}
+                    options={options}
+                  />
+                </div>
                 {orderable && !readOnly && (
                   <div className="flex flex-col gap-1">
                     <Button
