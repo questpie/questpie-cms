@@ -314,6 +314,9 @@ export default function GlobalFormView({
 					}),
 				);
 			}
+			setTransitionTarget(null);
+			setTransitionSchedule(false);
+			setTransitionScheduledAt(null);
 		} catch (err) {
 			let description: string;
 			if (err instanceof Error) {
@@ -324,7 +327,6 @@ export default function GlobalFormView({
 			toast.error(t("workflow.transitionFailed"), {
 				description,
 			});
-		} finally {
 			setTransitionTarget(null);
 			setTransitionSchedule(false);
 			setTransitionScheduledAt(null);

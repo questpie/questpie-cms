@@ -64,8 +64,10 @@ export function ConfirmationDialog({
     try {
       await onConfirm();
       onOpenChange(false);
-    } finally {
       setIsProcessing(false);
+    } catch (_err) {
+      setIsProcessing(false);
+      throw _err;
     }
   };
 

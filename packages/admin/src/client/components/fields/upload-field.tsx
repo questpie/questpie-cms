@@ -619,6 +619,7 @@ function MultipleUploadInner({
 			if (onUploadComplete) {
 				onUploadComplete(uploadedAssets);
 			}
+			setPendingUploads([]);
 		} catch (err) {
 			let uploadError: Error;
 			if (err instanceof Error) {
@@ -630,7 +631,6 @@ function MultipleUploadInner({
 				onUploadError(uploadError);
 			}
 			toast.error(uploadError.message);
-		} finally {
 			setPendingUploads([]);
 		}
 	};

@@ -145,9 +145,9 @@ export function ActionButton<TItem = any>({
             `API call: ${method} ${endpoint}`,
           );
           helpers.refresh();
+          setIsLoading(false);
         } catch (error) {
           helpers.toast.error("Action failed");
-        } finally {
           setIsLoading(false);
         }
         break;
@@ -157,9 +157,9 @@ export function ActionButton<TItem = any>({
         setIsLoading(true);
         try {
           await handler.fn(ctx);
+          setIsLoading(false);
         } catch (error) {
           helpers.toast.error("Action failed");
-        } finally {
           setIsLoading(false);
         }
         break;

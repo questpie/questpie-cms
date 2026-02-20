@@ -150,10 +150,10 @@ export function SelectMulti<TValue extends string = string>({
 			try {
 				const results = await loadOptions(search);
 				setDynamicOptions(results);
+				setIsLoading(false);
 			} catch (error) {
 				console.error("Failed to load options:", error);
 				setDynamicOptions([]);
-			} finally {
 				setIsLoading(false);
 			}
 		}, debounceMs);

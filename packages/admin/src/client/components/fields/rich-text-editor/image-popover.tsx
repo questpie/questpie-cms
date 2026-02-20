@@ -138,6 +138,8 @@ export function ImagePopover({
 					setImageAlt("");
 					onOpenChange(false);
 				}
+				setUploadingImage(false);
+				event.target.value = "";
 			} catch (err) {
 				let uploadError: Error;
 				if (err instanceof Error) {
@@ -146,7 +148,6 @@ export function ImagePopover({
 					uploadError = new Error(t("upload.error"));
 				}
 				toast.error(uploadError.message);
-			} finally {
 				setUploadingImage(false);
 				event.target.value = "";
 			}

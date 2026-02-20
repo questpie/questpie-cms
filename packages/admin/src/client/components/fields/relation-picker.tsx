@@ -359,10 +359,12 @@ export function RelationPicker<T extends Questpie<any>>({
 						setFetchedItems((prev) => new Map([...prev, [id, response]]));
 					}
 				}
+				if (!cancelled) {
+					setIsLoadingItems(false);
+				}
 			} catch (error) {
 				console.error("Failed to fetch selected items:", error);
 				toast.error("Failed to load selected items");
-			} finally {
 				if (!cancelled) {
 					setIsLoadingItems(false);
 				}

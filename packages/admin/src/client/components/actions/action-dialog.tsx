@@ -270,6 +270,9 @@ function CustomDialogContent<TItem>({
             setComponent(() => comp as React.ComponentType<any>);
           }
         }
+        if (mounted) {
+          setLoading(false);
+        }
       } catch (err) {
         if (mounted) {
           if (err instanceof Error) {
@@ -277,9 +280,6 @@ function CustomDialogContent<TItem>({
           } else {
             setError(new Error("Failed to load"));
           }
-        }
-      } finally {
-        if (mounted) {
           setLoading(false);
         }
       }

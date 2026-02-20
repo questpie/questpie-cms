@@ -176,9 +176,9 @@ export function BulkActionToolbar<TItem = any>({
 			try {
 				await onBulkDelete(ids);
 				table.resetRowSelection();
+				setIsLoading(false);
 			} catch (_error) {
 				helpers.toast.error(t("collection.bulkDeleteError"));
-			} finally {
 				setIsLoading(false);
 			}
 			return;
@@ -198,9 +198,9 @@ export function BulkActionToolbar<TItem = any>({
 			try {
 				await onBulkRestore(ids);
 				table.resetRowSelection();
+				setIsLoading(false);
 			} catch (_error) {
 				helpers.toast.error(t("collection.bulkRestoreError"));
-			} finally {
 				setIsLoading(false);
 			}
 			return;
@@ -225,9 +225,9 @@ export function BulkActionToolbar<TItem = any>({
 					);
 					helpers.refresh();
 					table.resetRowSelection();
+					setIsLoading(false);
 				} catch (_error) {
 					helpers.toast.error(t("collection.bulkActionFailed"));
-				} finally {
 					setIsLoading(false);
 				}
 				break;
@@ -239,9 +239,9 @@ export function BulkActionToolbar<TItem = any>({
 					// Pass all items to the custom handler
 					await handler.fn(ctx as any);
 					table.resetRowSelection();
+					setIsLoading(false);
 				} catch (_error) {
 					helpers.toast.error(t("collection.bulkActionFailed"));
-				} finally {
 					setIsLoading(false);
 				}
 				break;
@@ -292,8 +292,10 @@ export function BulkActionToolbar<TItem = any>({
 		setIsSelectingAll(true);
 		try {
 			await onSelectAllMatching();
-		} finally {
 			setIsSelectingAll(false);
+		} catch (_err) {
+			setIsSelectingAll(false);
+			throw _err;
 		}
 	};
 

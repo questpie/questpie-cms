@@ -682,6 +682,9 @@ function LazyPageRenderer({ config }: { config: PageDefinition<string> }) {
 						setComponent(() => config.component as React.ComponentType);
 					}
 				}
+				if (mounted) {
+					setLoading(false);
+				}
 			} catch (err) {
 				if (mounted) {
 					let resolvedError: Error;
@@ -692,7 +695,6 @@ function LazyPageRenderer({ config }: { config: PageDefinition<string> }) {
 					}
 					setError(resolvedError);
 				}
-			} finally {
 				if (mounted) {
 					setLoading(false);
 				}

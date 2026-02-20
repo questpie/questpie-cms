@@ -829,6 +829,9 @@ export default function FormView({
 					}),
 				);
 			}
+			setTransitionTarget(null);
+			setTransitionSchedule(false);
+			setTransitionScheduledAt(null);
 		} catch (err) {
 			let description: string;
 			if (err instanceof Error) {
@@ -839,7 +842,6 @@ export default function FormView({
 			toast.error(t("workflow.transitionFailed"), {
 				description,
 			});
-		} finally {
 			setTransitionTarget(null);
 			setTransitionSchedule(false);
 			setTransitionScheduledAt(null);
@@ -1373,9 +1375,12 @@ export default function FormView({
 									}
 									throw new Error(errorMessage);
 								}
-								return response.json();
-							} finally {
+								const result = response.json();
 								setActionLoading(false);
+								return result;
+							} catch (_err) {
+								setActionLoading(false);
+								throw _err;
 							}
 						};
 
