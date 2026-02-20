@@ -107,7 +107,7 @@ interface AutoFormFieldsProps<
 	/**
 	 * Custom field renderer (fallback)
 	 */
-	renderField?: (
+	fieldResolver?: (
 		fieldName: string,
 		fieldDef?: FieldDefinition,
 	) => React.ReactNode;
@@ -899,7 +899,7 @@ export function AutoFormFields<T extends Questpie<any>, K extends string>({ app:
 	mode = "collection",
 	config,
 	registry,
-	renderField,
+	fieldResolver,
 	fieldPrefix,
 	allCollectionsConfig,
 }: AutoFormFieldsProps<T, K>): React.ReactElement {
@@ -988,12 +988,12 @@ export function AutoFormFields<T extends Questpie<any>, K extends string>({ app:
 		: new Set<string>();
 
 	// Custom render function provided
-	if (renderField) {
+	if (fieldResolver) {
 		const renderedFields = allFieldNames.map((fieldName) => {
 			const fullFieldName = getFullFieldName(fieldName, fieldPrefix);
 			return (
 				<React.Fragment key={fullFieldName}>
-					{renderField(fullFieldName, fields[fieldName])}
+					{fieldResolver(fullFieldName, fields[fieldName])}
 				</React.Fragment>
 			);
 		});
