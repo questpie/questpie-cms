@@ -6,6 +6,7 @@
  */
 
 import { Icon } from "@iconify/react";
+import { useQueryClient } from "@tanstack/react-query";
 import * as React from "react";
 import { toast } from "sonner";
 import { ComponentRenderer } from "../../components/component-renderer";
@@ -40,8 +41,13 @@ import {
 	TooltipTrigger,
 } from "../../components/ui/tooltip";
 import { useAdminConfig } from "../../hooks/use-admin-config";
+import {
+	getAdminPreferenceQueryKey,
+	useAdminPreference,
+	useSetAdminPreference,
+} from "../../hooks/use-admin-preferences";
 import { useAuthClientSafe } from "../../hooks/use-auth";
-import { useSessionState } from "../../hooks/use-current-user";
+import { useCurrentUser, useSessionState } from "../../hooks/use-current-user";
 import { useResolveText, useTranslation } from "../../i18n/hooks";
 import { cn, formatLabel } from "../../lib/utils";
 import {
@@ -276,7 +282,7 @@ function useServerNavigation(): NavigationGroup[] | undefined {
 				id: section.id,
 				label: section.title,
 				icon: section.icon,
-				collapsed: section.collapsed,
+				collapsible: section.collapsible,
 				items: (section.items ?? [])
 					.map(convertItem)
 					.filter((i: any): i is NavigationElement => i !== undefined),
@@ -589,6 +595,58 @@ function NavItem({
 	);
 }
 
+// ============================================================================
+// Sidebar Section Collapse State (persisted in admin preferences)
+// ============================================================================
+
+const SIDEBAR_COLLAPSED_SECTIONS_KEY = "sidebar:collapsed-sections";
+
+type CollapsedSectionsMap = Record<string, boolean>;
+
+/**
+ * Hook to manage sidebar section collapse state, persisted in admin preferences.
+ * Returns the collapsed map and a toggle function.
+ * Collapsible sections default to collapsed (true) when no preference is stored.
+ */
+function useSidebarCollapsedSections() {
+	const user = useCurrentUser();
+	const queryClient = useQueryClient();
+	const { data: stored, isLoading } =
+		useAdminPreference<CollapsedSectionsMap>(SIDEBAR_COLLAPSED_SECTIONS_KEY);
+	const { mutate: persist } = useSetAdminPreference<CollapsedSectionsMap>(
+		SIDEBAR_COLLAPSED_SECTIONS_KEY,
+	);
+
+	const queryKey = getAdminPreferenceQueryKey(
+		user?.id,
+		SIDEBAR_COLLAPSED_SECTIONS_KEY,
+	);
+
+	const isSectionCollapsed = React.useCallback(
+		(sectionId: string | undefined, collapsible: boolean | undefined) => {
+			if (!collapsible || !sectionId) return false;
+			// Default to collapsed (true) when no stored preference
+			return stored?.[sectionId] ?? true;
+		},
+		[stored],
+	);
+
+	const toggleSection = React.useCallback(
+		(sectionId: string) => {
+			const current = stored ?? {};
+			const isCurrentlyCollapsed = current[sectionId] ?? true;
+			const next = { ...current, [sectionId]: !isCurrentlyCollapsed };
+			// Optimistic update
+			queryClient.setQueryData(queryKey, next);
+			// Persist to DB
+			persist(next);
+		},
+		[stored, queryClient, queryKey, persist],
+	);
+
+	return { isSectionCollapsed, toggleSection, isLoading };
+}
+
 function NavGroup({
 	group,
 	activeRoute,
@@ -596,6 +654,8 @@ function NavGroup({
 	renderNavItem,
 	basePath,
 	useActiveProps,
+	isSectionCollapsed,
+	toggleSection,
 	depth = 0,
 }: {
 	group: NavigationGroup;
@@ -604,12 +664,14 @@ function NavGroup({
 	renderNavItem?: AdminSidebarProps["renderNavItem"];
 	basePath: string;
 	useActiveProps: boolean;
+	isSectionCollapsed: (
+		sectionId: string | undefined,
+		collapsible: boolean | undefined,
+	) => boolean;
+	toggleSection: (sectionId: string) => void;
 	depth?: number;
 }) {
-	// Track collapsed state for sections that support it
-	const [isCollapsed, setIsCollapsed] = React.useState(
-		group.collapsed ?? false,
-	);
+	const isCollapsed = isSectionCollapsed(group.id, group.collapsible);
 	const resolveText = useResolveText();
 	const groupLabel = resolveText(group.label);
 
@@ -624,19 +686,19 @@ function NavGroup({
 				<SidebarGroupLabel
 					className={cn(
 						"gap-2 px-3 mt-2",
-						group.collapsed !== undefined &&
+						group.collapsible &&
 							"cursor-pointer hover:text-sidebar-foreground",
 						depth > 0 && "pl-6",
 					)}
 					onClick={
-						group.collapsed !== undefined
-							? () => setIsCollapsed(!isCollapsed)
+						group.collapsible && group.id
+							? () => toggleSection(group.id!)
 							: undefined
 					}
 				>
 					{group.icon && <RenderIcon icon={group.icon} className="size-3.5" />}
 					<span className="flex-1 font-mono  text-left">{groupLabel}</span>
-					{group.collapsed !== undefined && (
+					{group.collapsible && (
 						<Icon
 							icon="ph:caret-down"
 							className={cn(
@@ -700,6 +762,8 @@ function NavGroup({
 							renderNavItem={renderNavItem}
 							basePath={basePath}
 							useActiveProps={useActiveProps}
+							isSectionCollapsed={isSectionCollapsed}
+							toggleSection={toggleSection}
 							depth={depth + 1}
 						/>
 					))}
@@ -957,6 +1021,10 @@ export function AdminSidebar({
 	const { state, isMobile, setOpenMobile } = useSidebar();
 	const collapsed = state === "collapsed";
 
+	// Persisted sidebar section collapse state
+	const { isSectionCollapsed, toggleSection } =
+		useSidebarCollapsedSections();
+
 	// Close sidebar on mobile when navigating
 	const handleBrandClick = React.useCallback(() => {
 		if (isMobile) {
@@ -1045,6 +1113,8 @@ export function AdminSidebar({
 						renderNavItem={renderNavItem}
 						basePath={basePath}
 						useActiveProps={useActiveProps}
+						isSectionCollapsed={isSectionCollapsed}
+						toggleSection={toggleSection}
 					/>
 				))}
 			</SidebarContent>

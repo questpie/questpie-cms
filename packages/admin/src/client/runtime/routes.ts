@@ -168,7 +168,8 @@ export type NavigationGroup = {
 	label?: I18nText;
 	/** Icon - can be a React component or a server-defined ComponentReference */
 	icon?: IconComponent | ComponentReference;
-	collapsed?: boolean;
+	/** Whether this section can be collapsed/expanded by the user */
+	collapsible?: boolean;
 	items?: NavigationElement[];
 	/** Nested subsections */
 	sections?: NavigationGroup[];

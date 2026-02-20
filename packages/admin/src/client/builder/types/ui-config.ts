@@ -190,8 +190,8 @@ export interface SidebarSection<TId extends string = string> {
 	title?: I18nText;
 	/** Section icon */
 	icon?: IconComponent | ComponentReference;
-	/** Whether section is collapsed by default */
-	collapsed?: boolean;
+	/** Whether this section can be collapsed/expanded by the user */
+	collapsible?: boolean;
 	/** Items in this section */
 	items?: SidebarItem[];
 	/** Nested subsections */

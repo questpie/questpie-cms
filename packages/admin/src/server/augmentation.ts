@@ -972,8 +972,8 @@ export interface ServerSidebarSection {
 	title?: I18nText;
 	/** Section icon */
 	icon?: ComponentReference;
-	/** Whether collapsed by default */
-	collapsed?: boolean;
+	/** Whether this section can be collapsed/expanded by the user */
+	collapsible?: boolean;
 	/** Section items */
 	items?: ServerSidebarItem[];
 	/** Nested subsections */
