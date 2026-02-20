@@ -65,7 +65,7 @@ export interface BlockPrefetchContext {
 	/** Block type name */
 	blockType: string;
 	/** app instance — use `typedApp<App>(ctx.app)` for typed access */
-	app: any;
+	app: Questpie<any>;
 	/** Current locale */
 	locale?: string;
 	/** Database client */

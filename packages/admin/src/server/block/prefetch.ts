@@ -225,7 +225,7 @@ async function expandDeclaredFields(
 		for (const { blockId, fieldName, isSingle } of targets) {
 			if (!expandedData[blockId]) expandedData[blockId] = {};
 
-			const blockVal = (values[blockId] || {})[fieldName];
+			const blockVal = values[blockId]?.[fieldName];
 			if (isSingle) {
 				expandedData[blockId][fieldName] =
 					recordMap.get(blockVal as string) ?? null;

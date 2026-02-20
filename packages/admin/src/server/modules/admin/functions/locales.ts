@@ -5,19 +5,12 @@
  * Used by the admin panel to populate locale switchers and validate locale selection.
  */
 
-import { fn, type Questpie } from "questpie";
+import { fn } from "questpie";
 import { z } from "zod";
 
 // ============================================================================
 // Type Helpers
 // ============================================================================
-
-/**
- * Helper to get typed app from handler context.
- */
-function getApp(ctx: { app: unknown }): Questpie<any> {
-  return ctx.app as Questpie<any>;
-}
 
 // ============================================================================
 // Schema Definitions
@@ -26,16 +19,16 @@ function getApp(ctx: { app: unknown }): Questpie<any> {
 const getContentLocalesSchema = z.object({}).optional();
 
 const getContentLocalesOutputSchema = z.object({
-  locales: z.array(
-    z.object({
-      code: z.string(),
-      label: z.string().optional(),
-      fallback: z.boolean().optional(),
-      flagCountryCode: z.string().optional(),
-    }),
-  ),
-  defaultLocale: z.string(),
-  fallbacks: z.record(z.string(), z.string()).optional(),
+	locales: z.array(
+		z.object({
+			code: z.string(),
+			label: z.string().optional(),
+			fallback: z.boolean().optional(),
+			flagCountryCode: z.string().optional(),
+		}),
+	),
+	defaultLocale: z.string(),
+	fallbacks: z.record(z.string(), z.string()).optional(),
 });
 
 // ============================================================================
@@ -62,45 +55,45 @@ const getContentLocalesOutputSchema = z.object({
  * ```
  */
 const getContentLocales = fn({
-  type: "query",
-  schema: getContentLocalesSchema,
-  outputSchema: getContentLocalesOutputSchema,
-  handler: async (ctx) => {
-    const app = getApp(ctx);
-    const localeConfig = app.config.locale;
+	type: "query",
+	schema: getContentLocalesSchema,
+	outputSchema: getContentLocalesOutputSchema,
+	handler: async (ctx) => {
+		const app = ctx.app;
+		const localeConfig = app.config.locale;
 
-    // If no locale config, return sensible defaults
-    if (!localeConfig) {
-      return {
-        locales: [{ code: "en", label: "English", fallback: true }],
-        defaultLocale: "en",
-      };
-    }
+		// If no locale config, return sensible defaults
+		if (!localeConfig) {
+			return {
+				locales: [{ code: "en", label: "English", fallback: true }],
+				defaultLocale: "en",
+			};
+		}
 
-    // Resolve locales (can be async function)
-    const locales =
-      typeof localeConfig.locales === "function"
-        ? await localeConfig.locales()
-        : localeConfig.locales;
+		// Resolve locales (can be async function)
+		const locales =
+			typeof localeConfig.locales === "function"
+				? await localeConfig.locales()
+				: localeConfig.locales;
 
-    return {
-      locales: locales.map(
-        (l: {
-          code: string;
-          label?: string;
-          fallback?: boolean;
-          flagCountryCode?: string;
-        }) => ({
-          code: l.code,
-          label: l.label,
-          fallback: l.fallback,
-          flagCountryCode: l.flagCountryCode,
-        }),
-      ),
-      defaultLocale: localeConfig.defaultLocale,
-      fallbacks: localeConfig.fallbacks,
-    };
-  },
+		return {
+			locales: locales.map(
+				(l: {
+					code: string;
+					label?: string;
+					fallback?: boolean;
+					flagCountryCode?: string;
+				}) => ({
+					code: l.code,
+					label: l.label,
+					fallback: l.fallback,
+					flagCountryCode: l.flagCountryCode,
+				}),
+			),
+			defaultLocale: localeConfig.defaultLocale,
+			fallbacks: localeConfig.fallbacks,
+		};
+	},
 });
 
 // ============================================================================
@@ -111,5 +104,5 @@ const getContentLocales = fn({
  * Bundle of locale-related functions.
  */
 export const localeFunctions = {
-  getContentLocales,
+	getContentLocales,
 } as const;
