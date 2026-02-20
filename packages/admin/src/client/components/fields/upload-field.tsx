@@ -568,7 +568,7 @@ function MultipleUploadInner({
 		};
 	}, [assetIds, collection, fetchedAssets, client]);
 
-	const handleDrop = async (files: File[]) => {
+	const handleDrop = (files: File[]) => {
 		if (files.length === 0 || disabled) return;
 		if (!collection) {
 			toast.error(
@@ -602,37 +602,39 @@ function MultipleUploadInner({
 		}));
 		setPendingUploads(pending);
 
-		try {
-			if (onUploadStart) {
-				onUploadStart();
-			}
-			const uploadedAssets = await uploadMany(sanitizedFiles, {
-				to: collection,
-			});
-			const newIds = uploadedAssets.map((a) => a.id);
-			field.onChange([...assetIds, ...newIds]);
-
-			for (const asset of uploadedAssets) {
-				setFetchedAssets((prev) => new Map(prev).set(asset.id, asset));
-			}
-
-			if (onUploadComplete) {
-				onUploadComplete(uploadedAssets);
-			}
-			setPendingUploads([]);
-		} catch (err) {
-			let uploadError: Error;
-			if (err instanceof Error) {
-				uploadError = err;
-			} else {
-				uploadError = new Error(t("upload.error"));
-			}
-			if (onUploadError) {
-				onUploadError(uploadError);
-			}
-			toast.error(uploadError.message);
-			setPendingUploads([]);
+		if (onUploadStart) {
+			onUploadStart();
 		}
+		uploadMany(sanitizedFiles, {
+			to: collection,
+		}).then(
+			(uploadedAssets) => {
+				const newIds = uploadedAssets.map((a) => a.id);
+				field.onChange([...assetIds, ...newIds]);
+
+				for (const asset of uploadedAssets) {
+					setFetchedAssets((prev) => new Map(prev).set(asset.id, asset));
+				}
+
+				if (onUploadComplete) {
+					onUploadComplete(uploadedAssets);
+				}
+				setPendingUploads([]);
+			},
+			(err) => {
+				let uploadError: Error;
+				if (err instanceof Error) {
+					uploadError = err;
+				} else {
+					uploadError = new Error(t("upload.error"));
+				}
+				if (onUploadError) {
+					onUploadError(uploadError);
+				}
+				toast.error(uploadError.message);
+				setPendingUploads([]);
+			},
+		);
 	};
 
 	const handleRemove = (idToRemove: string) => {

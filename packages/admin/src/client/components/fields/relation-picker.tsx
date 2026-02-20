@@ -347,29 +347,27 @@ export function RelationPicker<T extends Questpie<any>>({
 		let cancelled = false;
 
 		(async () => {
-			try {
-				for (const id of missingIds) {
-					if (cancelled) return;
-					const response = await (client as any).collections[
-						targetCollection
-					].findOne({ where: { id } });
-					if (cancelled) continue;
-					if (response) {
-						// Immutable update - spread prev and add new entry
-						setFetchedItems((prev) => new Map([...prev, [id, response]]));
-					}
-				}
-				if (!cancelled) {
-					setIsLoadingItems(false);
-				}
-			} catch (error) {
-				console.error("Failed to fetch selected items:", error);
-				toast.error("Failed to load selected items");
-				if (!cancelled) {
-					setIsLoadingItems(false);
+			for (const id of missingIds) {
+				if (cancelled) return;
+				const response = await (client as any).collections[
+					targetCollection
+				].findOne({ where: { id } });
+				if (cancelled) continue;
+				if (response) {
+					// Immutable update - spread prev and add new entry
+					setFetchedItems((prev) => new Map([...prev, [id, response]]));
 				}
 			}
-		})();
+			if (!cancelled) {
+				setIsLoadingItems(false);
+			}
+		})().catch((error) => {
+			console.error("Failed to fetch selected items:", error);
+			toast.error("Failed to load selected items");
+			if (!cancelled) {
+				setIsLoadingItems(false);
+			}
+		});
 
 		return () => {
 			cancelled = true;

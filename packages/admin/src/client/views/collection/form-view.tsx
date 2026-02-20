@@ -1047,7 +1047,9 @@ export default function FormView({
 	}, [autoSaveConfig.preventNavigation, autoSaveConfig.enabled]);
 
 	const onSubmitRef = React.useRef(onSubmit);
-	onSubmitRef.current = onSubmit;
+	React.useEffect(() => {
+		onSubmitRef.current = onSubmit;
+	});
 
 	// Keyboard shortcut: Cmd+S to save
 	React.useEffect(() => {

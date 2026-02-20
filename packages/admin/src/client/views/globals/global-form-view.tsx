@@ -280,57 +280,73 @@ export default function GlobalFormView({
 	});
 
 	/** Execute the confirmed workflow transition (immediate or scheduled). */
-	const confirmTransition = React.useCallback(async () => {
+	const confirmTransition = React.useCallback(() => {
 		if (!transitionTarget) return;
 
 		const params: { stage: string; scheduledAt?: Date } = {
 			stage: transitionTarget.name,
 		};
-		if (transitionSchedule && transitionScheduledAt) {
-			params.scheduledAt = transitionScheduledAt;
+		if (transitionSchedule) {
+			if (transitionScheduledAt) {
+				params.scheduledAt = transitionScheduledAt;
+			}
 		}
 
 		const stageLabel = transitionTarget.label
 			? transitionTarget.label
 			: transitionTarget.name;
 
-		try {
-			const result = await transitionMutation.mutateAsync(params);
-			if (result && typeof result === "object") {
-				form.reset(result as any);
-			}
+		const resetTransitionState = () => {
+			setTransitionTarget(null);
+			setTransitionSchedule(false);
+			setTransitionScheduledAt(null);
+		};
 
-			if (transitionSchedule && transitionScheduledAt) {
-				toast.success(
-					t("workflow.scheduledSuccess", {
-						stage: stageLabel,
-						date: transitionScheduledAt.toLocaleString(),
-					}),
-				);
-			} else {
-				toast.success(
-					t("workflow.transitionSuccess", {
-						stage: stageLabel,
-					}),
-				);
-			}
-			setTransitionTarget(null);
-			setTransitionSchedule(false);
-			setTransitionScheduledAt(null);
-		} catch (err) {
-			let description: string;
-			if (err instanceof Error) {
-				description = err.message;
-			} else {
-				description = t("error.unknown");
-			}
-			toast.error(t("workflow.transitionFailed"), {
-				description,
-			});
-			setTransitionTarget(null);
-			setTransitionSchedule(false);
-			setTransitionScheduledAt(null);
-		}
+		transitionMutation.mutateAsync(params).then(
+			(result) => {
+				if (result) {
+					if (typeof result === "object") {
+						form.reset(result as any);
+					}
+				}
+
+				if (transitionSchedule) {
+					if (transitionScheduledAt) {
+						toast.success(
+							t("workflow.scheduledSuccess", {
+								stage: stageLabel,
+								date: transitionScheduledAt.toLocaleString(),
+							}),
+						);
+					} else {
+						toast.success(
+							t("workflow.transitionSuccess", {
+								stage: stageLabel,
+							}),
+						);
+					}
+				} else {
+					toast.success(
+						t("workflow.transitionSuccess", {
+							stage: stageLabel,
+						}),
+					);
+				}
+				resetTransitionState();
+			},
+			(err) => {
+				let description: string;
+				if (err instanceof Error) {
+					description = err.message;
+				} else {
+					description = t("error.unknown");
+				}
+				toast.error(t("workflow.transitionFailed"), {
+					description,
+				});
+				resetTransitionState();
+			},
+		);
 	}, [
 		transitionTarget,
 		transitionSchedule,
