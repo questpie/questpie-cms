@@ -98,7 +98,10 @@ export function ImagePopover({
 							errorMessage =
 								"No upload collection is configured for rich-text image uploads.";
 						}
-						throw new Error(errorMessage);
+						toast.error(errorMessage);
+						setUploadingImage(false);
+						event.target.value = "";
+						return;
 					}
 
 					const sanitizedName = sanitizeFilename(file.name);
@@ -119,7 +122,10 @@ export function ImagePopover({
 						}
 					}
 					if (!url) {
-						throw new Error(t("upload.error"));
+						toast.error(t("upload.error"));
+						setUploadingImage(false);
+						event.target.value = "";
+						return;
 					}
 				}
 				if (url) {

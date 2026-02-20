@@ -454,8 +454,12 @@ export function FiltersTab({
           locale: contentLocale,
         });
         let docs: any[];
-        if (response && response.docs) {
-          docs = response.docs;
+        if (response) {
+          if (response.docs) {
+            docs = response.docs;
+          } else {
+            docs = [];
+          }
         } else {
           docs = [];
         }

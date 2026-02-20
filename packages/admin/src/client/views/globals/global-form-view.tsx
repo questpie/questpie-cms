@@ -257,7 +257,7 @@ export default function GlobalFormView({
 				.filter(Boolean) as typeof workflowConfig.stages;
 		}
 		return workflowConfig.stages.filter((s) => s.name !== currentStage);
-	}, [workflowConfig?.stages, currentStage, currentStageConfig?.transitions]);
+	}, [workflowConfig, currentStage, currentStageConfig]);
 
 	const transitionMutation = useTransitionStage(globalName, {
 		mode: "global",
@@ -444,7 +444,7 @@ export default function GlobalFormView({
 		form.reset(result as any);
 		toast.success(t("version.revertSuccess"));
 		setPendingRevertVersion(null);
-	}, [pendingRevertVersion, globalData?.id, revertVersionMutation, form, t]);
+	}, [pendingRevertVersion, globalData, revertVersionMutation, form, t]);
 
 	// Format date helper
 	const formatDate = (date: string | Date) => {

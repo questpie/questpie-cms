@@ -231,9 +231,11 @@ function AssetItem({
 // Main Component
 // ============================================================================
 
+const EMPTY_SET = new Set<string>();
+
 export function MediaGrid({
 	assets,
-	selectedIds = new Set(),
+	selectedIds = EMPTY_SET,
 	onSelectionChange,
 	selectionMode = "none",
 	loading = false,

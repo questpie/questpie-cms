@@ -660,7 +660,12 @@ function LazyPageRenderer({ config }: { config: PageDefinition<string> }) {
 			try {
 				if (typeof config.component === "function") {
 					const result = (config.component as () => any)();
-					const isThenable = result != null && typeof result.then === "function";
+					let isThenable = false;
+				if (result != null) {
+					if (typeof result.then === "function") {
+						isThenable = true;
+					}
+				}
 					if (isThenable) {
 						const mod = await result;
 						if (mounted) {

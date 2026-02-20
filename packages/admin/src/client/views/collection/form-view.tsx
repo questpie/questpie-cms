@@ -1351,7 +1351,6 @@ export default function FormView({
 						}
 						setActionLoading(true);
 						const apiPromise = async () => {
-							try {
 								// Build the URL using API path
 								const url = `${storeBasePath}/${collection}/${endpoint}`;
 								const response = await fetch(url, {
@@ -1368,26 +1367,29 @@ export default function FormView({
 										// ignore parse errors
 									}
 									let errorMessage: string;
-									if (errorBody.message && typeof errorBody.message === "string") {
-										errorMessage = errorBody.message;
+									if (errorBody.message) {
+										if (typeof errorBody.message === "string") {
+											errorMessage = errorBody.message;
+										} else {
+											errorMessage = t("toast.actionFailed");
+										}
 									} else {
 										errorMessage = t("toast.actionFailed");
 									}
 									throw new Error(errorMessage);
 								}
-								const result = response.json();
-								setActionLoading(false);
-								return result;
-							} catch (_err) {
-								setActionLoading(false);
-								throw _err;
-							}
+								return response.json();
 						};
 
-						toast.promise(apiPromise(), {
+						const p = apiPromise();
+						p.then(() => setActionLoading(false), () => setActionLoading(false));
+						toast.promise(p, {
 							loading: `${actionLabel}...`,
 							success: t("toast.actionSuccess"),
-							error: (err) => err.message || t("toast.actionFailed"),
+							error: (err: any) => {
+								if (err.message) return err.message;
+								return t("toast.actionFailed");
+							},
 						});
 					}
 					break;

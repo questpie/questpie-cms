@@ -167,8 +167,12 @@ export function RelationSelect<T extends Questpie<any>>({
 					targetCollection
 				].find(options);
 				let docs: any[];
-				if (response && response.docs) {
-					docs = response.docs;
+				if (response) {
+					if (response.docs) {
+						docs = response.docs;
+					} else {
+						docs = [];
+					}
 				} else {
 					docs = [];
 				}

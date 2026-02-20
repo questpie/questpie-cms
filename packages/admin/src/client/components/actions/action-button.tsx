@@ -102,7 +102,7 @@ export function ActionButton<TItem = any>({
       return action.visible(ctx);
     }
     return action.visible;
-  }, [action.visible, ctx]);
+  }, [action, ctx]);
 
   // Check disabled state
   const isDisabled = React.useMemo(() => {
@@ -111,7 +111,7 @@ export function ActionButton<TItem = any>({
       return action.disabled(ctx);
     }
     return action.disabled;
-  }, [action.disabled, ctx]);
+  }, [action, ctx]);
 
   if (!isVisible) return null;
 
