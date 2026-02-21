@@ -768,6 +768,81 @@ export async function introspectCollection(
 }
 
 /**
+ * Serialize action form fields from FieldDefinition objects to flat config format.
+ * FieldDefinition objects have { state: { type, config: { label, required, ... } }, getMetadata() }
+ * but the client expects flat { type, label, required, options, ... }.
+ */
+function serializeActionFormFields(
+	fields: Record<string, any>,
+): Record<string, any> {
+	const result: Record<string, any> = {};
+
+	for (const [fieldName, field] of Object.entries(fields)) {
+		if (!field || typeof field !== "object") {
+			result[fieldName] = field;
+			continue;
+		}
+
+		// If it has getMetadata(), it's a FieldDefinition — use getMetadata() for type/label/etc
+		if (typeof field.getMetadata === "function") {
+			const metadata = field.getMetadata();
+			const config = field.state?.config ?? {};
+
+			const serialized: Record<string, any> = {
+				type: metadata.type ?? field.state?.type ?? "text",
+				label: metadata.label,
+				description: metadata.description,
+				required: metadata.required ?? false,
+				default: config.defaultValue ?? config.default,
+			};
+
+			// Collect field-specific options (exclude common BaseFieldConfig props)
+			const commonKeys = new Set([
+				"label",
+				"description",
+				"required",
+				"localized",
+				"defaultValue",
+				"default",
+				"input",
+				"output",
+				"access",
+				"meta",
+				"hidden",
+				"virtual",
+				"unique",
+			]);
+			const fieldOptions: Record<string, unknown> = {};
+			for (const [key, value] of Object.entries(config)) {
+				if (!commonKeys.has(key)) {
+					fieldOptions[key] = value;
+				}
+			}
+
+			// For select fields, include options from metadata (already resolved)
+			if (metadata.options) {
+				fieldOptions.options = metadata.options;
+			}
+			if (metadata.multiple !== undefined) {
+				fieldOptions.multiple = metadata.multiple;
+			}
+
+			if (Object.keys(fieldOptions).length > 0) {
+				serialized.options = fieldOptions;
+			}
+
+			result[fieldName] = serialized;
+			continue;
+		}
+
+		// Already a flat ServerActionFormFieldConfig — pass through
+		result[fieldName] = field;
+	}
+
+	return result;
+}
+
+/**
  * Extract admin configuration from collection state.
  * These properties are added by adminModule via monkey patching.
  */
@@ -840,8 +915,15 @@ function extractAdminConfig(
 
 		// Strip handlers from custom actions for client consumption
 		const customActions = (actionsConfig.custom || []).map(
-			(action: { handler?: unknown; [key: string]: unknown }) => {
+			(action: { handler?: unknown; form?: any; [key: string]: unknown }) => {
 				const { handler: _handler, ...rest } = action;
+				// Serialize form fields from FieldDefinition objects to flat config
+				if (rest.form?.fields) {
+					rest.form = {
+						...rest.form,
+						fields: serializeActionFormFields(rest.form.fields),
+					};
+				}
 				return rest;
 			},
 		);

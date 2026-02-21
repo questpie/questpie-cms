@@ -33,6 +33,8 @@ Polish user form behavior:
 
 Improve server action client mapping/execution with real form field mapping, RPC execution, and effects handling.
 
+Fix action form fields missing labels, options, and broken validation. Server introspection now properly serializes `FieldDefinition` objects (from `f.text()`, `f.select()`, etc.) into the flat format the client expects, so action forms render with correct labels, field types, required indicators, and select options. Also fix server-side `isFieldRequired()` to check `state.config.required`.
+
 Add full versions/revert parity across the stack:
 - new collection/global adapter routes for versions and revert
 - questpie client methods (`findVersions`, `revertToVersion`)

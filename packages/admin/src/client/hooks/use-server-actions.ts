@@ -71,13 +71,14 @@ function buildServerFormFields(
 	const result: Record<string, FieldDefinition> = {};
 
 	for (const [fieldName, fieldConfig] of Object.entries(rawFields)) {
-		const fc = fieldConfig as {
+		let fc = fieldConfig as {
 			type?: string;
 			label?: unknown;
 			description?: unknown;
 			required?: boolean;
 			default?: unknown;
 			options?: unknown;
+			state?: { type?: string; config?: Record<string, any> };
 		};
 
 		if (
@@ -89,6 +90,25 @@ function buildServerFormFields(
 		) {
 			result[fieldName] = fieldConfig as FieldDefinition;
 			continue;
+		}
+
+		// Fallback: if field has state.config structure (serialized FieldDefinition
+		// with methods stripped), extract type from state.type and config from state.config
+		if (
+			!fc.type &&
+			fc.state?.type &&
+			fc.state?.config &&
+			typeof fc.state.config === "object"
+		) {
+			const config = fc.state.config;
+			fc = {
+				type: fc.state.type,
+				label: config.label,
+				description: config.description,
+				required: config.required,
+				default: config.defaultValue ?? config.default,
+				options: config.options,
+			};
 		}
 
 		const requestedType =

@@ -561,7 +561,8 @@ function isFieldDefinition(
  */
 function isFieldRequired(field: ServerActionFormField): boolean {
 	if (isFieldDefinition(field)) {
-		return !!field.state?.required;
+		// FieldDefinition stores config in state.config, not state directly
+		return !!(field.state as any)?.config?.required || !!field.state?.required;
 	}
 	return !!field.required;
 }

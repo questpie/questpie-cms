@@ -1123,9 +1123,28 @@ export interface ServerActionFormFieldConfig {
  */
 export interface ServerActionFormFieldDefinition {
 	/** Field definition state */
-	state: { label?: I18nText; description?: I18nText; required?: boolean };
+	state: {
+		type?: string;
+		config?: {
+			label?: I18nText;
+			description?: I18nText;
+			required?: boolean;
+			[key: string]: unknown;
+		};
+		/** @deprecated Use state.config.label instead */
+		label?: I18nText;
+		/** @deprecated Use state.config.description instead */
+		description?: I18nText;
+		/** @deprecated Use state.config.required instead */
+		required?: boolean;
+	};
 	/** Get metadata for introspection */
-	getMetadata(): { type: string; label?: I18nText; description?: I18nText };
+	getMetadata(): {
+		type: string;
+		label?: I18nText;
+		description?: I18nText;
+		required?: boolean;
+	};
 	/** Generate Zod schema for validation */
 	toZodSchema(): unknown;
 }
