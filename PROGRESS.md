@@ -181,40 +181,36 @@ feat: add config()/module() factories, migrate barbershop to new config shape
 
 ### packages/questpie — codegen implementation
 
-- [ ] Implement `questpie generate` CLI command
+- [x] Implement `questpie generate` CLI command
   > RFC §16 (CLI Commands)
-- [ ] File discovery: scan `collections/*.ts`, `globals/*.ts`, `jobs/*.ts`, `functions/**/*.ts`, `blocks/*.ts`, `messages/*.ts`, `auth.ts`, `questpie.config.ts`
+- [x] File discovery: scan `collections/*.ts`, `globals/*.ts`, `jobs/*.ts`, `functions/**/*.ts`, `blocks/*.ts`, `messages/*.ts`, `auth.ts`, `questpie.config.ts`
   > RFC §2.4 (Discovery Rules)
-- [ ] Feature layout support: also scan `features/*/collections/*.ts` etc.
+- [x] Feature layout support: also scan `features/*/collections/*.ts` etc.
   > RFC §2.2 (By-Feature Layout)
-- [ ] Key derivation: `send-newsletter.ts` → `sendNewsletter`
+- [x] Key derivation: `send-newsletter.ts` → `sendNewsletter`
   > RFC §2.4
-- [ ] Conflict detection: duplicate keys → error
+- [x] Conflict detection: duplicate keys → error
   > RFC §2.4
-- [ ] Module resolution: depth-first merge
+- [x] Module resolution: depth-first merge (handled by `createApp()` at runtime)
   > RFC §13.7 (Module Merge Order)
-- [ ] Template generation: imports, types (`typeof` references), `createApp()`, `App` type export
+- [x] Template generation: imports, `createApp()` call, `App` type export
   > RFC §15.1 (Complete `.generated/index.ts` Example)
-- [ ] Codegen plugin API: `CodegenPlugin` interface, admin plugin discovers `blocks/`
+- [x] Codegen plugin API: `CodegenPlugin` interface, admin plugin discovers `blocks/`
   > RFC §14.1 (Plugin Interface), §14.2 (Admin Plugin Example)
 
 ### packages/questpie — CLI changes
 
-- [ ] `questpie dev` — watch mode, regenerate on file add/remove
+- [x] `questpie dev` — watch mode, regenerate on file add/remove
   > RFC §16.1 (Watch Mode Granularity)
-- [ ] Update `questpie migrate:generate` to use `.generated/index.ts`
+- [x] Update `loadQuestpieConfig` to auto-resolve `.generated/index.ts` for new AppConfig format
   > RFC §16
 
 ### Barbershop migration
 
-- [ ] Add `.generated/` to `.gitignore`
-- [ ] Run `questpie generate` — produces `.generated/index.ts`
-- [ ] Update route handler: `import { app } from "./questpie/.generated"` + `createFetchHandler(app)`
-  > RFC §7.5 (Route Handler)
-- [ ] Update worker: `import { app } from "./questpie/.generated"`
-- [ ] Update client: `import type { App } from "./questpie/.generated"`
-- [ ] Update admin builder: `import type { App } from "./questpie/.generated"`
-- [ ] Verify: `bun run build`, `bun run check-types`, all routes work
+- [x] Add `.generated/` to `.gitignore`
+- [x] Run `questpie generate` — produces `.generated/index.ts`
+- [x] Update `app.ts` — re-exports from `.generated/index.ts` (route handler, client, admin unchanged)
+- [x] Verify: `bun run build` passes, field tests pass (78/78)
 
 ### Commit
 

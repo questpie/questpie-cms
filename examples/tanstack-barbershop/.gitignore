@@ -13,6 +13,9 @@ count.txt
 todos.json
 uploads
 
+# Questpie codegen
+.generated/
+
 # Playwright
 playwright-report/
 test-results/

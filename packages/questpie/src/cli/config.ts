@@ -118,7 +118,14 @@ export function config<TApp extends Questpie<any>>(
 }
 
 /**
- * Load and validate config file
+ * Load and validate config file.
+ *
+ * Supports multiple config formats:
+ * 1. **New format (AppConfig)**: `export default config({ app: { url }, db: { url }, modules: [...] })`
+ *    → Auto-resolves .generated/index.ts for the Questpie instance
+ * 2. **CLI format**: `export default { app: questpieInstance, cli: { ... } }`
+ * 3. **Legacy format**: `export default { qcms: questpieInstance }` (deprecated)
+ * 4. **Direct instance**: `export default questpieInstance`
  */
 export async function loadQuestpieConfig(
 	configPath: string,
@@ -126,7 +133,32 @@ export async function loadQuestpieConfig(
 	const configModule = await import(/* @vite-ignore */ configPath);
 	const config = configModule.config || configModule.default || configModule;
 
-	// Support both old format (direct app export) and new format (config object)
+	// Check if this is the new AppConfig format (has app.url but app is not a Questpie instance)
+	if (
+		config.app &&
+		typeof config.app === "object" &&
+		"url" in config.app &&
+		typeof config.app.url === "string" &&
+		!("api" in config.app)
+	) {
+		// New AppConfig format — try to load .generated/index.ts
+		const { dirname, join } = await import("node:path");
+		const generatedPath = join(dirname(configPath), ".generated", "index.ts");
+		try {
+			const generatedModule = await import(/* @vite-ignore */ generatedPath);
+			if (generatedModule.app) {
+				return { app: generatedModule.app, cli: config.cli };
+			}
+		} catch {
+			throw new Error(
+				`Config at ${configPath} uses the new AppConfig format.\n` +
+					`Run \`questpie generate\` first to create .generated/index.ts,\n` +
+					`or point --config to a file that exports { app: QuestpieInstance }.`,
+			);
+		}
+	}
+
+	// Standard format: { app: QuestpieInstance, cli?: { ... } }
 	if (config.app) {
 		return config as QuestpieConfigFile;
 	}
