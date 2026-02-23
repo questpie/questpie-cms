@@ -86,7 +86,7 @@ export interface GlobalSchema {
 
 	/**
 	 * Admin configuration from .admin(), .form()
-	 * Only present when adminModule is used.
+	 * Only present when the `admin()` module is used.
 	 */
 	admin?: {
 		/** Global metadata (label, icon, hidden, group, order) */
@@ -339,7 +339,7 @@ export async function introspectGlobal(
 		};
 	}
 
-	// Extract admin configuration if present (from adminModule)
+	// Extract admin configuration if present (from admin() module)
 	const adminConfig = extractAdminConfig(state);
 
 	return {
@@ -389,7 +389,7 @@ function buildGlobalValidation(
 
 /**
  * Extract admin configuration from global state.
- * These properties are added by adminModule via monkey patching.
+ * These properties are added by the `admin()` module via monkey patching.
  */
 function extractAdminConfig(
 	state: GlobalBuilderState,

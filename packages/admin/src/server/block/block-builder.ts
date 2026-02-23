@@ -541,9 +541,9 @@ export class BlockBuilder<
  *   }));
  *
  * // Register blocks on QuestPie
- * const app = q({ name: "my-app" })
- *   .use(adminModule)
- *   .blocks({ hero: heroBlock })
+ * const app = config({
+ *   modules: [admin()],
+ *   blocks: { hero: heroBlock },
  *   .build({ ... });
  * ```
  */

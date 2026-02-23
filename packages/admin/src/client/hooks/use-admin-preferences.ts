@@ -135,7 +135,7 @@ export function useSetAdminPreference<T = unknown>(key: string) {
 				| undefined;
 			if (!collections?.adminPreferences) {
 				throw new Error(
-					"adminPreferences collection not available. Make sure to use adminModule in your app setup.",
+					"adminPreferences collection not available. Make sure to use the admin() module in your app setup.",
 				);
 			}
 
@@ -197,7 +197,7 @@ function useDeleteAdminPreference(key: string) {
 				| undefined;
 			if (!collections?.adminPreferences) {
 				throw new Error(
-					"adminPreferences collection not available. Make sure to use adminModule in your app setup.",
+					"adminPreferences collection not available. Make sure to use the admin() module in your app setup.",
 				);
 			}
 

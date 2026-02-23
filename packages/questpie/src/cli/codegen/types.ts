@@ -23,6 +23,15 @@ export interface DiscoveredFile {
 	varName: string;
 	/** Source glob pattern that matched (e.g. "collections/*.ts"). */
 	source: string;
+	/**
+	 * Export type detected in the file.
+	 * - "default" — `export default ...`
+	 * - "named" — only named exports found (e.g. `export const X = ...`)
+	 * - "unknown" — could not determine (file read failed)
+	 */
+	exportType: "default" | "named" | "unknown";
+	/** Name of the first named export found (when exportType is "named"). */
+	namedExportName?: string;
 }
 
 // ============================================================================

@@ -456,8 +456,8 @@ export interface QuestpieConfig {
 	 * Default access control for all collections and globals.
 	 * Applied when a collection/global doesn't define its own `.access()` rules.
 	 *
-	 * Set via `.defaultAccess()` on the builder (chainable, composable via `.use()`).
-	 * The `starterModule` sets this to require an authenticated session for all operations.
+	 * Set via `.defaultAccess()` on the builder (chainable, composable via modules).
+	 * The `starter()` module sets this to require an authenticated session for all operations.
 	 *
 	 * **Resolution order for each CRUD operation:**
 	 * 1. Collection/global's own `.access()` rule for that operation

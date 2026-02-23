@@ -1,5 +1,5 @@
 import { uniqueIndex } from "drizzle-orm/pg-core";
-import { q } from "questpie";
+import { collection } from "questpie";
 
 /**
  * Admin Preferences Collection
@@ -12,12 +12,13 @@ import { q } from "questpie";
  *
  * @example
  * ```ts
- * import { adminModule } from "@questpie/admin/server";
+ * import { config } from "questpie";
+ * import { admin } from "@questpie/admin/server";
  *
- * const app = q({ name: "my-app" })
- *   .use(adminModule)
- *   .collections({ ... })
- *   .build({ ... });
+ * export default config({
+ *   modules: [admin()],
+ *   // ...
+ * });
  *
  * // Access preferences
  * const prefs = await app.api.collections.adminPreferences.findOne({
@@ -25,8 +26,7 @@ import { q } from "questpie";
  * });
  * ```
  */
-export const adminPreferencesCollection = q
-	.collection("admin_preferences")
+export const adminPreferencesCollection = collection("admin_preferences")
 	.fields(({ f }) => ({
 		// User who owns this preference
 		userId: f.text({ required: true, maxLength: 255, label: "User ID" }),

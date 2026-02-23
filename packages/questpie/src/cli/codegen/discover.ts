@@ -7,7 +7,7 @@
  * @see RFC §2 (File Convention), §2.4 (Discovery Rules)
  */
 
-import { readdir, stat } from "node:fs/promises";
+import { readdir, readFile, stat } from "node:fs/promises";
 import { basename, extname, join, relative } from "node:path";
 import type { CodegenPlugin, DiscoveredFile } from "./types.js";
 
@@ -240,7 +240,12 @@ export async function discoverFiles(
 			const scanPath = join(rootDir, dir);
 			const files = await scanDir(scanPath, scanPath, category.recursive);
 			for (const relFile of files) {
-				const file = processFile(rootDir, outDir, join(dir, relFile), category);
+				const file = await processFile(
+					rootDir,
+					outDir,
+					join(dir, relFile),
+					category,
+				);
 				checkConflict(map, file, category.category);
 				map.set(file.key, file);
 			}
@@ -249,7 +254,7 @@ export async function discoverFiles(
 		// Scan by-feature layout
 		const featureFiles = await discoverFeatures(rootDir, category);
 		for (const { relPath } of featureFiles) {
-			const file = processFile(rootDir, outDir, relPath, category);
+			const file = await processFile(rootDir, outDir, relPath, category);
 			checkConflict(map, file, category.category);
 			map.set(file.key, file);
 		}
@@ -260,12 +265,15 @@ export async function discoverFiles(
 		const authPath = join(rootDir, authFile);
 		if (await fileExists(authPath)) {
 			const importPath = relativeImport(outDir, join(rootDir, authFile));
+			const exportInfo = await detectExportType(authPath);
 			result.auth = {
 				absolutePath: authPath,
 				key: "auth",
 				importPath,
 				varName: "_auth",
 				source: authFile,
+				exportType: exportInfo.type,
+				namedExportName: exportInfo.namedExportName,
 			};
 			break;
 		}
@@ -290,13 +298,18 @@ export async function discoverFiles(
 					const scanPath = join(rootDir, baseDir);
 					const files = await scanDir(scanPath, scanPath, recursive);
 					for (const relFile of files) {
-						const file = processFile(rootDir, outDir, join(baseDir, relFile), {
-							category: stateKey,
-							patterns: [pattern],
-							dirs: [baseDir],
-							recursive,
-							prefix: stateKey.slice(0, 4),
-						});
+						const file = await processFile(
+							rootDir,
+							outDir,
+							join(baseDir, relFile),
+							{
+								category: stateKey,
+								patterns: [pattern],
+								dirs: [baseDir],
+								recursive,
+								prefix: stateKey.slice(0, 4),
+							},
+						);
 						checkConflict(pluginMap, file, stateKey);
 						pluginMap.set(file.key, file);
 					}
@@ -321,7 +334,7 @@ export async function discoverFiles(
 							recursive,
 						);
 						for (const relFile of featureFiles) {
-							const file = processFile(
+							const file = await processFile(
 								rootDir,
 								outDir,
 								join("features", fDirName, baseDir, relFile),
@@ -355,13 +368,14 @@ export async function discoverFiles(
 
 /**
  * Process a discovered file into a DiscoveredFile object.
+ * Detects export type (default vs named) for import generation.
  */
-function processFile(
+async function processFile(
 	rootDir: string,
 	outDir: string,
 	relPath: string,
 	category: DiscoveryCategory,
-): DiscoveredFile {
+): Promise<DiscoveredFile> {
 	const absolutePath = join(rootDir, relPath);
 	const importPath = relativeImport(outDir, absolutePath);
 
@@ -395,12 +409,17 @@ function processFile(
 
 	const varName = toVarName(category.prefix, key);
 
+	// Detect export type
+	const exportInfo = await detectExportType(absolutePath);
+
 	return {
 		absolutePath,
 		key,
 		importPath,
 		varName,
 		source: relPath,
+		exportType: exportInfo.type,
+		namedExportName: exportInfo.namedExportName,
 	};
 }
 
@@ -417,6 +436,55 @@ function relativeImport(fromDir: string, toFile: string): string {
 		rel = `./${rel}`;
 	}
 	return rel;
+}
+
+// ============================================================================
+// Export detection
+// ============================================================================
+
+/**
+ * Detect what kind of export a TypeScript file has.
+ * Reads the file and checks for `export default` vs named exports.
+ *
+ * Returns { type, namedExportName? }
+ */
+async function detectExportType(absolutePath: string): Promise<{
+	type: "default" | "named" | "unknown";
+	namedExportName?: string;
+}> {
+	let content: string;
+	try {
+		content = await readFile(absolutePath, "utf-8");
+	} catch {
+		return { type: "unknown" };
+	}
+
+	// Check for default export patterns:
+	// - export default ...
+	// - export { X as default }
+	if (
+		/\bexport\s+default\b/.test(content) ||
+		/\bexport\s*\{[^}]*\bas\s+default\b/.test(content)
+	) {
+		return { type: "default" };
+	}
+
+	// Look for named exports: export const X, export function X, export class X, export { X }
+	const namedMatch = content.match(
+		/\bexport\s+(?:const|let|var|function|class)\s+([a-zA-Z_$][a-zA-Z0-9_$]*)/,
+	);
+	if (namedMatch) {
+		return { type: "named", namedExportName: namedMatch[1] };
+	}
+
+	const reExportMatch = content.match(
+		/\bexport\s*\{\s*([a-zA-Z_$][a-zA-Z0-9_$]*)/,
+	);
+	if (reExportMatch) {
+		return { type: "named", namedExportName: reExportMatch[1] };
+	}
+
+	return { type: "unknown" };
 }
 
 /**

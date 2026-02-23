@@ -92,10 +92,11 @@ export type TypedTranslateFn<TCustomKeys extends string = never> = (
  *   en: { "myModule.error": "Error occurred" },
  * } as const;
  *
- * const app = questpie({ name: "app" })
- *   .use(starterModule) // Includes core messages
- *   .messages(messages) // Add custom messages
- *   .build({ ... });
+ * const app = config({
+ *   modules: [starter()], // Includes core messages
+ *   messages, // Add custom messages
+ *   db: { url: '...' },
+ * });
  *
  * app.t("myModule.error"); // Type-safe!
  * ```

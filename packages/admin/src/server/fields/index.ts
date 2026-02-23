@@ -2,15 +2,15 @@
  * Admin Field Types
  *
  * Additional field types provided by the admin module.
- * These fields are registered automatically when adminModule is used.
+ * These fields are registered automatically when the `admin()` module is used.
  *
  * @example
  * ```ts
- * import { q } from "questpie";
- * import { adminModule } from "@questpie/admin/server";
+ * import { config } from "questpie";
+ * import { admin } from "@questpie/admin/server";
  *
- * const app = q({ name: "my-app" })
- *   .use(adminModule)  // Registers richText and blocks fields
+ * export default config({
+ *   modules: [admin()],  // Registers richText and blocks fields
  *   .collections({
  *     pages: q.collection("pages").fields(({ f }) => ({
  *       title: f.text({ required: true }),
@@ -44,7 +44,7 @@ import { richTextField } from "./rich-text.js";
 
 /**
  * Admin field types to be registered with the field registry.
- * These are automatically registered when adminModule is used.
+ * These are automatically registered when the `admin()` module is used.
  */
 export const adminFields = {
 	richText: richTextField,

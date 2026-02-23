@@ -4,10 +4,9 @@
  * Contact form submissions from the public website.
  */
 
-import { qb } from "@/questpie/server/builder";
+import { collection } from "questpie";
 
-export const submissions = qb
-	.collection("submissions")
+export default collection("submissions")
 	.fields(({ f }) => ({
 		city: f.relation({
 			label: "City",

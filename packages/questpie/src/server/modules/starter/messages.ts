@@ -2,10 +2,10 @@
  * Core Backend Messages
  *
  * Default translations for all built-in error messages and system messages.
- * These are included automatically when using the starterModule.
+ * These are included automatically when using the `starter()` module.
  *
  * Users can override any message by providing their own translations
- * via .messages() after .use(starterModule).
+ * via the `messages` option in `config()`.
  */
 
 export const coreBackendMessages = {

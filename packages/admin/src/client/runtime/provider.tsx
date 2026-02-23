@@ -20,7 +20,8 @@ import {
 	useState,
 } from "react";
 import { createStore, useStore } from "zustand";
-import type { adminModule } from "#questpie/admin/server/index.js";
+// The admin client uses QuestpieClient<any> since the concrete App type
+// is project-specific and comes from .generated/index.ts at the app level.
 import { Admin, type AdminInput } from "../builder/admin";
 import { I18nProvider } from "../i18n/hooks";
 import { adminMessages } from "../i18n/messages";
@@ -88,7 +89,7 @@ function setContentLocaleCookie(locale: string): void {
 export interface AdminState {
 	// Core values (from props)
 	admin: Admin;
-	client: QuestpieClient<(typeof adminModule)["$inferApp"]>;
+	client: QuestpieClient<any>;
 	authClient: any | null;
 	basePath: string;
 	navigate: (path: string) => void;
@@ -248,11 +249,11 @@ export interface AdminProviderProps {
 	 * @example
 	 * ```tsx
 	 * // Server configures locales and messages
-	 * const app = q()
-	 *   .use(adminModule)
-	 *   .adminLocale({ locales: ["en", "sk"], defaultLocale: "en" })
-	 *   .messages({ sk: { "common.save": "Ulozit" } })
-	 *   .build();
+	 * const app = config({
+	 *   modules: [admin()],
+	 *   adminLocale: { locales: ["en", "sk"], defaultLocale: "en" },
+	 *   messages: { sk: { "common.save": "Ulozit" } },
+	 * });
 	 *
 	 * // Client fetches from server
 	 * <AdminProvider admin={admin} client={client} useServerTranslations>

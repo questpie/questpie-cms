@@ -5,11 +5,10 @@
  */
 
 import { uniqueIndex } from "drizzle-orm/pg-core";
-import { qb } from "@/questpie/server/builder";
+import { collection } from "questpie";
 import { slugify } from "@/questpie/server/utils";
 
-export const pages = qb
-	.collection("pages")
+export default collection("pages")
 	.fields(({ f }) => ({
 		city: f.relation({
 			label: "City",

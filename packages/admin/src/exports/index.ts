@@ -6,7 +6,7 @@
  *
  * @example
  * ```ts
- * import { qa, adminModule } from "@questpie/admin";
+ * import { qa, adminModule } from "@questpie/admin/client";
  *
  * const admin = qa()
  *   .use(adminModule)

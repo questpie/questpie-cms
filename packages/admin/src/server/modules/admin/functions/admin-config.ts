@@ -504,9 +504,9 @@ const getAdminConfigOutputSchema = z.object({
  * @example
  * ```ts
  * // In your app
- * const app = q({ name: "my-app" })
- *   .use(adminModule)
- *   .dashboard(({ d }) => d.dashboard({
+ * const app = config({
+ *   modules: [admin()],
+ *   dashboard: ({ d }) => d.dashboard({
  *     title: { en: "Dashboard" },
  *     items: [...],
  *   }))

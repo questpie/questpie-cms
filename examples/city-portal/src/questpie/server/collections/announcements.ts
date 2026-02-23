@@ -4,10 +4,9 @@
  * Official notices and announcements with validity periods.
  */
 
-import { qb } from "@/questpie/server/builder";
+import { collection } from "questpie";
 
-export const announcements = qb
-	.collection("announcements")
+export default collection("announcements")
 	.fields(({ f }) => ({
 		city: f.relation({
 			label: "City",

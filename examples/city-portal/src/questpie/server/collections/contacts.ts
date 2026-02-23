@@ -4,10 +4,9 @@
  * Contact information for city departments and services.
  */
 
-import { qb } from "@/questpie/server/builder";
+import { collection } from "questpie";
 
-export const contacts = qb
-	.collection("contacts")
+export default collection("contacts")
 	.fields(({ f }) => ({
 		city: f.relation({
 			label: "City",

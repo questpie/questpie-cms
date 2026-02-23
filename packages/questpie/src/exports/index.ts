@@ -18,10 +18,7 @@ import { global } from "#questpie/server/global/builder/global-builder.js";
 import { auth } from "#questpie/server/integrated/auth/config.js";
 import { email } from "#questpie/server/integrated/mailer/template.js";
 import { job } from "#questpie/server/integrated/queue/job.js";
-import {
-	starter,
-	starterModule,
-} from "#questpie/server/modules/starter/index.js";
+import { starter } from "#questpie/server/modules/starter/index.js";
 
 // Create the base builder with default fields
 const baseBuilder = questpie({ name: "questpie" }).fields(defaultFields);
@@ -47,12 +44,6 @@ const callableQ = createCallableBuilder(baseBuilder);
  * @internal Used by `@questpie/admin` module construction
  */
 const q = Object.assign(callableQ, {
-	/**
-	 * Starter module - opt-in "batteries included" module
-	 * @internal Used by admin module construction
-	 */
-	starter: starterModule,
-
 	/**
 	 * Define CLI configuration (questpie.config.ts)
 	 * @example export default q.config({ app: app, cli: { migrations: { directory: "./migrations" } } })

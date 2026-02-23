@@ -1,4 +1,3 @@
-import { q } from "questpie";
 import type {
 	ComponentReference,
 	ServerTimelineWidget,
@@ -20,61 +19,6 @@ export interface AuditModuleOptions {
 	 */
 	retentionDays?: number;
 }
-
-/**
- * Create an audit module with optional configuration.
- *
- * Collections with `audit: false` in their `.options()` are automatically skipped.
- * All internal admin collections (preferences, locks, saved views, auth tables)
- * already have this set. To disable auditing for your own collection:
- *
- * ```ts
- * const myCollection = q.collection("temp_data")
- *   .fields(...)
- *   .options({ audit: false });
- * ```
- *
- * @example
- * ```ts
- * import { createAuditModule } from "@questpie/admin/server";
- *
- * const audit = createAuditModule({ retentionDays: 30 });
- *
- * const app = q({ name: "my-app" })
- *   .use(adminModule)
- *   .use(audit)
- *   .build({ ... });
- * ```
- */
-export function createAuditModule(options?: AuditModuleOptions) {
-	const collectionHooks = createCollectionAuditHooks();
-	const globalHooks = createGlobalAuditHooks();
-
-	return q({ name: "questpie-audit" })
-		.collections({
-			adminAuditLog: auditLogCollection,
-		})
-		.jobs({
-			auditCleanup: auditCleanupJob,
-		})
-		.hooks({
-			collections: {
-				afterChange: collectionHooks.afterChange,
-				afterDelete: collectionHooks.afterDelete,
-				afterTransition: collectionHooks.afterTransition,
-			},
-			globals: {
-				afterChange: globalHooks.afterChange,
-				afterTransition: globalHooks.afterTransition,
-			},
-		});
-}
-
-/**
- * Default audit module instance with standard configuration.
- * Excludes internal collections and retains logs for 90 days.
- */
-export const auditModule = createAuditModule();
 
 // ============================================================================
 // Dashboard helpers
@@ -121,14 +65,10 @@ export interface AuditDashboardWidgetOptions {
 // audit() — module() alternative for use with config() + createApp()
 // ============================================================================
 
-import type { ModuleDefinition } from "questpie";
 import { module } from "questpie";
 
 /**
- * Audit module as a `ModuleDefinition` for use with `config({ modules: [audit()] })`.
- *
- * Equivalent to the builder-based `auditModule` / `createAuditModule()`, but returns
- * a plain data object compatible with the `module()` / `createApp()` API.
+ * Audit module for use with `config({ modules: [audit()] })`.
  *
  * @example
  * ```ts
@@ -144,7 +84,7 @@ import { module } from "questpie";
  *
  * @see RFC §13.4 (Audit Module)
  */
-export function audit(options?: AuditModuleOptions): ModuleDefinition {
+export function audit(options?: AuditModuleOptions) {
 	const collectionHooks = createCollectionAuditHooks();
 	const globalHooks = createGlobalAuditHooks();
 

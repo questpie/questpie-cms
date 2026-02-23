@@ -4,7 +4,7 @@
 
 import type { BlockComponentProps } from "@questpie/admin/client";
 import { useState } from "react";
-import type { App } from "@/questpie/server/app";
+import type { App } from "@/questpie/server/.generated";
 
 type AccordionItem = {
 	title: string;

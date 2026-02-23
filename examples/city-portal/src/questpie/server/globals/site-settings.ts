@@ -5,7 +5,7 @@
  * navigation, contact info, and SEO configuration.
  */
 
-import { qb } from "@/questpie/server/builder";
+import { global } from "questpie";
 
 export type NavItem = {
 	label: string;
@@ -24,8 +24,7 @@ export type SocialLink = {
 	url: string;
 };
 
-export const siteSettings = qb
-	.global("site_settings")
+export default global("site_settings")
 	.fields(({ f }) => ({
 		// Branding
 		siteName: f.text({

@@ -4,10 +4,9 @@
  * Official documents, policies, and publications.
  */
 
-import { qb } from "@/questpie/server/builder";
+import { collection } from "questpie";
 
-export const documents = qb
-	.collection("documents")
+export default collection("documents")
 	.fields(({ f }) => ({
 		city: f.relation({
 			label: "City",

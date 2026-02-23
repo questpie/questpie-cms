@@ -34,7 +34,7 @@ import { mergeAuthOptions } from "#questpie/server/integrated/auth/merge.js";
  *
  * @see RFC §13.1 (Module as Data Object)
  */
-export function module(definition: ModuleDefinition): ModuleDefinition {
+export function module<T extends ModuleDefinition>(definition: T): T {
 	return definition;
 }
 
@@ -61,7 +61,7 @@ export function module(definition: ModuleDefinition): ModuleDefinition {
  *
  * @see RFC §12 (config() Full API)
  */
-export function config(input: AppConfig): AppConfig {
+export function config<T extends AppConfig>(input: T): T {
 	return input;
 }
 

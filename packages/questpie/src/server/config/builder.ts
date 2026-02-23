@@ -427,12 +427,12 @@ export class QuestpieBuilder<
 	 * 2. `defaultAccess` from the builder chain (set here or via `.use()`)
 	 * 3. Framework fallback: require authenticated session (`!!session`)
 	 *
-	 * The `starterModule` sets this to require an authenticated session for all operations.
+	 * The `starter()` module sets this to require an authenticated session for all operations.
 	 * Override it to customize (e.g., public reads):
 	 *
 	 * @example
 	 * ```ts
-	 * // Require authentication for all operations (starterModule default)
+	 * // Require authentication for all operations (starter() default)
 	 * .defaultAccess({
 	 *   read: ({ session }) => !!session,
 	 *   create: ({ session }) => !!session,
@@ -481,10 +481,10 @@ export class QuestpieBuilder<
 	 *
 	 * @example
 	 * ```ts
-	 * // builder.ts
-	 * export const qb = q
-	 *   .use(adminModule)
-	 *   .context(async ({ request, session, db }) => {
+	 * // questpie.config.ts
+	 * export default config({
+	 *   modules: [admin()],
+	 *   context: async ({ request, session, db }) => {
 	 *     const propertyId = request.headers.get('x-selected-property')
 	 *
 	 *     // Validate access if needed
@@ -1020,7 +1020,7 @@ export interface QuestpieBuilder<TState extends QuestpieBuilderState>
 /**
  * Helper function to start building a Questpie instance
  *
- * Returns an empty builder - use .use(starterModule) to include
+ * Returns an empty builder - use `config({ modules: [starter()] })` to include
  * auth collections and file upload support.
  *
  * @example
@@ -1034,15 +1034,13 @@ export interface QuestpieBuilder<TState extends QuestpieBuilderState>
  * @example
  * ```ts
  * // With starter module (auth + file uploads)
- * import { questpie, starterModule } from "@questpie/server";
+ * import { config, starter } from "questpie";
  *
- * const app = questpie({ name: 'my-app' })
- *   .use(starterModule)
- *   .collections({ posts: postsCollection })
- *   .build({
- *     db: { url: '...' },
- *     storage: { driver: s3Driver(...) },
- *   })
+ * export default config({
+ *   modules: [starter()],
+ *   db: { url: '...' },
+ *   storage: { driver: s3Driver(...) },
+ * })
  * ```
  *
  * @example

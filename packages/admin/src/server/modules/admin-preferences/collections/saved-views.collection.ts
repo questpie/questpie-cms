@@ -1,4 +1,4 @@
-import { q } from "questpie";
+import { collection } from "questpie";
 
 // Re-export types from shared
 export type {
@@ -19,13 +19,13 @@ export type {
  *
  * @example
  * ```ts
- * import { adminModule } from "@questpie/admin/server";
+ * import { config } from "questpie";
+ * import { admin } from "@questpie/admin/server";
  *
- * const app = q({ name: "my-app" })
- *   .use(starterModule)
- *   .use(adminModule)
- *   .collections({ ... })
- *   .build({ ... });
+ * export default config({
+ *   modules: [admin()],
+ *   // ...
+ * });
  *
  * // Access saved views
  * const views = await app.api.collections.adminSavedViews.find({
@@ -33,8 +33,7 @@ export type {
  * });
  * ```
  */
-export const savedViewsCollection = q
-	.collection("admin_saved_views")
+export const savedViewsCollection = collection("admin_saved_views")
 	.fields(({ f }) => ({
 		// User who owns this saved view
 		userId: f.text({ required: true, maxLength: 255, label: "User ID" }),

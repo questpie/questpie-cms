@@ -5,10 +5,9 @@
  */
 
 import { uniqueIndex } from "drizzle-orm/pg-core";
-import { qb } from "@/questpie/server/builder";
+import { collection } from "questpie";
 
-export const cityMembers = qb
-	.collection("cityMembers")
+export default collection("cityMembers")
 	.fields(({ f }) => ({
 		user: f.relation({
 			label: "User",

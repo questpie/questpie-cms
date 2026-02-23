@@ -148,11 +148,11 @@ interface AdminLayoutProviderProps<TApp extends Questpie<any> = Questpie<any>>
 	 * @example
 	 * ```tsx
 	 * // Server configures locales and messages
-	 * const app = q()
-	 *   .use(adminModule)
-	 *   .adminLocale({ locales: ["en", "sk"], defaultLocale: "en" })
-	 *   .messages({ sk: { "common.save": "Ulozit" } })
-	 *   .build();
+	 * const app = config({
+	 *   modules: [admin()],
+	 *   adminLocale: { locales: ["en", "sk"], defaultLocale: "en" },
+	 *   messages: { sk: { "common.save": "Ulozit" } },
+	 * });
 	 *
 	 * // Client fetches from server
 	 * <AdminLayoutProvider

@@ -147,7 +147,13 @@ export async function loadQuestpieConfig(
 		try {
 			const generatedModule = await import(/* @vite-ignore */ generatedPath);
 			if (generatedModule.app) {
-				return { app: generatedModule.app, cli: config.cli };
+				return {
+					app: generatedModule.app,
+					cli: config.cli ?? {
+						migrations: config.cli?.migrations,
+						seeds: config.cli?.seeds,
+					},
+				};
 			}
 		} catch {
 			throw new Error(

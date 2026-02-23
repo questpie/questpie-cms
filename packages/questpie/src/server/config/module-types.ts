@@ -1,5 +1,31 @@
 import type { BetterAuthOptions } from "better-auth";
 import type { CollectionAccess } from "#questpie/server/collection/builder/types.js";
+
+// ============================================================================
+// Auth Config — type for auth.ts file convention
+// ============================================================================
+
+/**
+ * Auth configuration type for the `auth.ts` file convention.
+ * Accepts Better Auth options (email/password, social providers, plugins, etc.).
+ *
+ * @example
+ * ```ts
+ * // auth.ts
+ * import type { AuthConfig } from "questpie";
+ *
+ * export default {
+ *   emailAndPassword: { enabled: true },
+ *   socialProviders: {
+ *     google: { clientId: "...", clientSecret: "..." },
+ *   },
+ * } satisfies AuthConfig;
+ * ```
+ *
+ * @see RFC §9 (Auth)
+ */
+export type AuthConfig = BetterAuthOptions;
+
 import type { GlobalHooksState } from "#questpie/server/config/global-hooks-types.js";
 import type {
 	AnyCollectionOrBuilder,
@@ -161,6 +187,14 @@ export interface AppConfig {
 	/** Auto-seed on startup. */
 	autoSeed?: boolean | SeedCategory | SeedCategory[];
 
+	/** CLI-specific configuration (used by `questpie` CLI commands). */
+	cli?: {
+		/** Migration directory for generated migrations. @default "./src/migrations" */
+		migrations?: { directory?: string };
+		/** Seed directory for generated seeds. @default "./src/seeds" */
+		seeds?: { directory?: string };
+	};
+
 	/** User-level migrations (from project, not modules). */
 	migrations?: Migration[];
 
@@ -219,3 +253,65 @@ export interface AppEntities {
 	 */
 	[key: string]: unknown;
 }
+
+// ============================================================================
+// Module Type Extraction Utilities
+// ============================================================================
+
+/**
+ * Extract property `K` from a single module type, recursing into sub-modules.
+ * Resolution order: depth-first, sub-modules first, then self (self overrides sub-modules).
+ *
+ * @example
+ * ```ts
+ * type AdminCollections = ExtractFromModule<ReturnType<typeof admin>, "collections">;
+ * // { user: ..., assets: ..., session: ..., adminSavedViews: ..., ... }
+ * ```
+ */
+export type ExtractFromModule<M, K extends string> = (M extends {
+	modules: infer Sub extends readonly any[];
+}
+	? ExtractFromModuleArray<Sub, K>
+	: // biome-ignore lint/complexity/noBannedTypes: <explanation>
+		{}) &
+	(K extends keyof M ? (M[K] extends Record<string, any> ? M[K] : {}) : {});
+
+/**
+ * Extract property `K` from an array of module types, left-to-right.
+ * Later modules override earlier ones (intersection semantics).
+ *
+ * @example
+ * ```ts
+ * type AllModuleCollections = ExtractFromModuleArray<[ReturnType<typeof starter>, ReturnType<typeof admin>], "collections">;
+ * ```
+ */
+export type ExtractFromModuleArray<
+	A extends readonly any[],
+	K extends string,
+> = A extends readonly [infer First, ...infer Rest]
+	? ExtractFromModule<First, K> & ExtractFromModuleArray<Rest, K>
+	: // biome-ignore lint/complexity/noBannedTypes: <explanation>
+		{};
+
+/**
+ * Extract property `K` from a config type's `modules` array.
+ * Top-level entry point for extracting module contributions.
+ *
+ * @example
+ * ```ts
+ * // In .generated/index.ts:
+ * import _config from "../questpie.config";
+ *
+ * type ModuleCollections = ExtractModulesProperty<typeof _config, "collections">;
+ * type ModuleJobs = ExtractModulesProperty<typeof _config, "jobs">;
+ * type ModuleFunctions = ExtractModulesProperty<typeof _config, "functions">;
+ * ```
+ *
+ * @see RFC §15.1 (Complete .generated/index.ts Example)
+ */
+export type ExtractModulesProperty<Config, K extends string> = Config extends {
+	modules: infer M extends readonly any[];
+}
+	? ExtractFromModuleArray<M, K>
+	: // biome-ignore lint/complexity/noBannedTypes: <explanation>
+		{};

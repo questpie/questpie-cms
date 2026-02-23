@@ -15,12 +15,11 @@ import {
 	QuestpieBuilder,
 	q,
 	questpie,
-	starterModule,
 } from "questpie";
 // Side-effect imports: apply patches and augmentation
 import "#questpie/admin/server/augmentation.js";
 import "#questpie/admin/server/patch.js";
-import { adminModule } from "#questpie/admin/server/modules/admin/index.js";
+import { admin } from "#questpie/admin/server/modules/admin/index.js";
 
 // ============================================================================
 // Test Helpers
@@ -468,134 +467,86 @@ describe("CollectionBuilder.merge() - Admin Extensions", () => {
 });
 
 // ============================================================================
-// adminModule Composition
+// admin() Module Composition
 // ============================================================================
 
-describe("adminModule - Composition", () => {
-	test("adminModule should have sidebar configured", () => {
-		expect((adminModule.state as any).sidebar).toBeDefined();
-		expect((adminModule.state as any).sidebar.sections).toBeDefined();
+describe("admin() - Module Composition", () => {
+	// Get the admin module definition once for all tests
+	const adminDef = admin();
+
+	test("admin() should have sidebar configured", () => {
+		expect((adminDef as any).sidebar).toBeDefined();
+		expect((adminDef as any).sidebar.sections).toBeDefined();
 	});
 
-	test("adminModule should have user collection with admin config", () => {
-		const userState = (adminModule.state.collections.user as any).state;
+	test("admin() should have user collection with admin config", () => {
+		const userState = (adminDef.collections!.user as any).state;
 		expect(userState.admin).toBeDefined();
 		expect(userState.admin.label).toEqual({ key: "defaults.users.label" });
 	});
 
-	test("adminModule should have user collection with list config", () => {
-		const userState = (adminModule.state.collections.user as any).state;
+	test("admin() should have user collection with list config", () => {
+		const userState = (adminDef.collections!.user as any).state;
 		expect(userState.adminList).toBeDefined();
 		expect(userState.adminList.view).toBe("table");
 	});
 
-	test("adminModule should have user collection with form config", () => {
-		const userState = (adminModule.state.collections.user as any).state;
+	test("admin() should have user collection with form config", () => {
+		const userState = (adminDef.collections!.user as any).state;
 		expect(userState.adminForm).toBeDefined();
 		expect(userState.adminForm.view).toBe("form");
 	});
 
-	test("adminModule should have assets collection with admin config", () => {
-		const assetsState = (adminModule.state.collections.assets as any).state;
+	test("admin() should have assets collection with admin config", () => {
+		const assetsState = (adminDef.collections!.assets as any).state;
 		expect(assetsState.admin).toBeDefined();
 		expect(assetsState.admin.label).toEqual({ key: "defaults.assets.label" });
 	});
 
-	test("adminModule should have hidden internal collections", () => {
-		const sessionState = (adminModule.state.collections.session as any).state;
+	test("admin() should have hidden internal collections", () => {
+		const sessionState = (adminDef.collections!.session as any).state;
 		expect(sessionState.admin).toEqual({ hidden: true, audit: false });
 
-		const accountState = (adminModule.state.collections.account as any).state;
+		const accountState = (adminDef.collections!.account as any).state;
 		expect(accountState.admin).toEqual({ hidden: true, audit: false });
 	});
 
-	test(".use(adminModule) should propagate sidebar to consumer", () => {
-		const app = questpie({ name: "test" }).use(adminModule);
-
-		expect((app.state as any).sidebar).toBeDefined();
-		expect((app.state as any).sidebar.sections.length).toBeGreaterThan(0);
+	test("admin() should have functions configured", () => {
+		expect(adminDef.functions).toBeDefined();
+		expect(Object.keys(adminDef.functions!).length).toBeGreaterThan(0);
 	});
 
-	test(".use(adminModule) should propagate collection admin configs", () => {
-		const app = questpie({ name: "test" }).use(adminModule);
-
-		const userState = (app.state.collections.user as any).state;
-		expect(userState.admin).toBeDefined();
-		expect(userState.adminList).toBeDefined();
-		expect(userState.adminForm).toBeDefined();
+	test("admin() should have listViews and editViews configured", () => {
+		expect((adminDef as any).listViews).toBeDefined();
+		expect((adminDef as any).listViews.table).toBeDefined();
+		expect((adminDef as any).editViews).toBeDefined();
+		expect((adminDef as any).editViews.form).toBeDefined();
 	});
 
-	test("consumer sidebar should override adminModule sidebar", () => {
-		const app = questpie({ name: "test" })
-			.use(adminModule)
-			.sidebar(({ s }: any) =>
-				s.sidebar({
-					sections: [
-						s.section({
-							id: "custom",
-							title: { en: "Custom" },
-							items: [],
-						}),
-					],
-				}),
-			);
-
-		expect((app.state as any).sidebar.sections[0].id).toBe("custom");
+	test("admin() should have components configured", () => {
+		expect((adminDef as any).components).toBeDefined();
+		expect((adminDef as any).components.icon).toBeDefined();
+		expect((adminDef as any).components.badge).toBeDefined();
 	});
 
-	test("consumer can extend collections while preserving admin config", () => {
-		const app = questpie({ name: "test" })
-			.use(adminModule)
-			.collections({
-				posts: createTestCollection("posts")
-					.fields({ title: { type: "text" } } as any)
-					.admin(({ c }: any) => ({
-						label: { en: "Posts" },
-						icon: c.icon("ph:article"),
-					})),
-			});
-
-		// Custom collection should be added
-		expect(app.state.collections.posts).toBeDefined();
-		// adminModule collections should still exist
-		expect(app.state.collections.user).toBeDefined();
-		expect(app.state.collections.assets).toBeDefined();
+	test("admin() should include starter as nested module", () => {
+		expect(adminDef.modules).toBeDefined();
+		expect(adminDef.modules!.length).toBe(1);
+		expect(adminDef.modules![0].name).toBe("questpie-starter");
 	});
 
-	test("chained .use() from adminModule through intermediate builder", () => {
-		// This mimics the barbershop pattern:
-		// baseInstance = q(...).use(adminModule).sidebar(...).branding(...)
-		// app = q(...).use(baseInstance).build(...)
-		const baseInstance = questpie({ name: "base" })
-			.use(adminModule)
-			.sidebar(({ s }: any) =>
-				s.sidebar({
-					sections: [
-						s.section({
-							id: "custom-sidebar",
-							title: { en: "Custom" },
-							items: [],
-						}),
-					],
-				}),
-			)
-			.branding({ name: { en: "My App" } })
-			.adminLocale({ locales: ["en", "sk"], defaultLocale: "en" });
+	test("admin() with branding options should pass through", () => {
+		const def = admin({ branding: { name: "My App" } });
+		expect((def as any).branding).toEqual({ name: "My App" });
+	});
 
-		// Second .use() should propagate all extensions
-		const app = questpie({ name: "final" }).use(baseInstance);
-
-		expect((app.state as any).sidebar).toBeDefined();
-		expect((app.state as any).sidebar.sections[0].id).toBe("custom-sidebar");
-		expect((app.state as any).branding).toEqual({
-			name: { en: "My App" },
+	test("admin() with adminLocale options should pass through", () => {
+		const def = admin({
+			adminLocale: { locales: ["en", "sk"], defaultLocale: "en" },
 		});
-		expect((app.state as any).adminLocale).toEqual({
+		expect((def as any).adminLocale).toEqual({
 			locales: ["en", "sk"],
 			defaultLocale: "en",
 		});
-		// Core state should also be propagated
-		expect(app.state.collections.user).toBeDefined();
-		expect(app.state.collections.assets).toBeDefined();
 	});
 });

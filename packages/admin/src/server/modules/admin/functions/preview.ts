@@ -357,7 +357,7 @@ const getPreviewUrl = fn({
 
 /**
  * Default preview functions bundle with env-based secret.
- * Used by adminModule to register preview RPC functions.
+ * Used by the `admin()` module to register preview RPC functions.
  */
 export const previewFunctions = {
 	...createPreviewFunctions(getPreviewSecret()),

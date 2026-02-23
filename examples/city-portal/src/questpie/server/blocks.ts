@@ -10,12 +10,10 @@ import {
 	block,
 } from "@questpie/admin/server";
 import { typedApp, type Where } from "questpie";
-import type { BaseApp } from "@/questpie/server/app";
-import type {
-	announcements,
-	documents,
-	news,
-} from "@/questpie/server/collections";
+import type { App } from "@/questpie/server/.generated";
+import type _announcements from "@/questpie/server/collections/announcements";
+import type _documents from "@/questpie/server/collections/documents";
+import type _news from "@/questpie/server/collections/news";
 
 // ============================================================================
 // Category Helpers
@@ -153,8 +151,8 @@ export const announcementBannerBlock = block("announcement-banner")
 		}),
 	}))
 	.prefetch(async ({ values, ctx }) => {
-		const app = typedApp<BaseApp>(ctx.app);
-		let where: Where<typeof announcements, BaseApp> = {};
+		const app = typedApp<App>(ctx.app);
+		let where: Where<typeof _announcements, App> = {};
 		if (!values.showExpired) {
 			where = {
 				validTo: { gte: new Date().toISOString() },
@@ -443,8 +441,8 @@ export const latestNewsBlock = block("latest-news")
 		}),
 	}))
 	.prefetch(async ({ values, ctx }) => {
-		const app = typedApp<BaseApp>(ctx.app);
-		let where: Where<typeof news, BaseApp> = {};
+		const app = typedApp<App>(ctx.app);
+		let where: Where<typeof _news, App> = {};
 		if (values.category && values.category !== "all") {
 			where = {
 				category: values.category,
@@ -483,7 +481,7 @@ export const contactsListBlock = block("contacts-list")
 		}),
 	}))
 	.prefetch(async ({ values, ctx }) => {
-		const app = typedApp<BaseApp>(ctx.app);
+		const app = typedApp<App>(ctx.app);
 		const findOptions: any = {
 			orderBy: { order: "asc" },
 		};
@@ -531,8 +529,8 @@ export const documentsListBlock = block("documents-list")
 		}),
 	}))
 	.prefetch(async ({ values, ctx }) => {
-		const app = typedApp<BaseApp>(ctx.app);
-		let where: Where<typeof documents, BaseApp> = { isPublished: true };
+		const app = typedApp<App>(ctx.app);
+		let where: Where<typeof _documents, App> = { isPublished: true };
 		if (values.category && values.category !== "all") {
 			where = { ...where, category: values.category };
 		}

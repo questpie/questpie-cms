@@ -1,5 +1,8 @@
 import { index } from "drizzle-orm/pg-core";
-import { adminCoreBuilder as q } from "../../../core-builder.js";
+import { collection } from "questpie";
+// Side-effect imports: apply runtime patches so .admin(), .list(), .form() are available
+import "../../../augmentation.js";
+import "../../../patch.js";
 
 /**
  * Audit Log Collection
@@ -12,8 +15,7 @@ import { adminCoreBuilder as q } from "../../../core-builder.js";
  * - update: disallowed
  * - read: allowed (for admin UI display)
  */
-export const auditLogCollection = q
-	.collection("admin_audit_log")
+export const auditLogCollection = collection("admin_audit_log")
 	.fields(({ f }) => ({
 		/** Action performed: create, update, delete, transition, custom */
 		action: f.text({ required: true, maxLength: 50, label: "Action" }),

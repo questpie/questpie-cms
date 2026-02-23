@@ -2,7 +2,7 @@
  * Questpie Configuration for CLI
  */
 
-import { app } from "@/questpie/server/app";
+import { app } from "@/questpie/server/.generated";
 
 export const config = {
 	app: app,

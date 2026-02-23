@@ -55,6 +55,27 @@ export async function runCodegen(
 	// 1. Discover files
 	const discovered = await discoverFiles(rootDir, outDir, plugins);
 
+	// 1b. Warn about files with named exports (not default)
+	const allFiles = [
+		...discovered.collections.values(),
+		...discovered.globals.values(),
+		...discovered.jobs.values(),
+		...discovered.functions.values(),
+		...discovered.messages.values(),
+	];
+	if (discovered.auth) allFiles.push(discovered.auth);
+	for (const customMap of discovered.custom.values()) {
+		allFiles.push(...customMap.values());
+	}
+	for (const file of allFiles) {
+		if (file.exportType === "named") {
+			console.warn(
+				`⚠  ${file.source}: no default export found, using named export "${file.namedExportName}". ` +
+					`Consider: export default ${file.namedExportName};`,
+			);
+		}
+	}
+
 	// 2. Build codegen context for plugins
 	const extraImports: Array<{ name: string; path: string }> = [];
 	const extraTypeDeclarations: string[] = [];

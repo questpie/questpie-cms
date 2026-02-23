@@ -11,7 +11,7 @@ import {
 	createAuditDashboardWidget,
 } from "@questpie/admin/server";
 import { ConsoleAdapter, config, pgBossAdapter, SmtpAdapter } from "questpie";
-import { getRevenueStats } from "@/questpie/server/functions";
+import getRevenueStats from "@/questpie/server/functions/get-revenue-stats";
 import { messages } from "@/questpie/server/i18n";
 import { migrations } from "../../migrations";
 
@@ -384,14 +384,6 @@ export default config({
 	},
 	secret: process.env.BETTER_AUTH_SECRET || "demo-secret-change-in-production",
 
-	auth: {
-		emailAndPassword: { enabled: true, requireEmailVerification: false },
-		baseURL: process.env.APP_URL || "http://localhost:3000",
-		basePath: "/api/auth",
-		secret:
-			process.env.BETTER_AUTH_SECRET || "demo-secret-change-in-production",
-	},
-
 	locale: {
 		locales: [
 			{
@@ -425,4 +417,9 @@ export default config({
 	},
 
 	queue: { adapter: pgBossAdapter({ connectionString: DATABASE_URL }) },
+
+	cli: {
+		migrations: { directory: "./src/migrations" },
+		seeds: { directory: "./src/seeds" },
+	},
 });

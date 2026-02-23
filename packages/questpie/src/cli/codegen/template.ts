@@ -4,8 +4,9 @@
  * Generates the `.generated/index.ts` file content from discovered files.
  * The generated file:
  * 1. Imports the config and all discovered entities
- * 2. Calls createApp(config, entities) to create the app instance
- * 3. Exports the app and type aliases
+ * 2. Emits type interfaces using typeof references (zero inference cost)
+ * 3. Calls createApp(config, entities) to create the app instance
+ * 4. Exports the app and composed App type
  *
  * @see RFC §15.1 (Complete .generated/index.ts Example)
  */
@@ -52,8 +53,10 @@ export function generateTemplate(options: TemplateOptions): string {
 	lines.push("// Regenerate with: questpie generate");
 	lines.push("");
 
-	// Import createApp
-	lines.push('import { createApp } from "questpie";');
+	// Import createApp + Questpie + QuestpieConfig + module extraction types
+	lines.push(
+		'import { createApp, type Questpie, type QuestpieConfig, type ExtractModulesProperty } from "questpie";',
+	);
 	lines.push("");
 
 	// Import config
@@ -67,7 +70,7 @@ export function generateTemplate(options: TemplateOptions): string {
 			"// ── Collections ────────────────────────────────────────────",
 		);
 		for (const file of sortedValues(discovered.collections)) {
-			lines.push(`import ${file.varName} from "${file.importPath}";`);
+			lines.push(importStatement(file));
 		}
 		lines.push("");
 	}
@@ -78,7 +81,7 @@ export function generateTemplate(options: TemplateOptions): string {
 			"// ── Globals ────────────────────────────────────────────────",
 		);
 		for (const file of sortedValues(discovered.globals)) {
-			lines.push(`import ${file.varName} from "${file.importPath}";`);
+			lines.push(importStatement(file));
 		}
 		lines.push("");
 	}
@@ -89,7 +92,7 @@ export function generateTemplate(options: TemplateOptions): string {
 			"// ── Jobs ───────────────────────────────────────────────────",
 		);
 		for (const file of sortedValues(discovered.jobs)) {
-			lines.push(`import ${file.varName} from "${file.importPath}";`);
+			lines.push(importStatement(file));
 		}
 		lines.push("");
 	}
@@ -100,7 +103,7 @@ export function generateTemplate(options: TemplateOptions): string {
 			"// ── Functions ──────────────────────────────────────────────",
 		);
 		for (const file of sortedValues(discovered.functions)) {
-			lines.push(`import ${file.varName} from "${file.importPath}";`);
+			lines.push(importStatement(file));
 		}
 		lines.push("");
 	}
@@ -111,7 +114,7 @@ export function generateTemplate(options: TemplateOptions): string {
 			"// ── Messages ───────────────────────────────────────────────",
 		);
 		for (const file of sortedValues(discovered.messages)) {
-			lines.push(`import ${file.varName} from "${file.importPath}";`);
+			lines.push(importStatement(file));
 		}
 		lines.push("");
 	}
@@ -121,9 +124,7 @@ export function generateTemplate(options: TemplateOptions): string {
 		lines.push(
 			"// ── Auth ───────────────────────────────────────────────────",
 		);
-		lines.push(
-			`import ${discovered.auth.varName} from "${discovered.auth.importPath}";`,
-		);
+		lines.push(importStatement(discovered.auth));
 		lines.push("");
 	}
 
@@ -135,7 +136,7 @@ export function generateTemplate(options: TemplateOptions): string {
 				`// ── ${label} ──────────────────────────────────────────────`,
 			);
 			for (const file of sortedValues(fileMap)) {
-				lines.push(`import ${file.varName} from "${file.importPath}";`);
+				lines.push(importStatement(file));
 			}
 			lines.push("");
 		}
@@ -152,23 +153,180 @@ export function generateTemplate(options: TemplateOptions): string {
 		lines.push("");
 	}
 
-	// Extra type declarations
-	if (extraTypeDeclarations && extraTypeDeclarations.length > 0) {
+	// ════════════════════════════════════════════════════════════
+	// TYPES — composed from typeof references (zero inference cost)
+	// ════════════════════════════════════════════════════════════
+
+	lines.push("// ════════════════════════════════════════════════════════════");
+	lines.push(
+		"// TYPES — composed from typeof references (zero inference cost)",
+	);
+	lines.push("// ════════════════════════════════════════════════════════════");
+	lines.push("");
+
+	// Module type extraction — auto-extracts types from config's modules array
+	lines.push("// ── Module type extraction (automatic from config) ─────────");
+	lines.push(
+		'type _ModuleCollections = ExtractModulesProperty<typeof _config, "collections">;',
+	);
+	lines.push(
+		'type _ModuleGlobals = ExtractModulesProperty<typeof _config, "globals">;',
+	);
+	lines.push(
+		'type _ModuleJobs = ExtractModulesProperty<typeof _config, "jobs">;',
+	);
+	lines.push(
+		'type _ModuleFunctions = ExtractModulesProperty<typeof _config, "functions">;',
+	);
+	// Also extract custom keys (blocks, etc.) from modules
+	for (const [stateKey] of discovered.custom) {
+		const moduleTypeName = `_Module${stateKey.charAt(0).toUpperCase() + stateKey.slice(1)}`;
 		lines.push(
-			"// ── Type Declarations ──────────────────────────────────────",
+			`type ${moduleTypeName} = ExtractModulesProperty<typeof _config, "${stateKey}">;`,
 		);
+	}
+	lines.push("");
+
+	// AppCollections — module contributions + user overrides
+	{
+		const hasUser = discovered.collections.size > 0;
+		lines.push(
+			"/** All collections in the app (modules + user, user overrides) */",
+		);
+		if (hasUser) {
+			lines.push(
+				"export interface AppCollections extends _ModuleCollections {",
+			);
+			for (const file of sortedValues(discovered.collections)) {
+				lines.push(`\t${safeKey(file.key)}: typeof ${file.varName};`);
+			}
+			lines.push("}");
+		} else {
+			lines.push("export type AppCollections = _ModuleCollections;");
+		}
+		lines.push("");
+	}
+
+	// AppGlobals — module contributions + user overrides
+	{
+		const hasUser = discovered.globals.size > 0;
+		lines.push(
+			"/** All globals in the app (modules + user, user overrides) */",
+		);
+		if (hasUser) {
+			lines.push("export interface AppGlobals extends _ModuleGlobals {");
+			for (const file of sortedValues(discovered.globals)) {
+				lines.push(`\t${safeKey(file.key)}: typeof ${file.varName};`);
+			}
+			lines.push("}");
+		} else {
+			lines.push("export type AppGlobals = _ModuleGlobals;");
+		}
+		lines.push("");
+	}
+
+	// AppJobs — module contributions + user overrides
+	{
+		const hasUser = discovered.jobs.size > 0;
+		lines.push("/** All jobs in the app (modules + user, user overrides) */");
+		if (hasUser) {
+			lines.push("export interface AppJobs extends _ModuleJobs {");
+			for (const file of sortedValues(discovered.jobs)) {
+				lines.push(`\t${safeKey(file.key)}: typeof ${file.varName};`);
+			}
+			lines.push("}");
+		} else {
+			lines.push("export type AppJobs = _ModuleJobs;");
+		}
+		lines.push("");
+	}
+
+	// AppFunctions — module contributions + user overrides (nested from directory layout)
+	{
+		const hasUser = discovered.functions.size > 0;
+		lines.push(
+			"/** All functions in the app (modules + user, user overrides) */",
+		);
+		if (hasUser) {
+			lines.push("export interface AppFunctions extends _ModuleFunctions {");
+			const nested = buildNestedFunctions(discovered.functions);
+			emitNestedTypeObject(lines, nested, 1);
+			lines.push("}");
+		} else {
+			lines.push("export type AppFunctions = _ModuleFunctions;");
+		}
+		lines.push("");
+	}
+
+	// AppBlocks and other custom plugin types — module contributions + user overrides
+	for (const [stateKey, fileMap] of discovered.custom) {
+		const typeName = `App${stateKey.charAt(0).toUpperCase() + stateKey.slice(1)}`;
+		const moduleTypeName = `_Module${stateKey.charAt(0).toUpperCase() + stateKey.slice(1)}`;
+		const hasUser = fileMap.size > 0;
+		lines.push(
+			`/** All ${stateKey} in the app (modules + user, user overrides) */`,
+		);
+		if (hasUser) {
+			lines.push(`export interface ${typeName} extends ${moduleTypeName} {`);
+			for (const file of sortedValues(fileMap)) {
+				lines.push(`\t${safeKey(file.key)}: typeof ${file.varName};`);
+			}
+			lines.push("}");
+		} else {
+			lines.push(`export type ${typeName} = ${moduleTypeName};`);
+		}
+		lines.push("");
+	}
+
+	// AppMessageKeys
+	if (discovered.messages.size > 0) {
+		lines.push("/** Message keys — union of all keys from all locales */");
+		const msgParts = sortedValues(discovered.messages).map(
+			(f) => `keyof typeof ${f.varName}`,
+		);
+		lines.push(`export type AppMessageKeys = ${msgParts.join(" | ")};`);
+		lines.push("");
+	}
+
+	// Extra type declarations from plugins
+	if (extraTypeDeclarations && extraTypeDeclarations.length > 0) {
 		for (const decl of extraTypeDeclarations) {
 			lines.push(decl);
 		}
 		lines.push("");
 	}
 
-	// Runtime: createApp
+	// App type — composed Questpie<QuestpieConfig & {...}>
+	lines.push("/** The fully typed Questpie app */");
+	const stateMembers: string[] = [];
+	// Always include these — they merge module + user contributions
+	stateMembers.push("\tcollections: AppCollections;");
+	stateMembers.push("\tglobals: AppGlobals;");
+	stateMembers.push("\tjobs: AppJobs;");
+	stateMembers.push("\tfunctions: AppFunctions;");
+	for (const [stateKey] of discovered.custom) {
+		const typeName = `App${stateKey.charAt(0).toUpperCase() + stateKey.slice(1)}`;
+		stateMembers.push(`\t${stateKey}: ${typeName};`);
+	}
+	if (discovered.messages.size > 0)
+		stateMembers.push('\t"~messageKeys": AppMessageKeys;');
+
+	lines.push("export type App = Questpie<QuestpieConfig & {");
+	for (const member of stateMembers) {
+		lines.push(member);
+	}
+	lines.push("}>;");
+	lines.push("");
+
+	// ════════════════════════════════════════════════════════════
+	// RUNTIME — create the app instance
+	// ════════════════════════════════════════════════════════════
+
 	lines.push("// ════════════════════════════════════════════════════════════");
 	lines.push("// RUNTIME — create the app instance");
 	lines.push("// ════════════════════════════════════════════════════════════");
 	lines.push("");
-	lines.push("export const app = createApp(_config, {");
+	lines.push("export const app: App = createApp(_config, {");
 
 	// Collections
 	if (discovered.collections.size > 0) {
@@ -237,12 +395,7 @@ export function generateTemplate(options: TemplateOptions): string {
 		}
 	}
 
-	lines.push("});");
-	lines.push("");
-
-	// Type exports
-	lines.push("export type App = typeof app;");
-	lines.push('export type AppRpc = App["functions"];');
+	lines.push("}) as unknown as App;");
 	lines.push("");
 
 	// Extra runtime code from plugins
@@ -299,7 +452,7 @@ function buildNestedFunctions(
 }
 
 /**
- * Emit a nested object structure as code lines.
+ * Emit a nested object structure as runtime code lines.
  */
 function emitNestedObject(
 	lines: string[],
@@ -318,6 +471,26 @@ function emitNestedObject(
 	}
 }
 
+/**
+ * Emit a nested type structure for interface declarations.
+ */
+function emitNestedTypeObject(
+	lines: string[],
+	tree: Map<string, NestedNode>,
+	indent: number,
+): void {
+	const tabs = "\t".repeat(indent);
+	for (const [key, node] of tree) {
+		if (node.type === "leaf") {
+			lines.push(`${tabs}${safeKey(key)}: typeof ${node.varName};`);
+		} else {
+			lines.push(`${tabs}${safeKey(key)}: {`);
+			emitNestedTypeObject(lines, node.children, indent + 1);
+			lines.push(`${tabs}};`);
+		}
+	}
+}
+
 // ============================================================================
 // Utilities
 // ============================================================================
@@ -327,6 +500,18 @@ function emitNestedObject(
  */
 function sortedValues(map: Map<string, DiscoveredFile>): DiscoveredFile[] {
 	return [...map.values()].sort((a, b) => a.key.localeCompare(b.key));
+}
+
+/**
+ * Generate the import statement for a discovered file.
+ * Uses default import for "default" exports, named import for "named" exports.
+ */
+function importStatement(file: DiscoveredFile): string {
+	if (file.exportType === "named" && file.namedExportName) {
+		return `import { ${file.namedExportName} as ${file.varName} } from "${file.importPath}";`;
+	}
+	// default or unknown — use default import
+	return `import ${file.varName} from "${file.importPath}";`;
 }
 
 /**

@@ -8,7 +8,7 @@ import {
 	type BlockComponentProps,
 	RichTextRenderer,
 } from "@questpie/admin/client";
-import type { App } from "@/questpie/server/app";
+import type { App } from "@/questpie/server/.generated";
 
 export function TextRenderer({ values }: BlockComponentProps<App, "text">) {
 	const maxWidthClass = {

@@ -11,17 +11,17 @@
  *
  * @example
  * ```ts
- * import { q } from "questpie";
- * import { adminModule } from "@questpie/admin/server";
+ * import { config } from "questpie";
+ * import { admin } from "@questpie/admin/server";
  *
- * const app = q({ name: "my-app" })
- *   .use(adminModule)
- *   .collections({
- *     posts: q.collection("posts")
+ * export default config({
+ *   modules: [admin()],
+ *   collections: {
+ *     posts: collection("posts")
  *       .fields(({ f }) => ({
  *         title: f.text({ required: true }),
  *       }))
- *       // These methods are added by adminModule at runtime:
+ *       // These methods are added by admin() at runtime:
  *       .admin(({ c }) => ({
  *         label: { en: "Posts" },
  *         icon: c.icon("ph:article"),
@@ -184,7 +184,7 @@ export interface AdminCollectionConfig {
 	order?: number;
 	/**
 	 * Whether this collection should be included in audit logging.
-	 * Requires the audit module to be registered via `.use(auditModule)`.
+	 * Requires the audit module to be registered via `config({ modules: [audit()] })`.
 	 *
 	 * - `true` or `undefined` (default): audited when audit module is active
 	 * - `false`: never audited, even when audit module is active
@@ -1538,7 +1538,8 @@ interface FormViewConfigContext<
  * ```ts
  * import type { WithAdminMethods } from "@questpie/admin/server";
  *
- * const builder = q({ name: "app" }).use(adminModule) as WithAdminMethods<typeof q>;
+ * // admin() module adds these methods at runtime
+ * const builder = q({ name: "app" }).use(admin()) as WithAdminMethods<typeof q>;
  * builder.listView("table"); // now has type support
  * ```
  */
@@ -1754,7 +1755,7 @@ interface GlobalBuilderAdminMethods<
  *
  * @example
  * ```ts
- * const builder = q({ name: "app" }).use(adminModule) as WithAdminMethods<typeof q>;
+ * const builder = q({ name: "app" }).use(admin()) as WithAdminMethods<typeof q>;
  * ```
  */
 export type WithAdminMethods<T> = T & QuestpieBuilderAdminMethods;
@@ -1807,8 +1808,8 @@ declare module "questpie" {
 		 *
 		 * @example
 		 * ```ts
-		 * const app = q({ name: "my-app" })
-		 *   .use(adminModule)
+		 * const app = config({
+		 *   modules: [admin()],
 		 *   // Content can be in 10 languages
 		 *   .locale({
 		 *     locales: [{ code: "en" }, { code: "sk" }, { code: "de" }, ...],
@@ -1830,7 +1831,7 @@ declare module "questpie" {
 		 *
 		 * @example
 		 * ```ts
-		 * const qb = q.use(adminModule);
+		 * const qb = q.use(admin());
 		 *
 		 * const heroBlock = qb.block("hero")
 		 *   .label({ en: "Hero Section" })

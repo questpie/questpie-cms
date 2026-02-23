@@ -5,10 +5,9 @@
  */
 
 import { uniqueIndex } from "drizzle-orm/pg-core";
-import { qb } from "@/questpie/server/builder";
+import { collection } from "questpie";
 
-export const cities = qb
-	.collection("cities")
+export default collection("cities")
 	.fields(({ f }) => ({
 		name: f.text({
 			label: "City Name",

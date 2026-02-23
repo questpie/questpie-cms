@@ -8,7 +8,7 @@
  * - _tree: Array of block nodes with id, type, and children
  * - _values: Record mapping block id to field values
  *
- * This field type is only available when using adminModule.
+ * This field type is only available when using the `admin()` module.
  */
 
 import {

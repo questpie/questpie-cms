@@ -6,11 +6,14 @@
  *
  * @example
  * ```ts
- * import { adminModule } from "@questpie/admin/server";
+ * import { config } from "questpie";
+ * import { admin } from "@questpie/admin/server";
  *
- * const app = q({ name: "my-app" })
- *   .use(adminModule)
- *   .build({ ... });
+ * export default config({
+ *   modules: [admin()],
+ *   app: { url: process.env.APP_URL! },
+ *   db: { url: process.env.DATABASE_URL! },
+ * });
  * ```
  */
 
@@ -158,7 +161,6 @@ export {
 	actionFunctions,
 	// New module() factory function
 	admin,
-	adminModule,
 	adminRpc,
 	// Reactive field functions
 	batchReactive,
@@ -193,19 +195,19 @@ export {
 export {
 	type AuditDashboardWidgetOptions,
 	type AuditModuleOptions,
-	// New module() factory function
 	audit,
 	auditLogCollection,
-	auditModule,
 	createAuditDashboardWidget,
-	createAuditModule,
 } from "./modules/audit/index.js";
 // Runtime patching (applied automatically when this module is imported)
 export {
 	applyAdminPatches,
 	arePatchesApplied,
+	component,
 	createActionProxy,
 	createComponentProxy,
 	createFieldProxy,
 	createViewProxy,
+	editView,
+	listView,
 } from "./patch.js";

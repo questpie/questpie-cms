@@ -658,7 +658,7 @@ export const getActionsConfigFn = fn({
 
 /**
  * QuestPie functions for action execution.
- * These are registered on the adminModule.
+ * These are registered on the `admin()` module.
  */
 export const actionFunctions = {
 	executeAction: executeActionFn,

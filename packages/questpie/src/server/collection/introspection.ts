@@ -105,7 +105,7 @@ export interface CollectionSchema {
 
 	/**
 	 * Admin configuration from .admin(), .list(), .form(), .preview(), .actions()
-	 * Only present when adminModule is used.
+	 * Only present when the `admin()` module is used.
 	 */
 	admin?: {
 		/** Collection metadata (label, icon, hidden, group, order) */
@@ -736,7 +736,7 @@ export async function introspectCollection(
 		}
 	}
 
-	// Extract admin configuration if present (from adminModule)
+	// Extract admin configuration if present (from admin() module)
 	const adminConfig = extractAdminConfig(state);
 
 	return {
@@ -845,7 +845,7 @@ function serializeActionFormFields(
 
 /**
  * Extract admin configuration from collection state.
- * These properties are added by adminModule via monkey patching.
+ * These properties are added by the `admin()` module via monkey patching.
  */
 function extractAdminConfig(
 	state: CollectionBuilderState,

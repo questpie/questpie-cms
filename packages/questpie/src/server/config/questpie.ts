@@ -76,7 +76,7 @@ export class Questpie<TConfig extends QuestpieConfig = QuestpieConfig> {
 	 * Default access control for all collections and globals.
 	 * Applied when a collection/global doesn't define its own `.access()` rules.
 	 *
-	 * Set via `.defaultAccess()` on the builder. The `starterModule` sets this to
+	 * Set via `.defaultAccess()` on the builder. The `starter()` module sets this to
 	 * require an authenticated session for all CRUD operations.
 	 *
 	 * Even without this, the framework falls back to requiring a session
@@ -95,13 +95,14 @@ export class Questpie<TConfig extends QuestpieConfig = QuestpieConfig> {
 	 *
 	 * When using .messages() on the builder, the keys are type-safe:
 	 * ```ts
-	 * const app = questpie({ name: "app" })
-	 *   .use(starterModule) // Includes core messages
-	 *   .messages({ en: { "custom.key": "Value" } } as const)
-	 *   .build({ ... });
+	 * const app = config({
+	 *   modules: [starter()], // Includes core messages
+	 *   messages: { en: { "custom.key": "Value" } } as const,
+	 *   db: { url: '...' },
+	 * });
 	 *
-	 * app.t("error.notFound"); // Type-safe from starterModule
-	 * app.t("custom.key");     // Type-safe from .messages()
+	 * app.t("error.notFound"); // Type-safe from starter()
+	 * app.t("custom.key");     // Type-safe from messages
 	 * ```
 	 *
 	 * @example

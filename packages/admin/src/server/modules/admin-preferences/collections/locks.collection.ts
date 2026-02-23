@@ -1,4 +1,4 @@
-import { q } from "questpie";
+import { collection } from "questpie";
 
 /**
  * Admin Locks Collection
@@ -35,8 +35,7 @@ import { q } from "questpie";
  * await app.api.collections.adminLocks.delete({ id: lockId });
  * ```
  */
-export const locksCollection = q
-	.collection("admin_locks")
+export const locksCollection = collection("admin_locks")
 	.fields(({ f }) => ({
 		// Resource type: "collection" or "global"
 		resourceType: f.select({

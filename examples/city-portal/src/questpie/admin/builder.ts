@@ -5,6 +5,6 @@
  */
 
 import { adminModule, qa } from "@questpie/admin/client";
-import type { App } from "@/questpie/server/app";
+import type { App } from "@/questpie/server/.generated";
 
 export const builder = qa<App>().use(adminModule);

@@ -14,26 +14,43 @@
  *
  * @example
  * ```ts
- * import { q } from "questpie";
- * import { adminModule } from "@questpie/admin/server";
+ * import { config } from "questpie";
+ * import { admin } from "@questpie/admin/server";
  *
- * const app = q({ name: "my-app" })
- *   .use(adminModule)
- *   .collections({
- *     posts: postsCollection,
- *   })
- *   .build({
- *     db: { url: process.env.DATABASE_URL },
- *     storage: { driver: s3Driver(...) },
- *   });
+ * export default config({
+ *   modules: [admin()],
+ *   app: { url: process.env.APP_URL! },
+ *   db: { url: process.env.DATABASE_URL! },
+ * });
  * ```
  */
 
-import { q, starterModule } from "questpie";
+import { module, starter } from "questpie";
+
+// Get starter collections for admin UI configuration.
+// These are raw CollectionBuilder instances that carry a coreBuilder reference
+// with defaultFields, so .admin()/.list()/.form()/.actions() methods work on them.
+// Cast needed: ModuleDefinition.collections is Record<string, AnyCollectionOrBuilder>,
+// but these are all CollectionBuilder instances at runtime.
+const {
+	user: usersCollection,
+	assets: assetsCollection,
+	session: sessionsCollection,
+	account: accountsCollection,
+	verification: verificationsCollection,
+	apikey: apiKeysCollection,
+} = starter().collections as any;
+
 // Side-effect imports: apply runtime patches and type augmentation
 import "../../augmentation.js";
 import "../../patch.js";
 import { adminFields } from "../../fields/index.js";
+import {
+	component,
+	createComponentProxy,
+	editView,
+	listView,
+} from "../../patch.js";
 import { adminPreferencesCollection } from "../admin-preferences/collections/admin-preferences.collection.js";
 import { locksCollection } from "../admin-preferences/collections/locks.collection.js";
 import { savedViewsCollection } from "../admin-preferences/collections/saved-views.collection.js";
@@ -110,452 +127,348 @@ export const adminRpc = {
 	...reactiveFunctions,
 };
 
-const adminBaseBuilder = q({ name: "questpie-admin" })
-	// Include all starterModule functionality (auth, assets)
-	.use(starterModule)
-	// Register default server-side view/component registries.
-	// These must exist so server config builders (`c.*`, `v.*`) resolve from registry.
-	.listViews({
-		table: q.listView("table"),
-	})
-	.editViews({
-		form: q.editView("form"),
-	})
-	.components({
-		icon: q.component("icon"),
-		badge: q.component("badge"),
-	});
+// ============================================================================
+// Admin-configured collections
+// ============================================================================
+// Built directly from raw starter collections. The .admin()/.list()/.form()/.actions()
+// methods work because the raw collections carry a ~questpieApp reference to the
+// coreBuilder which has defaultFields registered.
 
-/**
- * Admin Module - the complete backend for QUESTPIE admin panel.
- *
- * This module provides everything needed to run the admin panel:
- * - User authentication (Better Auth) - from starterModule
- * - File uploads (assets) - from starterModule
- * - Saved views for collection filters (named configurations)
- * - User preferences (view state synced across devices)
- * - Setup flow for first admin creation
- *
- * @example
- * ```ts
- * import { q } from "questpie";
- * import { adminModule } from "@questpie/admin/server";
- *
- * const app = q({ name: "my-app" })
- *   .use(adminModule)
- *   .collections({
- *     posts: postsCollection,
- *   })
- *   .build({
- *     db: { url: process.env.DATABASE_URL },
- *   });
- * ```
- *
- * @example
- * ```ts
- * // Extend assets collection with custom fields
- * import { q, collection, varchar } from "questpie";
- * import { adminModule } from "@questpie/admin/server";
- *
- * const app = q({ name: "my-app" })
- *   .use(adminModule)
- *   .collections({
- *     // Override assets with additional fields
- *     assets: adminModule.state.collections.assets.merge(
- *       collection("assets").fields({
- *         folder: varchar("folder", { length: 255 }),
- *         tags: varchar("tags", { length: 1000 }),
- *       })
- *     ),
- *   })
- *   .build({ ... });
- * ```
- */
-export const adminModule = adminBaseBuilder
-	// Register admin-specific field types (richText, blocks)
-	.fields(adminFields)
-	// Add admin-specific collections with admin UI config
-	.collections({
-		// Override auth collections with admin UI config
-		user: starterModule.state.collections.user
-			.admin(({ c }) => ({
-				label: { key: "defaults.users.label" },
-				icon: c.icon("ph:users"),
-				description: { key: "defaults.users.description" },
-				group: "administration",
-			}))
-			.list(({ v, f, a }) =>
-				v.table({
-					columns: [f.name, f.email, f.role, f.banned],
-					searchable: [f.name, f.email],
-					defaultSort: { field: f.name, direction: "asc" },
-					actions: {
-						header: { primary: [], secondary: [] },
-						row: [a.delete],
-						bulk: [a.deleteMany],
-					},
-				}),
-			)
-			.form(({ v, f }) =>
-				v.form({
-					sidebar: {
-						position: "right",
-						fields: [f.image, f.role, f.emailVerified],
-					},
-					fields: [
+const adminUserCollection = usersCollection
+	.admin(({ c }: any) => ({
+		label: { key: "defaults.users.label" },
+		icon: c.icon("ph:users"),
+		description: { key: "defaults.users.description" },
+		group: "administration",
+	}))
+	.list(({ v, f, a }: any) =>
+		v.table({
+			columns: [f.name, f.email, f.role, f.banned],
+			searchable: [f.name, f.email],
+			defaultSort: { field: f.name, direction: "asc" },
+			actions: {
+				header: { primary: [], secondary: [] },
+				row: [a.delete],
+				bulk: [a.deleteMany],
+			},
+		}),
+	)
+	.form(({ v, f }: any) =>
+		v.form({
+			sidebar: {
+				position: "right",
+				fields: [f.image, f.role, f.emailVerified],
+			},
+			fields: [
+				{
+					type: "tabs",
+					tabs: [
 						{
-							type: "tabs",
-							tabs: [
+							id: "profile",
+							label: { key: "defaults.users.tabs.profile" },
+							fields: [
 								{
-									id: "profile",
-									label: { key: "defaults.users.tabs.profile" },
+									type: "section",
+									label: { key: "defaults.users.sections.basicInfo" },
+									layout: "grid",
+									columns: 2,
 									fields: [
+										f.name,
 										{
-											type: "section",
-											label: { key: "defaults.users.sections.basicInfo" },
-											layout: "grid",
-											columns: 2,
-											fields: [
-												f.name,
-												{
-													field: f.email,
-													readOnly: ({ data }) => Boolean((data as any)?.id),
-												},
-											],
+											field: f.email,
+											readOnly: ({ data }: any) => Boolean((data as any)?.id),
 										},
 									],
 								},
+							],
+						},
+						{
+							id: "security",
+							label: { key: "defaults.users.tabs.security" },
+							fields: [
 								{
-									id: "security",
-									label: { key: "defaults.users.tabs.security" },
+									type: "section",
+									label: { key: "defaults.users.sections.accessControl" },
 									fields: [
+										f.banned,
 										{
-											type: "section",
-											label: { key: "defaults.users.sections.accessControl" },
-											fields: [
-												f.banned,
-												{
-													field: f.banReason,
-													hidden: ({ data }) => !(data as any)?.banned,
-												},
-												{
-													field: f.banExpires,
-													hidden: ({ data }) => !(data as any)?.banned,
-												},
-											],
+											field: f.banReason,
+											hidden: ({ data }: any) => !(data as any)?.banned,
+										},
+										{
+											field: f.banExpires,
+											hidden: ({ data }: any) => !(data as any)?.banned,
 										},
 									],
 								},
 							],
 						},
 					],
-				}),
-			)
-			.actions(({ a, c, f }) => ({
-				builtin: [a.save(), a.delete(), a.deleteMany(), a.duplicate()],
-				custom: [
-					a.headerAction({
-						id: "createUser",
-						label: { key: "defaults.users.actions.createUser.label" },
-						icon: c.icon("ph:user-plus"),
-						form: {
-							title: { key: "defaults.users.actions.createUser.title" },
-							description: {
-								key: "defaults.users.actions.createUser.description",
+				},
+			],
+		}),
+	)
+	.actions(({ a, c, f }: any) => ({
+		builtin: [a.save(), a.delete(), a.deleteMany(), a.duplicate()],
+		custom: [
+			a.headerAction({
+				id: "createUser",
+				label: { key: "defaults.users.actions.createUser.label" },
+				icon: c.icon("ph:user-plus"),
+				form: {
+					title: { key: "defaults.users.actions.createUser.title" },
+					description: {
+						key: "defaults.users.actions.createUser.description",
+					},
+					submitLabel: { key: "defaults.users.actions.createUser.submit" },
+					fields: {
+						name: f.text({
+							label: { key: "defaults.users.fields.name.label" },
+							required: true,
+						}),
+						email: f.email({
+							label: { key: "defaults.users.fields.email.label" },
+							required: true,
+						}),
+						password: f.text({
+							label: {
+								key: "defaults.users.actions.createUser.fields.password.label",
 							},
-							submitLabel: { key: "defaults.users.actions.createUser.submit" },
-							fields: {
-								name: f.text({
-									label: { key: "defaults.users.fields.name.label" },
-									required: true,
-								}),
-								email: f.email({
-									label: { key: "defaults.users.fields.email.label" },
-									required: true,
-								}),
-								password: f.text({
+							required: true,
+							type: "password",
+							autoComplete: "new-password",
+						}),
+						role: f.select({
+							label: { key: "defaults.users.fields.role.label" },
+							options: [
+								{
+									value: "admin",
 									label: {
-										key: "defaults.users.actions.createUser.fields.password.label",
+										key: "defaults.users.fields.role.options.admin",
 									},
-									required: true,
-									type: "password",
-									autoComplete: "new-password",
-								}),
-								role: f.select({
-									label: { key: "defaults.users.fields.role.label" },
-									options: [
-										{
-											value: "admin",
-											label: {
-												key: "defaults.users.fields.role.options.admin",
-											},
-										},
-										{
-											value: "user",
-											label: { key: "defaults.users.fields.role.options.user" },
-										},
-									],
-									defaultValue: "user",
-								}),
-							},
-						},
-						handler: async ({ data, app, session }) => {
-							const authApi = (app as any)?.auth?.api;
-							if (!authApi?.createUser) {
-								return {
-									type: "error",
-									toast: {
-										message:
-											"Auth admin API is not configured. Cannot create user.",
-									},
-								};
-							}
-
-							const token = (session as any)?.session?.token;
-							const headers = token
-								? new Headers({ authorization: `Bearer ${token}` })
-								: undefined;
-
-							const result = await authApi.createUser({
-								body: {
-									email: String((data as any).email || ""),
-									password: String((data as any).password || ""),
-									name: String((data as any).name || ""),
-									role: (data as any).role
-										? String((data as any).role)
-										: undefined,
 								},
-								...(headers ? { headers } : {}),
-							});
-
-							const createdUserId = (result as any)?.user?.id;
-							const createdUserEmail = (result as any)?.user?.email;
-
-							if (!createdUserId) {
-								return {
-									type: "error",
-									toast: {
-										message: "Failed to create user",
-									},
-								};
-							}
-
-							return {
-								type: "success",
-								toast: {
-									message: `User ${createdUserEmail || ""} created successfully`,
+								{
+									value: "user",
+									label: { key: "defaults.users.fields.role.options.user" },
 								},
-								effects: {
-									invalidate: ["user"],
-									redirect: `/admin/collections/user/${createdUserId}`,
-								},
-							};
-						},
-					}),
-					a.action({
-						id: "resetPassword",
-						label: { key: "defaults.users.actions.resetPassword.label" },
-						icon: c.icon("ph:key"),
-						variant: "outline",
-						form: {
-							title: { key: "defaults.users.actions.resetPassword.title" },
-							description: {
-								key: "defaults.users.actions.resetPassword.description",
+							],
+							defaultValue: "user",
+						}),
+					},
+				},
+				handler: async ({ data, app, session }: any) => {
+					const authApi = (app as any)?.auth?.api;
+					if (!authApi?.createUser) {
+						return {
+							type: "error",
+							toast: {
+								message:
+									"Auth admin API is not configured. Cannot create user.",
 							},
-							submitLabel: {
-								key: "defaults.users.actions.resetPassword.submit",
-							},
-							fields: {
-								newPassword: f.text({
-									label: {
-										key: "defaults.users.actions.resetPassword.fields.newPassword.label",
-									},
-									required: true,
-									type: "password",
-									autoComplete: "new-password",
-								}),
-								confirmPassword: f.text({
-									label: {
-										key: "defaults.users.actions.resetPassword.fields.confirmPassword.label",
-									},
-									required: true,
-									type: "password",
-									autoComplete: "new-password",
-								}),
-							},
+						};
+					}
+
+					const token = (session as any)?.session?.token;
+					const headers = token
+						? new Headers({ authorization: `Bearer ${token}` })
+						: undefined;
+
+					const result = await authApi.createUser({
+						body: {
+							email: String((data as any).email || ""),
+							password: String((data as any).password || ""),
+							name: String((data as any).name || ""),
+							role: (data as any).role ? String((data as any).role) : undefined,
 						},
-						handler: async ({ data, itemId, app, session }) => {
-							if (!itemId) {
-								return {
-									type: "error",
-									toast: { message: "User ID is required" },
-								};
-							}
+						...(headers ? { headers } : {}),
+					});
 
-							const newPassword = String((data as any).newPassword || "");
-							const confirmPassword = String(
-								(data as any).confirmPassword || "",
-							);
+					const createdUserId = (result as any)?.user?.id;
+					const createdUserEmail = (result as any)?.user?.email;
 
-							if (newPassword !== confirmPassword) {
-								return {
-									type: "error",
-									toast: {
-										message: "Passwords do not match",
-									},
-								};
-							}
+					if (!createdUserId) {
+						return {
+							type: "error",
+							toast: {
+								message: "Failed to create user",
+							},
+						};
+					}
 
-							const authApi = (app as any)?.auth?.api;
-							if (!authApi?.setUserPassword) {
-								return {
-									type: "error",
-									toast: {
-										message:
-											"Auth admin API is not configured. Cannot reset password.",
-									},
-								};
-							}
-
-							const token = (session as any)?.session?.token;
-							const headers = token
-								? new Headers({ authorization: `Bearer ${token}` })
-								: undefined;
-
-							await authApi.setUserPassword({
-								body: {
-									userId: itemId,
-									newPassword,
-								},
-								...(headers ? { headers } : {}),
-							});
-
-							return {
-								type: "success",
-								toast: { message: "Password reset successfully" },
-								effects: { invalidate: ["user"] },
-							};
+					return {
+						type: "success",
+						toast: {
+							message: `User ${createdUserEmail || ""} created successfully`,
 						},
-					}),
+						effects: {
+							invalidate: ["user"],
+							redirect: `/admin/collections/user/${createdUserId}`,
+						},
+					};
+				},
+			}),
+			a.action({
+				id: "resetPassword",
+				label: { key: "defaults.users.actions.resetPassword.label" },
+				icon: c.icon("ph:key"),
+				variant: "outline",
+				form: {
+					title: { key: "defaults.users.actions.resetPassword.title" },
+					description: {
+						key: "defaults.users.actions.resetPassword.description",
+					},
+					submitLabel: {
+						key: "defaults.users.actions.resetPassword.submit",
+					},
+					fields: {
+						newPassword: f.text({
+							label: {
+								key: "defaults.users.actions.resetPassword.fields.newPassword.label",
+							},
+							required: true,
+							type: "password",
+							autoComplete: "new-password",
+						}),
+						confirmPassword: f.text({
+							label: {
+								key: "defaults.users.actions.resetPassword.fields.confirmPassword.label",
+							},
+							required: true,
+							type: "password",
+							autoComplete: "new-password",
+						}),
+					},
+				},
+				handler: async ({ data, itemId, app, session }: any) => {
+					if (!itemId) {
+						return {
+							type: "error",
+							toast: { message: "User ID is required" },
+						};
+					}
+
+					const newPassword = String((data as any).newPassword || "");
+					const confirmPassword = String((data as any).confirmPassword || "");
+
+					if (newPassword !== confirmPassword) {
+						return {
+							type: "error",
+							toast: {
+								message: "Passwords do not match",
+							},
+						};
+					}
+
+					const authApi = (app as any)?.auth?.api;
+					if (!authApi?.setUserPassword) {
+						return {
+							type: "error",
+							toast: {
+								message:
+									"Auth admin API is not configured. Cannot reset password.",
+							},
+						};
+					}
+
+					const token = (session as any)?.session?.token;
+					const headers = token
+						? new Headers({ authorization: `Bearer ${token}` })
+						: undefined;
+
+					await authApi.setUserPassword({
+						body: {
+							userId: itemId,
+							newPassword,
+						},
+						...(headers ? { headers } : {}),
+					});
+
+					return {
+						type: "success",
+						toast: { message: "Password reset successfully" },
+						effects: { invalidate: ["user"] },
+					};
+				},
+			}),
+		],
+	}));
+
+const adminAssetsCollection = assetsCollection
+	.admin(({ c }: any) => ({
+		label: { key: "defaults.assets.label" },
+		icon: c.icon("ph:image"),
+		description: { key: "defaults.assets.description" },
+		group: "administration",
+	}))
+	.list(({ v, f, a }: any) =>
+		v.table({
+			// Note: filename, mimeType, size, createdAt are upload fields (added by .upload())
+			// so we use string literals instead of f.* proxy
+			columns: ["preview", "filename", "mimeType", "size"],
+			searchable: ["filename", f.alt],
+			defaultSort: { field: "createdAt", direction: "desc" },
+			actions: {
+				header: { primary: [], secondary: [] },
+				row: [a.delete],
+				bulk: [a.deleteMany],
+			},
+		}),
+	)
+	.form(({ v, f }: any) =>
+		v.form({
+			sidebar: {
+				position: "right",
+				fields: [
+					{
+						type: "section",
+						label: { key: "defaults.assets.sections.fileInfo" },
+						// Note: filename, mimeType, size, visibility are upload fields
+						fields: ["preview", "filename", "mimeType", "size", "visibility"],
+					},
 				],
-			})),
-
-		assets: starterModule.state.collections.assets
-			.admin(({ c }) => ({
-				label: { key: "defaults.assets.label" },
-				icon: c.icon("ph:image"),
-				description: { key: "defaults.assets.description" },
-				group: "administration",
-			}))
-			.list(({ v, f, a }) =>
-				v.table({
-					// Note: filename, mimeType, size, createdAt are upload fields (added by .upload())
-					// so we use string literals instead of f.* proxy
-					columns: ["preview", "filename", "mimeType", "size"],
-					searchable: ["filename", f.alt],
-					defaultSort: { field: "createdAt", direction: "desc" },
-					actions: {
-						header: { primary: [], secondary: [] },
-						row: [a.delete],
-						bulk: [a.deleteMany],
-					},
-				}),
-			)
-			.form(({ v, f }) =>
-				v.form({
-					sidebar: {
-						position: "right",
-						fields: [
-							{
-								type: "section",
-								label: { key: "defaults.assets.sections.fileInfo" },
-								// Note: filename, mimeType, size, visibility are upload fields
-								fields: [
-									"preview",
-									"filename",
-									"mimeType",
-									"size",
-									"visibility",
-								],
-							},
-						],
-					},
-					fields: [
-						{
-							type: "section",
-							label: { key: "defaults.assets.sections.dimensions" },
-							layout: "grid",
-							columns: 2,
-							fields: [f.width, f.height],
-						},
-						{
-							type: "section",
-							label: { key: "defaults.assets.sections.metadata" },
-							fields: [f.alt, f.caption],
-						},
-					],
-				}),
-			),
-
-		// Hide internal auth collections (audit: false to skip audit logging)
-		session: starterModule.state.collections.session.admin({
-			hidden: true,
-			audit: false,
-		}),
-		account: starterModule.state.collections.account.admin({
-			hidden: true,
-			audit: false,
-		}),
-		verification: starterModule.state.collections.verification.admin({
-			hidden: true,
-			audit: false,
-		}),
-		apikey: starterModule.state.collections.apikey.admin({
-			hidden: true,
-			audit: false,
-		}),
-
-		// Admin-specific collections (hidden from sidebar)
-		adminSavedViews: savedViewsCollection.admin({ hidden: true, audit: false }),
-		adminPreferences: adminPreferencesCollection.admin({
-			hidden: true,
-			audit: false,
-		}),
-		adminLocks: locksCollection.admin({ hidden: true, audit: false }),
-	})
-	// Default sidebar
-	.sidebar(({ s, c }) =>
-		s.sidebar({
-			sections: [
-				s.section({
-					id: "administration",
-					title: { key: "defaults.sidebar.administration" },
-					items: [
-						{
-							type: "collection",
-							collection: "user",
-							icon: c.icon("ph:users"),
-						},
-						{
-							type: "collection",
-							collection: "assets",
-							icon: c.icon("ph:image"),
-						},
-					],
-				}),
+			},
+			fields: [
+				{
+					type: "section",
+					label: { key: "defaults.assets.sections.dimensions" },
+					layout: "grid",
+					columns: 2,
+					fields: [f.width, f.height],
+				},
+				{
+					type: "section",
+					label: { key: "defaults.assets.sections.metadata" },
+					fields: [f.alt, f.caption],
+				},
 			],
 		}),
 	);
 
-export type AdminModule = typeof adminModule;
+/**
+ * All admin-configured collections, ready for use in `module({...})`.
+ * Includes both starter overrides (with admin UI) and admin-internal collections.
+ */
+const adminCollections = {
+	// Override auth collections with admin UI config
+	user: adminUserCollection,
+	assets: adminAssetsCollection,
+	// Hide internal auth collections (audit: false to skip audit logging)
+	session: sessionsCollection.admin({ hidden: true, audit: false }),
+	account: accountsCollection.admin({ hidden: true, audit: false }),
+	verification: verificationsCollection.admin({ hidden: true, audit: false }),
+	apikey: apiKeysCollection.admin({ hidden: true, audit: false }),
+	// Admin-specific collections (hidden from sidebar)
+	adminSavedViews: savedViewsCollection.admin({ hidden: true, audit: false }),
+	adminPreferences: adminPreferencesCollection.admin({
+		hidden: true,
+		audit: false,
+	}),
+	adminLocks: locksCollection.admin({ hidden: true, audit: false }),
+};
 
 // ============================================================================
-// admin() — module() alternative for use with config() + createApp()
+// admin() — module() factory for use with config() + createApp()
 // ============================================================================
-
-import type { ModuleDefinition } from "questpie";
-import { module, starter } from "questpie";
-import { createComponentProxy } from "../../patch.js";
 
 /**
  * Options for the admin module when used via `config({ modules: [admin({...})] })`.
@@ -597,10 +510,14 @@ const defaultAdminSidebar = {
 };
 
 /**
- * Admin module as a `ModuleDefinition` for use with `config({ modules: [admin()] })`.
+ * Admin module for use with `config({ modules: [admin()] })`.
  *
- * Equivalent to the builder-based `adminModule`, but returns a plain data object
- * compatible with the `module()` / `createApp()` API.
+ * The complete backend for the QUESTPIE admin panel:
+ * - User authentication (Better Auth) — from starter dependency
+ * - File uploads (assets) — from starter dependency
+ * - Saved views for collection filters (named configurations)
+ * - User preferences (view state synced across devices)
+ * - Setup flow for first admin creation
  *
  * @example
  * ```ts
@@ -617,7 +534,7 @@ const defaultAdminSidebar = {
  *
  * @see RFC §13.3 (Admin Module)
  */
-export function admin(options?: AdminOptions): ModuleDefinition {
+export function admin(options?: AdminOptions) {
 	// Resolve sidebar callback if needed
 	let resolvedSidebar = options?.sidebar ?? defaultAdminSidebar;
 	if (typeof resolvedSidebar === "function") {
@@ -663,15 +580,11 @@ export function admin(options?: AdminOptions): ModuleDefinition {
 		});
 	}
 
-	// Use the same collections already built by adminModule
-	// This avoids duplicating the complex collection config code
-	const adminCollections = adminModule.state.collections;
-
 	return module({
 		name: "questpie-admin",
 		modules: [starter()],
-		collections: adminCollections as any,
-		fields: adminFields as any,
+		collections: adminCollections,
+		fields: adminFields,
 		functions: {
 			...setupFunctions,
 			...localeFunctions,
@@ -682,9 +595,12 @@ export function admin(options?: AdminOptions): ModuleDefinition {
 			...widgetDataFunctions,
 			...reactiveFunctions,
 		},
-		listViews: { table: q.listView("table") },
-		editViews: { form: q.editView("form") },
-		components: { icon: q.component("icon"), badge: q.component("badge") },
+		listViews: { table: listView("table") },
+		editViews: { form: editView("form") },
+		components: {
+			icon: component("icon"),
+			badge: component("badge"),
+		},
 		sidebar: resolvedSidebar,
 		dashboard: resolvedDashboard,
 		branding: options?.branding,

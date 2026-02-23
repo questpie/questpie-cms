@@ -2,7 +2,7 @@
  * Runtime Monkey Patching for Admin Builder Methods
  *
  * This module patches QuestpieBuilder, CollectionBuilder, and GlobalBuilder
- * with admin-specific methods when adminModule is used.
+ * with admin-specific methods when the `admin()` module is used.
  *
  * The patches add these methods:
  * - QuestpieBuilder: listView(), editView(), component(), listViews(), editViews(), components()
@@ -11,7 +11,7 @@
  *
  * Type augmentation is handled by ./augmentation.ts which extends the builder types.
  *
- * @internal This module is automatically imported by adminModule.
+ * @internal This module is automatically imported by the `admin()` module.
  */
 
 import {
@@ -514,30 +514,21 @@ function patchQuestpieBuilder() {
 
 	/**
 	 * Create a list view definition.
-	 * Returns a definition object for use in .listViews()
+	 * Delegates to standalone `listView()` factory.
 	 */
-	proto.listView = <TName extends string>(
-		name: TName,
-		config: Record<string, unknown> = {},
-	): ListViewDefinition<TName> => ({ type: "listView", name, ...config });
+	proto.listView = listView;
 
 	/**
 	 * Create an edit view definition.
-	 * Returns a definition object for use in .editViews()
+	 * Delegates to standalone `editView()` factory.
 	 */
-	proto.editView = <TName extends string>(
-		name: TName,
-		config: Record<string, unknown> = {},
-	): EditViewDefinition<TName> => ({ type: "editView", name, ...config });
+	proto.editView = editView;
 
 	/**
 	 * Create a component definition.
-	 * Returns a definition object for use in .components()
+	 * Delegates to standalone `component()` factory.
 	 */
-	proto.component = <TName extends string>(
-		name: TName,
-		config: Record<string, unknown> = {},
-	): ComponentDefinition<TName> => ({ type: "component", name, ...config });
+	proto.component = component;
 
 	/**
 	 * Register list views on the builder.
@@ -594,9 +585,9 @@ function patchQuestpieBuilder() {
 	 * ```ts
 	 * import { heroBlock, textBlock } from "./blocks";
 	 *
-	 * const app = q({ name: "my-app" })
-	 *   .use(adminModule)
-	 *   .blocks({
+	 * const app = config({
+	 *   modules: [admin()],
+	 *   blocks: {
 	 *     // Simple block - relations auto-expanded
 	 *     hero: heroBlock,
 	 *     text: textBlock,
@@ -697,7 +688,7 @@ function patchQuestpieBuilder() {
 	 *
 	 * @example
 	 * ```ts
-	 * const qb = q.use(adminModule);
+	 * const qb = q.use(admin());
 	 *
 	 * const heroBlock = qb.block("hero")
 	 *   .label({ en: "Hero Section" })
@@ -842,8 +833,8 @@ function patchQuestpieBuilder() {
 	 *
 	 * @example
 	 * ```ts
-	 * const app = q({ name: "my-app" })
-	 *   .use(adminModule)
+	 * const app = config({
+	 *   modules: [admin()],
 	 *   // Content can be in many languages
 	 *   .locale({
 	 *     locales: [{ code: "en" }, { code: "sk" }, { code: "de" }, ...],
@@ -1501,7 +1492,7 @@ function patchGlobalBuilder() {
  * Apply all admin patches to builder prototypes.
  * This function is idempotent - calling it multiple times has no effect.
  *
- * Called automatically when adminModule is used via .use()
+ * Called automatically when the `admin()` module is used
  */
 export function applyAdminPatches(): void {
 	if (patchesApplied) {
@@ -1521,6 +1512,76 @@ export function applyAdminPatches(): void {
  */
 export function arePatchesApplied(): boolean {
 	return patchesApplied;
+}
+
+// ============================================================================
+// Standalone definition factories
+// ============================================================================
+
+/**
+ * Create a list view definition.
+ * Standalone function usable both in builder chain and in `module()` definitions.
+ *
+ * @example
+ * ```ts
+ * import { listView } from "@questpie/admin/server";
+ *
+ * // In module():
+ * module({ listViews: { table: listView("table") } });
+ *
+ * // In builder:
+ * q.listViews({ table: listView("table") });
+ * ```
+ */
+export function listView<TName extends string>(
+	name: TName,
+	config: Record<string, unknown> = {},
+): ListViewDefinition<TName> {
+	return { type: "listView", name, ...config };
+}
+
+/**
+ * Create an edit view definition.
+ * Standalone function usable both in builder chain and in `module()` definitions.
+ *
+ * @example
+ * ```ts
+ * import { editView } from "@questpie/admin/server";
+ *
+ * // In module():
+ * module({ editViews: { form: editView("form") } });
+ *
+ * // In builder:
+ * q.editViews({ form: editView("form") });
+ * ```
+ */
+export function editView<TName extends string>(
+	name: TName,
+	config: Record<string, unknown> = {},
+): EditViewDefinition<TName> {
+	return { type: "editView", name, ...config };
+}
+
+/**
+ * Create a component definition.
+ * Standalone function usable both in builder chain and in `module()` definitions.
+ *
+ * @example
+ * ```ts
+ * import { component } from "@questpie/admin/server";
+ *
+ * // In module():
+ * module({ components: { icon: component("icon"), badge: component("badge") } });
+ *
+ * // In builder:
+ * q.components({ icon: component("icon") });
+ * ```
+ */
+export function component<TName extends string>(
+	name: TName,
+	config: Record<string, unknown> = {},
+): ComponentDefinition<TName> {
+	return { type: "component", name, ...config };
 }
 
 // Re-export proxy factories for external use if needed

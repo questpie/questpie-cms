@@ -8,7 +8,7 @@
  * ## Architecture
  *
  * ```
- * SERVER (questpie + adminModule)     CLIENT (@questpie/admin)
+ * SERVER (questpie + admin())          CLIENT (@questpie/admin)
  * ─────────────────────────────────   ───────────────────────────
  * - Field schemas                     - Field components
  * - Validation rules                  - View components
@@ -28,7 +28,7 @@
  * import { qa, adminModule, AdminRouter } from "@questpie/admin/client";
  *
  * // 1. Create admin instance with component registries
- * const admin = qa().use(adminModule);
+ * const admin = qa().use(adminModule); // client-side adminModule
  *
  * // 2. Render in your app
  * function App() {

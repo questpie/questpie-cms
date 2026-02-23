@@ -17,16 +17,14 @@
 
 import type { BlockRendererProps } from "@questpie/admin/client";
 import type { InferBlockData, InferBlockValues } from "@questpie/admin/server";
-import type { blocks } from "@/questpie/server/blocks";
-
-type Blocks = typeof blocks;
+import type { AppBlocks } from "@/questpie/server/.generated/index";
 
 /**
  * Typed block renderer props.
  * Infers `values` type from server block field definitions
  * and `data` type from `.prefetch()` configuration.
  */
-export type BlockProps<TBlockName extends keyof Blocks> = BlockRendererProps<
-	InferBlockValues<Blocks[TBlockName]["state"]>,
-	InferBlockData<Blocks[TBlockName]>
+export type BlockProps<TBlockName extends keyof AppBlocks> = BlockRendererProps<
+	InferBlockValues<AppBlocks[TBlockName]["state"]>,
+	InferBlockData<AppBlocks[TBlockName]>
 >;

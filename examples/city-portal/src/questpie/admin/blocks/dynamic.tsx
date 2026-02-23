@@ -5,7 +5,7 @@
  */
 
 import type { BlockComponentProps } from "@questpie/admin/client";
-import type { App } from "@/questpie/server/app";
+import type { App } from "@/questpie/server/.generated";
 
 // ============================================================================
 // LATEST NEWS
