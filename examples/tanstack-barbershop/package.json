@@ -6,7 +6,8 @@
 	"scripts": {
 		"dev": "bun --bun vite dev --port 3000",
 		"dev:worker": "bun --bun run --watch ./src/worker.ts",
-		"seed": "bun run seed.ts",
+		"seed": "bun questpie seed",
+		"seed:demo": "bun questpie seed --category dev",
 		"build": "vite build",
 		"preview": "vite preview",
 		"test": "vitest run",

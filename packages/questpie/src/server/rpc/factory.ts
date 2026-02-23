@@ -1,7 +1,8 @@
+import type { Questpie } from "#questpie/server/config/questpie.js";
 import { fn } from "#questpie/server/functions/define-function.js";
 import type { RpcBuilder } from "#questpie/server/rpc/types.js";
 
-export function rpc<TApp = any>(): RpcBuilder<TApp> {
+export function rpc<TApp extends Questpie = any>(): RpcBuilder<TApp> {
 	const typedFn = fn.typed<TApp>();
 
 	return {

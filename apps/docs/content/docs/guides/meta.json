@@ -11,6 +11,7 @@
 		"builder-extension-packages",
 		"authentication-flows",
 		"file-uploads-and-storage",
-		"production-hardening"
+		"production-hardening",
+		"docker-deployment"
 	]
 }

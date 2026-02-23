@@ -101,55 +101,6 @@ interface EmptyBuilderState extends AdminBuilderState<any> {
 }
 
 // ============================================================================
-// Type Utils - State Extraction
-// ============================================================================
-
-/**
- * Extract backend app type from AdminBuilder
- */
-type ExtractBackendApp<TAdminBuilder> = TAdminBuilder extends {
-	state: { "~app": infer TApp };
-}
-	? TApp
-	: never;
-
-/**
- * Extract fields from AdminBuilder state
- */
-type ExtractFields<TAdminBuilder> = TAdminBuilder extends {
-	state: { fields: infer TFields };
-}
-	? TFields
-	: {};
-
-/**
- * Extract list views from AdminBuilder state
- */
-type ExtractListViews<TAdminBuilder> = TAdminBuilder extends {
-	state: { listViews: infer TViews };
-}
-	? TViews
-	: {};
-
-/**
- * Extract edit views from AdminBuilder state
- */
-type ExtractEditViews<TAdminBuilder> = TAdminBuilder extends {
-	state: { editViews: infer TViews };
-}
-	? TViews
-	: {};
-
-/**
- * Extract blocks from AdminBuilder state
- */
-type ExtractBlocks<TAdminBuilder> = TAdminBuilder extends {
-	state: { blocks: infer TBlocks };
-}
-	? TBlocks
-	: {};
-
-// ============================================================================
 // Type Utils - View Kind Detection
 // ============================================================================
 

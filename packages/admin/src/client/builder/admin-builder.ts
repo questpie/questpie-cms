@@ -7,11 +7,10 @@
 
 import {
 	DEFAULT_LOCALE_CONFIG,
+	type Override,
 	type Prettify,
-	type SetProperty,
-	type TypeMerge,
-	type UnsetProperty,
 } from "questpie/shared";
+
 import type {
 	AdminBuilderState,
 	FilterEditViews,
@@ -59,10 +58,9 @@ export class AdminBuilder<TState extends AdminBuilderState> {
 	fields<TNewFields extends Record<string, any>>(
 		fields: TNewFields,
 	): AdminBuilder<
-		SetProperty<
+		Override<
 			TState,
-			"fields",
-			Prettify<TypeMerge<TState["fields"], TNewFields>>
+			{ fields: Prettify<Override<TState["fields"], TNewFields>> }
 		>
 	> {
 		return new AdminBuilder({
@@ -80,10 +78,9 @@ export class AdminBuilder<TState extends AdminBuilderState> {
 	components<TNewComponents extends Record<string, any>>(
 		components: TNewComponents,
 	): AdminBuilder<
-		SetProperty<
+		Override<
 			TState,
-			"components",
-			Prettify<TypeMerge<TState["components"], TNewComponents>>
+			{ components: Prettify<Override<TState["components"], TNewComponents>> }
 		>
 	> {
 		return new AdminBuilder({
@@ -101,18 +98,16 @@ export class AdminBuilder<TState extends AdminBuilderState> {
 	views<TNewViews extends Record<string, any>>(
 		views: TNewViews,
 	): AdminBuilder<
-		Prettify<
-			TypeMerge<
-				UnsetProperty<TState, "listViews" | "editViews">,
-				{
-					listViews: Prettify<
-						TypeMerge<TState["listViews"], FilterListViews<TNewViews>>
-					>;
-					editViews: Prettify<
-						TypeMerge<TState["editViews"], FilterEditViews<TNewViews>>
-					>;
-				}
-			>
+		Override<
+			TState,
+			{
+				listViews: Prettify<
+					Override<TState["listViews"], FilterListViews<TNewViews>>
+				>;
+				editViews: Prettify<
+					Override<TState["editViews"], FilterEditViews<TNewViews>>
+				>;
+			}
 		>
 	> {
 		const listViews: Record<string, any> = {};
@@ -141,10 +136,9 @@ export class AdminBuilder<TState extends AdminBuilderState> {
 	widgets<TNewWidgets extends Record<string, any>>(
 		widgets: TNewWidgets,
 	): AdminBuilder<
-		SetProperty<
+		Override<
 			TState,
-			"widgets",
-			Prettify<TypeMerge<TState["widgets"], TNewWidgets>>
+			{ widgets: Prettify<Override<TState["widgets"], TNewWidgets>> }
 		>
 	> {
 		return new AdminBuilder({
@@ -162,11 +156,7 @@ export class AdminBuilder<TState extends AdminBuilderState> {
 	pages<TNewPages extends Record<string, any>>(
 		pages: TNewPages,
 	): AdminBuilder<
-		SetProperty<
-			TState,
-			"pages",
-			Prettify<TypeMerge<TState["pages"], TNewPages>>
-		>
+		Override<TState, { pages: Prettify<Override<TState["pages"], TNewPages>> }>
 	> {
 		return new AdminBuilder({
 			...this.state,
@@ -183,36 +173,24 @@ export class AdminBuilder<TState extends AdminBuilderState> {
 	use<TOther extends AdminBuilder<any>>(
 		other: TOther,
 	): AdminBuilder<
-		Prettify<
-			TypeMerge<
-				UnsetProperty<
-					TState,
-					| "fields"
-					| "listViews"
-					| "editViews"
-					| "widgets"
-					| "pages"
-					| "components"
-				>,
-				{
-					fields: Prettify<
-						TypeMerge<TState["fields"], TOther["state"]["fields"]>
-					>;
-					listViews: Prettify<
-						TypeMerge<TState["listViews"], TOther["state"]["listViews"]>
-					>;
-					editViews: Prettify<
-						TypeMerge<TState["editViews"], TOther["state"]["editViews"]>
-					>;
-					widgets: Prettify<
-						TypeMerge<TState["widgets"], TOther["state"]["widgets"]>
-					>;
-					pages: Prettify<TypeMerge<TState["pages"], TOther["state"]["pages"]>>;
-					components: Prettify<
-						TypeMerge<TState["components"], TOther["state"]["components"]>
-					>;
-				}
-			>
+		Override<
+			TState,
+			{
+				fields: Prettify<Override<TState["fields"], TOther["state"]["fields"]>>;
+				listViews: Prettify<
+					Override<TState["listViews"], TOther["state"]["listViews"]>
+				>;
+				editViews: Prettify<
+					Override<TState["editViews"], TOther["state"]["editViews"]>
+				>;
+				widgets: Prettify<
+					Override<TState["widgets"], TOther["state"]["widgets"]>
+				>;
+				pages: Prettify<Override<TState["pages"], TOther["state"]["pages"]>>;
+				components: Prettify<
+					Override<TState["components"], TOther["state"]["components"]>
+				>;
+			}
 		>
 	> {
 		const otherState = (other as any).state;
@@ -234,10 +212,11 @@ export class AdminBuilder<TState extends AdminBuilderState> {
 	defaultViews<TDefaultViews extends DefaultViewsConfig>(
 		config: TDefaultViews,
 	): AdminBuilder<
-		SetProperty<
+		Override<
 			TState,
-			"defaultViews",
-			Prettify<TypeMerge<TState["defaultViews"], TDefaultViews>>
+			{
+				defaultViews: Prettify<Override<TState["defaultViews"], TDefaultViews>>;
+			}
 		>
 	> {
 		return new AdminBuilder({

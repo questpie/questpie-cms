@@ -29,7 +29,7 @@
  * ```
  */
 
-import { type QuestpieBuilder, q, rpc, starterModule } from "questpie";
+import { q, rpc, starterModule } from "questpie";
 // Side-effect imports: apply runtime patches and type augmentation
 import "../../augmentation.js";
 import "../../patch.js";
@@ -169,7 +169,7 @@ const adminBaseBuilder = q({ name: "questpie-admin" })
  *   .build({ ... });
  * ```
  */
-export const adminModule: QuestpieBuilder<any> = adminBaseBuilder
+export const adminModule = adminBaseBuilder
 	// Register admin-specific field types (richText, blocks)
 	.fields(adminFields)
 	// Add admin-specific collections with admin UI config
@@ -544,3 +544,5 @@ export const adminModule: QuestpieBuilder<any> = adminBaseBuilder
 			],
 		}),
 	);
+
+export type AdminModule = typeof adminModule;

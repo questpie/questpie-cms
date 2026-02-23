@@ -403,6 +403,30 @@ export interface ContextualOperators<
 }
 
 // ============================================================================
+// Collection Where Placeholder (branded type-level interpolation)
+// ============================================================================
+
+/**
+ * Branded placeholder for operator param types that need cross-collection
+ * resolution. Used as a type-level template variable:
+ *
+ *   operator<CollectionWherePlaceholder>(() => sql`TRUE`)
+ *
+ * When `FieldWhere` extracts operator param types, it passes this through.
+ * The CRUD composition layer detects it and interpolates using the field's
+ * config (which carries `to: "collection_name"`):
+ *
+ *   CollectionWherePlaceholder → Where<TargetCollection, TApp>
+ *
+ * This keeps the field as the single source of truth for what operators exist,
+ * while letting the CRUD layer (which has `Where` + `TApp`) resolve the types.
+ */
+declare const __collectionWhereBrand: unique symbol;
+export type CollectionWherePlaceholder = {
+	readonly [__collectionWhereBrand]: true;
+};
+
+// ============================================================================
 // Common Operator Sets
 // ============================================================================
 

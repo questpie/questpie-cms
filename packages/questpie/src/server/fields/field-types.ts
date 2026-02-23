@@ -181,11 +181,16 @@ export type FieldSelect<
 /**
  * Extract the where clause type for a single field.
  *
- * Reads from TState["operators"]["column"] — each field owns its where operators.
- * For relation fields, returns the FK operators directly from the field's operators.
- * Relation filter operators (is, isNot, some, none) are added at the CRUD composition level.
+ * Reads from TState["operators"]["column"] — the field's operators are the
+ * single source of truth for what operators exist and what types they accept.
  *
- * Returns `never` for fields that don't support filtering (blocks, toMany relations without FK).
+ * No field types are special-cased. If a field has no operators (or its operator
+ * map is empty), FieldWhere naturally produces `never` or `{}`.
+ *
+ * Operators using `CollectionWherePlaceholder` as their param type (relation
+ * quantifiers like some/none/every/is/isNot) pass through as-is. The CRUD
+ * composition layer detects these placeholders and resolves them to
+ * `Where<TargetCollection, TApp>` using the field's config.
  */
 export type FieldWhere<
 	TFieldDef,
@@ -193,13 +198,11 @@ export type FieldWhere<
 > = TFieldDef extends FieldDefinition<infer TState>
 	? TState extends FieldDefinitionState
 		? TState extends { operators: { column: infer TColumnOps } }
-			? TState["type"] extends "blocks"
-				? never // blocks don't support where
-				: TColumnOps extends Record<string, any>
-					? {
-							[K in keyof TColumnOps]?: ExtractOperatorParamType<TColumnOps[K]>;
-						}
-					: never
+			? TColumnOps extends Record<string, any>
+				? {
+						[K in keyof TColumnOps]?: ExtractOperatorParamType<TColumnOps[K]>;
+					}
+				: never
 			: never // no operators = not queryable
 		: never
 	: never;

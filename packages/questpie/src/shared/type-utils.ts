@@ -60,29 +60,17 @@ export type Prettify<T> = {
 } & {};
 
 /**
- * Merge two types - U overrides T. Stays lazy.
+ * Lightweight override: replaces keys from R in T.
+ * Uses a mapped type so tsc emits `Override<T, R>` by name in .d.ts
+ * instead of expanding inline (which happens with `Omit<T, keyof R> & R`).
  */
-export type TypeMerge<T, U> = {
-	[K in keyof T | keyof U]: K extends keyof U
-		? U[K]
+export type Override<T, R> = {
+	[K in keyof T | keyof R]: K extends keyof R
+		? R[K]
 		: K extends keyof T
 			? T[K]
 			: never;
 };
-
-/**
- * Set a property in a type. Stays lazy.
- */
-export type SetProperty<T, K extends PropertyKey, V> = TypeMerge<
-	Omit<T, K>,
-	{ [P in K]: V }
->;
-
-/**
- * Remove a property from a type. Stays lazy.
- * Same as Omit<T, K>, keeping for consistency.
- */
-export type UnsetProperty<T, K extends PropertyKey> = Omit<T, K>;
 
 // ============================================================================
 // Base Type Helpers

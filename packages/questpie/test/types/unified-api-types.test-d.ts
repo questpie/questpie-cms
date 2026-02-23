@@ -570,7 +570,7 @@ const _whereAuthorIsEmail: PostsWhereType = {
 // ============================================================================
 
 const _whereCommentsSome: PostsWhereType = {
-	comments: { some: { createdAt: "2024-01-01" } },
+	comments: { some: { createdAt: { eq: new Date("2024-01-01") } } },
 };
 
 // ============================================================================
@@ -580,7 +580,7 @@ const _whereCommentsSome: PostsWhereType = {
 const _whereCommentsAuthor: PostsWhereType = {
 	comments: {
 		some: {
-			author: { is: { name: "Admin" } },
+			author: { contains: "Admin" },
 		},
 	},
 };

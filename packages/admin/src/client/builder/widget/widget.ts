@@ -4,7 +4,7 @@
  * Defines dashboard widgets.
  */
 
-import type { SetProperty } from "questpie/shared";
+import type { Override } from "questpie/shared";
 import type { MaybeLazyComponent } from "../types/common";
 
 export interface WidgetDefinition<
@@ -27,7 +27,7 @@ export class WidgetBuilder<TState extends WidgetBuilderState> {
 
 	$config<TNewConfig>(
 		config: TNewConfig,
-	): WidgetBuilder<SetProperty<TState, "~config", TNewConfig>> {
+	): WidgetBuilder<Override<TState, { "~config": TNewConfig }>> {
 		return new WidgetBuilder({
 			...this.state,
 			"~config": config,

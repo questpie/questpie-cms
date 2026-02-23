@@ -47,17 +47,15 @@ import {
 import type { EmailTemplateDefinition } from "#questpie/server/integrated/mailer/template.js";
 import type { JobDefinition } from "#questpie/server/integrated/queue/types.js";
 import type {
+	Override,
 	PrettifiedAnyCollectionOrBuilder,
 	PrettifiedAnyGlobalOrBuilder,
 	Prettify,
-	SetProperty,
-	TypeMerge,
-	UnsetProperty,
 } from "#questpie/shared/type-utils.js";
 
 type QuestpieFromState<TState extends QuestpieBuilderState> = Questpie<
 	Prettify<
-		TypeMerge<
+		Override<
 			QuestpieConfig,
 			{
 				collections: TState["collections"];
@@ -158,19 +156,20 @@ export class QuestpieBuilder<
 	collections<TNewCollections extends BuilderCollectionsMap>(
 		collections: TNewCollections,
 	): QuestpieBuilder<
-		SetProperty<
+		Override<
 			TState,
-			"collections",
-			Prettify<
-				TypeMerge<
-					UnsetProperty<TState["collections"], keyof TNewCollections>,
-					{
-						[K in keyof TNewCollections]: PrettifiedAnyCollectionOrBuilder<
-							TNewCollections[K]
-						>;
-					}
-				>
-			>
+			{
+				collections: Prettify<
+					Override<
+						TState["collections"],
+						{
+							[K in keyof TNewCollections]: PrettifiedAnyCollectionOrBuilder<
+								TNewCollections[K]
+							>;
+						}
+					>
+				>;
+			}
 		>
 	> {
 		return new QuestpieBuilder({
@@ -195,19 +194,20 @@ export class QuestpieBuilder<
 	globals<TNewGlobals extends BuilderGlobalsMap>(
 		globals: TNewGlobals,
 	): QuestpieBuilder<
-		SetProperty<
+		Override<
 			TState,
-			"globals",
-			Prettify<
-				TypeMerge<
-					UnsetProperty<TState["globals"], keyof TNewGlobals>,
-					{
-						[K in keyof TNewGlobals]: PrettifiedAnyGlobalOrBuilder<
-							TNewGlobals[K]
-						>;
-					}
-				>
-			>
+			{
+				globals: Prettify<
+					Override<
+						TState["globals"],
+						{
+							[K in keyof TNewGlobals]: PrettifiedAnyGlobalOrBuilder<
+								TNewGlobals[K]
+							>;
+						}
+					>
+				>;
+			}
 		>
 	> {
 		return new QuestpieBuilder({
@@ -233,13 +233,7 @@ export class QuestpieBuilder<
 	jobs<TNewJobs extends BuilderJobsMap>(
 		jobs: TNewJobs,
 	): QuestpieBuilder<
-		SetProperty<
-			TState,
-			"jobs",
-			Prettify<
-				TypeMerge<UnsetProperty<TState["jobs"], keyof TNewJobs>, TNewJobs>
-			>
-		>
+		Override<TState, { jobs: Prettify<Override<TState["jobs"], TNewJobs>> }>
 	> {
 		return new QuestpieBuilder({
 			...this.state,
@@ -264,15 +258,13 @@ export class QuestpieBuilder<
 	emailTemplates<TNewEmailTemplates extends BuilderEmailTemplatesMap>(
 		emailTemplates: TNewEmailTemplates,
 	): QuestpieBuilder<
-		SetProperty<
+		Override<
 			TState,
-			"emailTemplates",
-			Prettify<
-				TypeMerge<
-					UnsetProperty<TState["emailTemplates"], keyof TNewEmailTemplates>,
-					TNewEmailTemplates
-				>
-			>
+			{
+				emailTemplates: Prettify<
+					Override<TState["emailTemplates"], TNewEmailTemplates>
+				>;
+			}
 		>
 	> {
 		return new QuestpieBuilder({
@@ -309,12 +301,9 @@ export class QuestpieBuilder<
 	fields<TNewFields extends BuilderFieldsMap>(
 		fields: TNewFields,
 	): QuestpieBuilder<
-		SetProperty<
+		Override<
 			TState,
-			"fields",
-			Prettify<
-				TypeMerge<UnsetProperty<TState["fields"], keyof TNewFields>, TNewFields>
-			>
+			{ fields: Prettify<Override<TState["fields"], TNewFields>> }
 		>
 	> {
 		return new QuestpieBuilder({
@@ -366,7 +355,7 @@ export class QuestpieBuilder<
 	auth<const TNewAuth extends BetterAuthOptions>(
 		auth: TNewAuth | ((oldAuth: TState["auth"]) => TNewAuth),
 	): QuestpieBuilder<
-		SetProperty<TState, "auth", MergeAuthOptions<TState["auth"], TNewAuth>>
+		Override<TState, { auth: MergeAuthOptions<TState["auth"], TNewAuth> }>
 	> {
 		return new QuestpieBuilder({
 			...this.state,
@@ -392,7 +381,7 @@ export class QuestpieBuilder<
 	 */
 	locale(
 		locale: LocaleConfig,
-	): QuestpieBuilder<SetProperty<TState, "locale", LocaleConfig>> {
+	): QuestpieBuilder<Override<TState, { locale: LocaleConfig }>> {
 		return new QuestpieBuilder({
 			...this.state,
 			locale,
@@ -503,7 +492,7 @@ export class QuestpieBuilder<
 	context<TContext extends Record<string, any>>(
 		resolver: (params: ContextResolverParams) => Promise<TContext> | TContext,
 	): QuestpieBuilder<
-		SetProperty<TState, "contextResolver", ContextResolver<TContext>>
+		Override<TState, { contextResolver: ContextResolver<TContext> }>
 	> {
 		return new QuestpieBuilder({
 			...this.state,
@@ -586,16 +575,14 @@ export class QuestpieBuilder<
 		messages: TMessages,
 		options?: { fallbackLocale?: string },
 	): QuestpieBuilder<
-		Prettify<
-			TypeMerge<
-				UnsetProperty<TState, "translations" | "~messageKeys">,
-				{
-					translations: TranslationsConfig;
-					"~messageKeys":
-						| Extract<TState["~messageKeys"], string>
-						| InferMessageKeys<TMessages>;
-				}
-			>
+		Override<
+			TState,
+			{
+				translations: TranslationsConfig;
+				"~messageKeys":
+					| Extract<TState["~messageKeys"], string>
+					| InferMessageKeys<TMessages>;
+			}
 		>
 	> {
 		return new QuestpieBuilder({
@@ -671,42 +658,23 @@ export class QuestpieBuilder<
 	>(other: {
 		readonly state: TOtherState;
 	}): QuestpieBuilder<
-		Prettify<
-			TypeMerge<
-				TState,
-				{
-					collections: TypeMerge<
-						UnsetProperty<
-							TState["collections"],
-							keyof TOtherState["collections"]
-						>,
-						TOtherState["collections"]
-					>;
-					globals: TypeMerge<
-						UnsetProperty<TState["globals"], keyof TOtherState["globals"]>,
-						TOtherState["globals"]
-					>;
-					jobs: TypeMerge<
-						UnsetProperty<TState["jobs"], keyof TOtherState["jobs"]>,
-						TOtherState["jobs"]
-					>;
-					emailTemplates: TypeMerge<
-						UnsetProperty<
-							TState["emailTemplates"],
-							keyof TOtherState["emailTemplates"]
-						>,
-						TOtherState["emailTemplates"]
-					>;
-					fields: TypeMerge<
-						UnsetProperty<TState["fields"], keyof TOtherState["fields"]>,
-						TOtherState["fields"]
-					>;
-					auth: MergeAuthOptions<TState["auth"], TOtherState["auth"]>;
-					"~messageKeys":
-						| Extract<TState["~messageKeys"], string>
-						| Extract<TOtherState["~messageKeys"], string>;
-				}
-			>
+		Override<
+			TState,
+			{
+				collections: Prettify<
+					Override<TState["collections"], TOtherState["collections"]>
+				>;
+				globals: Prettify<Override<TState["globals"], TOtherState["globals"]>>;
+				jobs: Prettify<Override<TState["jobs"], TOtherState["jobs"]>>;
+				emailTemplates: Prettify<
+					Override<TState["emailTemplates"], TOtherState["emailTemplates"]>
+				>;
+				fields: Prettify<Override<TState["fields"], TOtherState["fields"]>>;
+				auth: MergeAuthOptions<TState["auth"], TOtherState["auth"]>;
+				"~messageKeys":
+					| Extract<TState["~messageKeys"], string>
+					| Extract<TOtherState["~messageKeys"], string>;
+			}
 		>
 	> {
 		const otherState = other.state;

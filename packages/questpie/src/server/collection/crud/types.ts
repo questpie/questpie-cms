@@ -14,6 +14,7 @@ import type {
 	FieldWhere,
 } from "#questpie/server/fields/field-types.js";
 import type {
+	CollectionWherePlaceholder,
 	FieldDefinition,
 	FieldDefinitionState,
 } from "#questpie/server/fields/types.js";
@@ -424,35 +425,50 @@ type RelationTargetCollectionFromConfig<TConfig, TApp> =
 			: never
 		: never;
 
-type RelationWhereTarget<TConfig, TApp> = Where<
-	RelationTargetCollectionFromConfig<TConfig, TApp>,
-	TApp
->;
+/**
+ * Resolve CollectionWherePlaceholder brands in a where operator map.
+ *
+ * FieldWhere produces `{ some?: CollectionWherePlaceholder; eq?: string; ... }`.
+ * This type walks each property: if the value extends CollectionWherePlaceholder,
+ * replace it with `Where<TargetCollection, TApp>`. Otherwise pass through.
+ *
+ * The field's operators are the source of truth for WHAT operators exist.
+ * This type resolves the cross-collection types they couldn't express.
+ */
+type ResolveWherePlaceholders<TWhereShape, TConfig, TApp> = {
+	[K in keyof TWhereShape]?: NonNullable<
+		TWhereShape[K]
+	> extends CollectionWherePlaceholder
+		? Where<RelationTargetCollectionFromConfig<TConfig, TApp>, TApp>
+		: TWhereShape[K];
+};
 
-type RelationWhereInputFromConfig<TConfig, TApp> =
-	InferRelationKindFromConfig<TConfig> extends "one"
-		?
-				| {
-						is?: RelationWhereTarget<TConfig, TApp>;
-						isNot?: RelationWhereTarget<TConfig, TApp>;
-				  }
-				| RelationWhereTarget<TConfig, TApp>
-		:
-				| {
-						some?: RelationWhereTarget<TConfig, TApp>;
-						none?: RelationWhereTarget<TConfig, TApp>;
-						every?: RelationWhereTarget<TConfig, TApp>;
-				  }
-				| RelationWhereTarget<TConfig, TApp>;
-
+/**
+ * Build the complete where input type for a single field definition.
+ *
+ * For ALL fields: union of FieldWhere (operators) and FieldSelect (direct value).
+ * For relation fields: CollectionWherePlaceholder in FieldWhere is resolved to
+ * Where<TargetCollection, TApp>. Also includes a shorthand form where the user
+ * can pass the target's Where directly (without a quantifier key).
+ *
+ * No field types are special-cased — the field's operators drive everything.
+ */
 type FieldWhereInputFromDefinition<TFieldDef, TApp> =
 	TFieldDef extends FieldDefinition<infer TState>
 		? TState extends FieldDefinitionState
 			? TState["type"] extends "relation"
 				?
-						| RelationWhereInputFromConfig<TState["config"], TApp>
-						| FieldWhere<TFieldDef, TApp>
+						| ResolveWherePlaceholders<
+								FieldWhere<TFieldDef, TApp>,
+								TState["config"],
+								TApp
+						  >
 						| FieldSelect<TFieldDef, TApp>
+						// Shorthand: pass target Where directly without quantifier key
+						| Where<
+								RelationTargetCollectionFromConfig<TState["config"], TApp>,
+								TApp
+						  >
 				: FieldSelect<TFieldDef, TApp> | FieldWhere<TFieldDef, TApp>
 			: never
 		: never;

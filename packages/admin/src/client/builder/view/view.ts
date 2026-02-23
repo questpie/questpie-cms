@@ -4,7 +4,7 @@
  * Defines reusable view components for collections.
  */
 
-import type { SetProperty } from "questpie/shared";
+import type { Override } from "questpie/shared";
 import type { MaybeLazyComponent } from "../types/common";
 
 // ============================================================================
@@ -116,11 +116,11 @@ export class ListViewBuilder<TState extends ListViewBuilderState>
 	 */
 	$config<TNewConfig>(
 		config?: TNewConfig,
-	): ListViewBuilder<SetProperty<TState, "~config", TNewConfig>> {
+	): ListViewBuilder<Override<TState, { "~config": TNewConfig }>> {
 		return new ListViewBuilder({
 			...this.state,
 			"~config": config ?? this.state["~config"],
-		} as SetProperty<TState, "~config", TNewConfig>);
+		} as Override<TState, { "~config": TNewConfig }>);
 	}
 }
 
@@ -155,11 +155,11 @@ export class EditViewBuilder<TState extends EditViewBuilderState>
 	 */
 	$config<TNewConfig>(
 		config?: TNewConfig,
-	): EditViewBuilder<SetProperty<TState, "~config", TNewConfig>> {
+	): EditViewBuilder<Override<TState, { "~config": TNewConfig }>> {
 		return new EditViewBuilder({
 			...this.state,
 			"~config": config ?? this.state["~config"],
-		} as SetProperty<TState, "~config", TNewConfig>);
+		} as Override<TState, { "~config": TNewConfig }>);
 	}
 }
 

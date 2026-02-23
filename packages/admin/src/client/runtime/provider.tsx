@@ -610,7 +610,7 @@ function useAdminStoreRaw(): AdminStore | null {
 export const selectAdmin = (s: AdminState) => s.admin;
 
 /** Select client instance */
-export const selectClient = (s: AdminState) => s.client;
+export const selectClient = (s: AdminState): QuestpieClient<any> => s.client;
 
 /** Select auth client instance */
 export const selectAuthClient = (s: AdminState) => s.authClient;

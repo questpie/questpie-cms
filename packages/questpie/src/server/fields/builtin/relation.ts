@@ -20,6 +20,7 @@ import { field } from "../field.js";
 import type { OptionsConfig } from "../reactive.js";
 import type {
 	BaseFieldConfig,
+	CollectionWherePlaceholder,
 	FieldMetadataBase,
 	RelationFieldMetadata,
 } from "../types.js";
@@ -342,6 +343,10 @@ export function inferRelationType(
 
 /**
  * Operators for belongsTo relation (FK field).
+ *
+ * Includes FK-level operators (eq, ne, in, etc.) for direct column filtering
+ * and is/isNot quantifiers using CollectionWherePlaceholder<TTarget> for
+ * nested relation filtering.
  */
 function getBelongsToOperators() {
 	return {
@@ -358,6 +363,8 @@ function getBelongsToOperators() {
 			isNotNull: operator<boolean, unknown>((col, value) =>
 				value ? sql`${col} IS NOT NULL` : sql`${col} IS NULL`,
 			),
+			is: operator<CollectionWherePlaceholder, unknown>(() => sql`TRUE`),
+			isNot: operator<CollectionWherePlaceholder, unknown>(() => sql`TRUE`),
 		},
 		jsonb: {
 			eq: operator<string, unknown>((col, value, ctx) => {
@@ -388,6 +395,8 @@ function getBelongsToOperators() {
 					? sql`${col}#>'{${sql.raw(path)}}' IS NOT NULL`
 					: sql`${col}#>'{${sql.raw(path)}}' IS NULL`;
 			}),
+			is: operator<CollectionWherePlaceholder, unknown>(() => sql`TRUE`),
+			isNot: operator<CollectionWherePlaceholder, unknown>(() => sql`TRUE`),
 		},
 	};
 }
@@ -475,20 +484,24 @@ function getMultipleOperators() {
 /**
  * Operators for hasMany/manyToMany/morphMany.
  * These require subqueries built at query time.
+ *
+ * Quantifier operators (some/none/every) use CollectionWherePlaceholder<TTarget>
+ * as their param type — a branded type-level template variable that the CRUD
+ * composition layer interpolates into `Where<TargetCollection, TApp>`.
  */
 function getToManyOperators() {
 	return {
 		column: {
 			// Placeholder operators - actual implementation in query builder
-			some: operator<unknown, unknown>(() => sql`TRUE`),
-			none: operator<unknown, unknown>(() => sql`TRUE`),
-			every: operator<unknown, unknown>(() => sql`TRUE`),
+			some: operator<CollectionWherePlaceholder, unknown>(() => sql`TRUE`),
+			none: operator<CollectionWherePlaceholder, unknown>(() => sql`TRUE`),
+			every: operator<CollectionWherePlaceholder, unknown>(() => sql`TRUE`),
 			count: operator<number, unknown>(() => sql`0`),
 		},
 		jsonb: {
-			some: operator<unknown, unknown>(() => sql`TRUE`),
-			none: operator<unknown, unknown>(() => sql`TRUE`),
-			every: operator<unknown, unknown>(() => sql`TRUE`),
+			some: operator<CollectionWherePlaceholder, unknown>(() => sql`TRUE`),
+			none: operator<CollectionWherePlaceholder, unknown>(() => sql`TRUE`),
+			every: operator<CollectionWherePlaceholder, unknown>(() => sql`TRUE`),
 			count: operator<number, unknown>(() => sql`0`),
 		},
 	};

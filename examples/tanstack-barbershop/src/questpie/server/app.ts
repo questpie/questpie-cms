@@ -69,10 +69,7 @@ export const baseApp = qb
 	})
 	.messages({ ...messages })
 	.auth({
-		emailAndPassword: {
-			enabled: true,
-			requireEmailVerification: false,
-		},
+		emailAndPassword: { enabled: true, requireEmailVerification: false },
 		baseURL: process.env.APP_URL || "http://localhost:3000",
 		basePath: "/api/auth",
 		secret:
@@ -104,11 +101,7 @@ export const app = baseApp.blocks(blocks).build({
 						},
 					}),
 	},
-	queue: {
-		adapter: pgBossAdapter({
-			connectionString: DATABASE_URL,
-		}),
-	},
+	queue: { adapter: pgBossAdapter({ connectionString: DATABASE_URL }) },
 });
 
 export const appRpc = r.router({
@@ -121,3 +114,5 @@ export const appRpc = r.router({
 
 export type App = typeof app;
 export type AppRpc = typeof appRpc;
+
+

@@ -4,7 +4,7 @@
  * Defines reusable field types with form and cell components.
  */
 
-import type { SetProperty } from "questpie/shared";
+import type { Override } from "questpie/shared";
 import type React from "react";
 import type { z } from "zod";
 import type {
@@ -46,7 +46,7 @@ export type CreateZodFn<TOptions = any> = (
 /**
  * Field state options (readOnly, disabled, hidden)
  */
-interface FieldStateOptions {
+export interface FieldStateOptions {
 	/**
 	 * Whether field is read-only (can be dynamic based on form values).
 	 * Read-only fields look normal but cannot be edited.
@@ -73,7 +73,7 @@ interface FieldStateOptions {
 /**
  * Hook options for field interactivity
  */
-interface FieldHookOptions {
+export interface FieldHookOptions {
 	/**
 	 * Compute field value from other fields (proxy-tracked dependencies).
 	 * Makes the field read-only and virtual (not submitted to backend).
@@ -223,7 +223,7 @@ export class FieldBuilder<TState extends FieldBuilderState>
 	 */
 	$options<TNewOptions>(
 		options: TNewOptions,
-	): FieldBuilder<SetProperty<TState, "~options", TNewOptions>> {
+	): FieldBuilder<Override<TState, { "~options": TNewOptions }>> {
 		return new FieldBuilder({
 			...this.state,
 			"~options": options,
@@ -235,7 +235,7 @@ export class FieldBuilder<TState extends FieldBuilderState>
 	 */
 	withCell<TNewCellComponent extends MaybeLazyComponent>(
 		component: TNewCellComponent,
-	): FieldBuilder<SetProperty<TState, "cellComponent", TNewCellComponent>> {
+	): FieldBuilder<Override<TState, { cellComponent: TNewCellComponent }>> {
 		return new FieldBuilder({
 			...this.state,
 			cellComponent: component,

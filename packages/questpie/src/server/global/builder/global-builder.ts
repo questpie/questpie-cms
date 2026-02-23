@@ -22,12 +22,7 @@ import type {
 	GlobalHooks,
 	GlobalOptions,
 } from "#questpie/server/global/builder/types.js";
-import type {
-	Prettify,
-	SetProperty,
-	TypeMerge,
-	UnsetProperty,
-} from "#questpie/shared/type-utils.js";
+import type { Override, Prettify } from "#questpie/shared/type-utils.js";
 
 /**
  * Extract Drizzle column types from field definitions.
@@ -103,8 +98,8 @@ export class GlobalBuilder<TState extends GlobalBuilderState> {
 	>(
 		factory: (f: FieldBuilderProxy<ExtractFieldTypes<TState>>) => TNewFields,
 	): GlobalBuilder<
-		TypeMerge<
-			UnsetProperty<TState, "fields" | "localized" | "fieldDefinitions">,
+		Override<
+			TState,
 			{
 				fields: ExtractColumnsFromFieldDefinitions<TNewFields>;
 				localized: [];
@@ -120,8 +115,8 @@ export class GlobalBuilder<TState extends GlobalBuilderState> {
 		// Exclude functions from this overload
 		fields: TNewFields extends (...args: any[]) => any ? never : TNewFields,
 	): GlobalBuilder<
-		TypeMerge<
-			UnsetProperty<TState, "fields" | "localized" | "fieldDefinitions">,
+		Override<
+			TState,
 			{
 				fields: TNewFields;
 				localized: [];
@@ -224,7 +219,7 @@ export class GlobalBuilder<TState extends GlobalBuilderState> {
 	 */
 	options<TNewOptions extends GlobalOptions>(
 		options: TNewOptions,
-	): GlobalBuilder<SetProperty<TState, "options", TNewOptions>> {
+	): GlobalBuilder<Override<TState, { options: TNewOptions }>> {
 		const newState = {
 			...this.state,
 			options,
@@ -239,7 +234,7 @@ export class GlobalBuilder<TState extends GlobalBuilderState> {
 	 */
 	hooks<TNewHooks extends GlobalHooks<any>>(
 		hooks: TNewHooks,
-	): GlobalBuilder<SetProperty<TState, "hooks", TNewHooks>> {
+	): GlobalBuilder<Override<TState, { hooks: TNewHooks }>> {
 		const newState = {
 			...this.state,
 			hooks,
@@ -254,7 +249,7 @@ export class GlobalBuilder<TState extends GlobalBuilderState> {
 	 */
 	access<TNewAccess extends GlobalAccess<any>>(
 		access: TNewAccess,
-	): GlobalBuilder<SetProperty<TState, "access", TNewAccess>> {
+	): GlobalBuilder<Override<TState, { access: TNewAccess }>> {
 		const newState = {
 			...this.state,
 			access,
