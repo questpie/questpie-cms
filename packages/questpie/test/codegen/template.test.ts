@@ -1092,4 +1092,107 @@ describe("runAllTargets", () => {
 		expect(result.errors[0].targetId).toBe("failing-target");
 		expect(result.errors[0].error.message).toBe("Intentional test failure");
 	});
+
+	it("generates admin-client target with discovered blocks", async () => {
+		const { mkdtemp, writeFile, mkdir } = await import("node:fs/promises");
+		const { tmpdir } = await import("node:os");
+		const { join } = await import("node:path");
+
+		// Create temp dir simulating project layout:
+		// server/ — server root
+		// admin/  — admin client root (sibling)
+		const dir = await mkdtemp(join(tmpdir(), "codegen-admin-client-"));
+		const serverDir = join(dir, "server");
+		const adminDir = join(dir, "admin");
+		await mkdir(serverDir, { recursive: true });
+		await mkdir(join(adminDir, "blocks"), { recursive: true });
+
+		// Create server config + modules
+		const configPath = join(serverDir, "questpie.config.ts");
+		await writeFile(
+			configPath,
+			'export default { app: { url: "http://localhost" }, db: { url: "sqlite://:memory:" } };',
+		);
+		await writeFile(join(serverDir, "modules.ts"), "export default [];");
+
+		// Create a block renderer in admin/blocks/
+		await writeFile(
+			join(adminDir, "blocks", "hero.tsx"),
+			"export default function HeroBlock() { return null; }",
+		);
+		await writeFile(
+			join(adminDir, "blocks", "cta.tsx"),
+			"export default function CTABlock() { return null; }",
+		);
+
+		// Plugin that mimics the admin-client target structure
+		const adminClientPlugin: CodegenPlugin = {
+			name: "test-admin-client",
+			targets: {
+				"admin-client": {
+					root: "../admin",
+					outputFile: "client.ts",
+					categories: {
+						blocks: {
+							dirs: ["blocks"],
+							prefix: "block",
+							registryKey: false,
+							includeInAppState: false,
+							extractFromModules: false,
+						},
+					},
+					generate: async ({ target, discovered }) => {
+						const blocks = discovered.categories.get("blocks");
+						const lines = [
+							"// Generated admin client config",
+							'import { coreAdminModule } from "@questpie/admin/client";',
+							"",
+						];
+
+						if (blocks && blocks.size > 0) {
+							for (const file of blocks.values()) {
+								lines.push(`import ${file.varName} from "${file.importPath}";`);
+							}
+							lines.push("");
+
+							const entries = [...blocks.values()]
+								.sort((a, b) => a.key.localeCompare(b.key))
+								.map((f) => `\t${JSON.stringify(f.key)}: ${f.varName},`);
+							lines.push("const _admin = coreAdminModule.blocks({");
+							lines.push(...entries);
+							lines.push("});");
+						} else {
+							lines.push("const _admin = coreAdminModule;");
+						}
+
+						lines.push("");
+						lines.push("export default _admin;");
+						lines.push("");
+
+						return { code: lines.join("\n") };
+					},
+				},
+			},
+		};
+
+		const result = await runAllTargets({
+			rootDir: serverDir,
+			configPath,
+			plugins: [adminClientPlugin],
+		});
+
+		expect(result.targets.size).toBe(2);
+		expect(result.targets.has("server")).toBe(true);
+		expect(result.targets.has("admin-client")).toBe(true);
+		expect(result.errors.length).toBe(0);
+
+		const adminResult = result.targets.get("admin-client")!;
+		expect(adminResult.targetId).toBe("admin-client");
+		expect(adminResult.code).toContain("coreAdminModule");
+		expect(adminResult.code).toContain('"cta"');
+		expect(adminResult.code).toContain('"hero"');
+		expect(adminResult.outputPath).toContain("admin");
+		expect(adminResult.outputPath).toContain(".generated");
+		expect(adminResult.outputPath).toContain("client.ts");
+	});
 });

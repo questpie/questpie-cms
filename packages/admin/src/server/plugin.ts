@@ -18,6 +18,7 @@
  */
 
 import type { CodegenPlugin } from "questpie";
+import { generateAdminClientTemplate } from "./codegen/admin-client-template.js";
 
 /**
  * Admin codegen plugin.
@@ -291,6 +292,67 @@ export function adminPlugin(): CodegenPlugin {
 							"new Proxy({ custom: (name: string, config: any) => ({ id: name, ...config }) }, { get: (target, prop) => (target as any)[prop] ?? String(prop) })",
 					},
 				},
+			},
+
+			// ── admin-client target ──────────────────────────────────
+			// Discovers client-side admin files (blocks, views, components,
+			// fields, pages, widgets) and generates a pre-built admin config.
+			"admin-client": {
+				root: "../admin",
+				outputFile: "client.ts",
+
+				categories: {
+					blocks: {
+						dirs: ["blocks"],
+						prefix: "block",
+						registryKey: false,
+						includeInAppState: false,
+						extractFromModules: false,
+					},
+					views: {
+						dirs: ["views"],
+						prefix: "view",
+						registryKey: false,
+						includeInAppState: false,
+						extractFromModules: false,
+					},
+					components: {
+						dirs: ["components"],
+						prefix: "comp",
+						registryKey: false,
+						includeInAppState: false,
+						extractFromModules: false,
+					},
+					fields: {
+						dirs: ["fields"],
+						prefix: "fld",
+						registryKey: false,
+						includeInAppState: false,
+						extractFromModules: false,
+					},
+					pages: {
+						dirs: ["pages"],
+						prefix: "pg",
+						registryKey: false,
+						includeInAppState: false,
+						extractFromModules: false,
+					},
+					widgets: {
+						dirs: ["widgets"],
+						prefix: "wgt",
+						registryKey: false,
+						includeInAppState: false,
+						extractFromModules: false,
+					},
+				},
+
+				discover: {
+					locale: "locale.ts",
+					translations: "translations.ts",
+					defaults: "defaults.ts",
+				},
+
+				generate: (ctx) => generateAdminClientTemplate(ctx),
 			},
 		},
 	};
