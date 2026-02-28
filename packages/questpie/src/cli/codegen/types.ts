@@ -37,6 +37,17 @@ export interface DiscoveredFile {
 	 * Populated when resolve is "named" or "all".
 	 */
 	allNamedExports?: string[];
+	/**
+	 * When true, the file exports an object bundle (e.g. `export const fns = { fn1, fn2 }`).
+	 *
+	 * In module mode, categories with `emit: "nested"` spread bundle files
+	 * into the parent object (`...varName`) instead of assigning them as leaves.
+	 *
+	 * Detection: `export const X = {` (object literal value, not a function call).
+	 * This allows function files to contain multiple `fn()` definitions plus
+	 * a bundle export that aggregates them.
+	 */
+	isBundle?: boolean;
 }
 
 // ============================================================================
@@ -99,7 +110,140 @@ export type DiscoverPattern =
 			 * ```
 			 */
 			mergeStrategy?: "spread";
-		};
+	  };
+
+// ============================================================================
+// Category Declaration
+// ============================================================================
+
+/**
+ * Declares a directory-pattern category for file discovery and code generation.
+ *
+ * Categories are the primary unit of the plugin system. Each category
+ * (collections, globals, jobs, functions, blocks, views, etc.) is declared
+ * by a plugin via `categories` on `CodegenPlugin`.
+ *
+ * The core plugin declares all built-in categories (collections, globals, etc.).
+ * Other plugins (admin, audit) declare their own (blocks, views, components).
+ *
+ * Category metadata drives both discovery (what files to scan) and emission
+ * (how to generate imports, types, and runtime code).
+ *
+ * @see RFC-PLUGIN-SYSTEM.md
+ */
+export interface CategoryDeclaration {
+	/**
+	 * Directories to scan relative to the questpie root.
+	 * e.g., `["collections"]` scans `collections/` and `features/{name}/collections/`
+	 */
+	dirs: string[];
+
+	/** Whether to scan directories recursively (e.g., functions, routes). */
+	recursive?: boolean;
+
+	/** Variable name prefix for generated imports (e.g., "coll", "fn", "bloc"). */
+	prefix: string;
+
+	// ── Emission metadata ─────────────────────────────────────
+
+	/**
+	 * How to emit this category in the `createApp()` call.
+	 * - "record" (default): `{ key: varName, ... }` — standard record emission
+	 * - "nested": nested object from dot-separated keys (functions)
+	 * - "array": flat array `[var1, var2, ...]` (migrations, seeds)
+	 *
+	 * @default "record"
+	 */
+	emit?: "record" | "nested" | "array";
+
+	/**
+	 * Key separator for recursive categories.
+	 * - "." — dot-separated keys (functions: `admin.stats`)
+	 * - "/" — slash-separated keys (routes: `webhooks/stripe`)
+	 *
+	 * Only meaningful when `recursive: true`.
+	 */
+	keySeparator?: "." | "/";
+
+	/**
+	 * Override the key used in `createApp()` call.
+	 * By default, the category name (discover key) is used.
+	 * e.g., `emails` discovers from `emails/` but emits as `emailTemplates` in createApp.
+	 */
+	createAppKey?: string;
+
+	/**
+	 * Extra type import statements to add when this category has files.
+	 * Each string is a complete import statement.
+	 *
+	 * @example
+	 * ```ts
+	 * extraTypeImports: ['import type { ServiceInstanceOf } from "questpie";']
+	 * ```
+	 */
+	extraTypeImports?: string[];
+
+	/**
+	 * How to generate the `App*` type for this category.
+	 *
+	 * - "standard" (default): `export type AppX = _ModuleX & { key: typeof varName; ... };`
+	 * - "services": like standard but values are `ServiceInstanceOf<typeof varName>`
+	 * - "emails": standalone record (no module merge), values are `typeof varName`
+	 * - "messages": union type of keys from all files (`AppMessageKeys`)
+	 * - "functions": nested type object from dot-separated keys
+	 * - "none": no type emitted (migrations, seeds)
+	 *
+	 * @default "standard"
+	 */
+	typeEmit?:
+		| "standard"
+		| "services"
+		| "emails"
+		| "messages"
+		| "functions"
+		| "none";
+
+	/**
+	 * Whether to extract types from modules for this category.
+	 * When true, generates `type _ModuleX = _MP<"x">` and uses it
+	 * as the base type for `AppX`.
+	 *
+	 * @default true
+	 */
+	extractFromModules?: boolean;
+
+	/**
+	 * Whether to include this category in the `Registry` augmentation.
+	 * When a string, uses that as the registry key name.
+	 * When `true`, uses the category name.
+	 * When `false` or undefined, not included.
+	 *
+	 * @default true for standard categories
+	 */
+	registryKey?: string | boolean;
+
+	/**
+	 * Whether to include this category in the `_AppInternal` state type.
+	 * When `true`, adds `categoryName: AppCategoryName;` to the state.
+	 * When `false`, omitted.
+	 *
+	 * @default true for standard categories
+	 */
+	includeInAppState?: boolean;
+
+	/**
+	 * Custom property emission for `AppContext` augmentation.
+	 * When set, emits this line in the `AppContext` interface instead of nothing.
+	 * Supports `$VAR` placeholder for the variable name.
+	 *
+	 * @example
+	 * ```ts
+	 * // services: emit each service as a flat property on AppContext
+	 * appContextProperties: "services"
+	 * ```
+	 */
+	appContextEmit?: "services";
+}
 
 // ============================================================================
 // Codegen Plugin
@@ -135,10 +279,26 @@ export interface CodegenPlugin {
 	name: string;
 
 	/**
+	 * Declare directory-pattern categories for file discovery.
+	 * Key = category name (e.g. "collections", "blocks"), value = category metadata.
+	 *
+	 * Categories drive the full pipeline: file scanning, import generation,
+	 * type emission, and runtime code in createApp().
+	 *
+	 * The core plugin declares built-in categories (collections, globals, etc.).
+	 * Other plugins declare their own (blocks, views, components).
+	 */
+	categories?: Record<string, CategoryDeclaration>;
+
+	/**
 	 * Register file patterns to discover.
 	 * Key = state key (e.g. "blocks"), value = pattern definition.
 	 *
 	 * Supports both string shorthand and full DiscoverPattern objects.
+	 *
+	 * Use `categories` for directory-pattern categories that need full
+	 * type/emission control. Use `discover` for simpler patterns like
+	 * single files or directory patterns that follow the default behavior.
 	 */
 	discover?: Record<string, DiscoverPattern>;
 
@@ -184,6 +344,48 @@ export interface CodegenPlugin {
 		/** Module-level type registries that modules can contribute to (e.g., listViews, editViews, components). */
 		moduleRegistries?: Record<string, ModuleRegistryConfig>;
 	};
+
+	/**
+	 * Callback parameter definitions for extension methods.
+	 *
+	 * Replaces the hardcoded `f/v/c/a` switch in `emitCallbackContext()` with
+	 * plugin-contributed inline proxy factory code.
+	 *
+	 * When an extension's `callbackContextParams` lists `["v", "f"]`, codegen
+	 * looks up each key in the merged callback params from all plugins and
+	 * emits the corresponding `proxyCode` inline.
+	 *
+	 * @example
+	 * ```ts
+	 * callbackParams: {
+	 *   f: {
+	 *     proxyCode: "new Proxy({}, { get: (_, prop) => String(prop) })",
+	 *   },
+	 *   c: {
+	 *     proxyCode: 'new Proxy({}, { get: (_, prop) => (...args) => ({ type: String(prop), props: typeof args[0] === "string" ? { name: args[0] } : args[0] ?? {} }) })',
+	 *   },
+	 * }
+	 * ```
+	 */
+	callbackParams?: Record<string, CallbackParamDefinition>;
+}
+
+/**
+ * Defines how to emit a callback context parameter at codegen time.
+ * Used by `emitCallbackContext()` to generate runtime proxy objects.
+ */
+export interface CallbackParamDefinition {
+	/**
+	 * Inline JavaScript expression that creates the runtime proxy for this param.
+	 * This code is emitted directly into the generated factories.ts file.
+	 *
+	 * @example
+	 * ```ts
+	 * // Field ref proxy: f.title → "title"
+	 * proxyCode: "new Proxy({}, { get: (_, prop) => String(prop) })"
+	 * ```
+	 */
+	proxyCode: string;
 }
 
 /**
@@ -265,10 +467,50 @@ export interface RegistryExtension {
  * ```
  */
 export interface ModuleRegistryConfig {
-	/** Placeholder token used in configType strings (e.g., "$LIST_VIEW_NAMES") */
+	/** Placeholder token used in configType strings (e.g., "$LIST_VIEW_NAMES") — resolves to string union of keys. */
 	placeholder?: string;
+	/**
+	 * Placeholder token that resolves to the **full merged record** from all modules,
+	 * not just a string union of keys. Used when the consumer needs the actual
+	 * definitions (e.g., to extract per-item config types).
+	 *
+	 * @example
+	 * ```ts
+	 * recordPlaceholder: "$LIST_VIEWS"
+	 * // → resolves to `_ListViewsRecord` in configType strings
+	 * // → type _ListViewsRecord = _ExtractRegistry<"listViews">;
+	 * // → { table: ViewDefinition<"table","list",ListViewConfig>, ... }
+	 * ```
+	 */
+	recordPlaceholder?: string;
 	/** If set, add extracted names to this Registry key for autocomplete */
 	registryKey?: string;
+	/**
+	 * If set, codegen generates a `declare module` augmentation that extends
+	 * the specified interface with the extracted strict name keys.
+	 *
+	 * This enables plugin-extensible discriminant types like `ComponentType`
+	 * that narrow to exact literals when modules are loaded but fall back
+	 * to `string` when the registry is empty.
+	 *
+	 * @example
+	 * ```ts
+	 * typeRegistry: {
+	 *   module: "@questpie/admin/server",
+	 *   interface: "ComponentTypeRegistry",
+	 * }
+	 * // → generates:
+	 * // declare module "@questpie/admin/server" {
+	 * //   interface ComponentTypeRegistry extends Record<_ComponentsNames_Strict, {}> {}
+	 * // }
+	 * ```
+	 */
+	typeRegistry?: {
+		/** Module specifier for the `declare module` block (e.g., "questpie", "@questpie/admin/server"). */
+		module: string;
+		/** Interface name to augment (e.g., "FieldTypeRegistry", "ComponentTypeRegistry"). */
+		interface: string;
+	};
 }
 
 export interface SingletonFactory {
@@ -293,29 +535,20 @@ export interface SingletonFactory {
  * Provides access to all discovered files and methods to modify generated output.
  */
 export interface CodegenContext {
-	/** Discovered collections. */
-	collections: Map<string, DiscoveredFile>;
-	/** Discovered globals. */
-	globals: Map<string, DiscoveredFile>;
-	/** Discovered jobs. */
-	jobs: Map<string, DiscoveredFile>;
-	/** Discovered functions. */
-	functions: Map<string, DiscoveredFile>;
-	/** Discovered routes. */
-	routes: Map<string, DiscoveredFile>;
-	/** Discovered message locales. */
-	messages: Map<string, DiscoveredFile>;
-	/** Discovered services from services/*.ts. */
-	services: Map<string, DiscoveredFile>;
+	/**
+	 * All discovered categories (collections, globals, blocks, etc.).
+	 * Key = category name, value = map of discovered files.
+	 */
+	categories: Map<string, Map<string, DiscoveredFile>>;
+
 	/** Discovered auth file (at most one). */
 	auth: DiscoveredFile | null;
 
-	/** Plugin-discovered items keyed by stateKey from discover. */
-	custom: Map<string, Map<string, DiscoveredFile>>;
-	/** Plugin-discovered single-file items keyed by stateKey. */
+	/** Discovered single-file items keyed by stateKey. */
 	singles: Map<string, DiscoveredFile>;
+
 	/**
-	 * Plugin-discovered spread items keyed by stateKey.
+	 * Discovered spread items keyed by stateKey.
 	 * Each entry is an ordered list: root file first, then feature files.
 	 */
 	spreads: Map<string, DiscoveredFile[]>;
@@ -361,6 +594,20 @@ export interface CodegenOptions {
 		name: string;
 		/** Output filename. @default "module.ts" */
 		outputFile?: string;
+		/**
+		 * Self-package import rewriting for module-within-package codegen.
+		 *
+		 * When a plugin's transform() adds imports referencing the same package
+		 * (e.g. `@questpie/admin/server` inside the `@questpie/admin` package),
+		 * TypeScript resolves the `"types"` export condition to stale `dist/` types.
+		 *
+		 * This map rewrites external package specifiers to internal aliases that
+		 * resolve to source files via tsconfig paths.
+		 *
+		 * @example { "@questpie/admin": "#questpie/admin" }
+		 * → `@questpie/admin/server` becomes `#questpie/admin/server/index.js`
+		 */
+		importRewriteMap?: Record<string, string>;
 	};
 }
 
@@ -372,21 +619,41 @@ export interface CodegenResult {
 	code: string;
 	/** Absolute path of the generated file. */
 	outputPath: string;
-	/** All discovered files keyed by category. */
-	discovered: {
-		collections: Map<string, DiscoveredFile>;
-		globals: Map<string, DiscoveredFile>;
-		jobs: Map<string, DiscoveredFile>;
-		functions: Map<string, DiscoveredFile>;
-		routes: Map<string, DiscoveredFile>;
-		messages: Map<string, DiscoveredFile>;
-		services: Map<string, DiscoveredFile>;
-		emails: Map<string, DiscoveredFile>;
-		migrations: Map<string, DiscoveredFile>;
-		seeds: Map<string, DiscoveredFile>;
-		auth: DiscoveredFile | null;
-		custom: Map<string, Map<string, DiscoveredFile>>;
-		singles: Map<string, DiscoveredFile>;
-		spreads: Map<string, DiscoveredFile[]>;
-	};
+	/** All discovered files. */
+	discovered: DiscoveryResult;
+}
+
+// ============================================================================
+// Discovery Result
+// ============================================================================
+
+/**
+ * Unified result of file discovery.
+ *
+ * All directory-pattern categories (collections, globals, blocks, etc.) are
+ * stored in the generic `categories` map. Singles and spreads come from
+ * plugin `discover` patterns.
+ *
+ * The `auth` field is a special single-file pattern that predates the plugin
+ * system and is kept for backward compatibility.
+ */
+export interface DiscoveryResult {
+	/**
+	 * All directory-pattern categories.
+	 * Key = category name (e.g., "collections", "blocks"), value = map of discovered files.
+	 * Ordered: core categories first (in declaration order), then plugin categories.
+	 */
+	categories: Map<string, Map<string, DiscoveredFile>>;
+
+	/** Discovered auth file (at most one). */
+	auth: DiscoveredFile | null;
+
+	/** Single-file items keyed by stateKey (locale, hooks, branding, etc.). */
+	singles: Map<string, DiscoveredFile>;
+
+	/**
+	 * Spread items keyed by stateKey (sidebar, dashboard, etc.).
+	 * Each entry is an ordered list: root file first, then feature files alphabetically.
+	 */
+	spreads: Map<string, DiscoveredFile[]>;
 }

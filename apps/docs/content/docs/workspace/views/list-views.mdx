@@ -1,0 +1,65 @@
+---
+title: List Views
+description: Configure table views — columns, sorting, search, and display.
+---
+
+# List Views
+
+List views control how collections appear in the admin table. Configure them with `.list()` on your collection.
+
+## Basic Table
+
+```ts
+.list(({ v }) => v.table({}))
+```
+
+With no additional config, the table shows all fields as columns with default rendering.
+
+## Custom Columns
+
+Specify which fields to show and their order:
+
+```ts
+.list(({ v, f }) =>
+  v.table({
+    columns: [f.name, f.email, f.isActive, f.createdAt],
+    searchableFields: [f.name, f.email],
+  }),
+)
+```
+
+| Option | Type | Description |
+|---|---|---|
+| `columns` | `Field[]` | Fields to show as columns |
+| `searchableFields` | `Field[]` | Fields included in text search |
+| `defaultSort` | `{ field, direction }` | Default sort order |
+
+## Sorting
+
+Tables support sorting by any column. Set a default:
+
+```ts
+.list(({ v, f }) =>
+  v.table({
+    defaultSort: { field: f.createdAt, direction: "desc" },
+  }),
+)
+```
+
+## Search
+
+Mark fields as searchable for the global search bar:
+
+```ts
+.list(({ v, f }) =>
+  v.table({
+    searchableFields: [f.title, f.slug, f.tags],
+  }),
+)
+```
+
+## Related Pages
+
+- [Form Views](/docs/workspace/views/form-views) — Edit forms
+- [Filters](/docs/workspace/filters) — Advanced filtering
+- [Collections](/docs/backend/data-modeling/collections) — Collection builder

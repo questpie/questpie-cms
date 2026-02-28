@@ -12,13 +12,18 @@
  * 8. Nested functions — dot-separated keys build nested object
  */
 import { describe, expect, it } from "bun:test";
+import { coreCodegenPlugin } from "../../src/cli/codegen/index.js";
 import { generateTemplate } from "../../src/cli/codegen/template.js";
-import type { DiscoveryResult } from "../../src/cli/codegen/discover.js";
-import type { DiscoveredFile } from "../../src/cli/codegen/types.js";
+import type {
+	DiscoveredFile,
+	DiscoveryResult,
+} from "../../src/cli/codegen/types.js";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Helpers
 // ─────────────────────────────────────────────────────────────────────────────
+
+const corePlugins = () => [coreCodegenPlugin()];
 
 function makeFile(
 	key: string,
@@ -49,29 +54,52 @@ function makeModulesFile(): DiscoveredFile {
 	});
 }
 
-function emptyResult(): DiscoveryResult {
+/** Helper to create an empty DiscoveryResult with optional pre-initialized categories */
+function emptyResult(categoryNames: string[] = []): DiscoveryResult {
+	const categories = new Map<string, Map<string, DiscoveredFile>>();
+	for (const name of categoryNames) {
+		categories.set(name, new Map());
+	}
 	return {
-		collections: new Map(),
-		globals: new Map(),
-		jobs: new Map(),
-		functions: new Map(),
-		routes: new Map(),
-		messages: new Map(),
-		services: new Map(),
-		emails: new Map(),
-		migrations: new Map(),
-		seeds: new Map(),
+		categories,
 		auth: null,
-		custom: new Map(),
 		singles: new Map(),
 		spreads: new Map(),
 	};
 }
 
+/**
+ * Minimal result with modules.ts as a single.
+ * Pre-initializes core category maps so tests can add files to them.
+ */
 function minimalResult(): DiscoveryResult {
-	const result = emptyResult();
+	const result = emptyResult([
+		"collections",
+		"globals",
+		"jobs",
+		"functions",
+		"routes",
+		"messages",
+		"services",
+		"emails",
+		"migrations",
+		"seeds",
+	]);
 	result.singles.set("modules", makeModulesFile());
 	return result;
+}
+
+/** Helper to get or create a category map */
+function cat(
+	result: DiscoveryResult,
+	name: string,
+): Map<string, DiscoveredFile> {
+	let map = result.categories.get(name);
+	if (!map) {
+		map = new Map();
+		result.categories.set(name, map);
+	}
+	return map;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -99,6 +127,7 @@ describe("generateTemplate — minimal (modules.ts only)", () => {
 	code = generateTemplate({
 		configImportPath: "../questpie.config",
 		discovered: minimalResult(),
+		plugins: corePlugins(),
 	});
 
 	it("emits auto-generated header", () => {
@@ -107,7 +136,7 @@ describe("generateTemplate — minimal (modules.ts only)", () => {
 	});
 
 	it("imports createApp from questpie", () => {
-		expect(code).toContain('import { createApp');
+		expect(code).toContain("import { createApp");
 		expect(code).toContain('from "questpie"');
 	});
 
@@ -175,7 +204,7 @@ describe("generateTemplate — minimal (modules.ts only)", () => {
 describe("generateTemplate — collections", () => {
 	it("emits named import for named export collection", () => {
 		const result = minimalResult();
-		result.collections.set(
+		cat(result, "collections").set(
 			"posts",
 			makeFile("posts", {
 				varName: "_coll_posts",
@@ -188,14 +217,17 @@ describe("generateTemplate — collections", () => {
 		const code = generateTemplate({
 			configImportPath: "../questpie.config",
 			discovered: result,
+			plugins: corePlugins(),
 		});
 
-		expect(code).toContain('import { posts as _coll_posts } from "../collections/posts"');
+		expect(code).toContain(
+			'import { posts as _coll_posts } from "../collections/posts"',
+		);
 	});
 
 	it("emits default import for default export collection", () => {
 		const result = minimalResult();
-		result.collections.set(
+		cat(result, "collections").set(
 			"posts",
 			makeFile("posts", {
 				varName: "_coll_posts",
@@ -207,6 +239,7 @@ describe("generateTemplate — collections", () => {
 		const code = generateTemplate({
 			configImportPath: "../questpie.config",
 			discovered: result,
+			plugins: corePlugins(),
 		});
 
 		expect(code).toContain('import _coll_posts from "../collections/posts"');
@@ -214,14 +247,19 @@ describe("generateTemplate — collections", () => {
 
 	it("emits collections object in createApp", () => {
 		const result = minimalResult();
-		result.collections.set(
+		cat(result, "collections").set(
 			"posts",
-			makeFile("posts", { varName: "_coll_posts", exportType: "named", namedExportName: "posts" }),
+			makeFile("posts", {
+				varName: "_coll_posts",
+				exportType: "named",
+				namedExportName: "posts",
+			}),
 		);
 
 		const code = generateTemplate({
 			configImportPath: "../questpie.config",
 			discovered: result,
+			plugins: corePlugins(),
 		});
 
 		expect(code).toContain("collections: {");
@@ -230,34 +268,50 @@ describe("generateTemplate — collections", () => {
 
 	it("emits AppCollections type intersection when user collections exist", () => {
 		const result = minimalResult();
-		result.collections.set(
+		cat(result, "collections").set(
 			"posts",
-			makeFile("posts", { varName: "_coll_posts", exportType: "named", namedExportName: "posts" }),
+			makeFile("posts", {
+				varName: "_coll_posts",
+				exportType: "named",
+				namedExportName: "posts",
+			}),
 		);
 
 		const code = generateTemplate({
 			configImportPath: "../questpie.config",
 			discovered: result,
+			plugins: corePlugins(),
 		});
 
-		expect(code).toContain("export type AppCollections = _ModuleCollections & {");
+		expect(code).toContain(
+			"export type AppCollections = _ModuleCollections & {",
+		);
 		expect(code).toContain("posts: typeof _coll_posts;");
 	});
 
 	it("emits multiple collections sorted alphabetically", () => {
 		const result = minimalResult();
-		result.collections.set(
+		cat(result, "collections").set(
 			"users",
-			makeFile("users", { varName: "_coll_users", exportType: "named", namedExportName: "users" }),
+			makeFile("users", {
+				varName: "_coll_users",
+				exportType: "named",
+				namedExportName: "users",
+			}),
 		);
-		result.collections.set(
+		cat(result, "collections").set(
 			"posts",
-			makeFile("posts", { varName: "_coll_posts", exportType: "named", namedExportName: "posts" }),
+			makeFile("posts", {
+				varName: "_coll_posts",
+				exportType: "named",
+				namedExportName: "posts",
+			}),
 		);
 
 		const code = generateTemplate({
 			configImportPath: "../questpie.config",
 			discovered: result,
+			plugins: corePlugins(),
 		});
 
 		const postsIdx = code.indexOf("posts: _coll_posts,");
@@ -273,7 +327,7 @@ describe("generateTemplate — collections", () => {
 describe("generateTemplate — globals", () => {
 	it("emits globals object in createApp", () => {
 		const result = minimalResult();
-		result.globals.set(
+		cat(result, "globals").set(
 			"siteSettings",
 			makeFile("siteSettings", {
 				varName: "_glob_siteSettings",
@@ -285,6 +339,7 @@ describe("generateTemplate — globals", () => {
 		const code = generateTemplate({
 			configImportPath: "../questpie.config",
 			discovered: result,
+			plugins: corePlugins(),
 		});
 
 		expect(code).toContain("globals: {");
@@ -299,18 +354,22 @@ describe("generateTemplate — globals", () => {
 describe("generateTemplate — migrations", () => {
 	it("emits migrations as flat array in createApp", () => {
 		const result = minimalResult();
-		result.migrations.set(
+		cat(result, "migrations").set(
 			"001Init",
 			makeFile("001Init", { varName: "_mig_001Init", exportType: "default" }),
 		);
-		result.migrations.set(
+		cat(result, "migrations").set(
 			"002AddUsers",
-			makeFile("002AddUsers", { varName: "_mig_002AddUsers", exportType: "default" }),
+			makeFile("002AddUsers", {
+				varName: "_mig_002AddUsers",
+				exportType: "default",
+			}),
 		);
 
 		const code = generateTemplate({
 			configImportPath: "../questpie.config",
 			discovered: result,
+			plugins: corePlugins(),
 		});
 
 		// Flat array (sorted alphabetically by key: 001Init < 002AddUsers)
@@ -319,7 +378,7 @@ describe("generateTemplate — migrations", () => {
 
 	it("emits migration imports", () => {
 		const result = minimalResult();
-		result.migrations.set(
+		cat(result, "migrations").set(
 			"001Init",
 			makeFile("001Init", {
 				varName: "_mig_001Init",
@@ -331,6 +390,7 @@ describe("generateTemplate — migrations", () => {
 		const code = generateTemplate({
 			configImportPath: "../questpie.config",
 			discovered: result,
+			plugins: corePlugins(),
 		});
 
 		expect(code).toContain('import _mig_001Init from "../migrations/001-init"');
@@ -344,18 +404,25 @@ describe("generateTemplate — migrations", () => {
 describe("generateTemplate — seeds", () => {
 	it("emits seeds as flat array in createApp", () => {
 		const result = minimalResult();
-		result.seeds.set(
+		cat(result, "seeds").set(
 			"demoData",
-			makeFile("demoData", { varName: "_seed_demoData", exportType: "default" }),
+			makeFile("demoData", {
+				varName: "_seed_demoData",
+				exportType: "default",
+			}),
 		);
-		result.seeds.set(
+		cat(result, "seeds").set(
 			"siteSettings",
-			makeFile("siteSettings", { varName: "_seed_siteSettings", exportType: "default" }),
+			makeFile("siteSettings", {
+				varName: "_seed_siteSettings",
+				exportType: "default",
+			}),
 		);
 
 		const code = generateTemplate({
 			configImportPath: "../questpie.config",
 			discovered: result,
+			plugins: corePlugins(),
 		});
 
 		// Flat array (sorted: demoData < siteSettings)
@@ -370,7 +437,7 @@ describe("generateTemplate — seeds", () => {
 describe("generateTemplate — services", () => {
 	it("emits ServiceInstanceOf import when services exist", () => {
 		const result = minimalResult();
-		result.services.set(
+		cat(result, "services").set(
 			"stripe",
 			makeFile("stripe", {
 				varName: "_svc_stripe",
@@ -382,6 +449,7 @@ describe("generateTemplate — services", () => {
 		const code = generateTemplate({
 			configImportPath: "../questpie.config",
 			discovered: result,
+			plugins: corePlugins(),
 		});
 
 		expect(code).toContain('import type { ServiceInstanceOf } from "questpie"');
@@ -389,7 +457,7 @@ describe("generateTemplate — services", () => {
 
 	it("emits services in AppServices type", () => {
 		const result = minimalResult();
-		result.services.set(
+		cat(result, "services").set(
 			"stripe",
 			makeFile("stripe", {
 				varName: "_svc_stripe",
@@ -401,6 +469,7 @@ describe("generateTemplate — services", () => {
 		const code = generateTemplate({
 			configImportPath: "../questpie.config",
 			discovered: result,
+			plugins: corePlugins(),
 		});
 
 		expect(code).toContain("stripe: ServiceInstanceOf<typeof _svc_stripe>;");
@@ -408,7 +477,7 @@ describe("generateTemplate — services", () => {
 
 	it("exposes services flat on AppContext", () => {
 		const result = minimalResult();
-		result.services.set(
+		cat(result, "services").set(
 			"stripe",
 			makeFile("stripe", {
 				varName: "_svc_stripe",
@@ -420,6 +489,7 @@ describe("generateTemplate — services", () => {
 		const code = generateTemplate({
 			configImportPath: "../questpie.config",
 			discovered: result,
+			plugins: corePlugins(),
 		});
 
 		// Should appear inside declare module "questpie" { interface AppContext
@@ -434,7 +504,7 @@ describe("generateTemplate — services", () => {
 describe("generateTemplate — emails", () => {
 	it("emits MailerService import when emails exist", () => {
 		const result = minimalResult();
-		result.emails.set(
+		cat(result, "emails").set(
 			"welcome",
 			makeFile("welcome", { varName: "_email_welcome", exportType: "default" }),
 		);
@@ -442,6 +512,7 @@ describe("generateTemplate — emails", () => {
 		const code = generateTemplate({
 			configImportPath: "../questpie.config",
 			discovered: result,
+			plugins: corePlugins(),
 		});
 
 		expect(code).toContain('import type { MailerService } from "questpie"');
@@ -449,7 +520,7 @@ describe("generateTemplate — emails", () => {
 
 	it("emits email: MailerService<AppEmailTemplates> in AppContext", () => {
 		const result = minimalResult();
-		result.emails.set(
+		cat(result, "emails").set(
 			"welcome",
 			makeFile("welcome", { varName: "_email_welcome", exportType: "default" }),
 		);
@@ -457,6 +528,7 @@ describe("generateTemplate — emails", () => {
 		const code = generateTemplate({
 			configImportPath: "../questpie.config",
 			discovered: result,
+			plugins: corePlugins(),
 		});
 
 		expect(code).toContain("email: MailerService<AppEmailTemplates>;");
@@ -464,7 +536,7 @@ describe("generateTemplate — emails", () => {
 
 	it("emits emailTemplates object in createApp", () => {
 		const result = minimalResult();
-		result.emails.set(
+		cat(result, "emails").set(
 			"welcome",
 			makeFile("welcome", { varName: "_email_welcome", exportType: "default" }),
 		);
@@ -472,6 +544,7 @@ describe("generateTemplate — emails", () => {
 		const code = generateTemplate({
 			configImportPath: "../questpie.config",
 			discovered: result,
+			plugins: corePlugins(),
 		});
 
 		expect(code).toContain("emailTemplates: {");
@@ -486,7 +559,7 @@ describe("generateTemplate — emails", () => {
 describe("generateTemplate — functions (nested keys)", () => {
 	it("emits flat function as direct key", () => {
 		const result = minimalResult();
-		result.functions.set(
+		cat(result, "functions").set(
 			"getUsers",
 			makeFile("getUsers", { varName: "_fn_getUsers", exportType: "default" }),
 		);
@@ -494,6 +567,7 @@ describe("generateTemplate — functions (nested keys)", () => {
 		const code = generateTemplate({
 			configImportPath: "../questpie.config",
 			discovered: result,
+			plugins: corePlugins(),
 		});
 
 		expect(code).toContain("functions: {");
@@ -502,14 +576,18 @@ describe("generateTemplate — functions (nested keys)", () => {
 
 	it("emits nested function as nested object", () => {
 		const result = minimalResult();
-		result.functions.set(
+		cat(result, "functions").set(
 			"admin.getStats",
-			makeFile("admin.getStats", { varName: "_fn_admin_getStats", exportType: "default" }),
+			makeFile("admin.getStats", {
+				varName: "_fn_admin_getStats",
+				exportType: "default",
+			}),
 		);
 
 		const code = generateTemplate({
 			configImportPath: "../questpie.config",
 			discovered: result,
+			plugins: corePlugins(),
 		});
 
 		expect(code).toContain("admin: {");
@@ -518,18 +596,25 @@ describe("generateTemplate — functions (nested keys)", () => {
 
 	it("groups nested functions under shared parent", () => {
 		const result = minimalResult();
-		result.functions.set(
+		cat(result, "functions").set(
 			"admin.getStats",
-			makeFile("admin.getStats", { varName: "_fn_admin_getStats", exportType: "default" }),
+			makeFile("admin.getStats", {
+				varName: "_fn_admin_getStats",
+				exportType: "default",
+			}),
 		);
-		result.functions.set(
+		cat(result, "functions").set(
 			"admin.deleteUser",
-			makeFile("admin.deleteUser", { varName: "_fn_admin_deleteUser", exportType: "default" }),
+			makeFile("admin.deleteUser", {
+				varName: "_fn_admin_deleteUser",
+				exportType: "default",
+			}),
 		);
 
 		const code = generateTemplate({
 			configImportPath: "../questpie.config",
 			discovered: result,
+			plugins: corePlugins(),
 		});
 
 		// admin appears once as a group
@@ -554,6 +639,7 @@ describe("generateTemplate — auth", () => {
 		const code = generateTemplate({
 			configImportPath: "../questpie.config",
 			discovered: result,
+			plugins: corePlugins(),
 		});
 
 		expect(code).toContain('import _auth from "../auth"');
@@ -589,6 +675,7 @@ describe("generateTemplate — plugin singles", () => {
 		const code = generateTemplate({
 			configImportPath: "../questpie.config",
 			discovered: result,
+			plugins: corePlugins(),
 		});
 
 		expect(code).toContain('import _sidebar from "../sidebar"');
@@ -616,6 +703,7 @@ describe("generateTemplate — core singles", () => {
 		const code = generateTemplate({
 			configImportPath: "../questpie.config",
 			discovered: result,
+			plugins: corePlugins(),
 		});
 
 		expect(code).toContain("locale: _locale as any,");
@@ -635,6 +723,7 @@ describe("generateTemplate — core singles", () => {
 		const code = generateTemplate({
 			configImportPath: "../questpie.config",
 			discovered: result,
+			plugins: corePlugins(),
 		});
 
 		expect(code).toContain("contextResolver: _contextResolver as any,");
@@ -654,14 +743,28 @@ describe("generateTemplate — spreads", () => {
 
 	it("imports all spread files", () => {
 		const result = makeSpreadResult([
-			makeFile("sidebar", { varName: "_sidebar_root", importPath: "../sidebar", exportType: "default" }),
-			makeFile("sidebar", { varName: "_sidebar_admin", importPath: "../features/admin/sidebar", exportType: "default" }),
+			makeFile("sidebar", {
+				varName: "_sidebar_root",
+				importPath: "../sidebar",
+				exportType: "default",
+			}),
+			makeFile("sidebar", {
+				varName: "_sidebar_admin",
+				importPath: "../features/admin/sidebar",
+				exportType: "default",
+			}),
 		]);
 
-		const code = generateTemplate({ configImportPath: "../questpie.config", discovered: result });
+		const code = generateTemplate({
+			configImportPath: "../questpie.config",
+			discovered: result,
+			plugins: corePlugins(),
+		});
 
 		expect(code).toContain('import _sidebar_root from "../sidebar"');
-		expect(code).toContain('import _sidebar_admin from "../features/admin/sidebar"');
+		expect(code).toContain(
+			'import _sidebar_admin from "../features/admin/sidebar"',
+		);
 	});
 
 	it("emits spread array in createApp", () => {
@@ -670,9 +773,15 @@ describe("generateTemplate — spreads", () => {
 			makeFile("sidebar", { varName: "_sidebar_admin", exportType: "default" }),
 		]);
 
-		const code = generateTemplate({ configImportPath: "../questpie.config", discovered: result });
+		const code = generateTemplate({
+			configImportPath: "../questpie.config",
+			discovered: result,
+			plugins: corePlugins(),
+		});
 
-		expect(code).toContain("sidebar: [...(_sidebar_root as any ?? []), ...(_sidebar_admin as any ?? [])],");
+		expect(code).toContain(
+			"sidebar: [...(_sidebar_root as any ?? []), ...(_sidebar_admin as any ?? [])],",
+		);
 	});
 
 	it("emits a single-item spread array when only root file exists", () => {
@@ -680,7 +789,11 @@ describe("generateTemplate — spreads", () => {
 			makeFile("sidebar", { varName: "_sidebar_root", exportType: "default" }),
 		]);
 
-		const code = generateTemplate({ configImportPath: "../questpie.config", discovered: result });
+		const code = generateTemplate({
+			configImportPath: "../questpie.config",
+			discovered: result,
+			plugins: corePlugins(),
+		});
 
 		expect(code).toContain("sidebar: [...(_sidebar_root as any ?? [])],");
 	});
@@ -690,7 +803,11 @@ describe("generateTemplate — spreads", () => {
 			makeFile("sidebar", { varName: "_sidebar_root", exportType: "default" }),
 		]);
 
-		const code = generateTemplate({ configImportPath: "../questpie.config", discovered: result });
+		const code = generateTemplate({
+			configImportPath: "../questpie.config",
+			discovered: result,
+			plugins: corePlugins(),
+		});
 
 		expect(code).toContain('type _ModuleSidebar = _MP<"sidebar">');
 	});
@@ -700,7 +817,11 @@ describe("generateTemplate — spreads", () => {
 			makeFile("sidebar", { varName: "_sidebar_root", exportType: "default" }),
 		]);
 
-		const code = generateTemplate({ configImportPath: "../questpie.config", discovered: result });
+		const code = generateTemplate({
+			configImportPath: "../questpie.config",
+			discovered: result,
+			plugins: corePlugins(),
+		});
 
 		// Spread singles should not appear as plain singles (no "sidebar: _sidebar_root as any,")
 		expect(code).not.toContain("sidebar: _sidebar_root as any,");
@@ -711,7 +832,11 @@ describe("generateTemplate — spreads", () => {
 			makeFile("sidebar", { varName: "_sidebar_root", exportType: "default" }),
 		]);
 
-		const code = generateTemplate({ configImportPath: "../questpie.config", discovered: result });
+		const code = generateTemplate({
+			configImportPath: "../questpie.config",
+			discovered: result,
+			plugins: corePlugins(),
+		});
 
 		expect(code).toContain("Sidebar (spread)");
 	});
@@ -722,14 +847,26 @@ describe("generateTemplate — spreads", () => {
 			makeFile("sidebar", { varName: "_sidebar_root", exportType: "default" }),
 		]);
 		result.spreads.set("dashboard", [
-			makeFile("dashboard", { varName: "_dashboard_root", exportType: "default" }),
-			makeFile("dashboard", { varName: "_dashboard_admin", exportType: "default" }),
+			makeFile("dashboard", {
+				varName: "_dashboard_root",
+				exportType: "default",
+			}),
+			makeFile("dashboard", {
+				varName: "_dashboard_admin",
+				exportType: "default",
+			}),
 		]);
 
-		const code = generateTemplate({ configImportPath: "../questpie.config", discovered: result });
+		const code = generateTemplate({
+			configImportPath: "../questpie.config",
+			discovered: result,
+			plugins: corePlugins(),
+		});
 
 		expect(code).toContain("sidebar: [...(_sidebar_root as any ?? [])],");
-		expect(code).toContain("dashboard: [...(_dashboard_root as any ?? []), ...(_dashboard_admin as any ?? [])],");
+		expect(code).toContain(
+			"dashboard: [...(_dashboard_root as any ?? []), ...(_dashboard_admin as any ?? [])],",
+		);
 	});
 });
 
@@ -742,6 +879,7 @@ describe("generateTemplate — factory re-exports", () => {
 		const code = generateTemplate({
 			configImportPath: "../questpie.config",
 			discovered: minimalResult(),
+			plugins: corePlugins(),
 		});
 
 		expect(code).toContain("collection");
@@ -754,6 +892,7 @@ describe("generateTemplate — factory re-exports", () => {
 			configImportPath: "../questpie.config",
 			discovered: minimalResult(),
 			plugins: [
+				...corePlugins(),
 				{
 					name: "admin",
 					registries: {

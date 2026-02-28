@@ -188,6 +188,96 @@ export async function loadQuestpieConfig(
 	);
 }
 
+// ============================================================================
+// Package Config — for npm packages that contain modules
+// ============================================================================
+
+/**
+ * Configuration for packages that contain questpie modules.
+ *
+ * Used by `questpie generate` in package mode to discover and generate
+ * `.generated/module.ts` for each module in the package.
+ *
+ * This config is dev-only — it is NOT distributed with the npm package.
+ * Only the generated `.generated/module.ts` files are published.
+ *
+ * @example
+ * ```ts
+ * // packages/admin/questpie.config.ts
+ * import { packageConfig } from "questpie/cli";
+ * import { adminPlugin } from "./src/server/plugin.js";
+ *
+ * export default packageConfig({
+ *   modulesDir: "src/server/modules",
+ *   modulePrefix: "questpie",
+ *   plugins: [adminPlugin()],
+ * });
+ * ```
+ */
+export interface PackageConfig {
+	/**
+	 * Marker property to identify this as a package config.
+	 * @internal Set automatically by `packageConfig()`.
+	 */
+	readonly __type: "package";
+
+	/**
+	 * Directory containing module subdirectories, relative to config file location.
+	 * Each subdirectory is treated as a separate module.
+	 *
+	 * @example "src/server/modules" → scans src/server/modules/admin/, src/server/modules/starter/, etc.
+	 */
+	modulesDir: string;
+
+	/**
+	 * Prefix for generated module names.
+	 * Module name = `${modulePrefix}-${directoryName}`.
+	 *
+	 * @default derived from package.json name
+	 * @example "questpie" → directory "admin" becomes module "questpie-admin"
+	 */
+	modulePrefix?: string;
+
+	/**
+	 * Codegen plugins shared across all modules in this package.
+	 * Plugins add discovery patterns (views, components, blocks, etc.).
+	 */
+	plugins?: import("./codegen/types.js").CodegenPlugin[];
+}
+
+/**
+ * Define a package-level codegen config for packages containing modules.
+ *
+ * @example
+ * ```ts
+ * import { packageConfig } from "questpie/cli";
+ * import { adminPlugin } from "./src/server/plugin.js";
+ *
+ * export default packageConfig({
+ *   modulesDir: "src/server/modules",
+ *   modulePrefix: "questpie",
+ *   plugins: [adminPlugin()],
+ * });
+ * ```
+ */
+export function packageConfig(
+	config: Omit<PackageConfig, "__type">,
+): PackageConfig {
+	return { ...config, __type: "package" as const };
+}
+
+/**
+ * Check if a config object is a PackageConfig.
+ */
+export function isPackageConfig(config: unknown): config is PackageConfig {
+	return (
+		typeof config === "object" &&
+		config !== null &&
+		"__type" in config &&
+		(config as any).__type === "package"
+	);
+}
+
 /**
  * Get migration directory from config
  * Priority: cli.migrations.directory > default

@@ -33,6 +33,8 @@ export type {
 	ComponentDefinition,
 	ComponentFactory,
 	ComponentReference,
+	ComponentType,
+	ComponentTypeRegistry,
 	DashboardActionFactory,
 	// Composable sidebar/dashboard contribution types
 	DashboardActionProxy,
@@ -106,6 +108,9 @@ export type {
 	SidebarItemDef,
 	SidebarProxy,
 	SidebarSectionDef,
+	ViewDefinition,
+	ViewKind,
+	ViewKindRegistry,
 	WidgetAccessRule,
 	WidgetFetchContext,
 	WithAdminMethods,
@@ -206,6 +211,8 @@ export {
 	// Static module
 	auditModule,
 } from "./modules/audit/index.js";
+// Codegen plugin — register in questpie.config.ts
+export { adminPlugin } from "./plugin.js";
 // Proxy factories (runtime helpers for admin config callbacks)
 export {
 	createActionProxy,
@@ -220,4 +227,10 @@ export {
 	resolveSidebarCallback,
 } from "./proxy-factories.js";
 // Registry definition helpers
-export { component, editView, listView } from "./registry-helpers.js";
+export {
+	component,
+	editView,
+	filterViewsByKind,
+	listView,
+	view,
+} from "./registry-helpers.js";

@@ -102,6 +102,8 @@ export type {
 	FieldMetadata,
 	FieldMetadataBase,
 	FieldMetadataMeta,
+	FieldType,
+	FieldTypeRegistry,
 	InferColumnType,
 	InferInputType,
 	InferOutputType,

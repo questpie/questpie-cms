@@ -151,6 +151,53 @@ Server emits serializable references that the client resolves via registries:
 - Client resolves server-emitted `{ type, props }` references using its own registry — never assume server-only types.
 - When extending builders, prefer lazy type extraction (`FieldsOf<this>`, `QuestpieStateOf<this>`) over giant mapped types.
 
+## Plugin System (Codegen)
+
+The codegen pipeline is fully plugin-driven. Nothing is hardcoded in the CLI — all categories, discovery patterns, builder extensions, callback proxies, and type registries come from plugins.
+
+### Core Plugin (`coreCodegenPlugin()`)
+
+Lives in `packages/questpie/src/cli/codegen/index.ts`. Always auto-prepended by `runCodegen()`. Declares:
+- **10 category declarations**: collections, globals, jobs, functions, routes, messages, services, emails, migrations, seeds — each with full `CategoryDeclaration` metadata (dirs, prefix, emit strategy, type emission, registry key).
+- **4 singleton factories**: locale, hooks, access, context.
+- **1 callback param**: `f` (field ref proxy: `f.title` → `"title"`).
+
+### Admin Plugin (`adminPlugin()`)
+
+Lives in `packages/admin/src/server/plugin.ts`. User registers in `questpie.config.ts` via `plugins: [adminPlugin()]`. Declares:
+- **7 discover patterns**: views, components, blocks, sidebar, dashboard, branding, adminLocale.
+- **4 module registries**: views, listViews, editViews, components — with placeholder tokens for type extraction.
+- **5 collection extensions**: admin, list, form, preview, actions.
+- **2 global extensions**: admin, form.
+- **4 singleton factories**: branding, adminLocale, sidebar, dashboard.
+- **3 callback params**: `v` (view proxy), `c` (component proxy), `a` (action proxy).
+- **1 type registry**: `ComponentTypeRegistry` in `@questpie/admin/server`.
+
+### Plugin-Extensible Discriminants
+
+Three augmentation interfaces allow plugins to extend discriminant types:
+
+| Interface | Package | Purpose | Fallback |
+|---|---|---|---|
+| `FieldTypeRegistry` | `questpie` | Field type names (`"text"`, `"number"`, etc.) | `string` |
+| `ComponentTypeRegistry` | `@questpie/admin/server` | Component type names (`"icon"`, `"badge"`, etc.) | `string` |
+| `ViewKindRegistry` | `@questpie/admin/server` | View kind names (`"list"`, `"edit"`) | literal union |
+
+Codegen generates `declare module` augmentations that extend these interfaces with the actual keys extracted from modules. The companion type aliases (`FieldType`, `ComponentType`, `ViewKind`) use the `[keyof Registry] extends [never] ? string : keyof Registry` pattern to fall back to `string` when the registry is empty.
+
+### Key Codegen Types
+
+- **`CategoryDeclaration`** (`cli/codegen/types.ts`): Declares how a category is discovered and emitted (dirs, prefix, emit strategy, type generation, registry key, app state inclusion).
+- **`CodegenPlugin`** (`cli/codegen/types.ts`): Top-level plugin interface — categories, discover, transform, registries, callbackParams.
+- **`ModuleRegistryConfig`** (`cli/codegen/types.ts`): Module-level type registries with placeholder tokens, registry keys, and optional `typeRegistry` for interface augmentation.
+- **`CallbackParamDefinition`** (`cli/codegen/types.ts`): Inline JS proxy code for callback context parameters.
+
+### Runtime Merging (`create-app.ts`)
+
+- **`MERGE_FNS`**: `Map<string, MergeFn>` — per-key merge functions (e.g., `["auth", mergeAuthOptions]`). No string strategies, no switch statements.
+- **`CONFIG_CONSUMED_KEYS`**: Derived from `MERGE_FNS.keys()`. Keys NOT in this set flow to `instance.state` for plugins.
+- **`mergeRecord`, `mergeConcat`, `lastWins`**: Exported reusable merge helpers for plugins.
+
 ## Development Workflow
 
 ### Commands (from repo root)

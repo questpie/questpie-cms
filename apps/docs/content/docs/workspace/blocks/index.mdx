@@ -1,0 +1,28 @@
+---
+title: Blocks
+description: Content blocks for page builders — define server-side, render client-side.
+---
+
+# Blocks
+
+Blocks are reusable content components for page builders. Define them server-side with fields and admin metadata, then render them client-side with React components.
+
+```text
+Server: block("hero")           Client: HeroRenderer
+  .fields({ title, image })  →    Receives { values, data }
+  .admin({ label, icon })        Returns JSX
+  .prefetch({ with: {...} })
+```
+
+## How Blocks Work
+
+1. **Define blocks** in `blocks/` — fields, admin config, prefetch
+2. **Use `f.blocks()`** on a collection field to enable block content
+3. **Register renderers** on the client to render each block type
+4. **Admin** shows a block editor; **frontend** renders blocks with data
+
+## Sections
+
+- [Defining Blocks](/docs/workspace/blocks/defining-blocks) — Server-side block definitions
+- [Renderers](/docs/workspace/blocks/renderers) — Client-side React components
+- [Prefetch](/docs/workspace/blocks/prefetch) — Prefetching relation data for blocks

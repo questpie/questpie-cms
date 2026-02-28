@@ -1,3 +1,4 @@
+import type { GlobalHooksState } from "#questpie/server/config/global-hooks-types.js";
 import type {
 	AppConfig,
 	AppDefinition,
@@ -5,7 +6,6 @@ import type {
 	ModuleDefinition,
 	RuntimeConfig,
 } from "#questpie/server/config/module-types.js";
-import type { GlobalHooksState } from "#questpie/server/config/global-hooks-types.js";
 import { Questpie } from "#questpie/server/config/questpie.js";
 import type { QuestpieConfig } from "#questpie/server/config/types.js";
 import {
@@ -115,29 +115,123 @@ function resolveModules(modules: ModuleDefinition[]): ModuleDefinition[] {
 }
 
 // ============================================================================
-// Module merging
+// Merge infrastructure
 // ============================================================================
 
-interface MergedState {
-	collections: Record<string, any>;
-	globals: Record<string, any>;
-	jobs: Record<string, any>;
-	functions: Record<string, any>;
-	routes: Record<string, any>;
-	fields: Record<string, any>;
-	services: Record<string, any>;
-	auth: Record<string, any>;
-	migrations: any[];
-	seeds: any[];
-	messages: Record<string, Record<string, string>>;
-	defaultAccess: any;
-	hooks: GlobalHooksState | undefined;
-	translations: any;
-	// Admin extension keys (stored on Questpie instance as .state)
-	[key: string]: any;
+/**
+ * Merge function: `(existing, incoming) → merged`.
+ *
+ * Plugins can provide custom merge functions for their contributed keys.
+ * Common helpers are exported for reuse:
+ * - {@link mergeRecord} — spread-merge two objects
+ * - {@link mergeConcat} — concatenate two arrays
+ * - {@link lastWins} — incoming replaces existing
+ */
+export type MergeFn = (existing: any, incoming: any) => any;
+
+/** Spread-merge two records: `{ ...a, ...b }`. */
+export const mergeRecord: MergeFn = (a, b) => ({
+	...(a || {}),
+	...(b || {}),
+});
+
+/** Concatenate two arrays: `[...a, ...b]`. */
+export const mergeConcat: MergeFn = (a, b) => [...(a || []), ...(b || [])];
+
+/** Last value wins (incoming replaces existing). */
+export const lastWins: MergeFn = (_a, b) => b;
+
+/** Deep-merge message dictionaries by locale. */
+function mergeMessages(
+	a: Record<string, Record<string, string>>,
+	b?: Record<string, Record<string, string>>,
+): Record<string, Record<string, string>> {
+	if (!b) return a;
+	const result: Record<string, Record<string, string>> = { ...a };
+	for (const [locale, msgs] of Object.entries(b)) {
+		result[locale] = { ...(result[locale] || {}), ...msgs };
+	}
+	return result;
 }
 
-function emptyMergedState(): MergedState {
+/** Concatenate global hook arrays. */
+function mergeGlobalHooks(
+	a: GlobalHooksState | undefined,
+	b: GlobalHooksState | undefined,
+): GlobalHooksState | undefined {
+	if (!a && !b) return undefined;
+	if (!a) return b;
+	if (!b) return a;
+	return {
+		collections: [...(a.collections || []), ...(b.collections || [])],
+		globals: [...(a.globals || []), ...(b.globals || [])],
+	};
+}
+
+/**
+ * Merge functions for known module keys.
+ *
+ * Each entry maps a key name to its merge function: `(existing, incoming) → merged`.
+ * Keys not in this map use auto-detect merge (see {@link mergeGenericKey}):
+ * - Object + Object → spread merge
+ * - Array + Array → concatenate
+ * - Otherwise → incoming wins
+ *
+ * Uses actual functions (not string strategies) so plugins can provide
+ * arbitrary merge logic for their contributed keys.
+ *
+ * Common helpers are exported for reuse:
+ * {@link mergeRecord}, {@link mergeConcat}, {@link lastWins}.
+ *
+ * @example
+ * ```ts
+ * // A plugin can register custom merge for its keys:
+ * MERGE_FNS.set("auditRules", mergeConcat);
+ * ```
+ */
+const MERGE_FNS = new Map<string, MergeFn>([
+	["collections", mergeRecord],
+	["globals", mergeRecord],
+	["jobs", mergeRecord],
+	["functions", mergeRecord],
+	["routes", mergeRecord],
+	["fields", mergeRecord],
+	["services", mergeRecord],
+	["auth", (a, b) => mergeAuthOptions(a, b ?? {})],
+	["messages", (a, b) => mergeMessages(a, b)],
+	["hooks", (a, b) => mergeGlobalHooks(a, b)],
+	["migrations", mergeConcat],
+	["seeds", mergeConcat],
+	["defaultAccess", lastWins],
+]);
+
+/** Keys skipped during module merging (structural, not data). */
+const STRUCTURAL_KEYS = new Set(["name", "modules"]);
+
+/**
+ * Keys consumed by QuestpieConfig construction or definition metadata.
+ * Everything NOT in this set flows to `instance.state` for plugins to read
+ * (e.g., admin reads sidebar, dashboard, branding, blocks, views, components).
+ *
+ * Fully generic — any plugin's extension keys automatically flow through
+ * without being listed anywhere.
+ */
+const CONFIG_CONSUMED_KEYS = new Set([
+	// Module-mergeable keys (from MERGE_FNS → become QuestpieConfig properties)
+	...MERGE_FNS.keys(),
+	// Derived key (computed from messages + config, not from modules directly)
+	"translations",
+	// Definition-only keys (used directly in config construction, not merged)
+	"locale",
+	"contextResolver",
+	"emailTemplates",
+	// Structural
+	"name",
+	"modules",
+]);
+
+/** Create an empty merged state with correct initial values for known keys. */
+function emptyMergedState(): Record<string, any> {
 	return {
 		collections: {},
 		globals: {},
@@ -156,98 +250,30 @@ function emptyMergedState(): MergedState {
 	};
 }
 
-function mergeMessages(
-	a: Record<string, Record<string, string>>,
-	b?: Record<string, Record<string, string>>,
-): Record<string, Record<string, string>> {
-	if (!b) return a;
-	const result: Record<string, Record<string, string>> = { ...a };
-	for (const [locale, msgs] of Object.entries(b)) {
-		result[locale] = { ...(result[locale] || {}), ...msgs };
-	}
-	return result;
-}
-
-function mergeGlobalHooks(
-	a: GlobalHooksState | undefined,
-	b: GlobalHooksState | undefined,
-): GlobalHooksState | undefined {
-	if (!a && !b) return undefined;
-	if (!a) return b;
-	if (!b) return a;
-	return {
-		collections: [...(a.collections || []), ...(b.collections || [])],
-		globals: [...(a.globals || []), ...(b.globals || [])],
-	};
-}
-
-/** Known core keys on ModuleDefinition — everything else is an extension. */
-const CORE_MODULE_KEYS = new Set([
-	"name",
-	"modules",
-	"collections",
-	"globals",
-	"jobs",
-	"functions",
-	"routes",
-	"fields",
-	"services",
-	"auth",
-	"migrations",
-	"seeds",
-	"messages",
-	"defaultAccess",
-	"hooks",
-]);
-
+/**
+ * Merge a module (or module-like object) into accumulated state.
+ *
+ * For keys in {@link MERGE_FNS}, the declared merge function is used.
+ * For unknown keys (plugin extensions), auto-detect merge is applied.
+ * Structural keys ("name", "modules") are skipped.
+ */
 function mergeModuleIntoState(
-	state: MergedState,
-	mod: ModuleDefinition,
-): MergedState {
-	const result: MergedState = {
-		...state,
-		collections: { ...state.collections, ...(mod.collections || {}) },
-		globals: { ...state.globals, ...(mod.globals || {}) },
-		jobs: { ...state.jobs, ...(mod.jobs || {}) },
-		functions: { ...state.functions, ...(mod.functions || {}) },
-		routes: { ...state.routes, ...(mod.routes || {}) },
-		fields: { ...state.fields, ...(mod.fields || {}) },
-		services: { ...state.services, ...(mod.services || {}) },
-		auth: mergeAuthOptions(state.auth, mod.auth ?? {}),
-		migrations: [...state.migrations, ...(mod.migrations || [])],
-		seeds: [...state.seeds, ...(mod.seeds || [])],
-		messages: mergeMessages(state.messages, mod.messages),
-		defaultAccess: mod.defaultAccess ?? state.defaultAccess,
-		hooks: mergeGlobalHooks(state.hooks, mod.hooks),
-	};
+	state: Record<string, any>,
+	mod: Record<string, any>,
+): Record<string, any> {
+	const result: Record<string, any> = { ...state };
 
-	// Merge extension keys (admin: listViews, editViews, components, blocks, sidebar, dashboard, branding, adminLocale)
 	for (const key of Object.keys(mod)) {
-		if (!CORE_MODULE_KEYS.has(key)) {
-			const existing = state[key];
-			const incoming = mod[key];
+		if (STRUCTURAL_KEYS.has(key)) continue;
 
-			// Array extension keys (sidebar/dashboard contributions) — concatenate
-			if (Array.isArray(incoming) && Array.isArray(existing)) {
-				result[key] = [...existing, ...incoming];
-			} else if (Array.isArray(incoming)) {
-				result[key] = [...incoming];
-			}
-			// Object extension keys — spread-merge (listViews, editViews, components, blocks, branding)
-			else if (
-				incoming != null &&
-				typeof incoming === "object" &&
-				!Array.isArray(incoming) &&
-				typeof existing === "object" &&
-				!Array.isArray(existing) &&
-				existing != null
-			) {
-				result[key] = { ...existing, ...incoming };
-			}
-			// Primitive extension keys — last-wins (adminLocale)
-			else if (incoming !== undefined) {
-				result[key] = incoming;
-			}
+		const incoming = mod[key];
+		if (incoming === undefined) continue;
+
+		const mergeFn = MERGE_FNS.get(key);
+		if (mergeFn) {
+			result[key] = mergeFn(state[key], incoming);
+		} else {
+			mergeGenericKey(result, key, state[key], incoming);
 		}
 	}
 
@@ -255,84 +281,83 @@ function mergeModuleIntoState(
 }
 
 /**
- * Merge extension keys from entities or definition into merged state.
- * Handles array concatenation, object spread-merge, and primitive last-wins.
+ * Auto-detect merge for extension keys (not in {@link MERGE_FNS}):
+ * - Array + Array → concatenate
+ * - Object + Object → spread merge
+ * - Otherwise → incoming wins
  */
-function mergeExtensionKeys(
-	merged: MergedState,
-	source: Record<string, unknown>,
+function mergeGenericKey(
+	result: Record<string, any>,
+	key: string,
+	existing: any,
+	incoming: any,
 ): void {
-	for (const key of Object.keys(source)) {
-		if (
-			!CORE_MODULE_KEYS.has(key) &&
-			key !== "name" &&
-			key !== "modules" &&
-			key !== "locale" &&
-			key !== "contextResolver"
-		) {
-			const incoming = source[key];
-			const existing = merged[key];
-
-			// Array extension keys — concatenate
-			if (Array.isArray(incoming) && Array.isArray(existing)) {
-				merged[key] = [...existing, ...incoming];
-			} else if (Array.isArray(incoming)) {
-				merged[key] = [...incoming];
-			}
-			// Object extension keys — spread-merge
-			else if (
-				incoming != null &&
-				typeof incoming === "object" &&
-				!Array.isArray(incoming) &&
-				typeof existing === "object" &&
-				!Array.isArray(existing) &&
-				existing != null
-			) {
-				merged[key] = { ...existing, ...incoming };
-			}
-			// Primitive — last-wins
-			else if (incoming !== undefined) {
-				merged[key] = incoming;
-			}
-		}
+	if (Array.isArray(incoming) && Array.isArray(existing)) {
+		result[key] = [...existing, ...incoming];
+	} else if (Array.isArray(incoming)) {
+		result[key] = [...incoming];
+	} else if (
+		incoming != null &&
+		typeof incoming === "object" &&
+		!Array.isArray(incoming) &&
+		typeof existing === "object" &&
+		!Array.isArray(existing) &&
+		existing != null
+	) {
+		result[key] = { ...existing, ...incoming };
+	} else {
+		result[key] = incoming;
 	}
 }
 
 // ============================================================================
-// Extension state for admin config
+// Extension state extraction
 // ============================================================================
 
-const EXTENSION_KEYS = [
-	"listViews",
-	"editViews",
-	"components",
-	"blocks",
-	"sidebar",
-	"dashboard",
-	"branding",
-	"adminLocale",
-];
-
+/**
+ * Extract extension state — all merged keys NOT consumed by QuestpieConfig.
+ * Stored on `instance.state` for plugins to read (e.g., admin reads
+ * sidebar, dashboard, branding, blocks, views, components).
+ *
+ * Fully generic — any plugin's extension keys automatically flow through
+ * without being listed anywhere.
+ *
+ * @param merged - Fully merged state from all modules + user entities
+ * @param configOverrides - Config-level overrides (legacy createApp only)
+ */
 function buildExtensionState(
-	merged: MergedState,
+	merged: Record<string, any>,
 	configOverrides?: Record<string, unknown>,
 ): Record<string, unknown> {
 	const extensionState: Record<string, unknown> = {};
-	for (const key of EXTENSION_KEYS) {
-		const configValue = configOverrides?.[key];
-		const mergedValue = merged[key];
 
-		// For array extension keys (sidebar/dashboard contributions),
-		// append config-level contribution to module-level array
-		if (Array.isArray(mergedValue) && configValue != null) {
-			extensionState[key] = Array.isArray(configValue)
-				? [...mergedValue, ...configValue]
-				: [...mergedValue, configValue];
-		} else if (configValue !== undefined || mergedValue !== undefined) {
-			// For object/primitive keys: config-level overrides module-level
-			extensionState[key] = configValue ?? mergedValue;
+	// Extract all non-config keys from merged state
+	for (const [key, value] of Object.entries(merged)) {
+		if (!CONFIG_CONSUMED_KEYS.has(key) && value !== undefined) {
+			extensionState[key] = value;
 		}
 	}
+
+	// Apply config-level overrides (legacy mode only)
+	if (configOverrides) {
+		for (const [key, value] of Object.entries(configOverrides)) {
+			if (CONFIG_CONSUMED_KEYS.has(key) || value === undefined) continue;
+
+			const existing = extensionState[key];
+
+			// Array: append config-level to module-level
+			if (Array.isArray(existing) && value != null) {
+				extensionState[key] = Array.isArray(value)
+					? [...existing, ...value]
+					: [...existing, value];
+			}
+			// Otherwise: config-level overrides
+			else {
+				extensionState[key] = value;
+			}
+		}
+	}
+
 	return extensionState;
 }
 
@@ -420,24 +445,10 @@ function createAppFromDefinition(
 	}
 
 	// 3. Merge user entities on top (user always wins over modules)
-	merged = mergeModuleIntoState(merged, {
-		name: "user",
-		collections: definition.collections,
-		globals: definition.globals,
-		jobs: definition.jobs,
-		functions: definition.functions,
-		routes: definition.routes,
-		services: definition.services,
-		auth: definition.auth,
-		migrations: definition.migrations,
-		seeds: definition.seeds,
-		messages: definition.messages,
-		defaultAccess: definition.defaultAccess,
-		hooks: definition.hooks,
-	});
-
-	// Copy extension keys from definition (e.g. blocks, sidebar, dashboard, branding)
-	mergeExtensionKeys(merged, definition);
+	// All keys flow through: known keys use MERGE_FNS, extensions use auto-detect.
+	// Definition-only keys (locale, contextResolver, emailTemplates) pass through
+	// merged state but are filtered from extension state by CONFIG_CONSUMED_KEYS.
+	merged = mergeModuleIntoState(merged, { name: "user", ...definition });
 
 	// 4. Convert messages to translations config
 	const mergedTranslations = mergeMessagesIntoConfig(
@@ -497,7 +508,7 @@ function createAppFromDefinition(
 	// 6. Create Questpie instance
 	const instance = new Questpie(cmsConfig);
 
-	// 7. Store admin-specific extension state
+	// 7. Store plugin extension state (sidebar, dashboard, branding, blocks, views, etc.)
 	const extensionState = buildExtensionState(merged);
 	if (Object.keys(extensionState).length > 0) {
 		instance.state = extensionState;
@@ -525,21 +536,7 @@ function createAppLegacy(appConfig: AppConfig, entities?: AppEntities) {
 
 	// 3. Merge user entities on top (user always wins over modules)
 	if (entities) {
-		merged = mergeModuleIntoState(merged, {
-			name: "user",
-			collections: entities.collections,
-			globals: entities.globals,
-			jobs: entities.jobs,
-			functions: entities.functions,
-			routes: entities.routes,
-			auth: entities.auth,
-			migrations: entities.migrations,
-			seeds: entities.seeds,
-			messages: entities.messages,
-		});
-
-		// Copy extension keys from entities (e.g. blocks from admin plugin)
-		mergeExtensionKeys(merged, entities);
+		merged = mergeModuleIntoState(merged, { name: "user", ...entities });
 	}
 
 	// 4. Convert messages to translations config
@@ -597,8 +594,11 @@ function createAppLegacy(appConfig: AppConfig, entities?: AppEntities) {
 	// 6. Create Questpie instance
 	const instance = new Questpie(cmsConfig);
 
-	// 7. Store admin-specific extension state for getAdminConfig
-	const extensionState = buildExtensionState(merged, appConfig as Record<string, unknown>);
+	// 7. Store plugin extension state (sidebar, dashboard, branding, blocks, views, etc.)
+	const extensionState = buildExtensionState(
+		merged,
+		appConfig as Record<string, unknown>,
+	);
 	if (Object.keys(extensionState).length > 0) {
 		instance.state = extensionState;
 	}

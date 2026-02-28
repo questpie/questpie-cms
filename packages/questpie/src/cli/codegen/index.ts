@@ -21,7 +21,6 @@ import type {
 	CodegenOptions,
 	CodegenPlugin,
 	CodegenResult,
-	SingletonFactory,
 } from "./types.js";
 
 // ============================================================================
@@ -30,14 +29,117 @@ import type {
 
 /**
  * Built-in core codegen plugin.
- * Provides singleton factory functions for core config files:
- * locale.ts, hooks.ts, access.ts, context.ts.
+ *
+ * Declares all core categories (collections, globals, jobs, functions, routes,
+ * messages, services, emails, migrations, seeds) and core single files
+ * (modules, locale, hooks, access, context).
+ *
+ * Also provides singleton factory functions for core config files.
  *
  * Always prepended to the plugin list in runCodegen().
  */
 export function coreCodegenPlugin(): CodegenPlugin {
 	return {
 		name: "questpie-core",
+		categories: {
+			collections: {
+				dirs: ["collections"],
+				prefix: "coll",
+				registryKey: true,
+				includeInAppState: true,
+				extractFromModules: true,
+			},
+			globals: {
+				dirs: ["globals"],
+				prefix: "glob",
+				registryKey: true,
+				includeInAppState: true,
+				extractFromModules: true,
+			},
+			jobs: {
+				dirs: ["jobs"],
+				prefix: "job",
+				registryKey: true,
+				includeInAppState: true,
+				extractFromModules: true,
+			},
+			functions: {
+				dirs: ["functions"],
+				recursive: true,
+				prefix: "fn",
+				emit: "nested",
+				keySeparator: ".",
+				typeEmit: "functions",
+				registryKey: true,
+				includeInAppState: true,
+				extractFromModules: true,
+			},
+			routes: {
+				dirs: ["routes"],
+				recursive: true,
+				prefix: "route",
+				keySeparator: "/",
+				registryKey: true,
+				includeInAppState: true,
+				extractFromModules: true,
+			},
+			messages: {
+				dirs: ["messages"],
+				prefix: "msg",
+				typeEmit: "messages",
+				registryKey: false,
+				includeInAppState: false,
+				extractFromModules: false,
+			},
+			services: {
+				dirs: ["services"],
+				prefix: "svc",
+				typeEmit: "services",
+				extraTypeImports: [
+					'import type { ServiceInstanceOf } from "questpie";',
+				],
+				registryKey: true,
+				includeInAppState: true,
+				extractFromModules: true,
+				appContextEmit: "services",
+			},
+			emails: {
+				dirs: ["emails"],
+				prefix: "email",
+				typeEmit: "emails",
+				createAppKey: "emailTemplates",
+				extraTypeImports: ['import type { MailerService } from "questpie";'],
+				registryKey: "emails",
+				includeInAppState: false,
+				extractFromModules: false,
+			},
+			migrations: {
+				dirs: ["migrations"],
+				prefix: "mig",
+				emit: "array",
+				typeEmit: "none",
+				registryKey: false,
+				includeInAppState: false,
+				extractFromModules: false,
+			},
+			seeds: {
+				dirs: ["seeds"],
+				prefix: "seed",
+				emit: "array",
+				typeEmit: "none",
+				registryKey: false,
+				includeInAppState: false,
+				extractFromModules: false,
+			},
+		},
+		discover: {
+			modules: "modules.ts",
+			fields: "fields.ts",
+			locale: "locale.ts",
+			hooks: "hooks.ts",
+			defaultAccess: "access.ts",
+			contextResolver: "context.ts",
+		},
 		registries: {
 			singletonFactories: {
 				locale: {
@@ -58,165 +160,9 @@ export function coreCodegenPlugin(): CodegenPlugin {
 				},
 			},
 		},
-	};
-}
-
-// ============================================================================
-// Admin codegen plugin (built-in)
-// ============================================================================
-
-/**
- * Built-in admin codegen plugin.
- * Discovers blocks/, sidebar.ts, dashboard.ts, branding.ts, admin-locale.ts
- * when the admin module is used.
- *
- * @see RFC-MODULE-ARCHITECTURE §8.2 (npm Package — Admin)
- */
-export function adminCodegenPlugin(): CodegenPlugin {
-	return {
-		name: "questpie-admin",
-		discover: {
-			blocks: "blocks/*.ts",
-			sidebar: "sidebar.ts",
-			dashboard: "dashboard.ts",
-			branding: "branding.ts",
-			adminLocale: "admin-locale.ts",
-		},
-		registries: {
-			moduleRegistries: {
-				listViews: {
-					placeholder: "$LIST_VIEW_NAMES",
-					registryKey: "listViews",
-				},
-				editViews: {
-					placeholder: "$EDIT_VIEW_NAMES",
-					registryKey: "editViews",
-				},
-				components: {
-					placeholder: "$COMPONENT_NAMES",
-					registryKey: "components",
-				},
-			},
-			collectionExtensions: {
-				admin: {
-					stateKey: "admin",
-					imports: [
-						{ name: "AdminCollectionConfig", from: "@questpie/admin/server" },
-						{ name: "AdminConfigContext", from: "@questpie/admin/server" },
-						{ name: "createComponentProxy", from: "@questpie/admin/server" },
-					],
-					configType:
-						"AdminCollectionConfig | ((ctx: AdminConfigContext<$COMPONENT_NAMES>) => AdminCollectionConfig)",
-					isCallback: true,
-					callbackContextParams: ["c"],
-				},
-				list: {
-					stateKey: "adminList",
-					imports: [
-						{ name: "ListViewConfig", from: "@questpie/admin/server" },
-						{
-							name: "ListViewConfigContext",
-							from: "@questpie/admin/server",
-						},
-						{ name: "createViewProxy", from: "@questpie/admin/server" },
-						{ name: "createFieldProxy", from: "@questpie/admin/server" },
-						{ name: "createActionProxy", from: "@questpie/admin/server" },
-					],
-					configType:
-						"(ctx: ListViewConfigContext<TState extends { fieldDefinitions: infer F extends Record<string, any> } ? F : Record<string, any>, $LIST_VIEW_NAMES>) => ListViewConfig",
-					isCallback: true,
-					callbackContextParams: ["v", "f", "a"],
-				},
-				form: {
-					stateKey: "adminForm",
-					imports: [
-						{ name: "FormViewConfig", from: "@questpie/admin/server" },
-						{
-							name: "FormViewConfigContext",
-							from: "@questpie/admin/server",
-						},
-					],
-					configType:
-						"(ctx: FormViewConfigContext<TState extends { fieldDefinitions: infer F extends Record<string, any> } ? F : Record<string, any>, $EDIT_VIEW_NAMES>) => FormViewConfig",
-					isCallback: true,
-					callbackContextParams: ["v", "f"],
-				},
-				preview: {
-					stateKey: "adminPreview",
-					imports: [
-						{ name: "PreviewConfig", from: "@questpie/admin/server" },
-					],
-					configType: "PreviewConfig",
-				},
-				actions: {
-					stateKey: "adminActions",
-					imports: [
-						{ name: "ServerActionsConfig", from: "@questpie/admin/server" },
-						{
-							name: "ActionsConfigContext",
-							from: "@questpie/admin/server",
-						},
-					],
-					configType:
-						"(ctx: ActionsConfigContext<Record<string, unknown>, $COMPONENT_NAMES>) => ServerActionsConfig",
-					isCallback: true,
-					callbackContextParams: ["a", "c", "f"],
-				},
-			},
-			globalExtensions: {
-				admin: {
-					stateKey: "admin",
-					imports: [
-						{ name: "AdminGlobalConfig", from: "@questpie/admin/server" },
-						{ name: "AdminConfigContext", from: "@questpie/admin/server" },
-					],
-					configType:
-						"AdminGlobalConfig | ((ctx: AdminConfigContext<$COMPONENT_NAMES>) => AdminGlobalConfig)",
-					isCallback: true,
-					callbackContextParams: ["c"],
-				},
-				form: {
-					stateKey: "adminForm",
-					imports: [
-						{ name: "FormViewConfig", from: "@questpie/admin/server" },
-						{
-							name: "FormViewConfigContext",
-							from: "@questpie/admin/server",
-						},
-					],
-					configType:
-						"(ctx: FormViewConfigContext<TState extends { fieldDefinitions: infer F extends Record<string, any> } ? F : Record<string, any>, $EDIT_VIEW_NAMES>) => FormViewConfig",
-					isCallback: true,
-					callbackContextParams: ["v", "f"],
-				},
-			},
-			singletonFactories: {
-				branding: {
-					configType: "ServerBrandingConfig",
-					imports: [
-						{ name: "ServerBrandingConfig", from: "@questpie/admin/server" },
-					],
-				},
-				adminLocale: {
-					configType: "AdminLocaleConfig",
-					imports: [
-						{ name: "AdminLocaleConfig", from: "@questpie/admin/server" },
-					],
-				},
-				sidebar: {
-					configType: "SidebarContribution",
-					imports: [
-						{ name: "SidebarContribution", from: "@questpie/admin/server" },
-					],
-					isCallback: true,
-				},
-				dashboard: {
-					configType: "DashboardContribution",
-					imports: [
-						{ name: "DashboardContribution", from: "@questpie/admin/server" },
-					],
-					isCallback: true,
-				},
+		callbackParams: {
+			f: {
+				proxyCode: "new Proxy({}, { get: (_, prop) => String(prop) })",
 			},
 		},
 	};
@@ -245,22 +191,15 @@ export async function runCodegen(
 	const discovered = await discoverFiles(rootDir, outDir, plugins);
 
 	// 1b. Warn about files with named exports (not default)
-	const allFiles = [
-		...discovered.collections.values(),
-		...discovered.globals.values(),
-		...discovered.jobs.values(),
-		...discovered.functions.values(),
-		...discovered.routes.values(),
-		...discovered.messages.values(),
-		...discovered.services.values(),
-	];
+	const allFiles: import("./types.js").DiscoveredFile[] = [];
+	for (const catMap of discovered.categories.values()) {
+		for (const file of catMap.values()) {
+			allFiles.push(file);
+		}
+	}
 	if (discovered.auth) allFiles.push(discovered.auth);
-	// Include singles in warnings
 	for (const singleFile of discovered.singles.values()) {
 		allFiles.push(singleFile);
-	}
-	for (const customMap of discovered.custom.values()) {
-		allFiles.push(...customMap.values());
 	}
 	for (const file of allFiles) {
 		if (file.exportType === "named") {
@@ -278,16 +217,10 @@ export async function runCodegen(
 	const extraEntities = new Map<string, string>();
 
 	const ctx: CodegenContext = {
-		collections: discovered.collections,
-		globals: discovered.globals,
-		jobs: discovered.jobs,
-		functions: discovered.functions,
-		routes: discovered.routes,
-		messages: discovered.messages,
-		services: discovered.services,
+		categories: discovered.categories,
 		auth: discovered.auth,
-		custom: discovered.custom,
 		singles: discovered.singles,
+		spreads: discovered.spreads,
 		addImport(name, path) {
 			extraImports.push({ name, path });
 		},
@@ -309,6 +242,28 @@ export async function runCodegen(
 		}
 	}
 
+	// 3b. Rewrite self-package imports in module mode
+	// When generating modules within a package, plugin transforms may add
+	// imports referencing the package's own name (e.g. "@questpie/admin/server").
+	// TypeScript resolves these via the "types" export condition to stale dist/
+	// types. Rewrite to internal aliases (e.g. "#questpie/admin/server/index.js").
+	if (options.module?.importRewriteMap) {
+		const rewriteMap = options.module.importRewriteMap;
+		for (const imp of extraImports) {
+			for (const [from, to] of Object.entries(rewriteMap)) {
+				if (imp.path === from || imp.path.startsWith(`${from}/`)) {
+					const suffix = imp.path.slice(from.length);
+					// Append /index.js for bare subpath imports (e.g. "/server" → "/server/index.js")
+					const resolvedSuffix =
+						suffix && !suffix.endsWith(".js") && !suffix.endsWith(".ts")
+							? `${suffix}/index.js`
+							: suffix;
+					imp.path = `${to}${resolvedSuffix}`;
+				}
+			}
+		}
+	}
+
 	// 4. Generate template — module or root app
 	let code: string;
 	let outputFile: string;
@@ -316,9 +271,23 @@ export async function runCodegen(
 	if (options.module) {
 		// Module mode: generate module.ts (static module definition)
 		outputFile = options.module.outputFile ?? "module.ts";
+
+		// Build merged category metadata from all plugins
+		const categoryMeta = new Map<
+			string,
+			import("./types.js").CategoryDeclaration
+		>();
+		for (const plugin of plugins) {
+			if (!plugin.categories) continue;
+			for (const [name, decl] of Object.entries(plugin.categories)) {
+				categoryMeta.set(name, decl);
+			}
+		}
+
 		code = generateModuleTemplate({
 			moduleName: options.module.name,
 			discovered,
+			categoryMeta,
 			extraImports: extraImports.length > 0 ? extraImports : undefined,
 			extraTypeDeclarations:
 				extraTypeDeclarations.length > 0 ? extraTypeDeclarations : undefined,

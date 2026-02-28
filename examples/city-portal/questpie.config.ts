@@ -1,16 +1,7 @@
 /**
- * Questpie Configuration for CLI
+ * Questpie CLI Configuration
+ *
+ * Re-exports the server config for CLI commands (migrate, generate, seed).
+ * The CLI auto-resolves .generated/index.ts for the app instance.
  */
-
-import { app } from "@/questpie/server/.generated";
-
-export const config = {
-	app: app,
-	cli: {
-		migrations: {
-			directory: "./src/migrations",
-		},
-	},
-};
-
-export default config;
+export { default } from "./src/questpie/server/questpie.config";

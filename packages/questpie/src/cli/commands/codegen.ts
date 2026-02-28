@@ -8,10 +8,11 @@
  */
 
 import { watch } from "node:fs";
-import { readFile, readdir, stat } from "node:fs/promises";
+import { readdir, readFile, stat } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
-import { adminCodegenPlugin, runCodegen } from "../codegen/index.js";
+import { runCodegen } from "../codegen/index.js";
 import type { CodegenPlugin } from "../codegen/types.js";
+import { isPackageConfig, type PackageConfig } from "../config.js";
 
 // ============================================================================
 // generate command
@@ -73,22 +74,113 @@ export async function resolveEntityRoot(
 }
 
 /**
- * Run codegen once — produces .generated/index.ts.
+ * Result of loading a questpie.config.ts for codegen.
+ */
+interface ConfigLoadResult {
+	plugins: CodegenPlugin[];
+	/** When set, codegen runs in module mode (generates module.ts instead of index.ts). */
+	module?: { name: string; outputFile?: string };
+	/** When set, config is a PackageConfig — orchestrate multi-module codegen. */
+	packageConfig?: PackageConfig;
+}
+
+/**
+ * Load codegen config from questpie.config.ts.
+ *
+ * Supports three config shapes:
+ * - **Root app config**: `runtimeConfig({ plugins: [...], ... })` → root app mode
+ * - **Module config**: `{ module: { name: "..." }, plugins: [...] }` → module mode
+ * - **Package config**: `packageConfig({ modulesDir: "...", ... })` → multi-module orchestration
+ *
+ * The `module` and `packageConfig` fields are only used for package-internal
+ * codegen (dev-time only, not distributed). When `packageConfig` is detected,
+ * the caller should iterate over module subdirectories.
+ *
+ * @param configPath — absolute path to the resolved questpie.config.ts
+ */
+async function loadConfigForCodegen(
+	configPath: string,
+): Promise<ConfigLoadResult> {
+	try {
+		const configModule = await import(/* @vite-ignore */ configPath);
+		const config = configModule.default || configModule.config || configModule;
+
+		// PackageConfig mode: iterate over modulesDir subdirectories
+		if (isPackageConfig(config)) {
+			return {
+				plugins: Array.isArray(config.plugins) ? config.plugins : [],
+				packageConfig: config,
+			};
+		}
+
+		const plugins: CodegenPlugin[] =
+			config && Array.isArray(config.plugins) ? config.plugins : [];
+
+		// Module mode: config has { module: { name: "..." } }
+		const moduleOpt =
+			config?.module && typeof config.module.name === "string"
+				? {
+						name: config.module.name as string,
+						outputFile: config.module.outputFile as string | undefined,
+					}
+				: undefined;
+
+		return { plugins, module: moduleOpt };
+	} catch (error) {
+		// Config import failed (missing deps, syntax error, etc.)
+		// Fall back gracefully — codegen can still run without config-defined plugins
+		console.warn(
+			`Warning: Could not load plugins from config (${configPath}).`,
+		);
+		if (error instanceof Error) {
+			console.warn(`  ${error.message}`);
+		}
+		return { plugins: [] };
+	}
+}
+
+/**
+ * Run codegen once — produces .generated/index.ts (root app) or .generated/module.ts (module).
+ *
+ * Mode is determined by the config file:
+ * - Root app: `runtimeConfig({ ... })` → generates index.ts + factories.ts
+ * - Module: `{ module: { name: "..." } }` → generates module.ts only
+ * - Package: `packageConfig({ modulesDir: "..." })` → iterates module subdirectories
  */
 export async function generateCommand(options: GenerateOptions): Promise<void> {
 	const rawConfigPath = resolve(process.cwd(), options.configPath);
 	const { configPath, rootDir } = await resolveEntityRoot(rawConfigPath);
+
+	// Load plugins + module/package config from questpie.config.ts
+	const {
+		plugins,
+		module: moduleOpt,
+		packageConfig: pkgConfig,
+	} = await loadConfigForCodegen(configPath);
+
+	// ── Package mode: iterate over modulesDir subdirectories ──
+	if (pkgConfig) {
+		await generatePackageModules(rootDir, configPath, pkgConfig, options);
+		return;
+	}
+
+	// ── Single mode: root app or single module ──
 	const outDir = join(rootDir, ".generated");
+	const isModuleMode = !!moduleOpt;
+	const outputFile = isModuleMode
+		? (moduleOpt.outputFile ?? "module.ts")
+		: "index.ts";
 
-	// Auto-detect plugins based on config contents
-	// For now, always include the admin plugin (blocks discovery)
-	const plugins: CodegenPlugin[] = [adminCodegenPlugin()];
-
-	console.log("Discovering files...");
+	console.log(
+		isModuleMode
+			? `Discovering files for module "${moduleOpt.name}"...`
+			: "Discovering files...",
+	);
 	if (options.verbose) {
 		console.log(`  Root: ${rootDir}`);
 		console.log(`  Config: ${configPath}`);
-		console.log(`  Output: ${outDir}/index.ts`);
+		console.log(`  Output: ${outDir}/${outputFile}`);
+		if (isModuleMode) console.log(`  Mode: module`);
 	}
 
 	const result = await runCodegen({
@@ -97,38 +189,181 @@ export async function generateCommand(options: GenerateOptions): Promise<void> {
 		outDir,
 		plugins,
 		dryRun: options.dryRun,
+		module: moduleOpt,
 	});
 
-	// Print summary
-	const d = result.discovered;
-	const counts: string[] = [];
-	if (d.collections.size > 0)
-		counts.push(`${d.collections.size} collection(s)`);
-	if (d.globals.size > 0) counts.push(`${d.globals.size} global(s)`);
-	if (d.jobs.size > 0) counts.push(`${d.jobs.size} job(s)`);
-	if (d.functions.size > 0) counts.push(`${d.functions.size} function(s)`);
-	if (d.messages.size > 0) counts.push(`${d.messages.size} locale(s)`);
-	if (d.auth) counts.push("auth");
-	if (d.migrations.size > 0) counts.push(`${d.migrations.size} migration(s)`);
-	if (d.seeds.size > 0) counts.push(`${d.seeds.size} seed(s)`);
-	for (const [key, map] of d.custom) {
-		if (map.size > 0) counts.push(`${map.size} ${key}`);
-	}
+	printCodegenResult(result, options);
+}
 
-	if (counts.length === 0) {
-		console.log(
-			"No entity files found. Make sure your files are in the correct directories.",
+/**
+ * Orchestrate multi-module codegen for a PackageConfig.
+ *
+ * Scans `modulesDir` for subdirectories, derives module names from
+ * `${modulePrefix}-${dirName}`, and runs `runCodegen()` in module mode
+ * for each one.
+ */
+async function generatePackageModules(
+	configRootDir: string,
+	configPath: string,
+	pkgConfig: PackageConfig,
+	options: GenerateOptions,
+): Promise<void> {
+	const modulesDir = resolve(configRootDir, pkgConfig.modulesDir);
+
+	// Scan modulesDir for subdirectories
+	let entries: import("node:fs").Dirent[];
+	try {
+		entries = await readdir(modulesDir, { withFileTypes: true });
+	} catch {
+		console.error(
+			`Package modulesDir not found: ${modulesDir}\n` +
+				`Check the 'modulesDir' path in your packageConfig().`,
 		);
 		return;
 	}
 
-	console.log(`Found: ${counts.join(", ")}`);
+	const moduleDirs = entries
+		.filter((e) => e.isDirectory() && !e.name.startsWith("."))
+		.sort((a, b) => a.name.localeCompare(b.name));
+
+	if (moduleDirs.length === 0) {
+		console.log(`No module directories found in ${modulesDir}`);
+		return;
+	}
+
+	const prefix = pkgConfig.modulePrefix ?? "questpie";
+	const plugins = Array.isArray(pkgConfig.plugins) ? pkgConfig.plugins : [];
+
+	// Build import rewrite map from package.json
+	// When plugin transforms add imports like "@questpie/admin/server", they
+	// must be rewritten to the internal subpath alias (e.g. "#questpie/admin/server/index.js")
+	// because TypeScript resolves the "types" export condition to stale dist/ types.
+	const importRewriteMap = await buildImportRewriteMap(configRootDir);
+
+	console.log(
+		`Package mode: generating ${moduleDirs.length} module(s) from ${pkgConfig.modulesDir}/`,
+	);
+
+	for (const dir of moduleDirs) {
+		const moduleRootDir = join(modulesDir, dir.name);
+		const moduleOutDir = join(moduleRootDir, ".generated");
+		const moduleName = `${prefix}-${dir.name}`;
+
+		console.log(`\n  Module: ${moduleName}`);
+		if (options.verbose) {
+			console.log(`    Root: ${moduleRootDir}`);
+			console.log(`    Output: ${moduleOutDir}/module.ts`);
+		}
+
+		const result = await runCodegen({
+			rootDir: moduleRootDir,
+			configPath,
+			outDir: moduleOutDir,
+			plugins,
+			dryRun: options.dryRun,
+			module: { name: moduleName, importRewriteMap },
+		});
+
+		printCodegenResult(result, options, "    ");
+	}
+
+	console.log(`\nDone: ${moduleDirs.length} module(s) generated.`);
+}
+
+/**
+ * Build an import rewrite map for self-package imports.
+ *
+ * Reads `package.json` to find the package name and `tsconfig.json` to find
+ * the internal subpath alias. Maps the external package name to the internal
+ * alias so generated modules don't reference stale dist/ types.
+ *
+ * @example
+ * package.json: { "name": "@questpie/admin" }
+ * tsconfig.json: { "paths": { "#questpie/admin/*": ["./src/*"] } }
+ * → { "@questpie/admin": "#questpie/admin" }
+ */
+async function buildImportRewriteMap(
+	packageDir: string,
+): Promise<Record<string, string> | undefined> {
+	try {
+		const pkgJsonPath = join(packageDir, "package.json");
+		const pkgJsonContent = await readFile(pkgJsonPath, "utf-8");
+		const pkgJson = JSON.parse(pkgJsonContent);
+		const pkgName = pkgJson.name;
+		if (!pkgName) return undefined;
+
+		// Try to find matching tsconfig paths alias
+		const tsconfigPath = join(packageDir, "tsconfig.json");
+		let tsconfigContent: string;
+		try {
+			tsconfigContent = await readFile(tsconfigPath, "utf-8");
+		} catch {
+			return undefined;
+		}
+
+		// Parse tsconfig (strip JSON comments — single-line and block)
+		// The regex avoids stripping // inside string values (e.g. URLs)
+		const stripped = tsconfigContent.replace(
+			/("(?:[^"\\]|\\.)*")|\/\/[^\n]*|\/\*[\s\S]*?\*\//g,
+			(match, stringLiteral) => stringLiteral ?? "",
+		);
+		const tsconfig = JSON.parse(stripped);
+		const paths = tsconfig?.compilerOptions?.paths;
+		if (!paths || typeof paths !== "object") return undefined;
+
+		// Look for a path alias that maps to the package source
+		// e.g. "#questpie/admin/*" → ["./src/*"]
+		for (const alias of Object.keys(paths)) {
+			// Strip trailing /* from alias to get the prefix
+			const aliasPrefix = alias.replace(/\/\*$/, "");
+			// Check if this alias could be a rewrite target for the package name
+			// Convention: "#<scope>/<name>/*" for "@<scope>/<name>"
+			// or "#<name>/*" for "<name>"
+			if (
+				aliasPrefix.startsWith("#") &&
+				(pkgName.replace("@", "#") === aliasPrefix ||
+					pkgName.replace("@", "") ===
+						aliasPrefix.replace("#", "").replace("/", "-"))
+			) {
+				return { [pkgName]: aliasPrefix };
+			}
+		}
+
+		return undefined;
+	} catch {
+		return undefined;
+	}
+}
+
+/**
+ * Print codegen result summary.
+ */
+function printCodegenResult(
+	result: import("../codegen/types.js").CodegenResult,
+	options: GenerateOptions,
+	indent = "",
+): void {
+	const d = result.discovered;
+	const counts: string[] = [];
+	for (const [catName, fileMap] of d.categories) {
+		if (fileMap.size > 0) counts.push(`${fileMap.size} ${catName}`);
+	}
+	if (d.auth) counts.push("auth");
+
+	if (counts.length === 0) {
+		console.log(
+			`${indent}No entity files found. Make sure your files are in the correct directories.`,
+		);
+		return;
+	}
+
+	console.log(`${indent}Found: ${counts.join(", ")}`);
 
 	if (options.dryRun) {
-		console.log("\n--- Generated code (dry run) ---\n");
+		console.log(`\n${indent}--- Generated code (dry run) ---\n`);
 		console.log(result.code);
 	} else {
-		console.log(`Generated: ${result.outputPath}`);
+		console.log(`${indent}Generated: ${result.outputPath}`);
 	}
 
 	if (options.verbose) {
@@ -166,11 +401,24 @@ export async function devCommand(options: DevOptions): Promise<void> {
 
 	const rawConfigPath = resolve(process.cwd(), options.configPath);
 	const { configPath, rootDir } = await resolveEntityRoot(rawConfigPath);
+	const {
+		plugins,
+		module: moduleOpt,
+		packageConfig: pkgConfig,
+	} = await loadConfigForCodegen(configPath);
+
+	// For package mode, we watch the entire modulesDir and regenerate all modules
+	// when any file changes. This is simpler and handles cross-module changes.
+	if (pkgConfig) {
+		await watchPackageModules(rootDir, configPath, pkgConfig, options);
+		return;
+	}
+
 	const outDir = join(rootDir, ".generated");
-	const plugins: CodegenPlugin[] = [adminCodegenPlugin()];
 
 	// Directories to watch for file add/remove
-	const watchDirs = [
+	// Start with core directories, then add plugin-discovered directory patterns
+	const watchDirs = new Set([
 		"collections",
 		"globals",
 		"jobs",
@@ -178,9 +426,22 @@ export async function devCommand(options: DevOptions): Promise<void> {
 		"messages",
 		"migrations",
 		"seeds",
-		"blocks",
 		"features",
-	];
+	]);
+
+	// Add directories from plugin discover patterns (e.g. "blocks/*.ts" → "blocks")
+	for (const plugin of plugins) {
+		if (!plugin.discover) continue;
+		for (const pattern of Object.values(plugin.discover)) {
+			const patternStr =
+				typeof pattern === "string" ? pattern : pattern.pattern;
+			// Extract directory name from glob (e.g. "blocks/*.ts" → "blocks")
+			const dirMatch = patternStr.match(/^([^/*]+)\//);
+			if (dirMatch) {
+				watchDirs.add(dirMatch[1]);
+			}
+		}
+	}
 
 	console.log("\nWatching for file changes...");
 	console.log("  (Press Ctrl+C to stop)\n");
@@ -208,6 +469,7 @@ export async function devCommand(options: DevOptions): Promise<void> {
 					configPath,
 					outDir,
 					plugins,
+					module: moduleOpt,
 				});
 				console.log(`Updated: ${result.outputPath}`);
 			} catch (error) {
@@ -274,21 +536,74 @@ export async function devCommand(options: DevOptions): Promise<void> {
 	await new Promise(() => {});
 }
 
+/**
+ * Watch mode for PackageConfig — watches the modulesDir and regenerates
+ * all module definitions on file add/remove.
+ */
+async function watchPackageModules(
+	configRootDir: string,
+	configPath: string,
+	pkgConfig: PackageConfig,
+	options: DevOptions,
+): Promise<void> {
+	const modulesDir = resolve(configRootDir, pkgConfig.modulesDir);
+	const prefix = pkgConfig.modulePrefix ?? "questpie";
+	const plugins = Array.isArray(pkgConfig.plugins) ? pkgConfig.plugins : [];
+
+	console.log(`\nWatching ${pkgConfig.modulesDir}/ for file changes...`);
+	console.log("  (Press Ctrl+C to stop)\n");
+
+	let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+
+	const scheduleRegenerate = (reason: string) => {
+		if (debounceTimer) clearTimeout(debounceTimer);
+		debounceTimer = setTimeout(async () => {
+			console.log(`Regenerating all modules... (${reason})`);
+			try {
+				await generatePackageModules(configRootDir, configPath, pkgConfig, {
+					configPath: options.configPath,
+					verbose: options.verbose,
+				});
+			} catch (error) {
+				console.error("Codegen error:", error);
+			}
+		}, 100);
+	};
+
+	// Watch config file
+	const configWatcher = watch(configPath, () => {
+		scheduleRegenerate("config changed");
+	});
+
+	// Watch entire modulesDir recursively
+	const modulesWatcher = watch(
+		modulesDir,
+		{ recursive: true },
+		async (_event, filename) => {
+			if (!filename) return;
+			if (filename.includes(".generated")) return;
+			if (!/\.(ts|tsx|mts)$/.test(filename)) return;
+			scheduleRegenerate(filename);
+		},
+	);
+
+	process.on("SIGINT", () => {
+		configWatcher.close();
+		modulesWatcher.close();
+		console.log("\nStopped watching.");
+		process.exit(0);
+	});
+
+	await new Promise(() => {});
+}
+
 // ============================================================================
 // Helpers
 // ============================================================================
 
-function printDiscovered(d: {
-	collections: Map<string, any>;
-	globals: Map<string, any>;
-	jobs: Map<string, any>;
-	functions: Map<string, any>;
-	messages: Map<string, any>;
-	migrations: Map<string, any>;
-	seeds: Map<string, any>;
-	auth: any;
-	custom: Map<string, Map<string, any>>;
-}): void {
+function printDiscovered(
+	d: import("../codegen/types.js").DiscoveryResult,
+): void {
 	const printMap = (label: string, map: Map<string, any>) => {
 		if (map.size === 0) return;
 		console.log(`\n  ${label}:`);
@@ -297,19 +612,16 @@ function printDiscovered(d: {
 		}
 	};
 
-	printMap("Collections", d.collections);
-	printMap("Globals", d.globals);
-	printMap("Jobs", d.jobs);
-	printMap("Functions", d.functions);
-	printMap("Messages", d.messages);
-	printMap("Migrations", d.migrations);
-	printMap("Seeds", d.seeds);
+	for (const [catName, fileMap] of d.categories) {
+		const label = catName.charAt(0).toUpperCase() + catName.slice(1);
+		printMap(label, fileMap);
+	}
 	if (d.auth) {
 		console.log(`\n  Auth:`);
 		console.log(`    ${d.auth.source}`);
 	}
-	for (const [key, map] of d.custom) {
-		printMap(key.charAt(0).toUpperCase() + key.slice(1), map);
+	for (const [key, file] of d.singles) {
+		console.log(`\n  ${key}: ${file.source}`);
 	}
 }
 

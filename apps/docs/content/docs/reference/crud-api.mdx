@@ -1,297 +1,120 @@
 ---
 title: CRUD API
-description: Collection find, create, update, delete operations with all options and response shapes
+description: Collection CRUD operations — find, findOne, create, update, delete, count.
 ---
 
 # CRUD API
 
-Every collection exposes CRUD operations via `app.api.collections.{name}`. These methods are type-safe — field names, input types, and return types are inferred from your collection definition.
+All collections expose these CRUD operations on both server and client.
 
-## find(options?, context?)
-
-Find multiple records with filtering, sorting, and pagination.
+## `find(options)`
 
 ```ts
-const result = await app.api.collections.posts.find({
-  where: { status: "published" },
-  orderBy: { createdAt: "desc" },
-  limit: 10,
-  offset: 0,
-  with: { author: true },
+const result = await collections.posts.find({
+  where?: { ... },
+  orderBy?: { field: "asc" | "desc" },
+  limit?: number,
+  offset?: number,
+  with?: { relation: true },
+  select?: { field: true },
 });
 ```
 
-### Options
+**Returns:** `{ docs: T[], totalDocs: number }`
 
-| Option | Type | Description |
-|---|---|---|
-| `where` | `WhereClause` | Filter conditions (see [Query Operators](/docs/reference/query-operators)) |
-| `orderBy` | `OrderBy` | Sort order (see [Sorting](#sorting)) |
-| `limit` | `number` | Max records to return |
-| `offset` | `number` | Records to skip |
-| `with` | `Record<string, boolean \| object>` | Relations to include |
-| `select` | `string[]` | Fields to include (projection) |
-| `includeDeleted` | `boolean` | Include soft-deleted records |
-| `stage` | `string` | Workflow stage to read from (requires `workflow`) |
-
-### Sorting
-
-The `orderBy` option supports multiple syntaxes for sorting records:
-
-#### Object Syntax
+## `findOne(options)`
 
 ```ts
-// Single field
-orderBy: { createdAt: "desc" }
-
-// Multiple fields - first field is primary sort, second is secondary
-orderBy: { isFeatured: "desc", publishedAt: "desc" }
-```
-
-The order of keys in the object determines sort priority. `isFeatured` is sorted first, then `publishedAt`.
-
-#### Array Syntax
-
-```ts
-// Explicit multi-field sorting with priority
-orderBy: [{ isFeatured: "desc" }, { publishedAt: "desc" }]
-```
-
-Array syntax makes the priority explicit and is useful when conditional sorting is needed:
-
-```ts
-orderBy: values.showFeatured
-  ? [{ isFeatured: "desc" }, { publishedAt: "desc" }]
-  : { publishedAt: "desc" },
-```
-
-#### Function Syntax
-
-For complex sorting, use a function:
-
-```ts
-orderBy: (table, { asc, desc }) => [
-  desc(table.isFeatured),
-  desc(table.publishedAt),
-]
-```
-
-### Response
-
-```ts
-{
-  docs: TSelect[];        // Array of records
-  totalDocs: number;      // Total matching records
-  limit: number;          // Applied limit
-  offset: number;         // Applied offset
-  hasNextPage: boolean;   // Whether more records exist
-  hasPrevPage: boolean;   // Whether previous page exists
-}
-```
-
-## findOne(options, context?)
-
-Find a single record by ID or conditions.
-
-```ts
-const post = await app.api.collections.posts.findOne({
-  where: { id: "post-123" },
-  with: { author: true },
+const record = await collections.posts.findOne({
+  where: { id: "abc" },
+  with?: { ... },
+  select?: { ... },
 });
 ```
 
-### Options
+**Returns:** `T | null`
 
-| Option | Type | Description |
-|---|---|---|
-| `where` | `WhereClause` | Filter conditions |
-| `with` | `Record<string, boolean \| object>` | Relations to include |
-| `select` | `string[]` | Fields to include |
-| `stage` | `string` | Workflow stage to read from (requires `workflow`) |
-
-### Response
-
-Returns `TSelect | null`.
-
-## count(options?, context?)
-
-Count matching records.
+## `create(data)`
 
 ```ts
-const total = await app.api.collections.posts.count({
-  where: { status: "published" },
-});
-```
-
-### Response
-
-Returns `number`.
-
-## create(data, context?)
-
-Create a new record.
-
-```ts
-const post = await app.api.collections.posts.create({
-  title: "Hello World",
+const record = await collections.posts.create({
+  title: "Hello",
+  body: "World",
   status: "draft",
-  authorId: "user-123",
 });
 ```
 
-### Input
+**Returns:** `T` (created record)
 
-All required fields must be present. Optional fields can be omitted. Relation fields accept the FK value:
-
-```ts
-{
-  title: "Hello",           // required string
-  description?: "...",      // optional string
-  authorId: "user-123",    // FK field
-  // OR
-  author: "user-123",      // relation field name (auto-maps to FK)
-}
-```
-
-### Response
-
-Returns the created `TSelect` (full record with all computed fields).
-
-## update(options, context?)
-
-Update a record by ID.
+## `update(options)`
 
 ```ts
-const updated = await app.api.collections.posts.update({
-  where: { id: "post-123" },
+const record = await collections.posts.update({
+  where: { id: "abc" },
   data: { status: "published" },
 });
 ```
 
-### Options
+**Returns:** `T` (updated record)
 
-| Option | Type | Description |
-|---|---|---|
-| `where` | `{ id: string }` | Record to update |
-| `data` | `Partial<TUpdate>` | Fields to update (partial) |
-
-### Response
-
-Returns the updated `TSelect`.
-
-## updateMany(options, context?)
-
-Update multiple records matching a condition.
+## `delete(options)`
 
 ```ts
-const updated = await app.api.collections.posts.updateMany({
-  where: { status: "draft", createdAt: { $lt: "2024-01-01" } },
+await collections.posts.delete({
+  where: { id: "abc" },
+});
+```
+
+## `count(options)`
+
+```ts
+const count = await collections.posts.count({
+  where: { status: "published" },
+});
+```
+
+**Returns:** `number`
+
+## `updateMany(options)`
+
+```ts
+await collections.posts.updateMany({
+  where: { status: "draft" },
   data: { status: "archived" },
 });
 ```
 
-### Response
-
-Returns `TSelect[]` (array of updated records).
-
-## delete(options, context?)
-
-Delete a record by ID.
+## `deleteMany(options)`
 
 ```ts
-await app.api.collections.posts.delete({
-  where: { id: "post-123" },
-});
-```
-
-### Response
-
-Returns `{ success: boolean }`.
-
-## deleteMany(options, context?)
-
-Delete multiple records matching a condition.
-
-```ts
-await app.api.collections.posts.deleteMany({
+await collections.posts.deleteMany({
   where: { status: "archived" },
 });
 ```
 
-### Response
+## Client API
 
-Returns `{ success: boolean; count: number }`.
-
-## transitionStage(params, context?)
-
-Transition a record to a different workflow stage (requires `workflow` enabled). No data is mutated — only a version snapshot at the target stage is created.
+Same methods available on `client.collections.*`:
 
 ```ts
-const result = await app.api.collections.posts.transitionStage(
-  { id: "post-123", stage: "published" },
-  ctx,
-);
+const posts = await client.collections.posts.find({ ... });
+const post = await client.collections.posts.findOne({ ... });
+const created = await client.collections.posts.create({ ... });
+const updated = await client.collections.posts.update({ id: "abc", data: { ... } });
+await client.collections.posts.delete({ id: "abc" });
+const count = await client.collections.posts.count({ ... });
 ```
 
-### Parameters
+## Upload Methods
 
-| Param | Type | Description |
-|---|---|---|
-| `id` | `string` | Record ID to transition |
-| `stage` | `string` | Target workflow stage name |
-| `scheduledAt` | `Date` (optional) | Schedule the transition for a future time (requires queue adapter) |
-
-### Behavior
-
-- Validates the target stage exists in the workflow config
-- Enforces transition guards (e.g. `draft` can only go to `review`)
-- Checks `access.transition` permission (falls back to `access.update`)
-- Fires `beforeTransition` and `afterTransition` hooks
-- Creates a version snapshot with the new stage
-
-### Response
-
-Returns the transitioned `TSelect`.
-
-## findVersions(options, context?)
-
-Find version history for a record (requires `versioning: true`).
+For upload collections:
 
 ```ts
-const versions = await app.api.collections.posts.findVersions({
-  id: "post-123",
-  limit: 10,
+const asset = await client.collections.assets.upload(file, {
+  onProgress?: (percent: number) => void,
+});
+
+const assets = await client.collections.assets.uploadMany(files, {
+  onProgress?: (percent: number) => void,
 });
 ```
-
-## revertToVersion(options, context?)
-
-Restore a record to a previous version.
-
-```ts
-await app.api.collections.posts.revertToVersion({
-  id: "post-123",
-  versionNumber: 3,
-});
-```
-
-## Context Parameter
-
-All operations accept an optional context:
-
-```ts
-{
-  accessMode?: "system" | "user";  // Default: "system"
-  session?: Session | null;         // Auth session
-  locale?: string;                  // Locale for localized fields
-  stage?: string;                   // Workflow stage for stage-aware reads/writes
-  db?: Database;                    // Database client (for transactions)
-}
-```
-
-## Related Pages
-
-- [Collections](/docs/server/collections) — Collection builder
-- [Query Operators](/docs/reference/query-operators) — Where clause operators
-- [Hooks API](/docs/reference/hooks-api) — Hook execution during CRUD
-- [Context & Transactions](/docs/server/context-and-transactions) — Transaction management

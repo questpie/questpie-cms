@@ -1,0 +1,51 @@
+---
+title: Global API
+description: Global builder methods reference.
+---
+
+# Global API
+
+## `global(name)`
+
+```ts
+import { global } from "#questpie";
+
+global(name: string)
+```
+
+### Builder Methods
+
+| Method | Signature | Description |
+|---|---|---|
+| `.fields()` | `(({ f }) => Record<string, Field>)` | Define data fields |
+| `.admin()` | `(({ c }) => AdminConfig)` | Admin UI metadata |
+| `.form()` | `(({ v, f }) => FormView)` | Form view config |
+| `.hooks()` | `(HooksConfig)` | Lifecycle hooks |
+| `.access()` | `(AccessConfig)` | Access control |
+| `.options()` | `(OptionsConfig)` | Timestamps, versioning |
+
+### `.access()` Options
+
+```ts
+.access({
+  read?: boolean | ((ctx) => boolean),
+  update?: boolean | ((ctx) => boolean),
+})
+```
+
+### Server API
+
+```ts
+// Read
+const value = await globals.siteSettings.get();
+
+// Update
+await globals.siteSettings.update({ shopName: "New Name" });
+```
+
+### Client API
+
+```ts
+const settings = await client.globals.siteSettings.get();
+await client.globals.siteSettings.update({ shopName: "New" });
+```

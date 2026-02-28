@@ -1,0 +1,67 @@
+---
+title: Database
+description: PostgreSQL with Drizzle ORM — schema generation, raw queries, and transactions.
+---
+
+# Database
+
+QuestPie uses **PostgreSQL** with **Drizzle ORM**. The database schema is generated from your collection and global definitions.
+
+## Configuration
+
+```ts title="questpie.config.ts"
+export default runtimeConfig({
+  db: {
+    url: process.env.DATABASE_URL || "postgres://localhost/myapp",
+  },
+});
+```
+
+## Schema Generation
+
+Codegen produces Drizzle table definitions from your collections. Each field maps to a column type:
+
+| Field | Drizzle Column |
+|---|---|
+| `f.text()` | `varchar` / `text` |
+| `f.number()` | `integer` |
+| `f.boolean()` | `boolean` |
+| `f.date()` | `date` |
+| `f.datetime()` | `timestamp` |
+| `f.select()` | `varchar` |
+| `f.json()` | `jsonb` |
+| `f.object()` | `jsonb` |
+| `f.array()` | `jsonb` |
+| `f.relation()` | `varchar` (FK) |
+
+## Raw Database Access
+
+Access Drizzle directly through the `db` context:
+
+```ts
+handler: async ({ db }) => {
+  const result = await db.execute(sql`
+    SELECT COUNT(*) as total FROM appointments
+    WHERE status = 'completed'
+  `);
+  return result;
+}
+```
+
+## Indexes
+
+Define indexes on collections:
+
+```ts
+import { uniqueIndex, index } from "drizzle-orm/pg-core";
+
+.indexes(({ table }) => [
+  uniqueIndex("posts_slug_unique").on(table.slug),
+  index("posts_status_idx").on(table.status),
+])
+```
+
+## Related Pages
+
+- [Migrations](/docs/production/migrations) — Schema versioning
+- [Collections](/docs/backend/data-modeling/collections) — Data models

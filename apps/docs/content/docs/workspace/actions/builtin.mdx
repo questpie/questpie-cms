@@ -1,0 +1,34 @@
+---
+title: Built-in Actions
+description: Default CRUD actions — create, save, delete, and duplicate.
+---
+
+# Built-in Actions
+
+The admin panel provides these actions automatically for every collection:
+
+| Action | Description | Location |
+|---|---|---|
+| **Create** | Create a new record | List view toolbar |
+| **Save** | Save changes to a record | Form view toolbar |
+| **Delete** | Delete a record | Form view toolbar, list view bulk |
+| **Duplicate** | Clone a record | Form view toolbar |
+
+## Access Control
+
+Actions respect your collection's access control rules:
+
+```ts
+.access({
+  create: ({ session }) => session?.user?.role === "admin",
+  update: ({ session }) => session?.user?.role === "admin",
+  delete: ({ session }) => session?.user?.role === "admin",
+})
+```
+
+If a user doesn't have `create` access, the "Create" button is hidden. Same for update (Save), delete, etc.
+
+## Related Pages
+
+- [Custom Actions](/docs/workspace/actions/custom) — Define your own actions
+- [Access Control](/docs/backend/rules/access-control) — Permission rules

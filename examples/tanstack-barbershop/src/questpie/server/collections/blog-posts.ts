@@ -100,7 +100,7 @@ export const blogPosts = collection("blog_posts")
 		beforeChange: async ({ data, operation, blog, }) => {
 			// Auto-generate slug from title on create (if not set)
 			if (operation === "create" && data.title && !data.slug) {
-				data.slug = (blog).generateSlug(data.title);
+				data.slug = blog.generateSlug(data.title);
 			}
 
 			// Always recompute reading time from content
@@ -109,7 +109,7 @@ export const blogPosts = collection("blog_posts")
 					typeof data.content === "string"
 						? data.content
 						: JSON.stringify(data.content);
-				data.readingTime = (blog).computeReadingTime(contentStr);
+				data.readingTime = blog.computeReadingTime(contentStr);
 			}
 
 			// Auto-extract excerpt if not provided
@@ -118,7 +118,7 @@ export const blogPosts = collection("blog_posts")
 					typeof data.content === "string"
 						? data.content
 						: JSON.stringify(data.content);
-				data.excerpt = (blog).extractExcerpt(contentStr);
+				data.excerpt = blog.extractExcerpt(contentStr);
 			}
 		},
 
@@ -141,7 +141,7 @@ export const blogPosts = collection("blog_posts")
 				}
 
 				// Enqueue subscriber notification
-				await (queue).notifyBlogSubscribers.publish({
+				await queue.notifyBlogSubscribers.publish({
 					postId: data.id,
 					title: data.title,
 					excerpt: data.excerpt || "",

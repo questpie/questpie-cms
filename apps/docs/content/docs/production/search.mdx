@@ -1,0 +1,38 @@
+---
+title: Search
+description: Full-text search with PostgreSQL and embedding-based search.
+---
+
+# Search
+
+QuestPie supports full-text search using PostgreSQL's built-in FTS capabilities and optional embedding-based semantic search.
+
+## PostgreSQL Full-Text Search
+
+Collections can be indexed for full-text search:
+
+```ts
+.searchable(["title", "body", "tags"])
+```
+
+## Client Search
+
+```ts
+const results = await client.search.search({
+  query: "haircut styles",
+  collections: ["posts", "services"],
+});
+```
+
+## Search Options
+
+| Option | Type | Description |
+|---|---|---|
+| `query` | `string` | Search query |
+| `collections` | `string[]` | Collections to search |
+| `limit` | `number` | Max results |
+
+## Related Pages
+
+- [Collections](/docs/backend/data-modeling/collections) — Data models
+- [Querying](/docs/frontend/querying) — Query operators

@@ -3,17 +3,17 @@
 // Typed factory functions with plugin extensions. Regenerate with: questpie generate
 
 // ── Core Imports ───────────────────────────────────────────
-import { CollectionBuilder, GlobalBuilder, type BuiltinFields, type EmptyCollectionState, type EmptyGlobalState } from "questpie";
+import { CollectionBuilder, GlobalBuilder, type EmptyCollectionState, type EmptyGlobalState } from "questpie";
 
-// ── Module import (for type extraction) ────────────────────
-import type _modulesArr from "../modules";
+// ── Module import (for type extraction + runtime fields) ──
+import _modulesArr from "../modules";
 
 // ── Plugin Imports ─────────────────────────────────────────
 import { type LocaleConfig, type GlobalHooksInput, type CollectionAccess, type ContextResolver } from "questpie";
 import { type AdminCollectionConfig, type AdminConfigContext, type ListViewConfig, type ListViewConfigContext, type FormViewConfig, type FormViewConfigContext, type PreviewConfig, type ServerActionsConfig, type ActionsConfigContext, type AdminGlobalConfig, type ServerBrandingConfig, type AdminLocaleConfig, type SidebarContribution, type DashboardContribution, createComponentProxy, createViewProxy, createFieldProxy, createActionProxy } from "@questpie/admin/server";
 
 // ════════════════════════════════════════════════════════════
-// Module type extraction — views, components, field types
+// Module type extraction — views, components, field types (all from modules)
 // ════════════════════════════════════════════════════════════
 
 type _FlattenModules<T> = T extends readonly (infer M)[]
@@ -21,16 +21,29 @@ type _FlattenModules<T> = T extends readonly (infer M)[]
   : never;
 type _AllModules = _FlattenModules<typeof _modulesArr>;
 
-// Views & components — extracted from module registrations
+// Module registry names — extracted from module registrations
 type _ExtractKeys<K extends string> = _AllModules extends infer M ? M extends Record<K, Record<infer V extends string, any>> ? V : never : never;
-type _ListViewNames = _ExtractKeys<"listViews"> | (string & {});
-type _EditViewNames = _ExtractKeys<"editViews"> | (string & {});
-type _ComponentNames = _ExtractKeys<"components"> | (string & {});
+type _ViewsNames = _ExtractKeys<"views"> | (string & {});
+type _ListViewsNames = _ExtractKeys<"listViews"> | (string & {});
+type _EditViewsNames = _ExtractKeys<"editViews"> | (string & {});
+type _ComponentsNames = _ExtractKeys<"components"> | (string & {});
+type _ComponentsNames_Strict = _ExtractKeys<"components">;
 
-// Field types — module-provided fields merged with builtins
+// Field types — all field types come from modules (starter, admin, etc.)
 type _U2I<U> = (U extends any ? (x: U) => void : never) extends (x: infer I) => void ? I : never;
 type _ModuleFieldTypes = _U2I<_AllModules extends infer M ? M extends { fields: infer F } ? F : never : never>;
-type _AllFieldTypes = [_ModuleFieldTypes] extends [never] ? BuiltinFields : BuiltinFields & _ModuleFieldTypes;
+type _AllFieldTypes = [_ModuleFieldTypes] extends [never] ? Record<string, never> : _ModuleFieldTypes;
+
+// ── Runtime: extract fields from modules ────────────────────
+function _extractModuleFields(modules: readonly any[]): Record<string, any> {
+	const merged: Record<string, any> = {};
+	for (const m of modules) {
+		if (m.fields) Object.assign(merged, m.fields);
+		if (m.modules) Object.assign(merged, _extractModuleFields(m.modules));
+	}
+	return merged;
+}
+const _allRuntimeFields = _extractModuleFields(_modulesArr);
 
 // ════════════════════════════════════════════════════════════
 // Type augmentations — generated from plugin registries
@@ -38,16 +51,27 @@ type _AllFieldTypes = [_ModuleFieldTypes] extends [never] ? BuiltinFields : Buil
 
 declare module "questpie" {
 	interface CollectionBuilder<TState> {
-		admin(configFn: AdminCollectionConfig | ((ctx: AdminConfigContext) => AdminCollectionConfig)): CollectionBuilder<TState>;
-		list(configFn: (ctx: ListViewConfigContext<TState extends { fieldDefinitions: infer F extends Record<string, any> } ? F : Record<string, any>>) => ListViewConfig): CollectionBuilder<TState>;
-		form(configFn: (ctx: FormViewConfigContext<TState extends { fieldDefinitions: infer F extends Record<string, any> } ? F : Record<string, any>>) => FormViewConfig): CollectionBuilder<TState>;
+		admin(configFn: AdminCollectionConfig | ((ctx: AdminConfigContext<_ComponentsNames>) => AdminCollectionConfig)): CollectionBuilder<TState>;
+		list(configFn: (ctx: ListViewConfigContext<TState extends { fieldDefinitions: infer F extends Record<string, any> } ? F : Record<string, any>, _ListViewsNames>) => ListViewConfig): CollectionBuilder<TState>;
+		form(configFn: (ctx: FormViewConfigContext<TState extends { fieldDefinitions: infer F extends Record<string, any> } ? F : Record<string, any>, _EditViewsNames>) => FormViewConfig): CollectionBuilder<TState>;
 		preview(config: PreviewConfig): CollectionBuilder<TState>;
-		actions(configFn: (ctx: ActionsConfigContext) => ServerActionsConfig): CollectionBuilder<TState>;
+		actions(configFn: (ctx: ActionsConfigContext<Record<string, unknown>, _ComponentsNames>) => ServerActionsConfig): CollectionBuilder<TState>;
 	}
 	interface GlobalBuilder<TState> {
-		admin(configFn: AdminGlobalConfig | ((ctx: AdminConfigContext) => AdminGlobalConfig)): GlobalBuilder<TState>;
-		form(configFn: (ctx: FormViewConfigContext<TState extends { fieldDefinitions: infer F extends Record<string, any> } ? F : Record<string, any>>) => FormViewConfig): GlobalBuilder<TState>;
+		admin(configFn: AdminGlobalConfig | ((ctx: AdminConfigContext<_ComponentsNames>) => AdminGlobalConfig)): GlobalBuilder<TState>;
+		form(configFn: (ctx: FormViewConfigContext<TState extends { fieldDefinitions: infer F extends Record<string, any> } ? F : Record<string, any>, _EditViewsNames>) => FormViewConfig): GlobalBuilder<TState>;
 	}
+	interface Registry {
+		views: Record<_ViewsNames, unknown>;
+		listViews: Record<_ListViewsNames, unknown>;
+		editViews: Record<_EditViewsNames, unknown>;
+		components: Record<_ComponentsNames, unknown>;
+	}
+	interface FieldTypeRegistry extends Record<keyof _AllFieldTypes, {}> {}
+}
+
+declare module "@questpie/admin/server" {
+	interface ComponentTypeRegistry extends Record<_ComponentsNames_Strict, {}> {}
 }
 
 // ════════════════════════════════════════════════════════════
@@ -175,7 +199,7 @@ export function collection<TName extends string>(name: TName): CollectionBuilder
 		output: undefined,
 		upload: undefined,
 		fieldDefinitions: {},
-		"~questpieApp": undefined,
+		"~questpieApp": { state: { fields: _allRuntimeFields } },
 	})) as any;
 }
 
@@ -193,7 +217,7 @@ export function global<TName extends string>(name: TName): GlobalBuilder<EmptyGl
 		hooks: {},
 		access: {},
 		fieldDefinitions: {},
-		"~questpieApp": undefined,
+		"~questpieApp": { state: { fields: _allRuntimeFields } },
 	})) as any;
 }
 

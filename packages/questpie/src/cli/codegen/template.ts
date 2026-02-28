@@ -8,11 +8,19 @@
  * 3. Calls createApp(definition, runtime) to create the app instance
  * 4. Exports the app and composed App type
  *
+ * All category-specific behavior (imports, types, runtime emission) is driven
+ * by CategoryDeclaration metadata from plugins. Categories without explicit
+ * metadata get sensible defaults matching the standard record pattern.
+ *
  * @see RFC-MODULE-ARCHITECTURE §9.1 (Root App — .generated/index.ts)
  */
 
-import type { DiscoveryResult } from "./discover.js";
-import type { CodegenPlugin, DiscoveredFile } from "./types.js";
+import type {
+	CategoryDeclaration,
+	CodegenPlugin,
+	DiscoveredFile,
+	DiscoveryResult,
+} from "./types.js";
 
 // ============================================================================
 // Template generation
@@ -52,12 +60,16 @@ export function generateTemplate(options: TemplateOptions): string {
 		extraEntities,
 	} = options;
 
+	// Collect category declarations from all plugins
+	const allDecls = collectCategoryDeclarations(plugins);
+	const declaredCatNames = new Set(allDecls.keys());
+
 	// modules.ts is required — new architecture only
 	const modulesFile = discovered.singles.get("modules") ?? null;
 	if (!modulesFile) {
 		throw new Error(
 			"[questpie] modules.ts is required. Create a modules.ts file in your questpie server directory.\n" +
-			"See: https://questpie.com/docs/modules",
+				"See: https://questpie.com/docs/modules",
 		);
 	}
 
@@ -87,115 +99,24 @@ export function generateTemplate(options: TemplateOptions): string {
 		lines.push("");
 	}
 
-	// Import collections
-	if (discovered.collections.size > 0) {
-		lines.push(
-			"// ── Collections ────────────────────────────────────────────",
-		);
-		for (const file of sortedValues(discovered.collections)) {
-			lines.push(importStatement(file));
-		}
-		lines.push("");
-	}
+	// ── Import declared categories (from plugin.categories) ────────
+	// These are emitted first, in plugin declaration order.
+	for (const [catName, fileMap] of discovered.categories) {
+		if (!declaredCatNames.has(catName)) continue;
+		if (fileMap.size === 0) continue;
 
-	// Import globals
-	if (discovered.globals.size > 0) {
-		lines.push(
-			"// ── Globals ────────────────────────────────────────────────",
-		);
-		for (const file of sortedValues(discovered.globals)) {
-			lines.push(importStatement(file));
-		}
-		lines.push("");
-	}
+		const decl = allDecls.get(catName)!;
+		const label = capitalize(catName);
+		lines.push(sectionComment(label));
 
-	// Import jobs
-	if (discovered.jobs.size > 0) {
-		lines.push(
-			"// ── Jobs ───────────────────────────────────────────────────",
-		);
-		for (const file of sortedValues(discovered.jobs)) {
-			lines.push(importStatement(file));
+		// Extra type imports (e.g. ServiceInstanceOf, MailerService)
+		if (decl.extraTypeImports) {
+			for (const imp of decl.extraTypeImports) {
+				lines.push(imp);
+			}
 		}
-		lines.push("");
-	}
 
-	// Import functions
-	if (discovered.functions.size > 0) {
-		lines.push(
-			"// ── Functions ──────────────────────────────────────────────",
-		);
-		for (const file of sortedValues(discovered.functions)) {
-			lines.push(importStatement(file));
-		}
-		lines.push("");
-	}
-
-	// Import routes
-	if (discovered.routes.size > 0) {
-		lines.push(
-			"// ── Routes ─────────────────────────────────────────────────",
-		);
-		for (const file of sortedValues(discovered.routes)) {
-			lines.push(importStatement(file));
-		}
-		lines.push("");
-	}
-
-	// Import messages
-	if (discovered.messages.size > 0) {
-		lines.push(
-			"// ── Messages ───────────────────────────────────────────────",
-		);
-		for (const file of sortedValues(discovered.messages)) {
-			lines.push(importStatement(file));
-		}
-		lines.push("");
-	}
-
-	// Import services
-	if (discovered.services.size > 0) {
-		lines.push(
-			"// ── Services ───────────────────────────────────────────────",
-		);
-		lines.push(
-			'import type { ServiceInstanceOf } from "questpie";',
-		);
-		for (const file of sortedValues(discovered.services)) {
-			lines.push(importStatement(file));
-		}
-		lines.push("");
-	}
-
-	// Import email templates
-	if (discovered.emails.size > 0) {
-		lines.push(
-			"// ── Emails ──────────────────────────────────────────────────",
-		);
-		lines.push('import type { MailerService } from "questpie";');
-		for (const file of sortedValues(discovered.emails)) {
-			lines.push(importStatement(file));
-		}
-		lines.push("");
-	}
-
-	// Import migrations
-	if (discovered.migrations.size > 0) {
-		lines.push(
-			"// ── Migrations ─────────────────────────────────────────────",
-		);
-		for (const file of sortedValues(discovered.migrations)) {
-			lines.push(importStatement(file));
-		}
-		lines.push("");
-	}
-
-	// Import seeds
-	if (discovered.seeds.size > 0) {
-		lines.push(
-			"// ── Seeds ──────────────────────────────────────────────────",
-		);
-		for (const file of sortedValues(discovered.seeds)) {
+		for (const file of sortedValues(fileMap)) {
 			lines.push(importStatement(file));
 		}
 		lines.push("");
@@ -211,7 +132,7 @@ export function generateTemplate(options: TemplateOptions): string {
 	}
 
 	// Import core singles (locale, hooks, access, context) — excluding modules (already imported)
-	const coreSingles = getCategorizedSingles(discovered.singles);
+	const coreSingles = getCategorizedSingles(discovered.singles, allDecls);
 	if (coreSingles.core.length > 0) {
 		lines.push(
 			"// ── Core Singles ───────────────────────────────────────────",
@@ -236,7 +157,7 @@ export function generateTemplate(options: TemplateOptions): string {
 	// Import spread singles (sidebar, dashboard — mergeStrategy: "spread")
 	for (const [stateKey, files] of discovered.spreads) {
 		if (files.length > 0) {
-			const label = stateKey.charAt(0).toUpperCase() + stateKey.slice(1);
+			const label = capitalize(stateKey);
 			lines.push(
 				`// ── ${label} (spread) ─────────────────────────────────────────`,
 			);
@@ -247,18 +168,18 @@ export function generateTemplate(options: TemplateOptions): string {
 		}
 	}
 
-	// Import custom (plugin-discovered directory files, e.g. blocks)
-	for (const [stateKey, fileMap] of discovered.custom) {
-		if (fileMap.size > 0) {
-			const label = stateKey.charAt(0).toUpperCase() + stateKey.slice(1);
-			lines.push(
-				`// ── ${label} ──────────────────────────────────────────────`,
-			);
-			for (const file of sortedValues(fileMap)) {
-				lines.push(importStatement(file));
-			}
-			lines.push("");
+	// ── Import undeclared categories (from plugin.discover directory patterns) ──
+	// These are categories without CategoryDeclaration metadata (e.g. blocks).
+	for (const [catName, fileMap] of discovered.categories) {
+		if (declaredCatNames.has(catName)) continue;
+		if (fileMap.size === 0) continue;
+
+		const label = capitalize(catName);
+		lines.push(sectionComment(label));
+		for (const file of sortedValues(fileMap)) {
+			lines.push(importStatement(file));
 		}
+		lines.push("");
 	}
 
 	// Extra plugin imports
@@ -286,123 +207,113 @@ export function generateTemplate(options: TemplateOptions): string {
 	lines.push(
 		"type _U2I<U> = (U extends any ? (x: U) => void : never) extends (x: infer I) => void ? I : never;",
 	);
+	lines.push(`type _Module = (typeof ${modulesFile.varName})[number];`);
 	lines.push(
-		`type _Module = (typeof ${modulesFile.varName})[number];`,
+		"type _MPRaw<K extends string> = _U2I<_Module extends infer M ? M extends Record<K, infer V> ? V : never : never>;",
 	);
 	lines.push(
-		'type _MPRaw<K extends string> = _U2I<_Module extends infer M ? M extends Record<K, infer V> ? V : never : never>;',
-	);
-	lines.push(
-		'type _MP<K extends string> = [_MPRaw<K>] extends [never] ? {} : _MPRaw<K>;',
+		"type _MP<K extends string> = [_MPRaw<K>] extends [never] ? {} : _MPRaw<K>;",
 	);
 	lines.push("");
 
-	// Extract each category
-	const categories = [
-		"collections",
-		"globals",
-		"jobs",
-		"functions",
-		"routes",
-		"services",
-	];
-	for (const cat of categories) {
-		const typeName = `_Module${cat.charAt(0).toUpperCase() + cat.slice(1)}`;
-		lines.push(`type ${typeName} = _MP<"${cat}">;`);
-	}
-	// Also extract custom keys (blocks, etc.) from modules
-	for (const [stateKey] of discovered.custom) {
-		const moduleTypeName = `_Module${stateKey.charAt(0).toUpperCase() + stateKey.slice(1)}`;
-		lines.push(`type ${moduleTypeName} = _MP<"${stateKey}">;`);
+	// ── _Module* type extraction for categories ──────────────────
+	for (const [catName, fileMap] of discovered.categories) {
+		const decl = allDecls.get(catName);
+		const shouldExtract = decl ? decl.extractFromModules !== false : true;
+		if (!shouldExtract) continue;
+
+		const moduleTypeName = deriveModuleTypeName(catName);
+		lines.push(`type ${moduleTypeName} = _MP<"${catName}">;`);
 	}
 	// Also extract spread keys (sidebar, dashboard, etc.) from modules
 	for (const [stateKey] of discovered.spreads) {
-		const moduleTypeName = `_Module${stateKey.charAt(0).toUpperCase() + stateKey.slice(1)}`;
+		const moduleTypeName = deriveModuleTypeName(stateKey);
 		lines.push(`type ${moduleTypeName} = _MP<"${stateKey}">;`);
 	}
 	lines.push("");
 
-	// AppCollections — module contributions + user overrides
-	emitTypeInterface(
-		lines,
-		"AppCollections",
-		"_ModuleCollections",
-		discovered.collections,
-	);
-	// AppGlobals — module contributions + user overrides
-	emitTypeInterface(lines, "AppGlobals", "_ModuleGlobals", discovered.globals);
-	// AppJobs — module contributions + user overrides
-	emitTypeInterface(lines, "AppJobs", "_ModuleJobs", discovered.jobs);
+	// ── App* type interfaces for each category ───────────────────
+	for (const [catName, fileMap] of discovered.categories) {
+		const decl = allDecls.get(catName);
+		const typeEmit = decl?.typeEmit ?? "standard";
+		const appTypeName = deriveAppTypeName(catName, decl);
+		const moduleTypeName = deriveModuleTypeName(catName);
 
-	// AppFunctions — module contributions + user overrides (nested from directory layout)
-	{
-		const hasUser = discovered.functions.size > 0;
-		lines.push(
-			"/** All functions in the app (modules + user, user overrides) */",
-		);
-		if (hasUser) {
-			lines.push("export type AppFunctions = _ModuleFunctions & {");
-			const nested = buildNestedFunctions(discovered.functions);
-			emitNestedTypeObject(lines, nested, 1);
-			lines.push("};");
-		} else {
-			lines.push("export type AppFunctions = _ModuleFunctions;");
-		}
-		lines.push("");
-	}
-
-	// AppRoutes — module contributions + user overrides
-	emitTypeInterface(lines, "AppRoutes", "_ModuleRoutes", discovered.routes);
-
-	// AppServices — user services with typed instances
-	{
-		const hasUserServices = discovered.services.size > 0;
-		lines.push(
-			"/** All services in the app (modules + user, user overrides). Values are service instances. */",
-		);
-		if (hasUserServices) {
-			lines.push("export type AppServices = _ModuleServices & {");
-			for (const file of sortedValues(discovered.services)) {
-				lines.push(`\t${safeKey(file.key)}: ServiceInstanceOf<typeof ${file.varName}>;`);
+		switch (typeEmit) {
+			case "standard": {
+				emitTypeInterface(lines, appTypeName, moduleTypeName, fileMap);
+				break;
 			}
-			lines.push("};");
-		} else {
-			lines.push("export type AppServices = _ModuleServices;");
-		}
-		lines.push("");
-	}
-
-	// AppEmailTemplates — typed record for email.sendTemplate()
-	{
-		const hasEmails = discovered.emails.size > 0;
-		lines.push("/** All email templates in the app — use with email.sendTemplate() */");
-		if (hasEmails) {
-			lines.push("export type AppEmailTemplates = {");
-			for (const file of sortedValues(discovered.emails)) {
-				lines.push(`\t${safeKey(file.key)}: typeof ${file.varName};`);
+			case "functions": {
+				const hasUser = fileMap.size > 0;
+				lines.push(
+					"/** All functions in the app (modules + user, user overrides) */",
+				);
+				if (hasUser) {
+					lines.push(`export type ${appTypeName} = ${moduleTypeName} & {`);
+					const nested = buildNestedFunctions(fileMap);
+					emitNestedTypeObject(lines, nested, 1);
+					lines.push("};");
+				} else {
+					lines.push(`export type ${appTypeName} = ${moduleTypeName};`);
+				}
+				lines.push("");
+				break;
 			}
-			lines.push("};");
-		} else {
-			lines.push("export type AppEmailTemplates = Record<string, never>;");
+			case "services": {
+				const hasUser = fileMap.size > 0;
+				lines.push(
+					"/** All services in the app (modules + user, user overrides). Values are service instances. */",
+				);
+				if (hasUser) {
+					lines.push(`export type ${appTypeName} = ${moduleTypeName} & {`);
+					for (const file of sortedValues(fileMap)) {
+						lines.push(
+							`\t${safeKey(file.key)}: ServiceInstanceOf<typeof ${file.varName}>;`,
+						);
+					}
+					lines.push("};");
+				} else {
+					lines.push(`export type ${appTypeName} = ${moduleTypeName};`);
+				}
+				lines.push("");
+				break;
+			}
+			case "emails": {
+				const hasFiles = fileMap.size > 0;
+				lines.push(
+					"/** All email templates in the app — use with email.sendTemplate() */",
+				);
+				if (hasFiles) {
+					lines.push(`export type ${appTypeName} = {`);
+					for (const file of sortedValues(fileMap)) {
+						lines.push(`\t${safeKey(file.key)}: typeof ${file.varName};`);
+					}
+					lines.push("};");
+				} else {
+					lines.push(`export type ${appTypeName} = Record<string, never>;`);
+				}
+				lines.push("");
+				break;
+			}
+			case "messages": {
+				if (fileMap.size > 0) {
+					lines.push(
+						"/** Message keys — union of all keys from all locales */",
+					);
+					const msgParts = sortedValues(fileMap).map(
+						(f) => `keyof typeof ${f.varName}`,
+					);
+					lines.push(`export type AppMessageKeys = ${msgParts.join(" | ")};`);
+					lines.push("");
+				}
+				break;
+			}
+			case "none": {
+				// No type emitted (migrations, seeds)
+				break;
+			}
 		}
-		lines.push("");
-	}
-
-	// AppBlocks and other custom plugin types — module contributions + user overrides
-	for (const [stateKey, fileMap] of discovered.custom) {
-		const typeName = `App${stateKey.charAt(0).toUpperCase() + stateKey.slice(1)}`;
-		const moduleTypeName = `_Module${stateKey.charAt(0).toUpperCase() + stateKey.slice(1)}`;
-		emitTypeInterface(lines, typeName, moduleTypeName, fileMap);
-	}
-
-	// AppMessageKeys
-	if (discovered.messages.size > 0) {
-		lines.push("/** Message keys — union of all keys from all locales */");
-		const msgParts = sortedValues(discovered.messages).map(
-			(f) => `keyof typeof ${f.varName}`,
-		);
-		lines.push(`export type AppMessageKeys = ${msgParts.join(" | ")};`);
-		lines.push("");
 	}
 
 	// Extra type declarations from plugins
@@ -413,24 +324,27 @@ export function generateTemplate(options: TemplateOptions): string {
 		lines.push("");
 	}
 
-	// _AppInternal — internal Questpie<> type used only for type derivation
-	// Not exported — users see App (standalone interface) and AppContext (augmented)
+	// ── _AppInternal — internal Questpie<> type ──────────────────
 	{
 		const stateMembers: string[] = [];
-		stateMembers.push("\tcollections: AppCollections;");
-		stateMembers.push("\tglobals: AppGlobals;");
-		stateMembers.push("\tjobs: AppJobs;");
-		stateMembers.push("\tfunctions: AppFunctions;");
-		stateMembers.push("\troutes: AppRoutes;");
-		stateMembers.push("\tservices: AppServices;");
-		for (const [stateKey] of discovered.custom) {
-			const typeName = `App${stateKey.charAt(0).toUpperCase() + stateKey.slice(1)}`;
-			stateMembers.push(`\t${stateKey}: ${typeName};`);
-		}
-		if (discovered.messages.size > 0)
-			stateMembers.push('\t"~messageKeys": AppMessageKeys;');
 
-		lines.push("/** @internal — used only for type derivation, not exported */");
+		for (const [catName] of discovered.categories) {
+			const decl = allDecls.get(catName);
+			const include = decl ? decl.includeInAppState !== false : true;
+			if (!include) continue;
+			const appTypeName = deriveAppTypeName(catName, decl);
+			stateMembers.push(`\t${catName}: ${appTypeName};`);
+		}
+
+		// Messages — special ~messageKeys member
+		const messagesMap = discovered.categories.get("messages");
+		if (messagesMap && messagesMap.size > 0) {
+			stateMembers.push('\t"~messageKeys": AppMessageKeys;');
+		}
+
+		lines.push(
+			"/** @internal — used only for type derivation, not exported */",
+		);
 		lines.push("type _AppInternal = Questpie<QuestpieConfig & {");
 		for (const member of stateMembers) {
 			lines.push(member);
@@ -440,74 +354,97 @@ export function generateTemplate(options: TemplateOptions): string {
 	}
 
 	// ── AppContext augmentation — auto-types ALL handlers ──────
-	// Uses `declare module "questpie"` to augment the empty AppContext interface
-	// from the core package. Every hook, access rule, function, job, and route
-	// handler automatically gets these typed properties.
-	lines.push("// ── AppContext augmentation — auto-types ALL handlers ──────");
-	lines.push('declare module "questpie" {');
-	lines.push("\tinterface AppContext {");
-	lines.push("\t\t// Infrastructure");
-	lines.push("\t\tdb: _AppInternal['db'];");
-	if (discovered.emails.size > 0) {
-		lines.push("\t\temail: MailerService<AppEmailTemplates>;");
-	} else {
-		lines.push("\t\temail: _AppInternal['email'];");
-	}
-	lines.push("\t\tqueue: QueueClient<AppJobs>;");
-	lines.push("\t\tstorage: _AppInternal['storage'];");
-	lines.push("\t\tkv: _AppInternal['kv'];");
-	lines.push("\t\tlogger: _AppInternal['logger'];");
-	lines.push("\t\tsearch: _AppInternal['search'];");
-	lines.push("\t\trealtime: _AppInternal['realtime'];");
-	lines.push("");
-	lines.push("\t\t// Entity APIs");
-	lines.push("\t\tcollections: _AppInternal['api']['collections'];");
-	lines.push("\t\tglobals: _AppInternal['api']['globals'];");
-	lines.push("");
-	lines.push("\t\t// Request-scoped");
-	lines.push("\t\tsession: _AppInternal['auth'] extends { api: { getSession: (...args: any[]) => Promise<infer TSession> } } ? NonNullable<TSession> | null : null;");
-	if (discovered.messages.size > 0) {
-		lines.push("\t\tt: (key: AppMessageKeys | (string & {}), params?: Record<string, unknown>, locale?: string) => string;");
-	} else {
-		lines.push("\t\tt: (key: string, params?: Record<string, unknown>, locale?: string) => string;");
-	}
+	{
+		const emailsCat = discovered.categories.get("emails");
+		const hasEmails = emailsCat && emailsCat.size > 0;
+		const emailsTypeName = deriveAppTypeName("emails", allDecls.get("emails"));
 
-	// User services — flat on context
-	if (discovered.services.size > 0) {
-		lines.push("");
-		lines.push("\t\t// User services");
-		for (const file of sortedValues(discovered.services)) {
-			lines.push(`\t\t${safeKey(file.key)}: ServiceInstanceOf<typeof ${file.varName}>;`);
+		const messagesCat = discovered.categories.get("messages");
+		const hasMessages = messagesCat && messagesCat.size > 0;
+
+		const servicesCat = discovered.categories.get("services");
+		const hasServices = servicesCat && servicesCat.size > 0;
+
+		lines.push(
+			"// ── AppContext augmentation — auto-types ALL handlers ──────",
+		);
+		lines.push('declare module "questpie" {');
+		lines.push("\tinterface AppContext {");
+		lines.push("\t\t// Infrastructure");
+		lines.push("\t\tdb: _AppInternal['db'];");
+		if (hasEmails) {
+			lines.push(`\t\temail: MailerService<${emailsTypeName}>;`);
+		} else {
+			lines.push("\t\temail: _AppInternal['email'];");
 		}
-	}
+		lines.push("\t\tqueue: QueueClient<AppJobs>;");
+		lines.push("\t\tstorage: _AppInternal['storage'];");
+		lines.push("\t\tkv: _AppInternal['kv'];");
+		lines.push("\t\tlogger: _AppInternal['logger'];");
+		lines.push("\t\tsearch: _AppInternal['search'];");
+		lines.push("\t\trealtime: _AppInternal['realtime'];");
+		lines.push("");
+		lines.push("\t\t// Entity APIs");
+		lines.push("\t\tcollections: _AppInternal['api']['collections'];");
+		lines.push("\t\tglobals: _AppInternal['api']['globals'];");
+		lines.push("");
+		lines.push("\t\t// Request-scoped");
+		lines.push(
+			"\t\tsession: _AppInternal['auth'] extends { api: { getSession: (...args: any[]) => Promise<infer TSession> } } ? NonNullable<TSession> | null : null;",
+		);
+		if (hasMessages) {
+			lines.push(
+				"\t\tt: (key: AppMessageKeys | (string & {}), params?: Record<string, unknown>, locale?: string) => string;",
+			);
+		} else {
+			lines.push(
+				"\t\tt: (key: string, params?: Record<string, unknown>, locale?: string) => string;",
+			);
+		}
 
-	lines.push("\t}");
+		// Services — flat on context (driven by appContextEmit: "services")
+		if (hasServices) {
+			lines.push("");
+			lines.push("\t\t// User services");
+			for (const file of sortedValues(servicesCat!)) {
+				lines.push(
+					`\t\t${safeKey(file.key)}: ServiceInstanceOf<typeof ${file.varName}>;`,
+				);
+			}
+		}
 
-	// Registry — augment with all app categories for autocomplete
-	lines.push("\tinterface Registry {");
-	lines.push("\t\tcollections: AppCollections;");
-	lines.push("\t\tglobals: AppGlobals;");
-	lines.push("\t\tjobs: AppJobs;");
-	lines.push("\t\tfunctions: AppFunctions;");
-	lines.push("\t\troutes: AppRoutes;");
-	lines.push("\t\tservices: AppServices;");
-	if (discovered.emails.size > 0) {
-		lines.push("\t\temails: AppEmailTemplates;");
-	}
-	for (const [stateKey] of discovered.custom) {
-		const typeName = `App${stateKey.charAt(0).toUpperCase() + stateKey.slice(1)}`;
-		lines.push(`\t\t${stateKey}: ${typeName};`);
-	}
-	lines.push("\t}");
+		lines.push("\t}");
 
-	lines.push("}");
-	lines.push("");
+		// Registry — augment with all app categories for autocomplete
+		lines.push("\tinterface Registry {");
+		for (const [catName] of discovered.categories) {
+			const decl = allDecls.get(catName);
+			const regKey = decl?.registryKey;
+
+			// Categories without metadata default to registryKey: true
+			const shouldInclude = decl ? regKey !== false : true;
+			if (!shouldInclude) continue;
+
+			// Determine the registry key name
+			const keyName = typeof regKey === "string" ? regKey : catName;
+			const appTypeName = deriveAppTypeName(catName, decl);
+			lines.push(`\t\t${keyName}: ${appTypeName};`);
+		}
+		lines.push("\t}");
+
+		lines.push("}");
+		lines.push("");
+	}
 
 	// AppConfig — flat type for client APIs (createClient<AppConfig>(), createAdminAuthClient<AppConfig>())
 	lines.push("/**");
 	lines.push(" * Flat config type for client APIs.");
-	lines.push(" * Use with `createClient<AppConfig>()` and `createAdminAuthClient<AppConfig>()`.");
-	lines.push(" * For handler context, use `AppContext` (auto-typed via module augmentation).");
+	lines.push(
+		" * Use with `createClient<AppConfig>()` and `createAdminAuthClient<AppConfig>()`.",
+	);
+	lines.push(
+		" * For handler context, use `AppContext` (auto-typed via module augmentation).",
+	);
 	lines.push(" */");
 	lines.push("export type AppConfig = {");
 	lines.push("\tcollections: AppCollections;");
@@ -518,7 +455,6 @@ export function generateTemplate(options: TemplateOptions): string {
 	lines.push("};");
 	lines.push("");
 
-
 	// ════════════════════════════════════════════════════════════
 	// RUNTIME — create the app instance
 	// ════════════════════════════════════════════════════════════
@@ -528,13 +464,17 @@ export function generateTemplate(options: TemplateOptions): string {
 	lines.push("// ════════════════════════════════════════════════════════════");
 	lines.push("");
 
-	emitNewArchitectureRuntime(lines, discovered, extraEntities);
+	emitNewArchitectureRuntime(lines, discovered, allDecls, extraEntities);
 
 	// createContext() — typed context factory for scripts/standalone usage
 	lines.push("// ── createContext — typed context for scripts ──────────────");
 	lines.push("/**");
-	lines.push(" * Create a typed AppContext for use in scripts, tests, or standalone code.");
-	lines.push(" * Resolves all services and provides flat access to infrastructure.");
+	lines.push(
+		" * Create a typed AppContext for use in scripts, tests, or standalone code.",
+	);
+	lines.push(
+		" * Resolves all services and provides flat access to infrastructure.",
+	);
 	lines.push(" *");
 	lines.push(" * @example");
 	lines.push(" * ```ts");
@@ -554,13 +494,17 @@ export function generateTemplate(options: TemplateOptions): string {
 	lines.push("\t\tdb: (app as any).db,");
 	lines.push("\t\tsession: reqCtx.session,");
 	lines.push("\t});");
-	lines.push("\treturn { ...services, locale: reqCtx.locale } as unknown as AppContext;");
+	lines.push(
+		"\treturn { ...services, locale: reqCtx.locale } as unknown as AppContext;",
+	);
 	lines.push("}");
 	lines.push("");
 
 	// Re-export factories (collection, global, singletons) so users can import from #questpie
 	lines.push("// ── Re-export factories for user code ──────────────────────");
-	lines.push("// Import from #questpie: import { collection, global, branding, ... } from '#questpie';");
+	lines.push(
+		"// Import from #questpie: import { collection, global, branding, ... } from '#questpie';",
+	);
 	const factoryNames = getFactoryNames(plugins);
 	lines.push(`export { ${factoryNames.join(", ")} } from "./factories.js";`);
 	lines.push("");
@@ -582,18 +526,22 @@ export function generateTemplate(options: TemplateOptions): string {
 
 /**
  * Emit the createApp(definition, _runtime) call for new architecture.
+ * Iterates over all discovered categories using CategoryDeclaration metadata
+ * to determine how each category should be emitted (record, nested, array).
+ *
  * @see RFC-MODULE-ARCHITECTURE §9.1
  */
 function emitNewArchitectureRuntime(
 	lines: string[],
 	discovered: DiscoveryResult,
+	allDecls: Map<string, CategoryDeclaration>,
 	extraEntities?: Map<string, string>,
 ): void {
 	const modulesFile = discovered.singles.get("modules");
 	if (!modulesFile) {
 		throw new Error("emitNewArchitectureRuntime called without modules.ts");
 	}
-	const coreSingles = getCategorizedSingles(discovered.singles);
+	const coreSingles = getCategorizedSingles(discovered.singles, allDecls);
 
 	lines.push("export const app = createApp(");
 	lines.push("\t{");
@@ -601,87 +549,38 @@ function emitNewArchitectureRuntime(
 	// Modules
 	lines.push(`\t\tmodules: ${modulesFile.varName} as any,`);
 
-	// Collections
-	if (discovered.collections.size > 0) {
-		lines.push("\t\tcollections: {");
-		for (const file of sortedValues(discovered.collections)) {
-			lines.push(`\t\t\t${safeKey(file.key)}: ${file.varName},`);
+	// ── Emit all categories ──────────────────────────────────────
+	for (const [catName, fileMap] of discovered.categories) {
+		if (fileMap.size === 0) continue;
+
+		const decl = allDecls.get(catName);
+		const emitMode = decl?.emit ?? "record";
+		const createAppKey = decl?.createAppKey ?? catName;
+
+		switch (emitMode) {
+			case "record": {
+				lines.push(`\t\t${safeKey(createAppKey)}: {`);
+				for (const file of sortedValues(fileMap)) {
+					lines.push(`\t\t\t${safeKey(file.key)}: ${file.varName},`);
+				}
+				lines.push("\t\t},");
+				break;
+			}
+			case "nested": {
+				lines.push(`\t\t${safeKey(createAppKey)}: {`);
+				const nested = buildNestedFunctions(fileMap);
+				emitNestedObject(lines, nested, 3);
+				lines.push("\t\t},");
+				break;
+			}
+			case "array": {
+				const vars = sortedValues(fileMap)
+					.map((f) => f.varName)
+					.join(", ");
+				lines.push(`\t\t${safeKey(createAppKey)}: [${vars}],`);
+				break;
+			}
 		}
-		lines.push("\t\t},");
-	}
-
-	// Globals
-	if (discovered.globals.size > 0) {
-		lines.push("\t\tglobals: {");
-		for (const file of sortedValues(discovered.globals)) {
-			lines.push(`\t\t\t${safeKey(file.key)}: ${file.varName},`);
-		}
-		lines.push("\t\t},");
-	}
-
-	// Jobs
-	if (discovered.jobs.size > 0) {
-		lines.push("\t\tjobs: {");
-		for (const file of sortedValues(discovered.jobs)) {
-			lines.push(`\t\t\t${safeKey(file.key)}: ${file.varName},`);
-		}
-		lines.push("\t\t},");
-	}
-
-	// Functions — build nested object from dot-separated keys
-	if (discovered.functions.size > 0) {
-		lines.push("\t\tfunctions: {");
-		const nested = buildNestedFunctions(discovered.functions);
-		emitNestedObject(lines, nested, 3);
-		lines.push("\t\t},");
-	}
-
-	// Routes
-	if (discovered.routes.size > 0) {
-		lines.push("\t\troutes: {");
-		for (const file of sortedValues(discovered.routes)) {
-			lines.push(`\t\t\t${safeKey(file.key)}: ${file.varName},`);
-		}
-		lines.push("\t\t},");
-	}
-
-	// Messages
-	if (discovered.messages.size > 0) {
-		lines.push("\t\tmessages: {");
-		for (const file of sortedValues(discovered.messages)) {
-			lines.push(`\t\t\t${safeKey(file.key)}: ${file.varName},`);
-		}
-		lines.push("\t\t},");
-	}
-
-	// Services
-	if (discovered.services.size > 0) {
-		lines.push("\t\tservices: {");
-		for (const file of sortedValues(discovered.services)) {
-			lines.push(`\t\t\t${safeKey(file.key)}: ${file.varName},`);
-		}
-		lines.push("\t\t},");
-	}
-
-	// Email templates
-	if (discovered.emails.size > 0) {
-		lines.push("\t\temailTemplates: {");
-		for (const file of sortedValues(discovered.emails)) {
-			lines.push(`\t\t\t${safeKey(file.key)}: ${file.varName},`);
-		}
-		lines.push("\t\t},");
-	}
-
-	// Migrations — flat array sorted by key (filename = migration ID)
-	if (discovered.migrations.size > 0) {
-		const migVars = sortedValues(discovered.migrations).map((f) => f.varName).join(", ");
-		lines.push(`\t\tmigrations: [${migVars}],`);
-	}
-
-	// Seeds — flat array sorted by key
-	if (discovered.seeds.size > 0) {
-		const seedVars = sortedValues(discovered.seeds).map((f) => f.varName).join(", ");
-		lines.push(`\t\tseeds: [${seedVars}],`);
 	}
 
 	// Auth
@@ -701,22 +600,13 @@ function emitNewArchitectureRuntime(
 		lines.push(`\t\t${safeKey(file.key)}: ${file.varName} as any,`);
 	}
 
-	// Custom directory patterns (plugin-discovered, e.g. blocks)
-	for (const [stateKey, fileMap] of discovered.custom) {
-		if (fileMap.size > 0) {
-			lines.push(`\t\t${safeKey(stateKey)}: {`);
-			for (const file of sortedValues(fileMap)) {
-				lines.push(`\t\t\t${safeKey(file.key)}: ${file.varName},`);
-			}
-			lines.push("\t\t},");
-		}
-	}
-
 	// Spread singles (sidebar, dashboard — mergeStrategy: "spread")
 	// Each stateKey maps to an array of files spread into one array.
 	for (const [stateKey, files] of discovered.spreads) {
 		if (files.length > 0) {
-			const spread = files.map((f) => `...(${f.varName} as any ?? [])`).join(", ");
+			const spread = files
+				.map((f) => `...(${f.varName} as any ?? [])`)
+				.join(", ");
 			lines.push(`\t\t${safeKey(stateKey)}: [${spread}],`);
 		}
 	}
@@ -735,17 +625,84 @@ function emitNewArchitectureRuntime(
 }
 
 // ============================================================================
+// Category metadata helpers
+// ============================================================================
+
+/**
+ * Collect all CategoryDeclaration metadata from all plugins.
+ * Returns a map of category name → declaration.
+ */
+function collectCategoryDeclarations(
+	plugins?: CodegenPlugin[],
+): Map<string, CategoryDeclaration> {
+	const result = new Map<string, CategoryDeclaration>();
+	if (!plugins) return result;
+	for (const plugin of plugins) {
+		if (!plugin.categories) continue;
+		for (const [name, decl] of Object.entries(plugin.categories)) {
+			result.set(name, decl);
+		}
+	}
+	return result;
+}
+
+function capitalize(s: string): string {
+	return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+/**
+ * Derive the App type name for a category.
+ * Uses createAppKey if set, otherwise uses the category name.
+ * e.g., "collections" → "AppCollections", "emails" (createAppKey: "emailTemplates") → "AppEmailTemplates"
+ */
+function deriveAppTypeName(
+	catName: string,
+	decl?: CategoryDeclaration,
+): string {
+	const key = decl?.createAppKey ?? catName;
+	return `App${capitalize(key)}`;
+}
+
+/**
+ * Derive the _Module type name for a category.
+ * e.g., "collections" → "_ModuleCollections"
+ */
+function deriveModuleTypeName(catName: string): string {
+	return `_Module${capitalize(catName)}`;
+}
+
+/**
+ * Generate a section comment with consistent formatting.
+ */
+function sectionComment(label: string): string {
+	const base = `// ── ${label} `;
+	const dashes = "─".repeat(Math.max(0, 62 - base.length));
+	return base + dashes;
+}
+
+// ============================================================================
 // Singles categorization
 // ============================================================================
 
-/** Well-known core single file keys (always available, not plugin-discovered). */
-const CORE_SINGLE_KEYS = new Set([
-	"modules",
-	"locale",
-	"hooks",
-	"defaultAccess",
-	"contextResolver",
-]);
+/**
+ * Well-known core single file keys.
+ * Determined from corePlugin().discover patterns.
+ * Used to separate "Core Singles" from "Plugin Singles" in generated comments.
+ */
+function getCoreSingleKeys(
+	allDecls: Map<string, CategoryDeclaration>,
+): Set<string> {
+	// Core singles are those discovered by any plugin that also declares categories.
+	// In practice, this is the core plugin which declares modules, locale, hooks, etc.
+	// We use a simple heuristic: keys that match well-known core patterns.
+	return new Set([
+		"modules",
+		"locale",
+		"hooks",
+		"defaultAccess",
+		"contextResolver",
+	]);
+}
 
 interface CategorizedSingles {
 	/** Core singles (locale, hooks, access, context) — NOT modules. */
@@ -760,13 +717,15 @@ interface CategorizedSingles {
  */
 function getCategorizedSingles(
 	singles: Map<string, DiscoveredFile>,
+	allDecls: Map<string, CategoryDeclaration>,
 ): CategorizedSingles {
+	const coreSingleKeys = getCoreSingleKeys(allDecls);
 	const core: DiscoveredFile[] = [];
 	const plugin: DiscoveredFile[] = [];
 
 	for (const [key, file] of singles) {
 		if (key === "modules") continue; // handled separately
-		if (CORE_SINGLE_KEYS.has(key)) {
+		if (coreSingleKeys.has(key)) {
 			core.push(file);
 		} else {
 			plugin.push(file);
@@ -786,7 +745,7 @@ function getCategorizedSingles(
 
 /**
  * Emit a type interface or type alias for a category (collections, globals, etc.).
- * When user has entities, emits `export interface X extends _ModuleX { ... }`.
+ * When user has entities, emits `export type X = _ModuleX & { ... }`.
  * Otherwise emits `export type X = _ModuleX;`.
  */
 function emitTypeInterface(

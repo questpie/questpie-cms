@@ -1,0 +1,24 @@
+---
+title: Operate in Production
+description: Infrastructure services — database, auth, storage, email, queue, search, realtime.
+---
+
+# Operate in Production
+
+QuestPie provides adapters for common infrastructure services. Configure them in your runtime config.
+
+## Services
+
+| Service | Default Adapter | Description |
+|---|---|---|
+| [Database](/docs/production/database) | PostgreSQL + Drizzle | Primary data store |
+| [Migrations](/docs/production/migrations) | Built-in | Schema versioning |
+| [Authentication](/docs/production/authentication) | Better Auth | Sessions, providers |
+| [Storage](/docs/production/storage) | Flydrive (S3/local) | File uploads |
+| [Email](/docs/production/email) | Nodemailer | Transactional email |
+| [Queue](/docs/production/queue) | pg-boss | Background jobs |
+| [Search](/docs/production/search) | PG full-text search | Text search |
+| [Realtime](/docs/production/realtime) | pgNotify / Redis Streams | Live updates |
+| [KV](/docs/production/kv) | Redis / in-memory | Key-value store |
+| [Logger](/docs/production/logger) | Pino | Structured logging |
+| [Deployment](/docs/production/deployment) | Docker | Production setup |

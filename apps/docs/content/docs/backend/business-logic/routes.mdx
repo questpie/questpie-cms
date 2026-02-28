@@ -1,0 +1,107 @@
+---
+title: Routes
+description: Raw HTTP routes for webhooks, custom APIs, and endpoints that don't fit the collection/function pattern.
+---
+
+# Routes
+
+Routes give you raw HTTP request/response handling for cases that don't fit the collection or function pattern — webhooks, OAuth callbacks, health checks, file downloads.
+
+## Defining a Route
+
+```ts title="routes/health.ts"
+import { route } from "questpie";
+
+export default route({
+  method: "GET",
+  handler: async ({ request }) => {
+    return new Response(JSON.stringify({ status: "ok" }), {
+      headers: { "Content-Type": "application/json" },
+    });
+  },
+});
+```
+
+Place route files in `routes/`. The filename becomes the path: `health.ts` → `/health`.
+
+## Route Methods
+
+```ts
+route({
+  method: "GET",    // or "POST", "PATCH", "DELETE"
+  handler: async ({ request, db, session, collections }) => {
+    return new Response("OK");
+  },
+})
+```
+
+## Handler Context
+
+Route handlers receive `AppContext` plus the raw `Request`:
+
+| Property | Description |
+|---|---|
+| `request` | Standard `Request` object |
+| `db` | Database instance |
+| `session` | Current auth session |
+| `collections` | Typed collection API |
+| `queue` | Queue client |
+
+## Nested Routes
+
+Subdirectories create nested paths:
+
+```text
+routes/
+├── health.ts             → /health
+├── webhooks/
+│   ├── stripe.ts         → /webhooks/stripe
+│   └── github.ts         → /webhooks/github
+```
+
+## Use Cases
+
+### Webhook handler
+
+```ts title="routes/webhooks/stripe.ts"
+import { route } from "questpie";
+
+export default route({
+  method: "POST",
+  handler: async ({ request, db }) => {
+    const body = await request.text();
+    const signature = request.headers.get("stripe-signature");
+
+    // Verify and process webhook
+    // ...
+
+    return new Response("OK", { status: 200 });
+  },
+});
+```
+
+### File download
+
+```ts title="routes/export.ts"
+import { route } from "questpie";
+
+export default route({
+  method: "GET",
+  handler: async ({ collections }) => {
+    const data = await collections.appointments.find({ limit: 1000 });
+    const csv = generateCSV(data.docs);
+
+    return new Response(csv, {
+      headers: {
+        "Content-Type": "text/csv",
+        "Content-Disposition": "attachment; filename=appointments.csv",
+      },
+    });
+  },
+});
+```
+
+## Related Pages
+
+- [Functions](/docs/backend/business-logic/functions) — For typed RPC endpoints
+- [Jobs](/docs/backend/business-logic/jobs) — Background processing

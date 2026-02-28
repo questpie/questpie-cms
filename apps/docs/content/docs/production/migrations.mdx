@@ -1,0 +1,97 @@
+---
+title: Migrations
+description: Database migrations — generate, up, down, push, fresh, reset.
+---
+
+# Migrations
+
+QuestPie provides CLI commands for database schema management.
+
+## Development: Push
+
+During development, use `push` to sync schema directly:
+
+```bash
+bunx questpie push
+```
+
+This applies schema changes without creating migration files.
+
+## Production: Migrations
+
+For production, use migration files for auditable schema changes:
+
+### Generate
+
+```bash
+bunx questpie migrate:generate
+```
+
+Creates a migration file in your configured directory.
+
+### Run migrations
+
+```bash
+bunx questpie migrate:up
+```
+
+### Rollback
+
+```bash
+bunx questpie migrate:down
+```
+
+### Fresh (destructive)
+
+Drop everything and re-run all migrations:
+
+```bash
+bunx questpie migrate:fresh
+```
+
+<Callout type="warn">
+Destroys all data. Development only.
+</Callout>
+
+### Reset
+
+Reset migration tracking state:
+
+```bash
+bunx questpie migrate:reset
+```
+
+## Configuration
+
+```ts title="questpie.config.ts"
+export default runtimeConfig({
+  cli: {
+    migrations: {
+      directory: "./src/migrations",
+    },
+  },
+});
+```
+
+## Seeds
+
+Populate the database with initial data:
+
+```bash
+bunx questpie seed:run
+```
+
+Seed files go in the configured seeds directory:
+
+```ts title="questpie.config.ts"
+cli: {
+  seeds: {
+    directory: "./src/seeds",
+  },
+}
+```
+
+## Related Pages
+
+- [Database](/docs/production/database) — PostgreSQL setup
+- [CLI](/docs/backend/architecture/cli) — All CLI commands

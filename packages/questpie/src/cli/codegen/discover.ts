@@ -11,9 +11,11 @@ import type { Dirent } from "node:fs";
 import { readdir, readFile, stat } from "node:fs/promises";
 import { basename, extname, join, relative } from "node:path";
 import type {
+	CategoryDeclaration,
 	CodegenPlugin,
 	DiscoveredFile,
 	DiscoverPattern,
+	DiscoveryResult,
 } from "./types.js";
 
 // ============================================================================
@@ -104,94 +106,42 @@ async function fileExists(path: string): Promise<boolean> {
 }
 
 // ============================================================================
-// Core discovery patterns
+// Category discovery helpers
 // ============================================================================
 
+/**
+ * Internal representation used during discovery — derived from CategoryDeclaration.
+ * Kept as an internal type to avoid exposing discovery internals.
+ */
 interface DiscoveryCategory {
 	/** Category name (e.g. "collections"). */
 	category: string;
-	/** Glob-like pattern description for logging. */
-	patterns: string[];
 	/** Directories to scan (relative to root). */
 	dirs: string[];
 	/** Whether to scan recursively (only for functions and routes). */
 	recursive: boolean;
 	/** Variable name prefix. */
 	prefix: string;
+	/** Key separator for recursive categories. */
+	keySeparator?: "." | "/";
 }
 
-const CORE_CATEGORIES: DiscoveryCategory[] = [
-	{
-		category: "collections",
-		patterns: ["collections/*.ts", "features/*/collections/*.ts"],
-		dirs: ["collections"],
-		recursive: false,
-		prefix: "coll",
-	},
-	{
-		category: "globals",
-		patterns: ["globals/*.ts", "features/*/globals/*.ts"],
-		dirs: ["globals"],
-		recursive: false,
-		prefix: "glob",
-	},
-	{
-		category: "jobs",
-		patterns: ["jobs/*.ts", "features/*/jobs/*.ts"],
-		dirs: ["jobs"],
-		recursive: false,
-		prefix: "job",
-	},
-	{
-		category: "functions",
-		patterns: ["functions/**/*.ts", "features/*/functions/**/*.ts"],
-		dirs: ["functions"],
-		recursive: true,
-		prefix: "fn",
-	},
-	{
-		category: "routes",
-		patterns: ["routes/**/*.ts", "features/*/routes/**/*.ts"],
-		dirs: ["routes"],
-		recursive: true,
-		prefix: "route",
-	},
-	{
-		category: "messages",
-		patterns: ["messages/*.ts"],
-		dirs: ["messages"],
-		recursive: false,
-		prefix: "msg",
-	},
-	{
-		category: "services",
-		patterns: ["services/*.ts", "features/*/services/*.ts"],
-		dirs: ["services"],
-		recursive: false,
-		prefix: "svc",
-	},
-	{
-		category: "emails",
-		patterns: ["emails/*.ts", "emails/*.tsx", "features/*/emails/*.ts", "features/*/emails/*.tsx"],
-		dirs: ["emails"],
-		recursive: false,
-		prefix: "email",
-	},
-	{
-		category: "migrations",
-		patterns: ["migrations/*.ts"],
-		dirs: ["migrations"],
-		recursive: false,
-		prefix: "mig",
-	},
-	{
-		category: "seeds",
-		patterns: ["seeds/*.ts"],
-		dirs: ["seeds"],
-		recursive: false,
-		prefix: "seed",
-	},
-];
+/**
+ * Convert a CategoryDeclaration from a plugin into a DiscoveryCategory
+ * used internally by the discovery loop.
+ */
+function toDiscoveryCategory(
+	name: string,
+	decl: CategoryDeclaration,
+): DiscoveryCategory {
+	return {
+		category: name,
+		dirs: decl.dirs,
+		recursive: decl.recursive ?? false,
+		prefix: decl.prefix,
+		keySeparator: decl.keySeparator,
+	};
+}
 
 // ============================================================================
 // Feature layout discovery
@@ -208,7 +158,9 @@ async function discoverFeatures(
 	const featuresDir = join(rootDir, "features");
 	let featureDirs: Dirent[];
 	try {
-		featureDirs = (await readdir(featuresDir, { withFileTypes: true })) as Dirent[];
+		featureDirs = (await readdir(featuresDir, {
+			withFileTypes: true,
+		})) as Dirent[];
 	} catch {
 		return results;
 	}
@@ -233,36 +185,16 @@ async function discoverFeatures(
 // Main discovery function
 // ============================================================================
 
-export interface DiscoveryResult {
-	collections: Map<string, DiscoveredFile>;
-	globals: Map<string, DiscoveredFile>;
-	jobs: Map<string, DiscoveredFile>;
-	functions: Map<string, DiscoveredFile>;
-	routes: Map<string, DiscoveredFile>;
-	messages: Map<string, DiscoveredFile>;
-	services: Map<string, DiscoveredFile>;
-	emails: Map<string, DiscoveredFile>;
-	migrations: Map<string, DiscoveredFile>;
-	seeds: Map<string, DiscoveredFile>;
-	auth: DiscoveredFile | null;
-	custom: Map<string, Map<string, DiscoveredFile>>;
-	/** Plugin-discovered single-file items (branding.ts, adminLocale.ts, etc.) */
-	singles: Map<string, DiscoveredFile>;
-	/**
-	 * Plugin-discovered spread items (sidebar.ts, dashboard.ts, etc.).
-	 * Each entry is an ordered list: root file first, then feature files alphabetically.
-	 * Used when the plugin declares `mergeStrategy: "spread"` — codegen spreads all
-	 * into a single array: `sidebar: [..._sidebar_root, ..._sidebar_admin]`.
-	 */
-	spreads: Map<string, DiscoveredFile[]>;
-}
-
 /**
  * Discover all entity files in the questpie root directory.
  *
+ * Iterates over all plugins' `categories` (directory-pattern categories)
+ * and `discover` (single/spread/custom patterns) to build a unified
+ * DiscoveryResult.
+ *
  * @param rootDir — Directory containing questpie.config.ts
  * @param outDir — .generated output directory (for computing relative import paths)
- * @param plugins — Optional codegen plugins that register additional discovery patterns
+ * @param plugins — Codegen plugins that declare categories and discovery patterns
  */
 export async function discoverFiles(
 	rootDir: string,
@@ -270,58 +202,53 @@ export async function discoverFiles(
 	plugins?: CodegenPlugin[],
 ): Promise<DiscoveryResult> {
 	const result: DiscoveryResult = {
-		collections: new Map(),
-		globals: new Map(),
-		jobs: new Map(),
-		functions: new Map(),
-		routes: new Map(),
-		messages: new Map(),
-		services: new Map(),
-		emails: new Map(),
-		migrations: new Map(),
-		seeds: new Map(),
+		categories: new Map(),
 		auth: null,
-		custom: new Map(),
 		singles: new Map(),
 		spreads: new Map(),
 	};
 
-	// Discover core categories
-	for (const category of CORE_CATEGORIES) {
-		const map = result[
-			category.category as keyof Omit<
-				DiscoveryResult,
-				"auth" | "custom" | "singles"
-			>
-		] as Map<string, DiscoveredFile> | undefined;
-		if (!map) continue;
+	// ── Phase 1: Discover all plugin-declared categories ──────
+	// Categories are directory-pattern categories like collections, globals, blocks, etc.
+	// Each plugin can declare categories; they're processed in plugin order.
+	if (plugins) {
+		for (const plugin of plugins) {
+			if (!plugin.categories) continue;
+			for (const [name, decl] of Object.entries(plugin.categories)) {
+				const category = toDiscoveryCategory(name, decl);
+				const map =
+					result.categories.get(name) ?? new Map<string, DiscoveredFile>();
 
-		// Scan by-type layout
-		for (const dir of category.dirs) {
-			const scanPath = join(rootDir, dir);
-			const files = await scanDir(scanPath, scanPath, category.recursive);
-			for (const relFile of files) {
-				const file = await processFile(
-					rootDir,
-					outDir,
-					join(dir, relFile),
-					category,
-				);
-				checkConflict(map, file, category.category);
-				map.set(file.key, file);
+				// Scan by-type layout
+				for (const dir of category.dirs) {
+					const scanPath = join(rootDir, dir);
+					const files = await scanDir(scanPath, scanPath, category.recursive);
+					for (const relFile of files) {
+						const file = await processFile(
+							rootDir,
+							outDir,
+							join(dir, relFile),
+							category,
+						);
+						checkConflict(map, file, category.category);
+						map.set(file.key, file);
+					}
+				}
+
+				// Scan by-feature layout
+				const featureFiles = await discoverFeatures(rootDir, category);
+				for (const { relPath } of featureFiles) {
+					const file = await processFile(rootDir, outDir, relPath, category);
+					checkConflict(map, file, category.category);
+					map.set(file.key, file);
+				}
+
+				result.categories.set(name, map);
 			}
-		}
-
-		// Scan by-feature layout
-		const featureFiles = await discoverFeatures(rootDir, category);
-		for (const { relPath } of featureFiles) {
-			const file = await processFile(rootDir, outDir, relPath, category);
-			checkConflict(map, file, category.category);
-			map.set(file.key, file);
 		}
 	}
 
-	// Discover auth.ts (single file)
+	// ── Phase 2: Discover auth.ts (legacy single file) ────────
 	for (const authFile of ["auth.ts", "auth.mts"]) {
 		const authPath = join(rootDir, authFile);
 		if (await fileExists(authPath)) {
@@ -335,43 +262,14 @@ export async function discoverFiles(
 				source: authFile,
 				exportType: exportInfo.type,
 				namedExportName: exportInfo.namedExportName,
+				isBundle: exportInfo.isBundle,
 			};
 			break;
 		}
 	}
 
-	// Discover core single files (modules.ts, locale.ts, hooks.ts, access.ts, context.ts)
-	// These are discovered by the core, not a plugin, since they are always relevant.
-	// The `key` matches the property name on AppDefinition.
-	const coreSingleFiles: Array<{ key: string; filenames: string[] }> = [
-		{ key: "modules", filenames: ["modules.ts", "modules.mts"] },
-		{ key: "locale", filenames: ["locale.ts", "locale.mts"] },
-		{ key: "hooks", filenames: ["hooks.ts", "hooks.mts"] },
-		{ key: "defaultAccess", filenames: ["access.ts", "access.mts"] },
-		{ key: "contextResolver", filenames: ["context.ts", "context.mts"] },
-	];
-
-	for (const { key, filenames } of coreSingleFiles) {
-		for (const filename of filenames) {
-			const filePath = join(rootDir, filename);
-			if (await fileExists(filePath)) {
-				const importPath = relativeImport(outDir, filePath);
-				const exportInfo = await detectExportType(filePath);
-				result.singles.set(key, {
-					absolutePath: filePath,
-					key,
-					importPath,
-					varName: `_${key}`,
-					source: filename,
-					exportType: exportInfo.type,
-					namedExportName: exportInfo.namedExportName,
-				});
-				break;
-			}
-		}
-	}
-
-	// Discover plugin patterns
+	// ── Phase 3: Discover plugin discover patterns ────────────
+	// These are single-file, spread, and directory patterns from plugin.discover.
 	if (plugins) {
 		for (const plugin of plugins) {
 			if (!plugin.discover) continue;
@@ -380,7 +278,7 @@ export async function discoverFiles(
 
 				if (resolved.cardinality === "single") {
 					if (resolved.mergeStrategy === "spread") {
-						// Spread pattern — collect root + features/*/pattern into an ordered array
+						// Spread pattern — collect root + features/{name}/pattern into an ordered array
 						await discoverSpreadFile(
 							rootDir,
 							outDir,
@@ -399,27 +297,20 @@ export async function discoverFiles(
 						);
 					}
 				} else {
-					// Directory pattern (e.g. "blocks/*.ts")
-					const pluginMap = new Map<string, DiscoveredFile>();
+					// Directory pattern (e.g. "blocks/*.ts") — goes into categories
+					const existing =
+						result.categories.get(stateKey) ??
+						new Map<string, DiscoveredFile>();
 					await discoverDirectoryPattern(
 						rootDir,
 						outDir,
 						stateKey,
 						resolved,
-						pluginMap,
+						existing,
 					);
 
-					if (pluginMap.size > 0) {
-						const existing = result.custom.get(stateKey);
-						if (existing) {
-							// Merge with existing
-							for (const [k, v] of pluginMap) {
-								checkConflict(existing, v, stateKey);
-								existing.set(k, v);
-							}
-						} else {
-							result.custom.set(stateKey, pluginMap);
-						}
+					if (existing.size > 0) {
+						result.categories.set(stateKey, existing);
 					}
 				}
 			}
@@ -504,6 +395,7 @@ async function discoverSingleFile(
 				source: filename,
 				exportType: exportInfo.type,
 				namedExportName: exportInfo.namedExportName,
+				isBundle: exportInfo.isBundle,
 			});
 			break;
 		}
@@ -536,7 +428,11 @@ async function discoverSpreadFile(
 	const collected: DiscoveredFile[] = [];
 
 	// Helper to try a path and add to collected if it exists
-	async function tryAdd(fullPath: string, varSuffix: string, source: string): Promise<void> {
+	async function tryAdd(
+		fullPath: string,
+		varSuffix: string,
+		source: string,
+	): Promise<void> {
 		if (await fileExists(fullPath)) {
 			const importPath = relativeImport(outDir, fullPath);
 			const exportInfo = await detectExportType(fullPath);
@@ -548,6 +444,7 @@ async function discoverSpreadFile(
 				source,
 				exportType: exportInfo.type,
 				namedExportName: exportInfo.namedExportName,
+				isBundle: exportInfo.isBundle,
 			});
 		}
 	}
@@ -569,7 +466,9 @@ async function discoverSpreadFile(
 	const featuresDir = join(rootDir, "features");
 	let featureDirs: Dirent[];
 	try {
-		featureDirs = (await readdir(featuresDir, { withFileTypes: true })) as Dirent[];
+		featureDirs = (await readdir(featuresDir, {
+			withFileTypes: true,
+		})) as Dirent[];
 	} catch {
 		featureDirs = [];
 	}
@@ -623,7 +522,6 @@ async function discoverDirectoryPattern(
 
 	const category: DiscoveryCategory = {
 		category: stateKey,
-		patterns: [resolved.pattern],
 		dirs: [baseDir],
 		recursive,
 		prefix: stateKey.slice(0, 4),
@@ -737,6 +635,7 @@ async function processFile(
 		source: relPath,
 		exportType: exportInfo.type,
 		namedExportName: exportInfo.namedExportName,
+		isBundle: exportInfo.isBundle,
 	};
 }
 
@@ -760,15 +659,34 @@ function relativeImport(fromDir: string, toFile: string): string {
 // ============================================================================
 
 /**
+ * Result of export type detection.
+ */
+export interface ExportDetection {
+	type: "default" | "named" | "unknown";
+	namedExportName?: string;
+	/**
+	 * When true, the named export is an object literal bundle
+	 * (e.g. `export const fns = { fn1, fn2 }`).
+	 */
+	isBundle?: boolean;
+}
+
+/**
  * Detect what kind of export a TypeScript file has.
  * Reads the file and checks for `export default` vs named exports.
  *
- * Returns { type, namedExportName? }
+ * Detection priority:
+ * 1. `export default` → default export (no bundle check)
+ * 2. `export const X = {` (object literal) → named bundle export
+ * 3. `export const/function/class X` → single named export
+ *
+ * The bundle detection distinguishes:
+ * - `export const bundle = {` (object literal value) → isBundle: true
+ * - `export const myFn = fn({` (function call) → isBundle: false
  */
-export async function detectExportType(absolutePath: string): Promise<{
-	type: "default" | "named" | "unknown";
-	namedExportName?: string;
-}> {
+export async function detectExportType(
+	absolutePath: string,
+): Promise<ExportDetection> {
 	let content: string;
 	try {
 		content = await readFile(absolutePath, "utf-8");
@@ -784,6 +702,20 @@ export async function detectExportType(absolutePath: string): Promise<{
 		/\bexport\s*\{[^}]*\bas\s+default\b/.test(content)
 	) {
 		return { type: "default" };
+	}
+
+	// Check for bundle export: export const X = { (object literal, NOT a function call)
+	// Matches `export const fns = {` but not `export const x = fn({`
+	// because `fn(` appears between `=` and `{` in the latter.
+	const bundleMatch = content.match(
+		/\bexport\s+const\s+([a-zA-Z_$][a-zA-Z0-9_$]*)\s*=\s*\{/m,
+	);
+	if (bundleMatch) {
+		return {
+			type: "named",
+			namedExportName: bundleMatch[1],
+			isBundle: true,
+		};
 	}
 
 	// Look for named exports: export const X, export function X, export class X, export { X }

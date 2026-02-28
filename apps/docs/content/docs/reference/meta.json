@@ -1,21 +1,19 @@
 {
 	"title": "Reference",
-	"defaultOpen": true,
 	"pages": [
 		"index",
-		"q-builder-api",
-		"collection-builder-api",
-		"global-builder-api",
+		"config-api",
+		"collection-api",
+		"global-api",
 		"field-api",
-		"qa-builder-api",
-		"registry-api",
-		"rpc-api",
-		"adapter-api",
+		"functions-api",
 		"crud-api",
 		"hooks-api",
+		"query-operators",
+		"plugin-api",
+		"admin-api",
 		"infrastructure-api",
 		"error-codes",
-		"query-operators",
 		"cli"
 	]
 }

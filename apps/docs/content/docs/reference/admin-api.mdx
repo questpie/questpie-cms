@@ -1,0 +1,136 @@
+---
+title: Admin API
+description: Admin conventions and client API reference.
+---
+
+# Admin API
+
+## File Conventions
+
+### `sidebar(config)`
+
+```ts
+import { sidebar } from "#questpie";
+
+export default sidebar({
+  sections: [
+    { id: string, title: string | i18n },
+  ],
+  items: [
+    // Collection item
+    { sectionId: string, type: "collection", collection: string },
+    // Global item
+    { sectionId: string, type: "global", global: string },
+    // Link item
+    {
+      sectionId: string,
+      type: "link",
+      label: string | i18n,
+      href: string,
+      external?: boolean,
+      icon?: { type: "icon", props: { name: string } },
+    },
+  ],
+});
+```
+
+### `dashboard(config)`
+
+```ts
+import { dashboard } from "#questpie";
+
+export default dashboard({
+  title: string | i18n,
+  description?: string | i18n,
+  columns?: number,
+  realtime?: boolean,
+  actions?: DashboardAction[],
+  sections?: DashboardSection[],
+  items?: DashboardItem[],
+});
+```
+
+### `branding(config)`
+
+```ts
+import { branding } from "#questpie";
+
+export default branding({
+  name: string | i18n,
+  logo?: string,
+});
+```
+
+### `locale(config)`
+
+```ts
+import { locale } from "#questpie";
+
+export default locale({
+  locales: [{ code: string, label: string, fallback?: boolean, flagCountryCode?: string }],
+  defaultLocale: string,
+});
+```
+
+## Client Builder
+
+### `qa()`
+
+```ts
+import { qa } from "@questpie/admin/client";
+
+const admin = qa<AppConfig>();
+```
+
+The admin client entrypoint. Returns a typed builder for configuring the admin panel.
+
+## Dashboard Item Types
+
+| Type | Properties |
+|---|---|
+| `stats` | `collection`, `filter`, `label` |
+| `value` | `loader`, `label`, `refreshInterval` |
+| `progress` | `loader`, `label`, `showPercentage` |
+| `chart` | `collection`, `field`, `chartType`, `label` |
+| `recentItems` | `collection`, `limit`, `dateField`, `label` |
+| `timeline` | `loader`, `maxItems`, `label` |
+
+## Form View Options
+
+```ts
+v.form({
+  sidebar?: {
+    position: "right",
+    fields: Field[],
+  },
+  fields: (Field | Section)[],
+})
+```
+
+### Section
+
+```ts
+{
+  type: "section",
+  label?: string | i18n,
+  description?: string | i18n,
+  layout?: "grid" | "stack",
+  columns?: number,
+  fields: (Field | FieldConfig)[],
+}
+```
+
+### Field Config
+
+```ts
+{
+  field: FieldRef,
+  hidden?: ({ data }) => boolean,
+  readOnly?: ({ data }) => boolean,
+  compute?: {
+    handler: ({ data }) => value,
+    deps: ({ data }) => any[],
+    debounce?: number,
+  },
+}
+```

@@ -1,0 +1,4 @@
+{
+	"title": "Data Modeling",
+	"pages": ["fields", "collections", "globals", "relations", "localization"]
+}

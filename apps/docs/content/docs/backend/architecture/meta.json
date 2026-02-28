@@ -1,0 +1,11 @@
+{
+	"title": "Architecture",
+	"pages": [
+		"file-convention",
+		"single-source-of-truth",
+		"plugins",
+		"modules",
+		"codegen",
+		"cli"
+	]
+}

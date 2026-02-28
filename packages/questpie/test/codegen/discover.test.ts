@@ -8,13 +8,20 @@
  */
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
-import { join } from "node:path";
 import { tmpdir } from "node:os";
+import { join } from "node:path";
 import {
 	detectExportType,
 	discoverFiles,
 	kebabToCamelCase,
 } from "../../src/cli/codegen/discover.js";
+import { coreCodegenPlugin } from "../../src/cli/codegen/index.js";
+
+/**
+ * Helper: get the core plugins array.
+ * Most tests need core categories (collections, globals, etc.) to be declared.
+ */
+const corePlugins = () => [coreCodegenPlugin()];
 
 // ─────────────────────────────────────────────────────────────────────────────
 // kebabToCamelCase
@@ -100,7 +107,10 @@ describe("detectExportType", () => {
 	});
 
 	it("detects named 'export const'", async () => {
-		const path = await writeFixture("a.ts", "export const posts = collection('posts');");
+		const path = await writeFixture(
+			"a.ts",
+			"export const posts = collection('posts');",
+		);
 		const result = await detectExportType(path);
 		expect(result.type).toBe("named");
 		expect(result.namedExportName).toBe("posts");
@@ -121,7 +131,10 @@ describe("detectExportType", () => {
 	});
 
 	it("detects named re-export: 'export { foo }'", async () => {
-		const path = await writeFixture("a.ts", "import { foo } from './foo';\nexport { foo };");
+		const path = await writeFixture(
+			"a.ts",
+			"import { foo } from './foo';\nexport { foo };",
+		);
 		const result = await detectExportType(path);
 		expect(result.type).toBe("named");
 		expect(result.namedExportName).toBe("foo");
@@ -165,29 +178,40 @@ describe("discoverFiles", () => {
 		await rm(rootDir, { recursive: true, force: true });
 	});
 
-	async function write(relPath: string, content = "export default {};"): Promise<void> {
+	async function write(
+		relPath: string,
+		content = "export default {};",
+	): Promise<void> {
 		const full = join(rootDir, relPath);
 		await mkdir(join(full, ".."), { recursive: true });
 		await writeFile(full, content, "utf-8");
 	}
 
+	/** Helper to get a category map from the result */
+	function cat(
+		result: Awaited<ReturnType<typeof discoverFiles>>,
+		name: string,
+	) {
+		return result.categories.get(name) ?? new Map();
+	}
+
 	// ── Empty project ──────────────────────────────────────────────────────────
 
 	it("returns empty maps for an empty directory", async () => {
-		const result = await discoverFiles(rootDir, outDir);
-		expect(result.collections.size).toBe(0);
-		expect(result.globals.size).toBe(0);
-		expect(result.jobs.size).toBe(0);
-		expect(result.functions.size).toBe(0);
-		expect(result.routes.size).toBe(0);
-		expect(result.messages.size).toBe(0);
-		expect(result.services.size).toBe(0);
-		expect(result.emails.size).toBe(0);
-		expect(result.migrations.size).toBe(0);
-		expect(result.seeds.size).toBe(0);
+		const result = await discoverFiles(rootDir, outDir, corePlugins());
+		// All core categories exist but are empty
+		expect(cat(result, "collections").size).toBe(0);
+		expect(cat(result, "globals").size).toBe(0);
+		expect(cat(result, "jobs").size).toBe(0);
+		expect(cat(result, "functions").size).toBe(0);
+		expect(cat(result, "routes").size).toBe(0);
+		expect(cat(result, "messages").size).toBe(0);
+		expect(cat(result, "services").size).toBe(0);
+		expect(cat(result, "emails").size).toBe(0);
+		expect(cat(result, "migrations").size).toBe(0);
+		expect(cat(result, "seeds").size).toBe(0);
 		expect(result.auth).toBeNull();
 		expect(result.singles.size).toBe(0);
-		expect(result.custom.size).toBe(0);
 	});
 
 	// ── Collections ───────────────────────────────────────────────────────────
@@ -196,17 +220,18 @@ describe("discoverFiles", () => {
 		await write("collections/posts.ts", "export const posts = {};");
 		await write("collections/blog-posts.ts", "export const blogPosts = {};");
 
-		const result = await discoverFiles(rootDir, outDir);
-		expect(result.collections.size).toBe(2);
-		expect(result.collections.has("posts")).toBe(true);
-		expect(result.collections.has("blogPosts")).toBe(true);
+		const result = await discoverFiles(rootDir, outDir, corePlugins());
+		const collections = cat(result, "collections");
+		expect(collections.size).toBe(2);
+		expect(collections.has("posts")).toBe(true);
+		expect(collections.has("blogPosts")).toBe(true);
 	});
 
 	it("sets correct varName and importPath for collections", async () => {
 		await write("collections/posts.ts", "export const posts = {};");
 
-		const result = await discoverFiles(rootDir, outDir);
-		const file = result.collections.get("posts")!;
+		const result = await discoverFiles(rootDir, outDir, corePlugins());
+		const file = cat(result, "collections").get("posts")!;
 		expect(file.varName).toBe("_coll_posts");
 		expect(file.importPath).toBe("../collections/posts");
 		expect(file.exportType).toBe("named");
@@ -217,18 +242,20 @@ describe("discoverFiles", () => {
 		await write("collections/index.ts", "export * from './posts';");
 		await write("collections/posts.ts", "export const posts = {};");
 
-		const result = await discoverFiles(rootDir, outDir);
-		expect(result.collections.size).toBe(1);
-		expect(result.collections.has("posts")).toBe(true);
+		const result = await discoverFiles(rootDir, outDir, corePlugins());
+		const collections = cat(result, "collections");
+		expect(collections.size).toBe(1);
+		expect(collections.has("posts")).toBe(true);
 	});
 
 	it("ignores private files starting with _ in collections", async () => {
 		await write("collections/_utils.ts", "export const util = {};");
 		await write("collections/posts.ts", "export const posts = {};");
 
-		const result = await discoverFiles(rootDir, outDir);
-		expect(result.collections.size).toBe(1);
-		expect(result.collections.has("posts")).toBe(true);
+		const result = await discoverFiles(rootDir, outDir, corePlugins());
+		const collections = cat(result, "collections");
+		expect(collections.size).toBe(1);
+		expect(collections.has("posts")).toBe(true);
 	});
 
 	// ── Globals ───────────────────────────────────────────────────────────────
@@ -236,9 +263,10 @@ describe("discoverFiles", () => {
 	it("discovers globals", async () => {
 		await write("globals/site-settings.ts", "export const siteSettings = {};");
 
-		const result = await discoverFiles(rootDir, outDir);
-		expect(result.globals.size).toBe(1);
-		const file = result.globals.get("siteSettings")!;
+		const result = await discoverFiles(rootDir, outDir, corePlugins());
+		const globals = cat(result, "globals");
+		expect(globals.size).toBe(1);
+		const file = globals.get("siteSettings")!;
 		expect(file.varName).toBe("_glob_siteSettings");
 	});
 
@@ -248,10 +276,11 @@ describe("discoverFiles", () => {
 		await write("jobs/send-emails.ts");
 		await write("jobs/cleanup.ts");
 
-		const result = await discoverFiles(rootDir, outDir);
-		expect(result.jobs.size).toBe(2);
-		expect(result.jobs.has("sendEmails")).toBe(true);
-		expect(result.jobs.has("cleanup")).toBe(true);
+		const result = await discoverFiles(rootDir, outDir, corePlugins());
+		const jobs = cat(result, "jobs");
+		expect(jobs.size).toBe(2);
+		expect(jobs.has("sendEmails")).toBe(true);
+		expect(jobs.has("cleanup")).toBe(true);
 	});
 
 	// ── Functions (recursive) ─────────────────────────────────────────────────
@@ -259,17 +288,18 @@ describe("discoverFiles", () => {
 	it("discovers flat functions with simple keys", async () => {
 		await write("functions/get-users.ts");
 
-		const result = await discoverFiles(rootDir, outDir);
-		expect(result.functions.has("getUsers")).toBe(true);
+		const result = await discoverFiles(rootDir, outDir, corePlugins());
+		expect(cat(result, "functions").has("getUsers")).toBe(true);
 	});
 
 	it("discovers nested functions with dot-separated keys", async () => {
 		await write("functions/admin/get-stats.ts");
 
-		const result = await discoverFiles(rootDir, outDir);
-		expect(result.functions.has("admin.getStats")).toBe(true);
+		const result = await discoverFiles(rootDir, outDir, corePlugins());
+		const functions = cat(result, "functions");
+		expect(functions.has("admin.getStats")).toBe(true);
 
-		const file = result.functions.get("admin.getStats")!;
+		const file = functions.get("admin.getStats")!;
 		// varName replaces dots with underscores
 		expect(file.varName).toBe("_fn_admin_getStats");
 	});
@@ -280,12 +310,13 @@ describe("discoverFiles", () => {
 		await write("migrations/001-init.ts");
 		await write("migrations/002-add-users.ts");
 
-		const result = await discoverFiles(rootDir, outDir);
-		expect(result.migrations.size).toBe(2);
-		expect(result.migrations.has("001Init")).toBe(true);
-		expect(result.migrations.has("002AddUsers")).toBe(true);
+		const result = await discoverFiles(rootDir, outDir, corePlugins());
+		const migrations = cat(result, "migrations");
+		expect(migrations.size).toBe(2);
+		expect(migrations.has("001Init")).toBe(true);
+		expect(migrations.has("002AddUsers")).toBe(true);
 
-		const file = result.migrations.get("001Init")!;
+		const file = migrations.get("001Init")!;
 		expect(file.varName).toBe("_mig_001Init");
 	});
 
@@ -295,12 +326,13 @@ describe("discoverFiles", () => {
 		await write("seeds/demo-data.ts");
 		await write("seeds/site-settings.ts");
 
-		const result = await discoverFiles(rootDir, outDir);
-		expect(result.seeds.size).toBe(2);
-		expect(result.seeds.has("demoData")).toBe(true);
-		expect(result.seeds.has("siteSettings")).toBe(true);
+		const result = await discoverFiles(rootDir, outDir, corePlugins());
+		const seeds = cat(result, "seeds");
+		expect(seeds.size).toBe(2);
+		expect(seeds.has("demoData")).toBe(true);
+		expect(seeds.has("siteSettings")).toBe(true);
 
-		const file = result.seeds.get("demoData")!;
+		const file = seeds.get("demoData")!;
 		expect(file.varName).toBe("_seed_demoData");
 	});
 
@@ -309,7 +341,7 @@ describe("discoverFiles", () => {
 	it("discovers auth.ts as a single file", async () => {
 		await write("auth.ts", "export default {};");
 
-		const result = await discoverFiles(rootDir, outDir);
+		const result = await discoverFiles(rootDir, outDir, corePlugins());
 		expect(result.auth).not.toBeNull();
 		expect(result.auth!.key).toBe("auth");
 		expect(result.auth!.varName).toBe("_auth");
@@ -320,8 +352,8 @@ describe("discoverFiles", () => {
 		await write("auth.ts", "export default {};");
 		await write("collections/posts.ts", "export const posts = {};");
 
-		const result = await discoverFiles(rootDir, outDir);
-		expect(result.collections.size).toBe(1);
+		const result = await discoverFiles(rootDir, outDir, corePlugins());
+		expect(cat(result, "collections").size).toBe(1);
 		expect(result.auth).not.toBeNull();
 	});
 
@@ -330,7 +362,7 @@ describe("discoverFiles", () => {
 	it("discovers modules.ts as a single", async () => {
 		await write("modules.ts", "export default [];");
 
-		const result = await discoverFiles(rootDir, outDir);
+		const result = await discoverFiles(rootDir, outDir, corePlugins());
 		expect(result.singles.has("modules")).toBe(true);
 		const file = result.singles.get("modules")!;
 		expect(file.varName).toBe("_modules");
@@ -340,50 +372,60 @@ describe("discoverFiles", () => {
 	it("discovers locale.ts as a single", async () => {
 		await write("locale.ts", "export default {};");
 
-		const result = await discoverFiles(rootDir, outDir);
+		const result = await discoverFiles(rootDir, outDir, corePlugins());
 		expect(result.singles.has("locale")).toBe(true);
 	});
 
 	it("discovers context.ts as contextResolver single", async () => {
 		await write("context.ts", "export default {};");
 
-		const result = await discoverFiles(rootDir, outDir);
+		const result = await discoverFiles(rootDir, outDir, corePlugins());
 		expect(result.singles.has("contextResolver")).toBe(true);
 	});
 
 	it("discovers access.ts as defaultAccess single", async () => {
 		await write("access.ts", "export default {};");
 
-		const result = await discoverFiles(rootDir, outDir);
+		const result = await discoverFiles(rootDir, outDir, corePlugins());
 		expect(result.singles.has("defaultAccess")).toBe(true);
 	});
 
 	// ── Feature layout ────────────────────────────────────────────────────────
 
 	it("discovers collections from features/ layout", async () => {
-		await write("features/blog/collections/articles.ts", "export const articles = {};");
+		await write(
+			"features/blog/collections/articles.ts",
+			"export const articles = {};",
+		);
 
-		const result = await discoverFiles(rootDir, outDir);
-		expect(result.collections.has("articles")).toBe(true);
+		const result = await discoverFiles(rootDir, outDir, corePlugins());
+		expect(cat(result, "collections").has("articles")).toBe(true);
 	});
 
 	it("merges by-type and by-feature layout collections", async () => {
 		await write("collections/posts.ts", "export const posts = {};");
-		await write("features/blog/collections/articles.ts", "export const articles = {};");
+		await write(
+			"features/blog/collections/articles.ts",
+			"export const articles = {};",
+		);
 
-		const result = await discoverFiles(rootDir, outDir);
-		expect(result.collections.size).toBe(2);
-		expect(result.collections.has("posts")).toBe(true);
-		expect(result.collections.has("articles")).toBe(true);
+		const result = await discoverFiles(rootDir, outDir, corePlugins());
+		const collections = cat(result, "collections");
+		expect(collections.size).toBe(2);
+		expect(collections.has("posts")).toBe(true);
+		expect(collections.has("articles")).toBe(true);
 	});
 
 	// ── Conflict detection ────────────────────────────────────────────────────
 
 	it("throws on duplicate keys from by-type and by-feature layout", async () => {
 		await write("collections/posts.ts", "export const posts = {};");
-		await write("features/blog/collections/posts.ts", "export const posts = {};");
+		await write(
+			"features/blog/collections/posts.ts",
+			"export const posts = {};",
+		);
 
-		await expect(discoverFiles(rootDir, outDir)).rejects.toThrow(
+		await expect(discoverFiles(rootDir, outDir, corePlugins())).rejects.toThrow(
 			/duplicate collections key "posts"/,
 		);
 	});
@@ -402,8 +444,9 @@ describe("discoverFiles", () => {
 			},
 		]);
 
-		expect(result.custom.has("blocks")).toBe(true);
-		const blocks = result.custom.get("blocks")!;
+		// Plugin directory patterns go into categories
+		expect(result.categories.has("blocks")).toBe(true);
+		const blocks = result.categories.get("blocks")!;
 		expect(blocks.has("hero")).toBe(true);
 		expect(blocks.has("cta")).toBe(true);
 	});
@@ -443,7 +486,10 @@ describe("discoverFiles — mergeStrategy spread", () => {
 		await rm(rootDir, { recursive: true, force: true });
 	});
 
-	async function write(relPath: string, content = "export default [];"): Promise<void> {
+	async function write(
+		relPath: string,
+		content = "export default [];",
+	): Promise<void> {
 		const full = join(rootDir, relPath);
 		await mkdir(join(full, ".."), { recursive: true });
 		await writeFile(full, content, "utf-8");
@@ -485,7 +531,7 @@ describe("discoverFiles — mergeStrategy spread", () => {
 		const files = result.spreads.get("sidebar")!;
 
 		expect(files).toHaveLength(3);
-		expect(files[0].varName).toBe("_sidebar_root");  // root first
+		expect(files[0].varName).toBe("_sidebar_root"); // root first
 		expect(files[1].varName).toBe("_sidebar_admin"); // alphabetical: admin < audit
 		expect(files[2].varName).toBe("_sidebar_audit");
 	});
@@ -522,7 +568,10 @@ describe("discoverFiles — mergeStrategy spread", () => {
 			name: "admin",
 			discover: {
 				sidebar: { pattern: "sidebar.ts", mergeStrategy: "spread" as const },
-				dashboard: { pattern: "dashboard.ts", mergeStrategy: "spread" as const },
+				dashboard: {
+					pattern: "dashboard.ts",
+					mergeStrategy: "spread" as const,
+				},
 			},
 		};
 		await write("sidebar.ts");

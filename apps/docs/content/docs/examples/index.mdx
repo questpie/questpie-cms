@@ -1,55 +1,21 @@
 ---
 title: Examples
-description: Reference implementations demonstrating QUESTPIE architecture patterns
+description: Real-world examples built with QuestPie.
 ---
 
 # Examples
 
-Examples serve as executable architecture documentation. The TanStack Barbershop is the primary reference — a complete booking system built with QUESTPIE that demonstrates collections, relations, reactive fields, RPC, jobs, and admin configuration.
+These examples demonstrate real-world QuestPie patterns using actual code from the repository.
 
-## TanStack Barbershop
+## [TanStack Barbershop](/docs/examples/barbershop)
 
-A full-stack barbershop booking system built with TanStack Start, demonstrating real-world usage of every major QUESTPIE feature.
+A full booking application built with TanStack Start + QuestPie. Features:
 
-**What it covers:**
-- 7 collections (barbers, services, appointments, pages, reviews, and more)
-- Many-to-many relations (barber ↔ services)
-- Reactive fields (cancellation UI)
-- RPC functions (slot availability, booking creation)
-- Background jobs (email confirmations)
-- Block-based pages with preview
-- Dashboard widgets and sidebar configuration
-- Full admin panel with filters, saved views, and bulk actions
-
-**Source:** `examples/tanstack-barbershop/`
-
-### Tour Pages
-
-- [Architecture Tour](/docs/examples/tanstack-barbershop-architecture-tour) — High-level system map: how the app is assembled, packages used, and data flow
-- [Server Tour](/docs/examples/tanstack-barbershop-server-tour) — Detailed walkthrough of collections, globals, dashboard, and sidebar configuration
-- [Admin Tour](/docs/examples/tanstack-barbershop-admin-tour) — Admin builder, field registries, views, and branding setup
-- [RPC Tour](/docs/examples/tanstack-barbershop-rpc-tour) — Booking and analytics RPC procedures with typed client calls
-
-### Quick Start
-
-To run the barbershop example locally:
-
-```bash
-# Clone and install
-git clone https://github.com/questpie/questpie-app
-cd questpie-app
-bun install
-
-# Start the example
-cd examples/tanstack-barbershop
-bun dev
-```
-
-The admin panel is available at `http://localhost:3000/admin`.
-
-## Building Your Own
-
-Use the barbershop as a starting point for your own project. The guides section has step-by-step tutorials:
-
-- [Build a Booking System](/docs/guides/build-a-booking-system) — Recreate the barbershop from scratch
-- [Build a Page Builder](/docs/guides/build-a-page-builder) — Blocks, preview, and localized content
+- 7 collections with complex relations
+- Server functions for booking logic
+- Background jobs for email notifications
+- Custom services (blog utilities)
+- Admin dashboard with stats, charts, and timelines
+- Block-based page builder
+- Multi-language support (English + Slovak)
+- Live preview

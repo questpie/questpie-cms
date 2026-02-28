@@ -1,0 +1,161 @@
+---
+title: Codegen
+description: What questpie generate produces — the .generated/ directory, AppConfig, AppContext, and type augmentation.
+---
+
+# Codegen
+
+Running `questpie generate` scans your file conventions and produces the `.generated/` directory. This is the bridge between your definitions and the typed runtime.
+
+## What Gets Generated
+
+```text
+.generated/
+├── index.ts        — App instance, type exports, createContext helper
+└── module.ts       — Merged module with all entities
+```
+
+### Generated Types
+
+```ts
+// Auto-generated — do not edit
+
+// Entity type maps
+export type AppCollections = {
+  appointments: typeof appointments;
+  barbers: typeof barbers;
+  services: typeof services;
+  // ...
+};
+
+export type AppGlobals = {
+  siteSettings: typeof siteSettings;
+};
+
+export type AppFunctions = {
+  createBooking: typeof createBooking;
+  getActiveBarbers: typeof getActiveBarbers;
+  // ...
+};
+
+export type AppJobs = {
+  sendAppointmentConfirmation: typeof sendAppointmentConfirmation;
+  notifyBlogSubscribers: typeof notifyBlogSubscribers;
+  // ...
+};
+
+export type AppServices = {
+  blog: BlogService;
+};
+
+// Flat config type for client SDK
+export type AppConfig = {
+  collections: AppCollections;
+  globals: AppGlobals;
+  // auth, locales, etc.
+};
+```
+
+### Module Augmentation
+
+Codegen augments `AppContext` so every handler gets typed DI:
+
+```ts
+declare module "questpie" {
+  interface AppContext {
+    db: Database;
+    email: MailerService<AppEmailTemplates>;
+    queue: QueueClient<AppJobs>;
+    collections: AppCollections;
+    globals: AppGlobals;
+    session: Session | null;
+    blog: BlogService;   // Custom service
+    // ... all services
+  }
+}
+```
+
+This is why you can destructure `{ collections, queue, email, blog }` in any handler — codegen generates the type augmentation from your file structure.
+
+### App Instance
+
+```ts
+export const app = createApp(mergedModule, runtimeConfig);
+
+export async function createContext(options?: {
+  accessMode?: "system" | "user";
+  locale?: string;
+}) {
+  return app.createContext(options);
+}
+```
+
+## How to Use Generated Types
+
+### Client SDK
+
+```ts
+import type { AppConfig, AppFunctions } from "@/questpie/server/.generated";
+
+export const client = createClient<AppConfig, AppFunctions>({
+  baseURL: "http://localhost:3000",
+  basePath: "/api",
+});
+```
+
+### Server-side scripts
+
+```ts
+import { app, createContext } from "@/questpie/server/.generated";
+
+const ctx = await createContext({ accessMode: "system" });
+const posts = await app.api.collections.posts.find({}, ctx);
+```
+
+### Admin hooks
+
+```ts
+import type { AppConfig } from "@/questpie/server/.generated";
+
+// Factory functions that produce typed hooks
+export const { useCollectionList, useCollectionItem } = createAdminHooks<AppConfig>();
+```
+
+## When to Re-Run Codegen
+
+Re-run `questpie generate` when you:
+
+- Add, rename, or delete collection/global/function/job files
+- Add or remove modules in `modules.ts`
+- Add or remove plugins in `questpie.config.ts`
+- Change file convention structure
+
+You do **not** need to re-run codegen when you:
+
+- Change field options (label, required, default)
+- Modify hook logic
+- Update access control rules
+- Change runtime config values
+
+## The `#questpie` Alias
+
+The `#questpie` import in collection/global files resolves to a generated helper that provides typed builders:
+
+```ts
+import { collection } from "#questpie";
+// Provides field builder with autocompletion for relation targets, etc.
+```
+
+## Development Workflow
+
+In development, use `questpie dev` which watches for file changes and re-runs codegen automatically:
+
+```bash
+bunx questpie dev
+```
+
+## Related Pages
+
+- [File Convention](/docs/backend/architecture/file-convention) — What files are discovered
+- [CLI](/docs/backend/architecture/cli) — CLI commands
+- [Type Inference](/docs/frontend/type-inference) — End-to-end type flow

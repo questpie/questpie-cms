@@ -1,0 +1,171 @@
+---
+title: Installation
+description: Install QuestPie and set up your first project.
+---
+
+# Installation
+
+## Quick Start
+
+```bash
+bun create questpie my-app
+cd my-app
+```
+
+This scaffolds a project with the file convention layout, runtime config, and a starter collection.
+
+## Manual Setup
+
+### 1. Install packages
+
+```bash
+bun add questpie @questpie/hono
+```
+
+For the admin panel (optional):
+
+```bash
+bun add @questpie/admin
+```
+
+### 2. Create runtime config
+
+```ts title="src/questpie/server/questpie.config.ts"
+import { runtimeConfig } from "questpie";
+
+export default runtimeConfig({
+  app: {
+    url: process.env.APP_URL || "http://localhost:3000",
+  },
+  db: {
+    url: process.env.DATABASE_URL || "postgres://localhost/myapp",
+  },
+  secret: process.env.APP_SECRET || "change-me-in-production",
+});
+```
+
+### 3. Create CLI config
+
+```ts title="questpie.config.ts"
+export { default } from "./src/questpie/server/questpie.config";
+```
+
+The CLI resolves this file at the project root to find your config.
+
+### 4. Create your first collection
+
+```ts title="src/questpie/server/collections/posts.ts"
+import { collection } from "#questpie";
+
+export default collection("posts").fields(({ f }) => ({
+  title: f.text({ required: true }),
+  body: f.richText(),
+  status: f.select({ options: ["draft", "published"] }),
+}));
+```
+
+### 5. Run codegen
+
+```bash
+bunx questpie generate
+```
+
+This scans your file convention directories, discovers collections/functions/jobs, and generates:
+
+- `src/questpie/server/.generated/` — app instance, types, module augmentation
+
+### 6. Push schema to database
+
+```bash
+bunx questpie push
+```
+
+This syncs your Drizzle schema to the database without creating migration files. Use `questpie migrate:generate` for production migrations.
+
+### 7. Start development
+
+```bash
+bun dev
+```
+
+## With Admin Panel
+
+To add the admin interface, install `@questpie/admin` and register the plugin:
+
+```ts title="src/questpie/server/questpie.config.ts"
+import { adminPlugin } from "@questpie/admin/server";
+import { runtimeConfig } from "questpie";
+
+export default runtimeConfig({
+  plugins: [adminPlugin()],
+  app: {
+    url: process.env.APP_URL || "http://localhost:3000",
+  },
+  db: {
+    url: process.env.DATABASE_URL,
+  },
+  secret: process.env.APP_SECRET,
+});
+```
+
+Add the admin module to your modules:
+
+```ts title="src/questpie/server/modules.ts"
+import { adminModule } from "@questpie/admin/server";
+
+export default [adminModule] as const;
+```
+
+Re-run codegen to pick up admin conventions (sidebar, dashboard, branding):
+
+```bash
+bunx questpie generate
+```
+
+## Adapters
+
+QuestPie needs an HTTP adapter to serve your API. Choose one:
+
+| Adapter | Package | Use case |
+|---|---|---|
+| Hono | `@questpie/hono` | General purpose, fast |
+| Elysia | `@questpie/elysia` | Bun-native, validation |
+| Next.js | `@questpie/nextjs` | Next.js API routes |
+
+```ts title="API handler (Hono example)"
+import { createFetchHandler } from "questpie/adapters/hono";
+import { app } from "@/questpie/server/.generated";
+
+export default createFetchHandler(app, { basePath: "/api" });
+```
+
+For TanStack Start, use the generic fetch handler directly — there is no adapter package:
+
+```ts title="src/routes/api/$.ts"
+import { createFetchHandler } from "questpie";
+import { app } from "@/questpie/server/.generated";
+
+const handler = createFetchHandler(app, { basePath: "/api" });
+
+export const Route = createAPIFileRoute("/api/$")({
+  GET: ({ request }) => handler(request),
+  POST: ({ request }) => handler(request),
+  PATCH: ({ request }) => handler(request),
+  DELETE: ({ request }) => handler(request),
+});
+```
+
+## Environment Variables
+
+| Variable | Required | Description |
+|---|---|---|
+| `DATABASE_URL` | Yes | PostgreSQL connection string |
+| `APP_URL` | Yes | Public URL of your app |
+| `APP_SECRET` | Yes | Secret for auth sessions |
+| `SMTP_HOST` | No | Email SMTP host |
+| `SMTP_PORT` | No | Email SMTP port |
+
+## What's Next
+
+- [First App](/docs/start-here/first-app) — Build a working CRUD API
+- [Project Structure](/docs/start-here/project-structure) — File convention layout

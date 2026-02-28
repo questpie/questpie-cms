@@ -26,6 +26,17 @@ import type { CollectionAccess } from "#questpie/server/collection/builder/types
  */
 export type AuthConfig = BetterAuthOptions;
 
+export type {
+	CallbackParamDefinition,
+	CategoryDeclaration,
+	CodegenPlugin,
+	DiscoverPattern,
+	DiscoveryResult,
+	ModuleRegistryConfig,
+	RegistryExtension,
+	SingletonFactory,
+} from "#questpie/cli/codegen/types.js";
+
 import type { CodegenPlugin } from "#questpie/cli/codegen/types.js";
 import type { GlobalHooksState } from "#questpie/server/config/global-hooks-types.js";
 import type {
@@ -91,7 +102,13 @@ export interface ModuleDefinition {
 	fields?: Record<string, any>;
 
 	/** Services this module contributes. Keyed by service name. */
-	services?: Record<string, import("#questpie/server/services/define-service.js").ServiceDefinition<any, any>>;
+	services?: Record<
+		string,
+		import("#questpie/server/services/define-service.js").ServiceDefinition<
+			any,
+			any
+		>
+	>;
 
 	/** Partial auth config — deep-merged with other modules and user config. */
 	auth?: BetterAuthOptions | Record<string, any>;
@@ -262,10 +279,22 @@ export interface AppDefinition {
 	routes?: Record<string, RouteDefinition>;
 
 	/** Services discovered from `services/` directory. */
-	services?: Record<string, import("#questpie/server/services/define-service.js").ServiceDefinition<any, any>>;
+	services?: Record<
+		string,
+		import("#questpie/server/services/define-service.js").ServiceDefinition<
+			any,
+			any
+		>
+	>;
 
 	/** Email templates discovered from `emails/` directory. */
-	emailTemplates?: Record<string, import("#questpie/server/integrated/mailer/index.js").EmailTemplateDefinition<any, any>>;
+	emailTemplates?: Record<
+		string,
+		import("#questpie/server/integrated/mailer/index.js").EmailTemplateDefinition<
+			any,
+			any
+		>
+	>;
 
 	/** Auth config from `auth.ts`. Deep-merged on top of module auth. */
 	auth?: BetterAuthOptions | Record<string, any>;

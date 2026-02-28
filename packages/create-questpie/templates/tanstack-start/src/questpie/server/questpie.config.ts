@@ -6,10 +6,12 @@
  * Sidebar, dashboard, branding are file conventions.
  */
 
+import { adminPlugin } from "@questpie/admin/server";
 import { ConsoleAdapter, runtimeConfig } from "questpie";
 import { env } from "@/lib/env.js";
 
 export default runtimeConfig({
+	plugins: [adminPlugin()],
 	app: { url: env.APP_URL },
 	db: { url: env.DATABASE_URL },
 	auth: {

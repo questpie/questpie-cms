@@ -13,11 +13,17 @@
  * - Call createApp()
  * - Generate an App type
  *
+ * All category-specific behavior is driven by `CategoryDeclaration` metadata
+ * from plugins — no hardcoded category names.
+ *
  * @see RFC-MODULE-ARCHITECTURE §9.2 (Module — .generated/module.ts)
  */
 
-import type { DiscoveryResult } from "./discover.js";
-import type { DiscoveredFile } from "./types.js";
+import type {
+	CategoryDeclaration,
+	DiscoveredFile,
+	DiscoveryResult,
+} from "./types.js";
 
 // ============================================================================
 // Module template options
@@ -28,6 +34,12 @@ export interface ModuleTemplateOptions {
 	moduleName: string;
 	/** Discovery result with all found files. */
 	discovered: DiscoveryResult;
+	/**
+	 * Merged category declarations from all plugins.
+	 * Key = category name, value = declaration metadata.
+	 * Used to determine emit strategy, type emission, etc.
+	 */
+	categoryMeta: Map<string, CategoryDeclaration>;
 	/** Additional imports from plugins (e.g. admin view/component factories). */
 	extraImports?: Array<{ name: string; path: string }>;
 	/** Additional type declarations from plugins. */
@@ -53,6 +65,7 @@ export function generateModuleTemplate(options: ModuleTemplateOptions): string {
 	const {
 		moduleName,
 		discovered,
+		categoryMeta,
 		extraImports,
 		extraTypeDeclarations,
 		extraModuleProperties,
@@ -79,78 +92,12 @@ export function generateModuleTemplate(options: ModuleTemplateOptions): string {
 		lines.push("");
 	}
 
-	// Import collections
-	if (discovered.collections.size > 0) {
-		lines.push(
-			"// ── Collections ────────────────────────────────────────────",
-		);
-		for (const file of sortedValues(discovered.collections)) {
-			lines.push(importStatement(file));
-		}
-		lines.push("");
-	}
-
-	// Import globals
-	if (discovered.globals.size > 0) {
-		lines.push(
-			"// ── Globals ────────────────────────────────────────────────",
-		);
-		for (const file of sortedValues(discovered.globals)) {
-			lines.push(importStatement(file));
-		}
-		lines.push("");
-	}
-
-	// Import jobs
-	if (discovered.jobs.size > 0) {
-		lines.push(
-			"// ── Jobs ───────────────────────────────────────────────────",
-		);
-		for (const file of sortedValues(discovered.jobs)) {
-			lines.push(importStatement(file));
-		}
-		lines.push("");
-	}
-
-	// Import functions
-	if (discovered.functions.size > 0) {
-		lines.push(
-			"// ── Functions ──────────────────────────────────────────────",
-		);
-		for (const file of sortedValues(discovered.functions)) {
-			lines.push(importStatement(file));
-		}
-		lines.push("");
-	}
-
-	// Import routes
-	if (discovered.routes.size > 0) {
-		lines.push(
-			"// ── Routes ─────────────────────────────────────────────────",
-		);
-		for (const file of sortedValues(discovered.routes)) {
-			lines.push(importStatement(file));
-		}
-		lines.push("");
-	}
-
-	// Import messages
-	if (discovered.messages.size > 0) {
-		lines.push(
-			"// ── Messages ───────────────────────────────────────────────",
-		);
-		for (const file of sortedValues(discovered.messages)) {
-			lines.push(importStatement(file));
-		}
-		lines.push("");
-	}
-
-	// Import services
-	if (discovered.services.size > 0) {
-		lines.push(
-			"// ── Services ───────────────────────────────────────────────",
-		);
-		for (const file of sortedValues(discovered.services)) {
+	// Import all categories (collections, globals, jobs, functions, etc.)
+	for (const [catName, fileMap] of discovered.categories) {
+		if (fileMap.size === 0) continue;
+		const label = catName.charAt(0).toUpperCase() + catName.slice(1);
+		lines.push(`// ── ${label} ────────────────────────────────────────────`);
+		for (const file of sortedValues(fileMap)) {
 			lines.push(importStatement(file));
 		}
 		lines.push("");
@@ -177,20 +124,6 @@ export function generateModuleTemplate(options: ModuleTemplateOptions): string {
 		lines.push("");
 	}
 
-	// Import custom (plugin-discovered directory files, e.g. blocks)
-	for (const [stateKey, fileMap] of discovered.custom) {
-		if (fileMap.size > 0) {
-			const label = stateKey.charAt(0).toUpperCase() + stateKey.slice(1);
-			lines.push(
-				`// ── ${label} ──────────────────────────────────────────────`,
-			);
-			for (const file of sortedValues(fileMap)) {
-				lines.push(importStatement(file));
-			}
-			lines.push("");
-		}
-	}
-
 	// Extra plugin imports
 	if (extraImports && extraImports.length > 0) {
 		lines.push(
@@ -206,14 +139,19 @@ export function generateModuleTemplate(options: ModuleTemplateOptions): string {
 	// TYPES — module type extraction
 	// ════════════════════════════════════════════════════════════
 
-	const hasAnyEntities =
-		discovered.collections.size > 0 ||
-		discovered.globals.size > 0 ||
-		discovered.jobs.size > 0 ||
-		discovered.functions.size > 0 ||
-		discovered.routes.size > 0;
+	// Determine which categories need named type interfaces.
+	// Use typeEmit from CategoryDeclaration — skip "none" and "messages".
+	const categoriesNeedingTypes = new Set<string>();
+	for (const [catName, fileMap] of discovered.categories) {
+		if (fileMap.size === 0) continue;
+		const decl = categoryMeta.get(catName);
+		const typeEmit = decl?.typeEmit ?? "standard";
+		// Skip categories that don't produce meaningful named types for modules
+		if (typeEmit === "none" || typeEmit === "messages") continue;
+		categoriesNeedingTypes.add(catName);
+	}
 
-	if (hasAnyEntities) {
+	if (categoriesNeedingTypes.size > 0) {
 		lines.push(
 			"// ════════════════════════════════════════════════════════════",
 		);
@@ -240,40 +178,25 @@ export function generateModuleTemplate(options: ModuleTemplateOptions): string {
 		// Why emit at all (not just infer from `_module`):
 		//   Deep .merge().set() builder chains cause TS7056 ("inferred type exceeds
 		//   maximum length"). Named interfaces give TypeScript a stable anchor.
-		if (discovered.collections.size > 0) {
-			emitSimpleTypeInterface(
-				lines,
-				`${typePrefix}Collections`,
-				discovered.collections,
-			);
-		}
-		if (discovered.globals.size > 0) {
-			emitSimpleTypeInterface(
-				lines,
-				`${typePrefix}Globals`,
-				discovered.globals,
-			);
-		}
-		if (discovered.jobs.size > 0) {
-			emitSimpleTypeInterface(lines, `${typePrefix}Jobs`, discovered.jobs);
-		}
-		if (discovered.functions.size > 0) {
-			lines.push(`export interface ${typePrefix}Functions {`);
-			const nested = buildNestedFunctions(discovered.functions);
-			emitNestedTypeObject(lines, nested, 1);
-			lines.push("}");
-			lines.push("");
-		}
-		if (discovered.routes.size > 0) {
-			emitSimpleTypeInterface(
-				lines,
-				`${typePrefix}Routes`,
-				discovered.routes,
-			);
-		}
-		for (const [stateKey, fileMap] of discovered.custom) {
-			if (fileMap.size > 0) {
-				const typeName = `${typePrefix}${stateKey.charAt(0).toUpperCase() + stateKey.slice(1)}`;
+		for (const catName of categoriesNeedingTypes) {
+			const fileMap = discovered.categories.get(catName)!;
+			const decl = categoryMeta.get(catName);
+			const emitStrategy = decl?.emit ?? "record";
+			const typeName = `${typePrefix}${catName.charAt(0).toUpperCase() + catName.slice(1)}`;
+
+			if (emitStrategy === "nested") {
+				// Nested categories (functions) — only type leaf files,
+				// bundle files are opaque (their types are inferred via spread)
+				const leafFiles = sortedValues(fileMap).filter((f) => !f.isBundle);
+				if (leafFiles.length > 0) {
+					lines.push(`export interface ${typeName} {`);
+					const leafMap = new Map(leafFiles.map((f) => [f.key, f]));
+					const nested = buildNestedStructure(leafMap);
+					emitNestedTypeObject(lines, nested, 1);
+					lines.push("}");
+					lines.push("");
+				}
+			} else {
 				emitSimpleTypeInterface(lines, typeName, fileMap);
 			}
 		}
@@ -304,66 +227,57 @@ export function generateModuleTemplate(options: ModuleTemplateOptions): string {
 		lines.push(`\tmodules: ${modulesFile.varName},`);
 	}
 
-	// Collections — cast to named interface to prevent TS7056 with deep builder types
-	if (discovered.collections.size > 0) {
-		lines.push("\tcollections: {");
-		for (const file of sortedValues(discovered.collections)) {
-			lines.push(`\t\t${safeKey(file.key)}: ${file.varName},`);
-		}
-		lines.push(`\t} as ${typePrefix}Collections,`);
-	}
+	// Emit all categories — driven by CategoryDeclaration.emit
+	for (const [catName, fileMap] of discovered.categories) {
+		if (fileMap.size === 0) continue;
+		const decl = categoryMeta.get(catName);
+		const emitStrategy = decl?.emit ?? "record";
+		const typeEmit = decl?.typeEmit ?? "standard";
+		const typeName = `${typePrefix}${catName.charAt(0).toUpperCase() + catName.slice(1)}`;
+		const hasNamedType = categoriesNeedingTypes.has(catName);
 
-	// Globals — cast to named interface to prevent TS7056
-	if (discovered.globals.size > 0) {
-		lines.push("\tglobals: {");
-		for (const file of sortedValues(discovered.globals)) {
-			lines.push(`\t\t${safeKey(file.key)}: ${file.varName},`);
-		}
-		lines.push(`\t} as ${typePrefix}Globals,`);
-	}
+		if (emitStrategy === "nested") {
+			// Nested emission (functions) — spread bundles, nest single-export files
+			const leafFiles: DiscoveredFile[] = [];
+			const bundleFiles: DiscoveredFile[] = [];
+			for (const file of sortedValues(fileMap)) {
+				if (file.isBundle) {
+					bundleFiles.push(file);
+				} else {
+					leafFiles.push(file);
+				}
+			}
 
-	// Jobs — cast to named interface to prevent TS7056
-	if (discovered.jobs.size > 0) {
-		lines.push("\tjobs: {");
-		for (const file of sortedValues(discovered.jobs)) {
-			lines.push(`\t\t${safeKey(file.key)}: ${file.varName},`);
+			lines.push(`\t${safeKey(catName)}: {`);
+			// Bundle files are spread (e.g. ...setupFunctions)
+			for (const file of bundleFiles) {
+				lines.push(`\t\t...${file.varName},`);
+			}
+			// Single-export files are nested leaves
+			if (leafFiles.length > 0) {
+				const leafMap = new Map(leafFiles.map((f) => [f.key, f]));
+				const nested = buildNestedStructure(leafMap);
+				emitNestedObject(lines, nested, 2);
+			}
+			lines.push("\t},");
+		} else if (emitStrategy === "array") {
+			// Array emission (migrations, seeds)
+			const vars = sortedValues(fileMap)
+				.map((f) => f.varName)
+				.join(", ");
+			lines.push(`\t${safeKey(catName)}: [${vars}],`);
+		} else {
+			// Record emission (collections, globals, jobs, messages, etc.)
+			lines.push(`\t${safeKey(catName)}: {`);
+			for (const file of sortedValues(fileMap)) {
+				lines.push(`\t\t${safeKey(file.key)}: ${file.varName},`);
+			}
+			if (hasNamedType && typeEmit !== "messages") {
+				lines.push(`\t} as ${typeName},`);
+			} else {
+				lines.push("\t},");
+			}
 		}
-		lines.push(`\t} as ${typePrefix}Jobs,`);
-	}
-
-	// Functions — nested
-	if (discovered.functions.size > 0) {
-		lines.push("\tfunctions: {");
-		const nested = buildNestedFunctions(discovered.functions);
-		emitNestedObject(lines, nested, 2);
-		lines.push("\t},");
-	}
-
-	// Routes
-	if (discovered.routes.size > 0) {
-		lines.push("\troutes: {");
-		for (const file of sortedValues(discovered.routes)) {
-			lines.push(`\t\t${safeKey(file.key)}: ${file.varName},`);
-		}
-		lines.push("\t},");
-	}
-
-	// Messages
-	if (discovered.messages.size > 0) {
-		lines.push("\tmessages: {");
-		for (const file of sortedValues(discovered.messages)) {
-			lines.push(`\t\t${safeKey(file.key)}: ${file.varName},`);
-		}
-		lines.push("\t},");
-	}
-
-	// Services
-	if (discovered.services.size > 0) {
-		lines.push("\tservices: {");
-		for (const file of sortedValues(discovered.services)) {
-			lines.push(`\t\t${safeKey(file.key)}: ${file.varName},`);
-		}
-		lines.push("\t},");
 	}
 
 	// Auth
@@ -378,17 +292,6 @@ export function generateModuleTemplate(options: ModuleTemplateOptions): string {
 			lines.push(`\t${safeKey(file.key)}: [${file.varName}],`);
 		} else {
 			lines.push(`\t${safeKey(file.key)}: ${file.varName},`);
-		}
-	}
-
-	// Custom directory patterns (blocks, etc.)
-	for (const [stateKey, fileMap] of discovered.custom) {
-		if (fileMap.size > 0) {
-			lines.push(`\t${safeKey(stateKey)}: {`);
-			for (const file of sortedValues(fileMap)) {
-				lines.push(`\t\t${safeKey(file.key)}: ${file.varName},`);
-			}
-			lines.push("\t},");
 		}
 	}
 
@@ -463,18 +366,25 @@ function emitSimpleTypeInterface(
 }
 
 // ============================================================================
-// Nested functions builder (shared with template.ts)
+// Nested structure builder (for emit: "nested" categories)
 // ============================================================================
 
 type NestedNode =
 	| { type: "leaf"; varName: string }
 	| { type: "branch"; children: Map<string, NestedNode> };
 
-function buildNestedFunctions(
-	functions: Map<string, DiscoveredFile>,
+/**
+ * Build a nested tree from dot-separated keys.
+ * Used for categories with `emit: "nested"` (e.g., functions).
+ *
+ * "admin.stats" → { admin: { stats: leaf } }
+ * "getConfig" → { getConfig: leaf }
+ */
+function buildNestedStructure(
+	files: Map<string, DiscoveredFile>,
 ): Map<string, NestedNode> {
 	const root = new Map<string, NestedNode>();
-	for (const file of functions.values()) {
+	for (const file of files.values()) {
 		const segments = file.key.split(".");
 		let current = root;
 		for (let i = 0; i < segments.length; i++) {

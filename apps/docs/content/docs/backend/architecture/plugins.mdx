@@ -1,0 +1,139 @@
+---
+title: Plugins
+description: The plugin system — plugins declare what CAN exist, modules contribute what DOES exist, config runs the runtime.
+---
+
+# Plugins
+
+QuestPie's plugin system follows a three-level architecture:
+
+- **Plugin** — Declares what CAN exist (file categories, builder extensions, registries)
+- **Module** — Contributes what DOES exist (actual values, entities)
+- **Config** — Runs the runtime (database, adapters, secrets)
+
+The core framework is intentionally lean. Most functionality — including the admin panel, audit logging, and even builtin fields — comes from plugins and modules.
+
+## How Plugins Work
+
+A plugin tells codegen **what to look for** and **what types to generate**:
+
+```ts
+import { adminPlugin } from "@questpie/admin/server";
+import { runtimeConfig } from "questpie";
+
+export default runtimeConfig({
+  plugins: [adminPlugin()],
+  // ...
+});
+```
+
+When you add `adminPlugin()`, codegen starts looking for:
+- `sidebar.ts` — Admin sidebar configuration
+- `dashboard.ts` — Dashboard widgets
+- `branding.ts` — Admin branding
+- `blocks/*.ts` — Content block definitions
+- `admin-locale.ts` — Admin UI locale
+
+Without the plugin, these files are ignored.
+
+## Core vs Plugin Categories
+
+The core framework discovers these categories by default:
+
+| Category | Pattern |
+|---|---|
+| `collections/` | Collection definitions |
+| `globals/` | Global definitions |
+| `functions/` | Server functions |
+| `jobs/` | Background jobs |
+| `routes/` | HTTP routes |
+| `services/` | Singleton services |
+| `emails/` | Email templates |
+
+The admin plugin adds:
+
+| Category | Pattern |
+|---|---|
+| `blocks/` | Content blocks |
+| `sidebar.ts` | Sidebar config |
+| `dashboard.ts` | Dashboard config |
+| `branding.ts` | Branding config |
+| `admin-locale.ts` | Admin UI locale |
+
+## CodegenPlugin Interface
+
+Plugins implement the `CodegenPlugin` interface:
+
+```ts
+interface CodegenPlugin {
+  name: string;
+
+  // File categories to discover
+  categories?: Record<string, CategoryDeclaration>;
+
+  // Builder method extensions
+  extensions?: {
+    collection?: ExtensionDeclaration;
+    global?: ExtensionDeclaration;
+  };
+
+  // Module-level registries
+  moduleRegistries?: Record<string, ModuleRegistryDeclaration>;
+
+  // Single-file factories
+  singletons?: Record<string, SingletonDeclaration>;
+
+  // Post-discovery transformation
+  transform?: (ctx: CodegenContext) => void;
+}
+```
+
+### Category Declaration
+
+```ts
+categories: {
+  blocks: {
+    pattern: "blocks/**/*.ts",
+    cardinality: "map",        // Record<string, Block>
+    recursive: false,
+    featureLayout: true,       // Also scan features/*/blocks/
+    mergeStrategy: "record",   // Merge by key
+    moduleContributionKey: "blocks",
+    registryKey: "blocks",
+  },
+}
+```
+
+| Property | Description |
+|---|---|
+| `pattern` | Glob pattern for file discovery |
+| `cardinality` | `"map"` (key-value) or `"single"` (one value) |
+| `recursive` | Support nested directories |
+| `featureLayout` | Scan `features/*/` directories |
+| `mergeStrategy` | How to merge with module contributions |
+| `moduleContributionKey` | Property name on module objects |
+| `registryKey` | Type name in generated `Registry` |
+
+## Three Levels in Action
+
+```text
+Plugin (declaration)
+  ├── "Look for blocks/*.ts files"
+  ├── "Generate AppBlocks type"
+  └── "Add blocks to Registry"
+
+Module (contribution)
+  ├── adminModule.blocks = { richText, media, ... }
+  └── auditModule.sidebar = { items: [...] }
+
+Config (runtime)
+  ├── db.url = "postgres://..."
+  ├── plugins = [adminPlugin()]
+  └── secret = "..."
+```
+
+## Related Pages
+
+- [Modules](/docs/backend/architecture/modules) — Module composition
+- [Codegen](/docs/backend/architecture/codegen) — Generated output
+- [Building a Plugin](/docs/extend/building-a-plugin) — Create your own plugin

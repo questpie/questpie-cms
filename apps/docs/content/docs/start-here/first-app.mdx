@@ -1,0 +1,161 @@
+---
+title: First App
+description: Build a working CRUD API with a server function in 5 minutes.
+---
+
+# First App
+
+Build a working API with a collection, a server function, and an HTTP handler. This takes about 5 minutes.
+
+## 1. Define a collection
+
+```ts title="src/questpie/server/collections/tasks.ts"
+import { collection } from "#questpie";
+
+export default collection("tasks").fields(({ f }) => ({
+  title: f.text({ required: true, maxLength: 255 }),
+  description: f.textarea(),
+  priority: f.select({
+    options: ["low", "medium", "high"],
+    default: "medium",
+    required: true,
+  }),
+  dueDate: f.date(),
+  completed: f.boolean({ default: false, required: true }),
+}));
+```
+
+This defines:
+- A `tasks` database table with 5 columns
+- CRUD API endpoints at `/:collection` (e.g., `/tasks`)
+- Zod validation for create/update
+- Type-safe query operators for `where`, `orderBy`
+
+## 2. Add a server function
+
+```ts title="src/questpie/server/functions/get-overdue-tasks.ts"
+import { fn } from "questpie";
+import z from "zod";
+
+export default fn({
+  schema: z.object({}),
+  handler: async ({ collections }) => {
+    return await collections.tasks.find({
+      where: {
+        completed: false,
+        dueDate: { lt: new Date() },
+      },
+      orderBy: { dueDate: "asc" },
+    });
+  },
+});
+```
+
+Functions are typed server-side logic exposed via RPC. The `collections` object is injected through context — fully typed from your schema.
+
+## 3. Run codegen
+
+```bash
+bunx questpie generate
+```
+
+This discovers your files and generates:
+- `src/questpie/server/.generated/index.ts` — app instance with typed collections and functions
+- `AppConfig` and `AppFunctions` types for the client SDK
+- `AppContext` module augmentation
+
+## 4. Push to database
+
+```bash
+bunx questpie push
+```
+
+## 5. Wire up the HTTP handler
+
+For TanStack Start:
+
+```ts title="src/routes/api/$.ts"
+import { createAPIFileRoute } from "@tanstack/react-start/api";
+import { createFetchHandler } from "questpie";
+import { app } from "@/questpie/server/.generated";
+
+const handler = createFetchHandler(app, { basePath: "/api" });
+
+export const Route = createAPIFileRoute("/api/$")({
+  GET: ({ request }) => handler(request),
+  POST: ({ request }) => handler(request),
+  PATCH: ({ request }) => handler(request),
+  DELETE: ({ request }) => handler(request),
+});
+```
+
+## 6. Test it
+
+```bash
+# List tasks
+curl http://localhost:3000/api/tasks
+
+# Create a task
+curl -X POST http://localhost:3000/api/tasks \
+  -H "Content-Type: application/json" \
+  -d '{"title": "Write docs", "priority": "high", "dueDate": "2025-03-01"}'
+
+# Call a function via RPC
+curl -X POST http://localhost:3000/api/rpc/getOverdueTasks \
+  -H "Content-Type: application/json" \
+  -d '{}'
+```
+
+## 7. Use the typed client
+
+```ts title="src/lib/client.ts"
+import { createClient } from "questpie/client";
+import type { AppConfig, AppFunctions } from "@/questpie/server/.generated";
+
+export const client = createClient<AppConfig, AppFunctions>({
+  baseURL: "http://localhost:3000",
+  basePath: "/api",
+});
+```
+
+```ts title="src/routes/index.tsx"
+// Fully typed — autocomplete on collection names, fields, operators
+const tasks = await client.collections.tasks.find({
+  where: { completed: false },
+  orderBy: { priority: "desc" },
+});
+
+// Call functions via RPC
+const overdue = await client.rpc.getOverdueTasks({});
+```
+
+## Adding the Admin Panel
+
+Want a visual interface? Add `@questpie/admin`:
+
+```bash
+bun add @questpie/admin
+```
+
+```ts title="src/questpie/server/questpie.config.ts"
+import { adminPlugin } from "@questpie/admin/server";
+import { runtimeConfig } from "questpie";
+
+export default runtimeConfig({
+  plugins: [adminPlugin()],
+  // ... rest of config
+});
+```
+
+```ts title="src/questpie/server/modules.ts"
+import { adminModule } from "@questpie/admin/server";
+export default [adminModule] as const;
+```
+
+Run `bunx questpie generate` again, and navigate to `/admin` — your tasks collection is already there with a list view and form, generated from the same field definitions.
+
+## What's Next
+
+- [Project Structure](/docs/start-here/project-structure) — File convention layout and discovery rules
+- [Collections](/docs/backend/data-modeling/collections) — Builder chain and server-side methods
+- [Fields](/docs/backend/data-modeling/fields) — All field types and options
