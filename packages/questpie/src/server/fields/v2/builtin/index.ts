@@ -11,6 +11,7 @@ import "./number.js";
 import "./date.js";
 import "./select.js";
 import "./from.js";
+import "./relation.js";
 
 // Named re-exports
 export { text, type TextFieldState } from "./text.js";
@@ -26,3 +27,5 @@ export { select, type SelectOption, type SelectFieldState } from "./select.js";
 export { json, type JsonFieldState, type JsonValue } from "./json.js";
 export { object, type ObjectFieldState } from "./object.js";
 export { from, type CustomFieldState } from "./from.js";
+export { relation, type RelationFieldState } from "./relation.js";
+export { upload, type UploadFieldState } from "./upload.js";

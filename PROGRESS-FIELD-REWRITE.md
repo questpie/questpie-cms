@@ -68,7 +68,27 @@
 ---
 
 ## Phase 4: Relation + Upload Fields
-**Status**: Pending
+**Status**: COMPLETED
+**Started**: 2026-03-03
+
+### What was done
+- [x] `v2/builtin/relation.ts` — relation() factory supporting all 6 relation types via chain methods:
+  - Default: belongsTo (varchar FK column)
+  - `.hasMany({ foreignKey })` — virtual, toMany operators
+  - `.manyToMany({ through, sourceField, targetField })` — virtual, toMany operators
+  - `.multiple()` — jsonb array of FKs, multiple operators
+  - Polymorphic (object target) — morphTo with type+id columns
+  - `.onDelete()`, `.onUpdate()`, `.relationName()` chain methods
+- [x] `v2/builtin/upload.ts` — upload() factory for file upload relations:
+  - Single upload: belongsTo with varchar(36) column
+  - M2M upload: virtual with through config
+  - isUpload flag in metadata for admin UI detection
+- [x] Updated `v2/builtin/index.ts` — Added relation and upload exports + side-effect import
+- [x] `test/fields/v2/relation.test.ts` — 36 tests covering all 6 relation variants + upload + cross-cutting
+
+### Verification
+- 210 field tests pass (78 existing + 132 v2)
+- 156 admin tests pass
 
 ---
 
