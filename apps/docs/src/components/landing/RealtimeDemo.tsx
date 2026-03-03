@@ -498,7 +498,7 @@ export function RealtimeDemo() {
 				<div className="mt-8 text-center">
 					<Link
 						to="/docs/$"
-						params={{ _splat: "infrastructure/realtime" }}
+						params={{ _splat: "production/realtime" }}
 						className="inline-flex items-center gap-2 font-mono text-xs text-primary transition-colors hover:text-primary/80"
 					>
 						Read the realtime docs →

@@ -8,8 +8,8 @@
 import { Icon } from "@iconify/react";
 import * as React from "react";
 import { useFieldArray, useFormContext, useWatch } from "react-hook-form";
-import type { FieldDefinition } from "../../builder/field/field";
-import { createFieldRegistryProxy } from "../../builder/proxies";
+import type { FieldInstance } from "../../builder/field/field";
+import { configureField } from "../../builder/field/field";
 import { useResolveText, useTranslation } from "../../i18n/hooks";
 import { cn } from "../../lib/utils";
 import { selectAdmin, useAdminStore } from "../../runtime";
@@ -56,7 +56,7 @@ interface ObjectArrayFieldProps
 
 interface ItemFieldRendererProps {
 	fieldName: string;
-	fieldDef: FieldDefinition;
+	fieldDef: FieldInstance;
 	parentName: string;
 	disabled?: boolean;
 }
@@ -69,10 +69,10 @@ function ItemFieldRenderer({
 }: ItemFieldRendererProps) {
 	const resolveText = useResolveText();
 	const fullName = `${parentName}.${fieldName}`;
-	const options = fieldDef["~options"] || {};
+	const options = (fieldDef["~options"] || {}) as Record<string, any>;
 
 	// Get the component from the field definition (registry-based)
-	const Component = fieldDef.field?.component as
+	const Component = fieldDef.component as
 		| React.ComponentType<any>
 		| undefined;
 
@@ -149,7 +149,7 @@ function ObjectArrayItemFields({
 		<ItemFieldRenderer
 			key={fieldName}
 			fieldName={fieldName}
-			fieldDef={fieldDef as FieldDefinition}
+			fieldDef={fieldDef as FieldInstance}
 			parentName={`${name}.${index}`}
 			disabled={disabled}
 		/>
@@ -221,7 +221,10 @@ export function ObjectArrayField({
 
 		if (typeof itemProp === "function") {
 			const registeredFields = admin.getFields();
-			const r = createFieldRegistryProxy(registeredFields as any);
+			const r: Record<string, (opts?: Record<string, unknown>) => FieldInstance> = {};
+			for (const key in registeredFields) {
+				r[key] = (opts) => configureField(registeredFields[key], opts ?? {});
+			}
 			return itemProp({ r });
 		}
 

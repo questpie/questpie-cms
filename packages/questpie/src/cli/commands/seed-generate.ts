@@ -1,7 +1,8 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { SeedCategory } from "../../server/seed/types.js";
-import { getSeedDirectory, loadQuestpieConfig } from "../config.js";
+import { loadQuestpieConfig } from "../config.js";
+import { resolveEntityRoot } from "./codegen.js";
 
 export type GenerateSeedOptions = {
 	configPath: string;
@@ -31,12 +32,16 @@ export async function generateSeedCommand(
 	// Load config to get seeds directory
 	const resolvedConfigPath = join(process.cwd(), options.configPath);
 
+	// Get seed directory: explicit cli override or convention-based default (entity root)
+	const { rootDir } = await resolveEntityRoot(resolvedConfigPath);
 	let seedDir: string;
 	if (existsSync(resolvedConfigPath)) {
 		const cmsConfig = await loadQuestpieConfig(resolvedConfigPath);
-		seedDir = join(process.cwd(), getSeedDirectory(cmsConfig));
+		seedDir = cmsConfig.cli?.seeds?.directory
+			? join(process.cwd(), cmsConfig.cli.seeds.directory)
+			: join(rootDir, "seeds");
 	} else {
-		seedDir = join(process.cwd(), "./src/seeds");
+		seedDir = join(rootDir, "seeds");
 	}
 
 	const fileName = `${kebabName}.seed`;

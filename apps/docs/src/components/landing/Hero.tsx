@@ -175,7 +175,7 @@ export function Hero() {
 						>
 							<Link
 								to="/docs/$"
-								params={{ _splat: "getting-started/quickstart" }}
+								params={{ _splat: "start-here/first-app" }}
 								className="group relative inline-flex h-12 items-center justify-center overflow-hidden bg-primary px-8 text-sm font-medium text-primary-foreground transition-all hover:bg-primary/90"
 							>
 								<span className="relative z-10">Get Started</span>

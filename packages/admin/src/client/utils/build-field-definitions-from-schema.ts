@@ -16,7 +16,11 @@ import type {
 	SelectFieldMetadata,
 } from "questpie";
 import type { AnyAdminMeta } from "../../augmentation";
-import type { FieldBuilder, FieldDefinition } from "../builder/field/field";
+import {
+	configureField,
+	type FieldDefinition,
+	type FieldInstance,
+} from "../builder/field/field";
 import { formatLabel } from "../lib/utils";
 
 // ============================================================================
@@ -24,10 +28,10 @@ import { formatLabel } from "../lib/utils";
 // ============================================================================
 
 /**
- * Field registry type - maps field type names to FieldBuilder instances
+ * Field registry type - maps field type names to FieldDefinition instances
  * This is what Admin.getFields() returns
  */
-type FieldRegistry = Record<string, FieldBuilder<any>>;
+type FieldRegistry = Record<string, FieldDefinition>;
 
 /**
  * Options for building field definitions
@@ -52,7 +56,7 @@ export interface BuildFieldDefinitionsOptions {
 /**
  * Result of building field definitions
  */
-type FieldDefinitionsResult = Record<string, FieldDefinition>;
+type FieldDefinitionsResult = Record<string, FieldInstance>;
 
 // ============================================================================
 // Main Function
@@ -123,7 +127,7 @@ export function buildFieldDefinitionsFromMetadata(
 			fieldType,
 		);
 
-		result[fieldName] = fieldBuilder.$options(config);
+		result[fieldName] = configureField(fieldBuilder, config);
 	}
 
 	return result;
@@ -179,7 +183,7 @@ function buildFieldDefinition(
 	relations: Record<string, RelationSchema>,
 	registry: FieldRegistry,
 	overrides?: Partial<Record<string, unknown>>,
-): FieldDefinition | null {
+): FieldInstance | null {
 	const { metadata } = fieldSchema;
 	const fieldType = resolveFieldType(metadata);
 
@@ -214,7 +218,7 @@ function buildFieldDefinition(
 	}
 
 	// Create field definition with options
-	return fieldBuilder.$options(config);
+	return configureField(fieldBuilder, config);
 }
 
 /**
@@ -477,7 +481,7 @@ function buildNestedFieldDefinitions(
 			applyAdminConfig(config, adminConfig);
 		}
 
-		result[nestedName] = fieldBuilder.$options(config);
+		result[nestedName] = configureField(fieldBuilder, config);
 	}
 
 	return result;

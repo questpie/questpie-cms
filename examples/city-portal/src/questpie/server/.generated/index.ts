@@ -23,10 +23,8 @@ import _coll_submissions from "../collections/submissions";
 // ── Globals ────────────────────────────────────────────────
 import _glob_siteSettings from "../globals/site-settings";
 
-// ── Auth ───────────────────────────────────────────────────
-import _auth from "../auth";
-
 // ── Core Singles ───────────────────────────────────────────
+import _auth from "../auth";
 import _contextResolver from "../context";
 import _locale from "../locale";
 
@@ -51,6 +49,14 @@ type _ModuleJobs = _MP<"jobs">;
 type _ModuleFunctions = _MP<"functions">;
 type _ModuleRoutes = _MP<"routes">;
 type _ModuleServices = _MP<"services">;
+type _ModuleViews = _MP<"views">;
+type _ModuleComponents = _MP<"components">;
+type _ModuleBlocks = _MP<"blocks">;
+// Recursive module property extraction (for fields contributed at each level)
+type _ExtractProp<M, K extends string> = (M extends { modules: infer Sub extends readonly any[] } ? _ExtractPropArr<Sub, K> : {}) & (K extends keyof M ? M[K] extends Record<string, any> ? M[K] : {} : {});
+type _ExtractPropArr<A extends readonly any[], K extends string> = A extends readonly [infer H, ...infer T extends readonly any[]] ? _ExtractProp<H, K> & _ExtractPropArr<T, K> : {};
+
+type _AllModuleFields = _ExtractProp<{ modules: typeof _modules }, "fields">;
 
 /** All collections in the app (modules + user, user overrides) */
 export type AppCollections = _ModuleCollections & {
@@ -84,6 +90,15 @@ export type AppServices = _ModuleServices;
 /** All email templates in the app — use with email.sendTemplate() */
 export type AppEmailTemplates = Record<string, never>;
 
+/** All views in the app (modules + user, user overrides) */
+export type AppViews = _ModuleViews;
+
+/** All components in the app (modules + user, user overrides) */
+export type AppComponents = _ModuleComponents;
+
+/** All blocks in the app (modules + user, user overrides) */
+export type AppBlocks = _ModuleBlocks;
+
 /** @internal — used only for type derivation, not exported */
 type _AppInternal = Questpie<QuestpieConfig & {
 	collections: AppCollections;
@@ -92,6 +107,9 @@ type _AppInternal = Questpie<QuestpieConfig & {
 	functions: AppFunctions;
 	routes: AppRoutes;
 	services: AppServices;
+	views: AppViews;
+	components: AppComponents;
+	blocks: AppBlocks;
 }>;
 
 // ── AppContext augmentation — auto-types ALL handlers ──────
@@ -110,19 +128,15 @@ declare module "questpie" {
 		// Entity APIs
 		collections: _AppInternal['api']['collections'];
 		globals: _AppInternal['api']['globals'];
+		tables: _AppInternal['tables'];
 
 		// Request-scoped
 		session: _AppInternal['auth'] extends { api: { getSession: (...args: any[]) => Promise<infer TSession> } } ? NonNullable<TSession> | null : null;
 		t: (key: string, params?: Record<string, unknown>, locale?: string) => string;
 	}
+
 	interface Registry {
-		collections: AppCollections;
-		globals: AppGlobals;
-		jobs: AppJobs;
-		functions: AppFunctions;
-		routes: AppRoutes;
-		services: AppServices;
-		emails: AppEmailTemplates;
+		"~fieldTypes": _AllModuleFields;
 	}
 }
 
@@ -132,8 +146,10 @@ declare module "questpie" {
  * For handler context, use `AppContext` (auto-typed via module augmentation).
  */
 export type AppConfig = {
-	collections: AppCollections;
-	globals: AppGlobals;
+	collections: AppCollections & Record<string, any>;
+	globals: AppGlobals & Record<string, any>;
+	functions: AppFunctions;
+	routes: AppRoutes;
 	auth: typeof _auth;
 };
 
@@ -157,7 +173,7 @@ export const app = createApp(
 		globals: {
 			siteSettings: _glob_siteSettings,
 		},
-		auth: _auth,
+		auth: _auth as any,
 		contextResolver: _contextResolver as any,
 		locale: _locale as any,
 		adminLocale: _adminLocale as any,

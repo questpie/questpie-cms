@@ -183,7 +183,7 @@ export function createFieldProxy<TFields extends Record<string, any>>(
  * Create a view proxy for defining view configurations.
  */
 export function createViewProxy(
-	kind: "list" | "edit",
+	kind: "list" | "form",
 	registeredViews: string[] = [],
 ) {
 	const registeredViewSet = new Set(registeredViews);
@@ -203,7 +203,7 @@ export function createViewProxy(
 
 				if (hasRegistry && !registeredViewSet.has(prop)) {
 					const registerMethod =
-						kind === "list" ? "listViews" : "editViews";
+						kind === "list" ? "listViews" : "formViews";
 					const available = [...registeredViewSet].sort().join(", ");
 					throw new Error(
 						`Unknown ${kind} view "${prop}". Register it via .${registerMethod}(). ` +

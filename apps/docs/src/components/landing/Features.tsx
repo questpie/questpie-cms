@@ -22,56 +22,56 @@ const features = [
 		title: "Blocks System",
 		description:
 			"Define reusable blocks on the server and render them in admin or custom UIs.",
-		link: "admin/blocks-system",
+		link: "workspace/blocks",
 	},
 	{
 		icon: MagnifyingGlass,
 		title: "Search & Semantic",
 		description:
 			"Built-in PostgreSQL FTS, pgVector semantic search, and faceted filters.",
-		link: "infrastructure/search",
+		link: "production/search",
 	},
 	{
 		icon: FileText,
 		title: "OpenAPI & Scalar",
 		description:
 			"Generate OpenAPI from collections, globals, and functions with built-in Scalar docs.",
-		link: "client/openapi",
+		link: "reference",
 	},
 	{
 		icon: Translate,
 		title: "i18n / Localization",
 		description:
 			"Field-level localization with typed locales and admin locale switching.",
-		link: "server/localization",
+		link: "backend/data-modeling/localization",
 	},
 	{
 		icon: ListChecks,
 		title: "Jobs & Queues",
 		description:
 			"pg-boss jobs with cron schedules, retries, and priority queues.",
-		link: "infrastructure/queue-and-jobs",
+		link: "production/queue",
 	},
 	{
 		icon: ShieldCheck,
 		title: "Access Control",
 		description:
 			"Collection and field-level rules evaluated with full user/session context.",
-		link: "server/access-control",
+		link: "backend/rules/access-control",
 	},
 	{
 		icon: Buildings,
 		title: "Multitenancy & Scopes",
 		description:
 			"Scopes, tenant isolation, row-level filters, and admin scope picker.",
-		link: "server/access-control",
+		link: "backend/rules/access-control",
 	},
 	{
 		icon: Key,
 		title: "Auth (Better Auth)",
 		description:
 			"Better Auth integration: email/password, OAuth, 2FA, sessions, and API keys.",
-		link: "infrastructure/authentication",
+		link: "production/authentication",
 	},
 ];
 
@@ -104,7 +104,7 @@ export function Features() {
 						<div className="mt-6">
 							<Link
 								to="/docs/$"
-								params={{ _splat: "infrastructure" }}
+								params={{ _splat: "production" }}
 								className="inline-flex items-center gap-2 font-mono text-xs text-primary transition-colors hover:text-primary/80"
 							>
 								Explore platform infrastructure →

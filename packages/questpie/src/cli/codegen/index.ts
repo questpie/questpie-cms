@@ -23,6 +23,7 @@ import type {
 	CodegenPlugin,
 	CodegenResult,
 	MultiTargetCodegenResult,
+	ProjectionError,
 	ResolvedTarget,
 } from "./types.js";
 
@@ -143,7 +144,8 @@ export function coreCodegenPlugin(): CodegenPlugin {
 				},
 				discover: {
 					modules: "modules.ts",
-					fields: "fields.ts",
+					fields: { pattern: "fields.ts", registryKey: "~fieldTypes" },
+					auth: "auth.ts",
 					locale: "locale.ts",
 					hooks: "hooks.ts",
 					defaultAccess: "access.ts",
@@ -172,6 +174,69 @@ export function coreCodegenPlugin(): CodegenPlugin {
 				callbackParams: {
 					f: {
 						proxyCode: "new Proxy({}, { get: (_, prop) => String(prop) })",
+					},
+				},
+				scaffolds: {
+					collection: {
+						dir: "collections",
+						description: "Collection definition",
+						template: ({ kebab, camel }) =>
+							`import { collection } from "questpie";\n\nexport const ${camel} = collection("${kebab}")\n\t.fields(({ f }) => ({\n\t\ttitle: f.text("Title"),\n\t}))\n\t.title(({ f }) => f.title);\n`,
+					},
+					global: {
+						dir: "globals",
+						description: "Global definition",
+						template: ({ kebab, camel }) =>
+							`import { global } from "questpie";\n\nexport const ${camel} = global("${kebab}")\n\t.fields(({ f }) => ({\n\t\ttitle: f.text("Title"),\n\t}));\n`,
+					},
+					fn: {
+						dir: "functions",
+						description: "Server function",
+						template: () =>
+							`import { fn } from "questpie";\nimport { z } from "zod";\n\nexport default fn({\n\tschema: z.object({}),\n\thandler: async ({ input, ctx }) => {\n\t\treturn {};\n\t},\n});\n`,
+					},
+					job: {
+						dir: "jobs",
+						description: "Background job",
+						template: ({ kebab }) =>
+							`import { job } from "questpie";\nimport { z } from "zod";\n\nexport default job({\n\tname: "${kebab}",\n\tschema: z.object({}),\n\thandler: async ({ payload, ctx }) => {},\n});\n`,
+					},
+					service: {
+						dir: "services",
+						description: "Service definition",
+						template: ({ camel }) =>
+							`import { service } from "questpie";\n\nexport const ${camel}Service = service({\n\tsetup: async ({ ctx }) => {\n\t\treturn {};\n\t},\n});\n`,
+					},
+					email: {
+						dir: "emails",
+						extension: ".tsx",
+						description: "Email template",
+						template: ({ camel, title }) =>
+							`import { email } from "questpie";\n\nexport default email({\n\tsubject: () => "${title}",\n\trender: async (props: {}) => {\n\t\treturn <div>{/* TODO: implement ${camel} email template */}</div>;\n\t},\n});\n`,
+					},
+					route: {
+						dir: "routes",
+						description: "API route",
+						template: ({ kebab }) =>
+							`import { route } from "questpie";\n\nexport default route("GET", "/${kebab}", async ({ ctx }) => {\n\treturn Response.json({});\n});\n`,
+					},
+					seed: {
+						dir: "seeds",
+						description: "Database seed",
+						template: ({ camel }) =>
+							`import { seed } from "questpie";\n\nexport default seed({\n\tid: "${camel}",\n\tdescription: "TODO: describe what this seed does",\n\tcategory: "dev",\n\tasync run({ collections, globals, createContext, log }) {\n\t\tlog("Running ${camel} seed...");\n\t},\n});\n`,
+					},
+					migration: {
+						dir: "migrations",
+						description: "Database migration",
+						template: ({ camel }) => {
+							const timestamp = new Date()
+								.toISOString()
+								.replace(/[-:]/g, "")
+								.replace(/\..+/, "")
+								.slice(0, 15);
+							return `import { migration } from "questpie";\nimport { sql } from "drizzle-orm";\n\nexport default migration({\n\tid: "${camel}${timestamp}",\n\tasync up({ db }) {\n\t\t// TODO: implement migration\n\t},\n\tasync down({ db }) {\n\t\t// TODO: implement rollback\n\t},\n});\n`;
+						},
 					},
 				},
 			},
@@ -217,10 +282,10 @@ export function resolveTargetGraph(
 						collectionExtensions: {},
 						globalExtensions: {},
 						singletonFactories: {},
-						moduleRegistries: {},
 					},
 					callbackParams: {},
 					transforms: [],
+					scaffolds: {},
 				};
 				targets.set(targetId, target);
 			} else {
@@ -249,6 +314,21 @@ export function resolveTargetGraph(
 							`but a previous plugin set outputFile "${target.outputFile}".`,
 					);
 				}
+			}
+
+			// Validate/store moduleRoot
+			if (contribution.moduleRoot !== undefined) {
+				if (
+					target.moduleRoot !== undefined &&
+					contribution.moduleRoot !== target.moduleRoot
+				) {
+					throw new Error(
+						`[codegen] Target "${targetId}" moduleRoot conflict: ` +
+							`plugin "${plugin.name}" declares moduleRoot "${contribution.moduleRoot}" ` +
+							`but a previous plugin set moduleRoot "${target.moduleRoot}".`,
+					);
+				}
+				target.moduleRoot = contribution.moduleRoot;
 			}
 
 			// Merge categories
@@ -282,17 +362,16 @@ export function resolveTargetGraph(
 						reg.singletonFactories,
 					);
 				}
-				if (reg.moduleRegistries) {
-					Object.assign(
-						target.registries.moduleRegistries,
-						reg.moduleRegistries,
-					);
-				}
 			}
 
 			// Merge callback params
 			if (contribution.callbackParams) {
 				Object.assign(target.callbackParams, contribution.callbackParams);
+			}
+
+			// Merge scaffolds
+			if (contribution.scaffolds) {
+				Object.assign(target.scaffolds, contribution.scaffolds);
 			}
 
 			// Collect transform functions
@@ -362,7 +441,6 @@ export async function runCodegen(
 			allFiles.push(file);
 		}
 	}
-	if (discovered.auth) allFiles.push(discovered.auth);
 	for (const singleFile of discovered.singles.values()) {
 		allFiles.push(singleFile);
 	}
@@ -383,7 +461,6 @@ export async function runCodegen(
 
 	const ctx: CodegenContext = {
 		categories: discovered.categories,
-		auth: discovered.auth,
 		singles: discovered.singles,
 		spreads: discovered.spreads,
 		addImport(name, path) {
@@ -445,6 +522,7 @@ export async function runCodegen(
 			moduleName: options.module.name,
 			discovered,
 			categoryMeta,
+			discoverPatterns: target.discover,
 			extraImports: extraImports.length > 0 ? extraImports : undefined,
 			extraTypeDeclarations:
 				extraTypeDeclarations.length > 0 ? extraTypeDeclarations : undefined,
@@ -460,6 +538,7 @@ export async function runCodegen(
 			discovered,
 			categories: target.categories,
 			singletonFactories: target.registries.singletonFactories,
+			discoverPatterns: target.discover,
 			extraImports: extraImports.length > 0 ? extraImports : undefined,
 			extraTypeDeclarations:
 				extraTypeDeclarations.length > 0 ? extraTypeDeclarations : undefined,
@@ -567,7 +646,6 @@ export async function runAllTargets(
 
 				const ctx: CodegenContext = {
 					categories: discovered.categories,
-					auth: discovered.auth,
 					singles: discovered.singles,
 					spreads: discovered.spreads,
 					addImport(name, path) {
@@ -641,7 +719,17 @@ export async function runAllTargets(
 		}
 	}
 
-	return { targets: results, errors };
+	// Run cross-target validators from all plugins
+	const validationErrors: ProjectionError[] = [];
+	for (const plugin of plugins) {
+		if (!plugin.validators) continue;
+		for (const validator of plugin.validators) {
+			const pluginErrors = validator(results);
+			validationErrors.push(...pluginErrors);
+		}
+	}
+
+	return { targets: results, errors, validationErrors };
 }
 
 // ============================================================================

@@ -135,7 +135,7 @@ export const textField = field<TextFieldConfig, string>()({
 	type: "text" as const,
 	_value: undefined as unknown as string,
 
-	toColumn(name: string, config: TextFieldConfig) {
+	toColumn(name: string, config: TextFieldConfig): ReturnType<typeof varchar> {
 		const { mode = "varchar", maxLength = 255 } = config;
 
 		let column: any =

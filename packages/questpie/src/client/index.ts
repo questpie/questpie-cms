@@ -91,11 +91,13 @@ import type { GlobalMeta } from "#questpie/shared/global-meta.js";
 
 /**
  * Minimal app type constraint for client APIs.
- * Generated `AppConfig` satisfies this — flat { collections, globals, auth }.
+ * Generated `AppConfig` satisfies this — flat { collections, globals, functions, routes, auth }.
  */
 export interface QuestpieApp {
 	collections: Record<string, AnyCollectionOrBuilder>;
 	globals?: Record<string, any>;
+	functions?: Record<string, any>;
+	routes?: Record<string, any>;
 	auth?: any;
 }
 
@@ -661,15 +663,45 @@ type SearchAPI = {
 };
 
 /**
+ * Options for calling a custom route.
+ */
+type RouteCallOptions = Omit<RequestInit, "method"> & {
+	/** HTTP method override. If omitted, uses the route's declared method or GET. */
+	method?: string;
+};
+
+/**
+ * A callable route — calls fetch on the route's URL and returns the raw Response.
+ */
+type RouteEndpoint = {
+	/** Call the route with fetch. Returns the raw Response. */
+	(options?: RouteCallOptions): Promise<Response>;
+	/** Get the full URL for this route (useful for forms, links, etc.). */
+	url: string;
+};
+
+/**
+ * Type-safe routes client API — maps route keys to callable endpoints.
+ */
+type RoutesClientAPI<TRoutes> = TRoutes extends Record<string, any>
+	? { [K in keyof TRoutes]: RouteEndpoint }
+	: {};
+
+/**
  * Questpie Client
  */
 export type QuestpieClient<
 	TApp extends QuestpieApp,
-	TRPC extends Record<string, any> = Record<string, never>,
+	TRPC extends Record<string, any> = TApp extends {
+		functions: infer F extends Record<string, any>;
+	}
+		? F
+		: Record<string, never>,
 > = {
 	collections: CollectionsAPI<TApp>;
 	globals: GlobalsAPI<TApp>;
 	rpc: RpcClientAPI<TRPC>;
+	routes: RoutesClientAPI<TApp extends { routes: infer R } ? R : Record<string, never>>;
 	search: SearchAPI;
 	realtime: RealtimeAPI;
 	setLocale?: (locale?: string) => void;
@@ -698,7 +730,11 @@ export type QuestpieClient<
  */
 export function createClient<
 	TApp extends QuestpieApp,
-	TRPC extends Record<string, any> = Record<string, never>,
+	TRPC extends Record<string, any> = TApp extends {
+		functions: infer F extends Record<string, any>;
+	}
+		? F
+		: Record<string, never>,
 >(config: QuestpieClientConfig): QuestpieClient<TApp, TRPC> {
 	const fetcher = config.fetch || globalThis.fetch;
 	const basePath = config.basePath ?? "/";
@@ -1340,6 +1376,32 @@ export function createClient<
 		},
 	};
 
+	/**
+	 * Routes API — proxy that maps route keys to callable endpoints.
+	 * Routes use slash-separated keys matching the file path:
+	 *   routes/webhooks/stripe.ts → client.routes["webhooks/stripe"]()
+	 */
+	const routes = new Proxy({} as any, {
+		get(_, prop) {
+			if (typeof prop !== "string") return undefined;
+			const routeUrl = `${config.baseURL}${apiBasePath}/routes/${prop}`;
+			const endpoint = (options?: RouteCallOptions) => {
+				const { method = "GET", headers: extraHeaders, ...rest } = options ?? {};
+				return fetcher(routeUrl, {
+					method,
+					headers: {
+						...defaultHeaders,
+						...(extraHeaders as Record<string, string>),
+					},
+					credentials: "include",
+					...rest,
+				});
+			};
+			endpoint.url = routeUrl;
+			return endpoint;
+		},
+	});
+
 	const realtimeApi = createRealtimeAPI({
 		baseUrl: `${config.baseURL}${apiBasePath}`,
 		withCredentials: true,
@@ -1350,6 +1412,7 @@ export function createClient<
 		collections,
 		globals,
 		rpc,
+		routes,
 		search,
 		realtime: realtimeApi,
 		setLocale: (locale?: string) => {

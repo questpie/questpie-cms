@@ -1,322 +1,87 @@
 /**
- * Field Builder
+ * Field Definition & Factory
  *
  * Defines reusable field types with form and cell components.
- */
-
-import type { Override } from "questpie/shared";
-import type React from "react";
-import type { z } from "zod";
-import type {
-	BaseFieldConfigProps,
-	BaseFieldProps,
-	MaybeLazyComponent,
-} from "../types/common";
-import type { FieldHookContext, SelectOption } from "../types/field-types";
-
-// ============================================================================
-// Zod Schema Building Context
-// ============================================================================
-
-/**
- * Context provided to createZod callbacks for building nested schemas
- */
-export interface ZodBuildContext {
-	/**
-	 * Recursively builds a Zod schema for any field definition.
-	 * Use this for nested fields in object/array types.
-	 */
-	buildSchema: (fieldDef: FieldDefinition) => z.ZodTypeAny;
-
-	/**
-	 * Field registry for resolving nested fields callbacks.
-	 * Used to create the `r` proxy in `fields: ({ r }) => ({...})`
-	 */
-	registry: Record<string, FieldBuilder<any>>;
-}
-
-/**
- * Function type for creating Zod schema from field options
- */
-export type CreateZodFn<TOptions = any> = (
-	opts: TOptions,
-	ctx: ZodBuildContext,
-) => z.ZodTypeAny;
-
-/**
- * Field state options (readOnly, disabled, hidden)
- */
-export interface FieldStateOptions {
-	/**
-	 * Whether field is read-only (can be dynamic based on form values).
-	 * Read-only fields look normal but cannot be edited.
-	 * Note: Fields with `compute` are automatically read-only.
-	 */
-	readOnly?: boolean | ((values: Record<string, any>) => boolean);
-
-	/**
-	 * Whether field is disabled (can be dynamic based on form values).
-	 * Disabled fields appear grayed out and cannot be edited.
-	 */
-	disabled?: boolean | ((values: Record<string, any>) => boolean);
-
-	/**
-	 * Whether field is hidden (can be dynamic based on form values).
-	 * Hidden fields are not rendered. Default is false (visible).
-	 *
-	 * Note: undefined/false = visible, true = hidden
-	 * This follows JavaScript falsy semantics for better DX.
-	 */
-	hidden?: boolean | ((values: Record<string, any>) => boolean);
-}
-
-/**
- * Hook options for field interactivity
- */
-export interface FieldHookOptions {
-	/**
-	 * Compute field value from other fields (proxy-tracked dependencies).
-	 * Makes the field read-only and virtual (not submitted to backend).
-	 *
-	 * Dependencies are automatically detected via Proxy tracking.
-	 * Works in both forms (reactive) and tables (static).
-	 *
-	 * @example
-	 * ```ts
-	 * pricePerMinute: r.number({
-	 *   compute: (values) => values.price / values.duration,
-	 * })
-	 * ```
-	 */
-	compute?: (values: Record<string, any>) => any;
-
-	/**
-	 * Called when field value changes.
-	 * Use for side effects like updating other fields.
-	 * Can be async for API calls.
-	 *
-	 * @example
-	 * ```ts
-	 * name: r.text({
-	 *   onChange: (value, { setValue }) => {
-	 *     setValue('slug', slugify(value));
-	 *   },
-	 * })
-	 * ```
-	 */
-	onChange?: (value: any, ctx: FieldHookContext) => void | Promise<void>;
-
-	/**
-	 * Dynamic default value for new records.
-	 * Can be a static value, sync function, or async function.
-	 * Only evaluated when creating new records (not on edit).
-	 *
-	 * @example
-	 * ```ts
-	 * status: r.select({
-	 *   defaultValue: 'draft',
-	 *   // or dynamic:
-	 *   defaultValue: async () => fetchDefaultStatus(),
-	 * })
-	 * ```
-	 */
-	defaultValue?:
-		| any
-		| ((values: Record<string, any>) => any)
-		| ((values: Record<string, any>) => Promise<any>);
-
-	/**
-	 * Async options loader for select-type fields.
-	 * Dependencies are automatically detected via Proxy tracking.
-	 *
-	 * @example
-	 * ```ts
-	 * subcategory: r.select({
-	 *   loadOptions: async (values) => {
-	 *     // Automatically re-fetches when values.category changes
-	 *     return fetchSubcategories(values.category);
-	 *   },
-	 * })
-	 * ```
-	 */
-	loadOptions?: (values: Record<string, any>) => Promise<SelectOption[]>;
-}
-
-/**
- * UI options that can be set when defining a field in a collection.
- * These are the "soft" options from BaseFieldProps that make sense in config.
- */
-type FieldUIOptions = Partial<
-	Pick<
-		BaseFieldConfigProps,
-		"label" | "description" | "placeholder" | "required"
-	> &
-		Pick<BaseFieldProps, "localized">
-> &
-	FieldStateOptions &
-	FieldHookOptions;
-
-/**
- * Field definition - stored in admin registry
- */
-export interface FieldDefinition<
-	TName extends string = string,
-	TOptions = any,
-> {
-	readonly name: TName;
-	readonly "~options": TOptions;
-	field: { component: MaybeLazyComponent };
-	cell?: { component: MaybeLazyComponent };
-	/**
-	 * Creates a Zod schema from field options.
-	 * If not provided, a generic schema based on field type will be used.
-	 */
-	createZod?: CreateZodFn<TOptions>;
-}
-
-/**
- * Field builder state
- */
-export interface FieldBuilderState {
-	readonly name: string;
-	readonly "~options": any;
-	readonly component: MaybeLazyComponent;
-	readonly cellComponent?: MaybeLazyComponent;
-	readonly createZod?: CreateZodFn;
-}
-
-/**
- * Field builder class
+ * The `field()` factory returns a plain frozen object.
  *
- * Also implements FieldDefinition interface so it can be used directly in registries.
+ * A field definition is just a registry entry: name → component mapping.
+ * All config/options flow from server introspection at runtime.
  */
-export class FieldBuilder<TState extends FieldBuilderState>
-	implements FieldDefinition<TState["name"], TState["~options"]>
-{
-	constructor(public readonly state: TState) {}
 
-	// Implement FieldDefinition interface via getters
-	get name(): TState["name"] {
-		return this.state.name;
-	}
+import type { MaybeLazyComponent } from "../types/common";
 
-	get "~options"(): TState["~options"] {
-		return this.state["~options"];
-	}
+// ============================================================================
+// Field Definition (plain frozen object)
+// ============================================================================
 
-	get field() {
-		return { component: this.state.component };
-	}
-
-	get cell() {
-		return this.state.cellComponent
-			? { component: this.state.cellComponent }
-			: undefined;
-	}
-
-	get createZod(): CreateZodFn<TState["~options"]> | undefined {
-		return this.state.createZod;
-	}
-
-	/**
-	 * Override options - returns new builder with updated state
-	 */
-	$options<TNewOptions>(
-		options: TNewOptions,
-	): FieldBuilder<Override<TState, { "~options": TNewOptions }>> {
-		return new FieldBuilder({
-			...this.state,
-			"~options": options,
-		} as any);
-	}
-
-	/**
-	 * Set cell component for table views
-	 */
-	withCell<TNewCellComponent extends MaybeLazyComponent>(
-		component: TNewCellComponent,
-	): FieldBuilder<Override<TState, { cellComponent: TNewCellComponent }>> {
-		return new FieldBuilder({
-			...this.state,
-			cellComponent: component,
-		} as any);
-	}
+/**
+ * Field definition — a registry entry mapping a field type name to its components.
+ *
+ * This is what the admin module stores per field type. All field options
+ * (label, required, validation, etc.) come from server introspection at runtime,
+ * not from the FE definition.
+ */
+export interface FieldDefinition<TName extends string = string> {
+	readonly name: TName;
+	readonly component: MaybeLazyComponent;
+	readonly cell?: MaybeLazyComponent;
 }
 
 /**
- * Inferred options type for a field
+ * A field instance with runtime options from server introspection.
+ * Created by `configureField()` when mapping server metadata to field rendering.
  */
-type InferFieldOptions<
-	TConfig extends Record<string, any>,
-	TComponent extends MaybeLazyComponent,
-> = [TConfig] extends [Record<string, never>]
-	? ExtractComponentOptions<TComponent>
-	: TConfig & FieldUIOptions;
+export interface FieldInstance {
+	readonly name: string;
+	readonly component: MaybeLazyComponent;
+	readonly cell?: MaybeLazyComponent;
+	readonly "~options": Record<string, unknown>;
+}
+
+// ============================================================================
+// Factory Function
+// ============================================================================
 
 /**
- * Create a field definition
+ * Create a field definition as a plain frozen object.
  *
  * @param name - Field type name (e.g. "text", "relation")
- * @param config - Component and optional config type
+ * @param config - Component and optional cell component
  *
  * @example
  * ```ts
- * // With explicit config type and createZod
- * const relationField = field("relation", {
- *   component: RelationField,
- *   config: {} as RelationFieldConfig,
- *   createZod: (opts, ctx) => z.string(),
- * });
- *
- * // Without config (infers from component props)
- * const textField = field("text", {
- *   component: TextField,
- *   createZod: (opts) => {
- *     let schema = z.string();
- *     if (opts.maxLength) schema = schema.max(opts.maxLength);
- *     return opts.required ? schema : schema.optional().nullable();
- *   },
+ * export default field("text", {
+ *   component: () => import("./text-field.js"),
+ *   cell: () => import("./cells/primitive-cells.js"),
  * });
  * ```
  */
-export function field<
-	TName extends string,
-	TConfig extends Record<string, any> = Record<string, never>,
-	TComponent extends MaybeLazyComponent = MaybeLazyComponent,
-	TCellComponent extends MaybeLazyComponent | undefined = undefined,
->(
+export function field<TName extends string>(
 	name: TName,
-	options: {
-		component: TComponent;
-		cell?: TCellComponent;
-		config?: TConfig;
-		/**
-		 * Creates a Zod schema from field options.
-		 * Called during form validation schema generation.
-		 */
-		createZod?: CreateZodFn<InferFieldOptions<TConfig, TComponent>>;
+	config: {
+		component: MaybeLazyComponent;
+		cell?: MaybeLazyComponent;
 	},
-): FieldBuilder<{
-	name: TName;
-	"~options": InferFieldOptions<TConfig, TComponent>;
-	component: TComponent;
-	cellComponent: TCellComponent;
-	createZod: typeof options.createZod;
-}> {
-	return new FieldBuilder({
+): FieldDefinition<TName> {
+	return Object.freeze({
 		name,
-		"~options": {} as any,
-		component: options.component,
-		cellComponent: options.cell,
-		createZod: options.createZod,
-	} as any);
+		component: config.component,
+		cell: config.cell,
+	});
 }
 
 /**
- * Extract field-specific options from component props.
- * Omits BaseFieldProps to get only field-specific config.
+ * Create a configured field instance (field + server-provided options).
+ * Used when mapping server introspection metadata to field rendering.
  */
-type ExtractComponentOptions<TComponent> =
-	TComponent extends React.ComponentType<infer TProps>
-		? Omit<TProps, keyof BaseFieldProps> & FieldUIOptions
-		: Record<string, never>;
+export function configureField(
+	base: FieldDefinition,
+	options: Record<string, unknown>,
+): FieldInstance {
+	return Object.freeze({
+		name: base.name,
+		component: base.component,
+		cell: base.cell,
+		"~options": options,
+	});
+}

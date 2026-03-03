@@ -284,6 +284,7 @@ export const barbers = collection("barbers")
 	)
 	.hooks({
 		beforeValidate: async (ctx) => {
+			ctx.tables.barbers.name
 			// Generate slug from name if not provided (for create or update)
 			const d = ctx.data;
 			if (d.name && !d.slug) {

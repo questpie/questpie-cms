@@ -5,7 +5,7 @@ const approaches = [
 		icon: Code2,
 		title: "Convention + Codegen",
 		description:
-			"File conventions for backend. qa() for admin UI. Types flow automatically between them.",
+			"File conventions for backend. Auto-generated admin config. Types flow automatically between them.",
 	},
 	{
 		icon: Layers,

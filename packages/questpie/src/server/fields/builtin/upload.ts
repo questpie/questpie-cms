@@ -148,7 +148,7 @@ function getToManyUploadOperators() {
 export const uploadField = field<UploadFieldConfig, string | string[]>()({
 	type: "upload" as const,
 	_value: undefined as unknown as string | string[],
-	toColumn(name: string, config: UploadFieldConfig) {
+	toColumn(name: string, config: UploadFieldConfig): ReturnType<typeof varchar> | null {
 		if (config.through) {
 			return null as any;
 		}

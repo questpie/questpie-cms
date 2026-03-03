@@ -200,7 +200,7 @@ export type JsonValue =
 export const jsonField = field<JsonFieldConfig, JsonValue>()({
 	type: "json" as const,
 	_value: undefined as unknown as JsonValue,
-	toColumn(name: string, config: JsonFieldConfig) {
+	toColumn(name: string, config: JsonFieldConfig): ReturnType<typeof jsonb> {
 		const { mode = "jsonb" } = config;
 
 		let column: any = mode === "json" ? json(name) : jsonb(name);

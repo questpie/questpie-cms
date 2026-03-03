@@ -19,12 +19,13 @@
 
 import type { CodegenPlugin } from "questpie";
 import { generateAdminClientTemplate } from "./codegen/admin-client-template.js";
+import { createAdminProjectionValidator } from "./codegen/projection-validator.js";
 
 /**
  * Admin codegen plugin.
  *
  * Discovers admin-specific file conventions:
- * - `views/*.ts` — custom view definitions (list, edit, etc.)
+ * - `views/*.ts` — custom view definitions (list, form, etc.)
  * - `components/*.ts` — component definitions with typed props
  * - `blocks/*.ts` — visual block editor blocks
  * - `sidebar.ts` — sidebar contribution
@@ -42,45 +43,71 @@ import { generateAdminClientTemplate } from "./codegen/admin-client-template.js"
 export function adminPlugin(): CodegenPlugin {
 	return {
 		name: "questpie-admin",
+		validators: [createAdminProjectionValidator()],
 		targets: {
 			server: {
 				root: ".",
 				outputFile: "index.ts",
+				categories: {
+					views: {
+						dirs: ["views"],
+						prefix: "view",
+						registryKey: true,
+						placeholder: "$VIEW_NAMES",
+						includeInAppState: true,
+						extractFromModules: true,
+						typeEmit: "standard",
+					},
+					listViews: {
+						dirs: [], // derived from views via transform
+						prefix: "lv",
+						registryKey: true,
+						placeholder: "$LIST_VIEW_NAMES",
+						recordPlaceholder: "$LIST_VIEWS",
+						includeInAppState: false,
+						extractFromModules: false,
+						typeEmit: "none",
+					},
+					formViews: {
+						dirs: [], // derived from views via transform
+						prefix: "fv",
+						registryKey: true,
+						placeholder: "$FORM_VIEW_NAMES",
+						recordPlaceholder: "$FORM_VIEWS",
+						includeInAppState: false,
+						extractFromModules: false,
+						typeEmit: "none",
+					},
+					components: {
+						dirs: ["components"],
+						prefix: "comp",
+						registryKey: true,
+						placeholder: "$COMPONENT_NAMES",
+						recordPlaceholder: "$COMPONENTS",
+						typeRegistry: {
+							module: "@questpie/admin/server",
+							interface: "ComponentTypeRegistry",
+						},
+						includeInAppState: true,
+						extractFromModules: true,
+						typeEmit: "standard",
+					},
+					blocks: {
+						dirs: ["blocks"],
+						prefix: "bloc",
+						registryKey: true,
+						includeInAppState: true,
+						extractFromModules: true,
+						typeEmit: "standard",
+					},
+				},
 				discover: {
-					views: "views/*.ts",
-					components: "components/*.ts",
-					blocks: "blocks/*.ts",
 					sidebar: "sidebar.ts",
 					dashboard: "dashboard.ts",
 					branding: "branding.ts",
 					adminLocale: "admin-locale.ts",
 				},
 				registries: {
-					moduleRegistries: {
-						views: {
-							placeholder: "$VIEW_NAMES",
-							registryKey: "views",
-						},
-						listViews: {
-							placeholder: "$LIST_VIEW_NAMES",
-							recordPlaceholder: "$LIST_VIEWS",
-							registryKey: "listViews",
-						},
-						editViews: {
-							placeholder: "$EDIT_VIEW_NAMES",
-							recordPlaceholder: "$EDIT_VIEWS",
-							registryKey: "editViews",
-						},
-						components: {
-							placeholder: "$COMPONENT_NAMES",
-							recordPlaceholder: "$COMPONENTS",
-							registryKey: "components",
-							typeRegistry: {
-								module: "@questpie/admin/server",
-								interface: "ComponentTypeRegistry",
-							},
-						},
-					},
 					collectionExtensions: {
 						admin: {
 							stateKey: "admin",
@@ -131,6 +158,12 @@ export function adminPlugin(): CodegenPlugin {
 								"(ctx: ListViewConfigContext<TState extends { fieldDefinitions: infer F extends Record<string, any> } ? F : Record<string, any>, $LIST_VIEWS>) => ListViewConfig",
 							isCallback: true,
 							callbackContextParams: ["v", "f", "a"],
+							defaults: {
+							view: "collection-table",
+							showSearch: true,
+							showFilters: true,
+							showToolbar: true,
+						},
 						},
 						form: {
 							stateKey: "adminForm",
@@ -145,9 +178,13 @@ export function adminPlugin(): CodegenPlugin {
 								},
 							],
 							configType:
-								"(ctx: FormViewConfigContext<TState extends { fieldDefinitions: infer F extends Record<string, any> } ? F : Record<string, any>, $EDIT_VIEWS>) => FormViewConfig",
+								"(ctx: FormViewConfigContext<TState extends { fieldDefinitions: infer F extends Record<string, any> } ? F : Record<string, any>, $FORM_VIEWS>) => FormViewConfig",
 							isCallback: true,
 							callbackContextParams: ["v", "f"],
+							defaults: {
+							view: "collection-form",
+							showMeta: true,
+						},
 						},
 						preview: {
 							stateKey: "adminPreview",
@@ -208,9 +245,13 @@ export function adminPlugin(): CodegenPlugin {
 								},
 							],
 							configType:
-								"(ctx: FormViewConfigContext<TState extends { fieldDefinitions: infer F extends Record<string, any> } ? F : Record<string, any>, $EDIT_VIEWS>) => FormViewConfig",
+								"(ctx: FormViewConfigContext<TState extends { fieldDefinitions: infer F extends Record<string, any> } ? F : Record<string, any>, $FORM_VIEWS>) => FormViewConfig",
 							isCallback: true,
 							callbackContextParams: ["v", "f"],
+							defaults: {
+							view: "global-form",
+							showMeta: true,
+						},
 						},
 					},
 					singletonFactories: {
@@ -255,7 +296,7 @@ export function adminPlugin(): CodegenPlugin {
 					},
 				},
 				transform(ctx) {
-					// Derive listViews/editViews from discovered views.
+					// Derive listViews/formViews from discovered views.
 					const viewFiles = ctx.categories.get("views");
 					if (viewFiles && viewFiles.size > 0) {
 						ctx.addImport("{ filterViewsByKind }", "@questpie/admin/server");
@@ -269,7 +310,7 @@ export function adminPlugin(): CodegenPlugin {
 							`listViews: filterViewsByKind(${viewsObj}, "list"),`,
 						);
 						ctx.addRuntimeCode(
-							`editViews: filterViewsByKind(${viewsObj}, "edit"),`,
+							`formViews: filterViewsByKind(${viewsObj}, "form"),`,
 						);
 					}
 
@@ -292,6 +333,26 @@ export function adminPlugin(): CodegenPlugin {
 							"new Proxy({ custom: (name: string, config: any) => ({ id: name, ...config }) }, { get: (target, prop) => (target as any)[prop] ?? String(prop) })",
 					},
 				},
+				scaffolds: {
+					block: {
+						dir: "blocks",
+						description: "Server-side block definition",
+						template: ({ kebab, camel }) =>
+							`import { block } from "@questpie/admin/server";\n\nexport const ${camel}Block = block("${kebab}")\n\t.fields(({ f }) => ({\n\t\ttitle: f.text("Title"),\n\t}));\n`,
+					},
+					view: {
+						dir: "views",
+						description: "Server-side view definition",
+						template: ({ kebab, camel }) =>
+							`import { view } from "@questpie/admin/server";\n\nexport const ${camel}View = view("${kebab}", "list", {\n\t// TODO: configure view\n});\n`,
+					},
+					component: {
+						dir: "components",
+						description: "Server-side component definition",
+						template: ({ kebab, camel }) =>
+							`import { component } from "@questpie/admin/server";\n\nexport const ${camel}Component = component("${kebab}", {\n\t// TODO: configure component props\n});\n`,
+					},
+				},
 			},
 
 			// ── admin-client target ──────────────────────────────────
@@ -300,6 +361,7 @@ export function adminPlugin(): CodegenPlugin {
 			"admin-client": {
 				root: "../admin",
 				outputFile: "client.ts",
+				moduleRoot: "client",
 
 				categories: {
 					blocks: {
@@ -315,6 +377,7 @@ export function adminPlugin(): CodegenPlugin {
 						registryKey: false,
 						includeInAppState: false,
 						extractFromModules: false,
+						keyFromProperty: "name",
 					},
 					components: {
 						dirs: ["components"],
@@ -347,9 +410,87 @@ export function adminPlugin(): CodegenPlugin {
 				},
 
 				discover: {
+					modules: "modules.ts",
 					locale: "locale.ts",
 					translations: "translations.ts",
 					defaults: "defaults.ts",
+				},
+
+				transform(ctx) {
+					const blockFiles = ctx.categories.get("blocks");
+					if (!blockFiles || blockFiles.size === 0) return;
+
+					// Add framework type imports
+					ctx.addImport(
+						"type { BlockRendererProps }",
+						"@questpie/admin/client",
+					);
+					ctx.addImport(
+						"type { InferBlockValues, InferBlockData }",
+						"@questpie/admin/server",
+					);
+
+					// Add per-block server type imports and build the map entries
+					const entries: string[] = [];
+					for (const [key, file] of [...blockFiles.entries()].sort(
+						([a], [b]) => a.localeCompare(b),
+					)) {
+						const varName = `${key}Block`;
+						// Derive kebab-case filename from the client import path
+						const kebab = file.importPath.split("/").pop()!;
+						ctx.addImport(
+							`type { ${varName} }`,
+							`../../server/blocks/${kebab}`,
+						);
+						entries.push(`${JSON.stringify(key)}: typeof ${varName}`);
+					}
+
+					// Emit _ServerBlocks map + BlockProps<T> helper
+					ctx.addTypeDeclaration(
+						`type _ServerBlocks = { ${entries.join("; ")} };`,
+					);
+					ctx.addTypeDeclaration("");
+					ctx.addTypeDeclaration(
+						"export type BlockProps<T extends keyof _ServerBlocks> = BlockRendererProps<",
+					);
+					ctx.addTypeDeclaration(
+						'\tInferBlockValues<_ServerBlocks[T]["state"]>,',
+					);
+					ctx.addTypeDeclaration(
+						"\tInferBlockData<_ServerBlocks[T]>",
+					);
+					ctx.addTypeDeclaration(">;");
+				},
+
+				scaffolds: {
+					block: {
+						dir: "blocks",
+						extension: ".tsx",
+						description: "Client-side block renderer",
+						template: ({ kebab, pascal }) =>
+							`import type { BlockProps } from "../.generated/client";\n\nexport default function ${pascal}Block({ values, children }: BlockProps<"${kebab}">) {\n\treturn (\n\t\t<div>\n\t\t\t<h2>${pascal} Block</h2>\n\t\t\t{/* TODO: implement block renderer */}\n\t\t</div>\n\t);\n}\n`,
+					},
+					view: {
+						dir: "views",
+						extension: ".tsx",
+						description: "Client-side view component",
+						template: ({ kebab, pascal }) =>
+							`import { defineView } from "@questpie/admin";\n\nexport default defineView("${kebab}", (props) => {\n\treturn (\n\t\t<div>\n\t\t\t<h2>${pascal} View</h2>\n\t\t\t{/* TODO: implement view */}\n\t\t</div>\n\t);\n});\n`,
+					},
+					field: {
+						dir: "fields",
+						extension: ".tsx",
+						description: "Client-side field component",
+						template: ({ kebab, pascal }) =>
+							`import { field } from "@questpie/admin";\n\nexport default field({\n\tname: "${kebab}",\n\tcomponent: (props) => {\n\t\treturn (\n\t\t\t<div>\n\t\t\t\t<label>${pascal}</label>\n\t\t\t\t{/* TODO: implement field */}\n\t\t\t</div>\n\t\t);\n\t},\n});\n`,
+					},
+					widget: {
+						dir: "widgets",
+						extension: ".tsx",
+						description: "Client-side dashboard widget",
+						template: ({ kebab, pascal }) =>
+							`import { defineWidget } from "@questpie/admin";\n\nexport default defineWidget("${kebab}", (props) => {\n\treturn (\n\t\t<div>\n\t\t\t<h3>${pascal} Widget</h3>\n\t\t\t{/* TODO: implement widget */}\n\t\t</div>\n\t);\n});\n`,
+					},
 				},
 
 				generate: (ctx) => generateAdminClientTemplate(ctx),

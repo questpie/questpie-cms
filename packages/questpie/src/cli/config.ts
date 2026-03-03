@@ -10,8 +10,10 @@ export interface QuestpieCliConfig {
 	 */
 	migrations?: {
 		/**
-		 * Directory where generated migrations should be saved
-		 * @default "./src/migrations"
+		 * Directory where generated migrations should be saved.
+		 * When omitted, defaults to the `migrations/` dir inside the entity root
+		 * (same directory codegen discovers from).
+		 * If set, resolved relative to CWD.
 		 */
 		directory?: string;
 	};
@@ -21,8 +23,10 @@ export interface QuestpieCliConfig {
 	 */
 	seeds?: {
 		/**
-		 * Directory where generated seeds should be saved
-		 * @default "./src/seeds"
+		 * Directory where generated seeds should be saved.
+		 * When omitted, defaults to the `seeds/` dir inside the entity root
+		 * (same directory codegen discovers from).
+		 * If set, resolved relative to CWD.
 		 */
 		directory?: string;
 	};

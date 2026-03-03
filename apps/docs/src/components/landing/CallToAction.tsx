@@ -69,7 +69,7 @@ export function CallToAction() {
 				>
 					<Link
 						to="/docs/$"
-						params={{ _splat: "getting-started/quickstart" }}
+						params={{ _splat: "start-here/first-app" }}
 						className="group inline-flex h-11 items-center justify-center bg-primary px-7 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
 					>
 						Start with Quickstart
@@ -81,7 +81,7 @@ export function CallToAction() {
 					<Link
 						to="/docs/$"
 						params={{
-							_splat: "examples/tanstack-barbershop-architecture-tour",
+							_splat: "examples/barbershop",
 						}}
 						className="inline-flex h-11 items-center justify-center border border-border bg-card/10 backdrop-blur-sm px-7 text-sm font-medium transition-colors hover:border-primary/30"
 					>

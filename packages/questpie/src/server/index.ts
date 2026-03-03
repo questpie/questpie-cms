@@ -57,7 +57,7 @@ export {
 	type KnownEmailNames,
 	type KnownRouteNames,
 	type KnownListViewNames,
-	type KnownEditViewNames,
+	type KnownFormViewNames,
 	type KnownComponentNames,
 } from "./config/app-context.js";
 export * from "./config/builder.js";

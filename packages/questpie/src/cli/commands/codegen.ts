@@ -106,7 +106,7 @@ interface ConfigLoadResult {
  *
  * @param configPath — absolute path to the resolved questpie.config.ts
  */
-async function loadConfigForCodegen(
+export async function loadConfigForCodegen(
 	configPath: string,
 ): Promise<ConfigLoadResult> {
 	try {
@@ -211,7 +211,10 @@ export async function generateCommand(options: GenerateOptions): Promise<void> {
 			dryRun: options.dryRun,
 		});
 
-		printMultiTargetResult(multiResult, options);
+		const hasErrors = printMultiTargetResult(multiResult, options);
+		if (hasErrors) {
+			process.exitCode = 1;
+		}
 	}
 }
 
@@ -260,31 +263,62 @@ async function generatePackageModules(
 	// because TypeScript resolves the "types" export condition to stale dist/ types.
 	const importRewriteMap = await buildImportRewriteMap(configRootDir);
 
+	// Resolve target graph to discover all targets (server, admin-client, etc.)
+	const allPlugins = [coreCodegenPlugin(), ...plugins];
+	const targetGraph = resolveTargetGraph(allPlugins);
+
 	console.log(
 		`Package mode: generating ${moduleDirs.length} module(s) from ${pkgConfig.modulesDir}/`,
 	);
 
 	for (const dir of moduleDirs) {
 		const moduleRootDir = join(modulesDir, dir.name);
-		const moduleOutDir = join(moduleRootDir, ".generated");
 		const moduleName = `${prefix}-${dir.name}`;
 
 		console.log(`\n  Module: ${moduleName}`);
-		if (options.verbose) {
-			console.log(`    Root: ${moduleRootDir}`);
-			console.log(`    Output: ${moduleOutDir}/module.ts`);
+
+		// Iterate all resolved targets for this module
+		for (const [targetId, target] of targetGraph) {
+			// Determine discovery root: use moduleRoot subdirectory if specified
+			const discoveryRoot = target.moduleRoot
+				? join(moduleRootDir, target.moduleRoot)
+				: moduleRootDir;
+
+			// Skip targets whose moduleRoot doesn't exist in this module
+			if (target.moduleRoot) {
+				try {
+					await stat(discoveryRoot);
+				} catch {
+					if (options.verbose) {
+						console.log(
+							`    [${targetId}] Skipped (${target.moduleRoot}/ not found)`,
+						);
+					}
+					continue;
+				}
+			}
+
+			const moduleOutDir = join(discoveryRoot, ".generated");
+
+			if (options.verbose) {
+				console.log(`    [${targetId}] Root: ${discoveryRoot}`);
+				console.log(
+					`    [${targetId}] Output: ${moduleOutDir}/module.ts`,
+				);
+			}
+
+			const result = await runCodegen({
+				rootDir: discoveryRoot,
+				configPath,
+				outDir: moduleOutDir,
+				plugins,
+				dryRun: options.dryRun,
+				targetId,
+				module: { name: moduleName, importRewriteMap },
+			});
+
+			printTargetResult(result, options, "    ");
 		}
-
-		const result = await runCodegen({
-			rootDir: moduleRootDir,
-			configPath,
-			outDir: moduleOutDir,
-			plugins,
-			dryRun: options.dryRun,
-			module: { name: moduleName, importRewriteMap },
-		});
-
-		printTargetResult(result, options, "    ");
 	}
 
 	console.log(`\nDone: ${moduleDirs.length} module(s) generated.`);
@@ -357,11 +391,13 @@ async function buildImportRewriteMap(
 
 /**
  * Print multi-target codegen result summary.
+ *
+ * @returns `true` if there are hard errors (target errors or validation errors with severity "error")
  */
 function printMultiTargetResult(
 	result: MultiTargetCodegenResult,
 	options: GenerateOptions,
-): void {
+): boolean {
 	const targetCount = result.targets.size;
 	if (targetCount > 1) {
 		console.log(`\nGenerated ${targetCount} target(s):`);
@@ -375,10 +411,40 @@ function printMultiTargetResult(
 		printTargetResult(targetResult, options, indent);
 	}
 
-	// Print errors
+	// Print target errors
 	for (const { targetId, error } of result.errors) {
 		console.error(`\nError in target "${targetId}": ${error.message}`);
 	}
+
+	// Print validation errors
+	let hasValidationErrors = false;
+	if (result.validationErrors.length > 0) {
+		const errors = result.validationErrors.filter(
+			(e) => e.severity === "error",
+		);
+		const warnings = result.validationErrors.filter(
+			(e) => e.severity === "warning",
+		);
+
+		if (errors.length > 0) {
+			hasValidationErrors = true;
+			console.error(
+				`\nProjection mismatch: ${errors.length} error(s) found.\n`,
+			);
+			for (const err of errors) {
+				console.error(`  [${err.category}] ${err.message}`);
+			}
+		}
+
+		if (warnings.length > 0) {
+			console.warn(`\nProjection warnings: ${warnings.length}\n`);
+			for (const warn of warnings) {
+				console.warn(`  [${warn.category}] ${warn.message}`);
+			}
+		}
+	}
+
+	return result.errors.length > 0 || hasValidationErrors;
 }
 
 /**
@@ -394,7 +460,7 @@ function printTargetResult(
 	for (const [catName, fileMap] of d.categories) {
 		if (fileMap.size > 0) counts.push(`${fileMap.size} ${catName}`);
 	}
-	if (d.auth) counts.push("auth");
+	if (d.singles.has("auth")) counts.push("auth");
 
 	if (counts.length === 0) {
 		console.log(
@@ -560,6 +626,10 @@ export async function devCommand(options: DevOptions): Promise<void> {
 				}
 				for (const { targetId, error } of multiResult.errors) {
 					console.error(`  Error [${targetId}]: ${error.message}`);
+				}
+				for (const err of multiResult.validationErrors) {
+					const prefix = err.severity === "error" ? "Error" : "Warning";
+					console.error(`  ${prefix} [${err.category}]: ${err.message}`);
 				}
 			} catch (error) {
 				console.error("Codegen error:", error);
@@ -828,10 +898,6 @@ function printDiscovered(
 	for (const [catName, fileMap] of d.categories) {
 		const label = catName.charAt(0).toUpperCase() + catName.slice(1);
 		printMap(label, fileMap);
-	}
-	if (d.auth) {
-		console.log(`\n  Auth:`);
-		console.log(`    ${d.auth.source}`);
 	}
 	for (const [key, file] of d.singles) {
 		console.log(`\n  ${key}: ${file.source}`);

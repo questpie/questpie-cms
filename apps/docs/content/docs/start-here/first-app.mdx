@@ -61,7 +61,7 @@ bunx questpie generate
 
 This discovers your files and generates:
 - `src/questpie/server/.generated/index.ts` — app instance with typed collections and functions
-- `AppConfig` and `AppFunctions` types for the client SDK
+- `AppConfig` type for the client SDK (includes collections, globals, and functions)
 - `AppContext` module augmentation
 
 ## 4. Push to database
@@ -110,9 +110,9 @@ curl -X POST http://localhost:3000/api/rpc/getOverdueTasks \
 
 ```ts title="src/lib/client.ts"
 import { createClient } from "questpie/client";
-import type { AppConfig, AppFunctions } from "@/questpie/server/.generated";
+import type { AppConfig } from "@/questpie/server/.generated";
 
-export const client = createClient<AppConfig, AppFunctions>({
+export const client = createClient<AppConfig>({
   baseURL: "http://localhost:3000",
   basePath: "/api",
 });

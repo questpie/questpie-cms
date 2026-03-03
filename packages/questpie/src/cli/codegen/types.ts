@@ -110,6 +110,17 @@ export type DiscoverPattern =
 			 * ```
 			 */
 			mergeStrategy?: "spread";
+			/**
+			 * When set, augments `interface Registry` with `typeof` this single
+			 * under the given key in module-template output.
+			 *
+			 * @example
+			 * ```ts
+			 * fields: { pattern: "fields.ts", registryKey: "~fieldTypes" }
+			 * // → declare module "questpie" { interface Registry { "~fieldTypes": typeof _fields; } }
+			 * ```
+			 */
+			registryKey?: string;
 	  };
 
 // ============================================================================
@@ -243,6 +254,71 @@ export interface CategoryDeclaration {
 	 * ```
 	 */
 	appContextEmit?: "services";
+
+	/**
+	 * When set, use a runtime property as the object key instead of the file key.
+	 *
+	 * For example, view definitions have a `.name` property that should be the key
+	 * in the generated object: `[_view_kanban.name]: _view_kanban`.
+	 *
+	 * Without this, the default is to use the file-derived key:
+	 * `"kanban": _view_kanban`.
+	 *
+	 * @example
+	 * ```ts
+	 * views: { dirs: ["views"], prefix: "view", keyFromProperty: "name" }
+	 * // → [_view_collectionTable.name]: _view_collectionTable
+	 * ```
+	 */
+	keyFromProperty?: string;
+
+	// ── Registry / factory type integration ─────────────────────
+
+	/**
+	 * Placeholder token for the string union of keys in configType strings.
+	 * Used by factory-template.ts to resolve `$VIEW_NAMES` → `_ViewsNames`.
+	 *
+	 * @example
+	 * ```ts
+	 * views: { ..., placeholder: "$VIEW_NAMES" }
+	 * // → type _ViewsNames = (keyof _RegistryProp<"views"> & string) | (string & {});
+	 * ```
+	 */
+	placeholder?: string;
+
+	/**
+	 * Placeholder token for the full record type in configType strings.
+	 * Used when the consumer needs actual definitions, not just keys.
+	 *
+	 * @example
+	 * ```ts
+	 * listViews: { ..., recordPlaceholder: "$LIST_VIEWS" }
+	 * // → type _ListViewsRecord = _RegistryProp<"listViews">;
+	 * ```
+	 */
+	recordPlaceholder?: string;
+
+	/**
+	 * Type registry interface to augment with strict name keys.
+	 * Enables plugin-extensible discriminant types (e.g. `ComponentType`).
+	 *
+	 * @example
+	 * ```ts
+	 * components: {
+	 *   ...,
+	 *   typeRegistry: { module: "@questpie/admin/server", interface: "ComponentTypeRegistry" },
+	 * }
+	 * // → declare module "@questpie/admin/server" {
+	 * //     interface ComponentTypeRegistry extends Record<_ComponentsNames_Strict, {}> {}
+	 * // }
+	 * ```
+	 */
+	typeRegistry?: {
+		/** Module specifier for the `declare module` block. */
+		module: string;
+		/** Interface name to augment. */
+		interface: string;
+	};
 }
 
 // ============================================================================
@@ -279,6 +355,21 @@ export interface CodegenTargetContribution {
 	outputFile: string;
 
 	/**
+	 * Subdirectory within module directories where this target discovers files.
+	 *
+	 * In package mode, when iterating module subdirectories, the discovery root
+	 * for this target becomes `join(moduleDir, moduleRoot)` instead of `moduleDir`.
+	 *
+	 * @example
+	 * ```ts
+	 * // admin-client target discovers from "client/" subdir within each module:
+	 * moduleRoot: "client"
+	 * // → module "admin" at modules/admin/ discovers from modules/admin/client/
+	 * ```
+	 */
+	moduleRoot?: string;
+
+	/**
 	 * Declare directory-pattern categories for file discovery.
 	 * Key = category name (e.g. "collections", "blocks"), value = category metadata.
 	 *
@@ -313,8 +404,6 @@ export interface CodegenTargetContribution {
 		globalExtensions?: Record<string, RegistryExtension>;
 		/** Singleton factory functions (branding, sidebar, locale, etc.). */
 		singletonFactories?: Record<string, SingletonFactory>;
-		/** Module-level type registries that modules can contribute to (e.g., listViews, editViews, components). */
-		moduleRegistries?: Record<string, ModuleRegistryConfig>;
 	};
 
 	/**
@@ -336,6 +425,15 @@ export interface CodegenTargetContribution {
 	generate?: (
 		ctx: CodegenTargetGenerateContext,
 	) => Promise<CodegenTargetOutput> | CodegenTargetOutput;
+
+	/**
+	 * Scaffold templates for `questpie add`.
+	 *
+	 * Key = scaffold type name (e.g. "collection", "block", "field").
+	 * Multiple targets may declare the same scaffold name — `questpie add`
+	 * creates files in ALL matching targets (they write to different roots).
+	 */
+	scaffolds?: Record<string, ScaffoldConfig>;
 }
 
 // ============================================================================
@@ -395,6 +493,9 @@ export interface ResolvedTarget {
 	/** Primary output filename. */
 	outputFile: string;
 
+	/** Subdirectory within module directories for this target's discovery. */
+	moduleRoot?: string;
+
 	/** Merged categories from all contributing plugins. */
 	categories: Record<string, CategoryDeclaration>;
 
@@ -406,7 +507,6 @@ export interface ResolvedTarget {
 		collectionExtensions: Record<string, RegistryExtension>;
 		globalExtensions: Record<string, RegistryExtension>;
 		singletonFactories: Record<string, SingletonFactory>;
-		moduleRegistries: Record<string, ModuleRegistryConfig>;
 	};
 
 	/** Merged callback parameter definitions from all contributing plugins. */
@@ -419,6 +519,9 @@ export interface ResolvedTarget {
 	generate?: (
 		ctx: CodegenTargetGenerateContext,
 	) => Promise<CodegenTargetOutput> | CodegenTargetOutput;
+
+	/** Merged scaffold templates from all contributing plugins. */
+	scaffolds: Record<string, ScaffoldConfig>;
 }
 
 // ============================================================================
@@ -472,6 +575,18 @@ export interface CodegenPlugin {
 	 * Plugins may define additional target IDs.
 	 */
 	targets: Record<string, CodegenTargetContribution>;
+
+	/**
+	 * Cross-target validators run after all targets have been generated.
+	 *
+	 * Each validator receives the full map of target results and returns
+	 * an array of projection errors. Use this to enforce that server-side
+	 * references (views, components, blocks) have matching client-side
+	 * registrations.
+	 *
+	 * @see PLAN-PLUGIN-CONSISTENCY.md §9 (Projection Quality Gate)
+	 */
+	validators?: CrossTargetValidator[];
 }
 
 /**
@@ -536,6 +651,21 @@ export interface RegistryExtension {
 	 * ```
 	 */
 	configTypePlaceholders?: Record<string, string>;
+
+	/**
+	 * Default values to merge into the resolved extension config.
+	 *
+	 * When set, the generated `resolve` function wraps user config with
+	 * `{ ...defaults, ...userConfig }` so that omitted keys fall back
+	 * to these defaults.
+	 *
+	 * @example
+	 * ```ts
+	 * defaults: { view: "collection-table" }
+	 * // → user omits `view` → gets "collection-table" automatically
+	 * ```
+	 */
+	defaults?: Record<string, unknown>;
 }
 
 // ============================================================================
@@ -553,70 +683,6 @@ export interface RegistryExtension {
  * // Usage:     export default branding({ name: "My App" });
  * ```
  */
-/**
- * Module registry — describes a typed record that modules can contribute to.
- * Codegen extracts keys from all modules and makes them available as type names.
- *
- * @example
- * ```ts
- * // Admin plugin declares:
- * moduleRegistries: {
- *   listViews: {
- *     placeholder: "$LIST_VIEW_NAMES",
- *     registryKey: "listViews",
- *   },
- * }
- * // → factory-template generates: type _ListViewNames = _ExtractKeys<"listViews"> | (string & {});
- * // → Registry gets: interface Registry { listViews: Record<_ListViewNames, unknown>; }
- * ```
- */
-export interface ModuleRegistryConfig {
-	/** Placeholder token used in configType strings (e.g., "$LIST_VIEW_NAMES") — resolves to string union of keys. */
-	placeholder?: string;
-	/**
-	 * Placeholder token that resolves to the **full merged record** from all modules,
-	 * not just a string union of keys. Used when the consumer needs the actual
-	 * definitions (e.g., to extract per-item config types).
-	 *
-	 * @example
-	 * ```ts
-	 * recordPlaceholder: "$LIST_VIEWS"
-	 * // → resolves to `_ListViewsRecord` in configType strings
-	 * // → type _ListViewsRecord = _ExtractRegistry<"listViews">;
-	 * // → { table: ViewDefinition<"table","list",ListViewConfig>, ... }
-	 * ```
-	 */
-	recordPlaceholder?: string;
-	/** If set, add extracted names to this Registry key for autocomplete */
-	registryKey?: string;
-	/**
-	 * If set, codegen generates a `declare module` augmentation that extends
-	 * the specified interface with the extracted strict name keys.
-	 *
-	 * This enables plugin-extensible discriminant types like `ComponentType`
-	 * that narrow to exact literals when modules are loaded but fall back
-	 * to `string` when the registry is empty.
-	 *
-	 * @example
-	 * ```ts
-	 * typeRegistry: {
-	 *   module: "@questpie/admin/server",
-	 *   interface: "ComponentTypeRegistry",
-	 * }
-	 * // → generates:
-	 * // declare module "@questpie/admin/server" {
-	 * //   interface ComponentTypeRegistry extends Record<_ComponentsNames_Strict, {}> {}
-	 * // }
-	 * ```
-	 */
-	typeRegistry?: {
-		/** Module specifier for the `declare module` block (e.g., "questpie", "@questpie/admin/server"). */
-		module: string;
-		/** Interface name to augment (e.g., "FieldTypeRegistry", "ComponentTypeRegistry"). */
-		interface: string;
-	};
-}
-
 export interface SingletonFactory {
 	/** TypeScript type for the config parameter. */
 	configType: string;
@@ -644,9 +710,6 @@ export interface CodegenContext {
 	 * Key = category name, value = map of discovered files.
 	 */
 	categories: Map<string, Map<string, DiscoveredFile>>;
-
-	/** Discovered auth file (at most one). */
-	auth: DiscoveredFile | null;
 
 	/** Discovered single-file items keyed by stateKey. */
 	singles: Map<string, DiscoveredFile>;
@@ -743,7 +806,51 @@ export interface MultiTargetCodegenResult {
 	targets: Map<string, CodegenResult>;
 	/** Errors encountered during codegen (non-fatal per target). */
 	errors: Array<{ targetId: string; error: Error }>;
+	/** Validation errors from cross-target projection checks. */
+	validationErrors: ProjectionError[];
 }
+
+// ============================================================================
+// Cross-Target Validation
+// ============================================================================
+
+/**
+ * A cross-target projection error.
+ *
+ * Emitted when a server-side reference (view, component, block) does not
+ * have a corresponding registration in the admin-client target.
+ *
+ * @see PLAN-PLUGIN-CONSISTENCY.md §9 (Projection Quality Gate)
+ */
+export interface ProjectionError {
+	/** Error severity — "error" causes codegen to fail, "warning" is informational. */
+	severity: "error" | "warning";
+	/** Which category of reference is mismatched (e.g. "blocks", "views", "components"). */
+	category: string;
+	/** The missing key in the consumer target. */
+	key: string;
+	/** The target that references this key (producer). */
+	sourceTarget: string;
+	/** The target that should register this key (consumer). */
+	consumerTarget: string;
+	/** Human-readable message with actionable fix suggestion. */
+	message: string;
+}
+
+/**
+ * Cross-target validator function.
+ *
+ * Called after all targets have been generated. Receives the full result map
+ * and can return projection errors for keys that exist in one target but
+ * are missing from another.
+ *
+ * Validators are registered on `CodegenPlugin.validators`.
+ *
+ * @see PLAN-PLUGIN-CONSISTENCY.md §9 (Projection Quality Gate)
+ */
+export type CrossTargetValidator = (
+	targets: Map<string, CodegenResult>,
+) => ProjectionError[];
 
 // ============================================================================
 // Discovery Result
@@ -756,8 +863,6 @@ export interface MultiTargetCodegenResult {
  * stored in the generic `categories` map. Singles and spreads come from
  * plugin `discover` patterns.
  *
- * The `auth` field is a special single-file pattern that predates the plugin
- * system and is kept for backward compatibility.
  */
 export interface DiscoveryResult {
 	/**
@@ -767,10 +872,7 @@ export interface DiscoveryResult {
 	 */
 	categories: Map<string, Map<string, DiscoveredFile>>;
 
-	/** Discovered auth file (at most one). */
-	auth: DiscoveredFile | null;
-
-	/** Single-file items keyed by stateKey (locale, hooks, branding, etc.). */
+	/** Single-file items keyed by stateKey (auth, locale, hooks, branding, etc.). */
 	singles: Map<string, DiscoveredFile>;
 
 	/**
@@ -778,4 +880,42 @@ export interface DiscoveryResult {
 	 * Each entry is an ordered list: root file first, then feature files alphabetically.
 	 */
 	spreads: Map<string, DiscoveredFile[]>;
+}
+
+// ============================================================================
+// Scaffold Types
+// ============================================================================
+
+/**
+ * Configuration for a scaffold template in `questpie add`.
+ *
+ * Each plugin target can declare scaffolds that create files when the user
+ * runs `questpie add <type> <name>`. Multiple targets may declare the same
+ * scaffold type — files are created in ALL matching targets.
+ */
+export interface ScaffoldConfig {
+	/** Directory relative to the target root where the file is created. */
+	dir: string;
+	/** File extension including the dot. @default ".ts" */
+	extension?: string;
+	/** Human-readable description for CLI help/error messages. */
+	description?: string;
+	/** Template function that generates file content. */
+	template: (ctx: ScaffoldContext) => string;
+}
+
+/**
+ * Context passed to scaffold template functions.
+ */
+export interface ScaffoldContext {
+	/** Kebab-case name (e.g. "my-block"). */
+	kebab: string;
+	/** camelCase name (e.g. "myBlock"). */
+	camel: string;
+	/** PascalCase name (e.g. "MyBlock"). */
+	pascal: string;
+	/** Title Case name (e.g. "My Block"). */
+	title: string;
+	/** Target ID this scaffold is being created for (e.g. "server", "admin-client"). */
+	targetId: string;
 }

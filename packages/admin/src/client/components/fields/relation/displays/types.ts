@@ -4,7 +4,7 @@
 
 import type * as React from "react";
 import type { ComponentReference } from "#questpie/admin/server";
-import type { FieldDefinition } from "../../../../builder/field/field";
+import type { FieldInstance } from "../../../../builder/field/field";
 import { formatLabel } from "../../../../lib/utils";
 import { DefaultCell } from "../../../../views/collection/cells";
 
@@ -44,7 +44,7 @@ export interface RelationDisplayFields {
  * Collection field definitions for cell rendering
  */
 export interface CollectionFieldsConfig {
-	fields?: Record<string, FieldDefinition>;
+	fields?: Record<string, FieldInstance>;
 }
 
 /**
@@ -177,9 +177,9 @@ interface ResolvedCell {
 	component: React.ComponentType<{
 		value: unknown;
 		row?: unknown;
-		fieldDef?: FieldDefinition;
+		fieldDef?: FieldInstance;
 	}>;
-	fieldDef?: FieldDefinition;
+	fieldDef?: FieldInstance;
 	needsFieldDef: boolean;
 	accessorKey: string;
 }
@@ -202,15 +202,15 @@ export function resolveCellForColumn(
 	let component: React.ComponentType<{
 		value: unknown;
 		row?: unknown;
-		fieldDef?: FieldDefinition;
+		fieldDef?: FieldInstance;
 	}>;
 
-	if (fieldDef?.cell?.component) {
+	if (fieldDef?.cell) {
 		// Cell from field registry
-		component = fieldDef.cell.component as React.ComponentType<{
+		component = fieldDef.cell as React.ComponentType<{
 			value: unknown;
 			row?: unknown;
-			fieldDef?: FieldDefinition;
+			fieldDef?: FieldInstance;
 		}>;
 	} else {
 		// DefaultCell fallback

@@ -3,36 +3,32 @@
 // Typed factory functions with plugin extensions. Regenerate with: questpie generate
 
 // ── Core Imports ───────────────────────────────────────────
-import { CollectionBuilder, GlobalBuilder, type EmptyCollectionState, type EmptyGlobalState } from "questpie";
+import { CollectionBuilder, GlobalBuilder, type EmptyCollectionState, type EmptyGlobalState, type Registry } from "questpie";
 
-// ── Module import (for type extraction + runtime fields) ──
+// ── Module import (for runtime fields) ──
 import _modulesArr from "../modules";
 
 // ── Plugin Imports ─────────────────────────────────────────
-import { type LocaleConfig, type GlobalHooksInput, type CollectionAccess, type ContextResolver } from "questpie";
 import { type AdminCollectionConfig, type AdminConfigContext, type ListViewConfig, type ListViewConfigContext, type FormViewConfig, type FormViewConfigContext, type PreviewConfig, type ServerActionsConfig, type ActionsConfigContext, type AdminGlobalConfig, type ServerBrandingConfig, type AdminLocaleConfig, type SidebarContribution, type DashboardContribution, createComponentProxy, createViewProxy, createFieldProxy, createActionProxy } from "@questpie/admin/server";
+import { type LocaleConfig, type GlobalHooksInput, type CollectionAccess, type ContextResolver } from "questpie";
 
 // ════════════════════════════════════════════════════════════
-// Module type extraction — views, components, field types (all from modules)
+// Type extraction from Registry — driven by CategoryDeclaration
 // ════════════════════════════════════════════════════════════
 
-type _FlattenModules<T> = T extends readonly (infer M)[]
-  ? M | (M extends { modules: infer Sub } ? _FlattenModules<Sub> : never)
-  : never;
-type _AllModules = _FlattenModules<typeof _modulesArr>;
+type _RegistryProp<K extends string> = Registry extends Record<K, infer V> ? V : Record<string, unknown>;
 
-// Module registry names — extracted from module registrations
-type _ExtractKeys<K extends string> = _AllModules extends infer M ? M extends Record<K, Record<infer V extends string, any>> ? V : never : never;
-type _ViewsNames = _ExtractKeys<"views"> | (string & {});
-type _ListViewsNames = _ExtractKeys<"listViews"> | (string & {});
-type _EditViewsNames = _ExtractKeys<"editViews"> | (string & {});
-type _ComponentsNames = _ExtractKeys<"components"> | (string & {});
-type _ComponentsNames_Strict = _ExtractKeys<"components">;
+type _ViewsNames = (keyof _RegistryProp<"views"> & string) | (string & {});
+type _ListViewsNames = (keyof _RegistryProp<"listViews"> & string) | (string & {});
+type _ListViewsRecord = _RegistryProp<"listViews">;
+type _FormViewsNames = (keyof _RegistryProp<"formViews"> & string) | (string & {});
+type _FormViewsRecord = _RegistryProp<"formViews">;
+type _ComponentsNames = (keyof _RegistryProp<"components"> & string) | (string & {});
+type _ComponentsNames_Strict = keyof _RegistryProp<"components"> & string;
+type _ComponentsRecord = _RegistryProp<"components">;
 
-// Field types — all field types come from modules (starter, admin, etc.)
-type _U2I<U> = (U extends any ? (x: U) => void : never) extends (x: infer I) => void ? I : never;
-type _ModuleFieldTypes = _U2I<_AllModules extends infer M ? M extends { fields: infer F } ? F : never : never>;
-type _AllFieldTypes = [_ModuleFieldTypes] extends [never] ? Record<string, never> : _ModuleFieldTypes;
+// Field types — extracted from Registry
+type _AllFieldTypes = Registry extends { "~fieldTypes": infer F } ? F : Record<string, never>;
 
 // ── Runtime: extract fields from modules ────────────────────
 function _extractModuleFields(modules: readonly any[]): Record<string, any> {
@@ -51,21 +47,15 @@ const _allRuntimeFields = _extractModuleFields(_modulesArr);
 
 declare module "questpie" {
 	interface CollectionBuilder<TState> {
-		admin(configFn: AdminCollectionConfig | ((ctx: AdminConfigContext<_ComponentsNames>) => AdminCollectionConfig)): CollectionBuilder<TState>;
-		list(configFn: (ctx: ListViewConfigContext<TState extends { fieldDefinitions: infer F extends Record<string, any> } ? F : Record<string, any>, _ListViewsNames>) => ListViewConfig): CollectionBuilder<TState>;
-		form(configFn: (ctx: FormViewConfigContext<TState extends { fieldDefinitions: infer F extends Record<string, any> } ? F : Record<string, any>, _EditViewsNames>) => FormViewConfig): CollectionBuilder<TState>;
+		admin(configFn: AdminCollectionConfig | ((ctx: AdminConfigContext<_ComponentsRecord>) => AdminCollectionConfig)): CollectionBuilder<TState>;
+		list(configFn: (ctx: ListViewConfigContext<TState extends { fieldDefinitions: infer F extends Record<string, any> } ? F : Record<string, any>, _ListViewsRecord>) => ListViewConfig): CollectionBuilder<TState>;
+		form(configFn: (ctx: FormViewConfigContext<TState extends { fieldDefinitions: infer F extends Record<string, any> } ? F : Record<string, any>, _FormViewsRecord>) => FormViewConfig): CollectionBuilder<TState>;
 		preview(config: PreviewConfig): CollectionBuilder<TState>;
-		actions(configFn: (ctx: ActionsConfigContext<Record<string, unknown>, _ComponentsNames>) => ServerActionsConfig): CollectionBuilder<TState>;
+		actions(configFn: (ctx: ActionsConfigContext<Record<string, unknown>, _ComponentsRecord>) => ServerActionsConfig): CollectionBuilder<TState>;
 	}
 	interface GlobalBuilder<TState> {
-		admin(configFn: AdminGlobalConfig | ((ctx: AdminConfigContext<_ComponentsNames>) => AdminGlobalConfig)): GlobalBuilder<TState>;
-		form(configFn: (ctx: FormViewConfigContext<TState extends { fieldDefinitions: infer F extends Record<string, any> } ? F : Record<string, any>, _EditViewsNames>) => FormViewConfig): GlobalBuilder<TState>;
-	}
-	interface Registry {
-		views: Record<_ViewsNames, unknown>;
-		listViews: Record<_ListViewsNames, unknown>;
-		editViews: Record<_EditViewsNames, unknown>;
-		components: Record<_ComponentsNames, unknown>;
+		admin(configFn: AdminGlobalConfig | ((ctx: AdminConfigContext<_ComponentsRecord>) => AdminGlobalConfig)): GlobalBuilder<TState>;
+		form(configFn: (ctx: FormViewConfigContext<TState extends { fieldDefinitions: infer F extends Record<string, any> } ? F : Record<string, any>, _FormViewsRecord>) => FormViewConfig): GlobalBuilder<TState>;
 	}
 	interface FieldTypeRegistry extends Record<keyof _AllFieldTypes, {}> {}
 }
@@ -89,15 +79,15 @@ const _collExt: Record<string, { stateKey: string; resolve: (v: any) => any }> =
 	list: {
 		stateKey: "adminList",
 		resolve(configOrFn: any) {
-			if (typeof configOrFn === 'function') return configOrFn({ v: new Proxy({}, { get: (_, prop) => (config: any) => ({ view: String(prop), ...config }) }), f: new Proxy({}, { get: (_, prop) => String(prop) }), a: new Proxy({ custom: (name: string, config: any) => ({ id: name, ...config }) }, { get: (target, prop) => (target as any)[prop] ?? String(prop) }) });
-			return configOrFn;
+			const resolved = typeof configOrFn === 'function' ? configOrFn({ v: new Proxy({}, { get: (_, prop) => (config: any) => ({ view: String(prop), ...config }) }), f: new Proxy({}, { get: (_, prop) => String(prop) }), a: new Proxy({ custom: (name: string, config: any) => ({ id: name, ...config }) }, { get: (target, prop) => (target as any)[prop] ?? String(prop) }) }) : configOrFn;
+			return { ...{"view":"collection-table","showSearch":true,"showFilters":true,"showToolbar":true}, ...resolved };
 		},
 	},
 	form: {
 		stateKey: "adminForm",
 		resolve(configOrFn: any) {
-			if (typeof configOrFn === 'function') return configOrFn({ v: new Proxy({}, { get: (_, prop) => (config: any) => ({ view: String(prop), ...config }) }), f: new Proxy({}, { get: (_, prop) => String(prop) }) });
-			return configOrFn;
+			const resolved = typeof configOrFn === 'function' ? configOrFn({ v: new Proxy({}, { get: (_, prop) => (config: any) => ({ view: String(prop), ...config }) }), f: new Proxy({}, { get: (_, prop) => String(prop) }) }) : configOrFn;
+			return { ...{"view":"collection-form","showMeta":true}, ...resolved };
 		},
 	},
 	preview: { stateKey: "adminPreview", resolve: (v: any) => v },
@@ -140,8 +130,8 @@ const _globExt: Record<string, { stateKey: string; resolve: (v: any) => any }> =
 	form: {
 		stateKey: "adminForm",
 		resolve(configOrFn: any) {
-			if (typeof configOrFn === 'function') return configOrFn({ v: new Proxy({}, { get: (_, prop) => (config: any) => ({ view: String(prop), ...config }) }), f: new Proxy({}, { get: (_, prop) => String(prop) }) });
-			return configOrFn;
+			const resolved = typeof configOrFn === 'function' ? configOrFn({ v: new Proxy({}, { get: (_, prop) => (config: any) => ({ view: String(prop), ...config }) }), f: new Proxy({}, { get: (_, prop) => String(prop) }) }) : configOrFn;
+			return { ...{"view":"global-form","showMeta":true}, ...resolved };
 		},
 	},
 };

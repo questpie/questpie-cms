@@ -6,7 +6,7 @@ const steps = [
 		title: "Type-safe collections with relations",
 		description:
 			"Define collections with typed fields, relations, and validation. One definition generates the database schema, REST API, and admin forms.",
-		file: "collections/appointments.collection.ts",
+		file: "collections/appointments.ts",
 		code: `const appointments = collection("appointments")
   .fields(({ f }) => ({
     customer: f.text({ required: true }),
@@ -58,12 +58,12 @@ const { docs: upcoming } = await client.collections.appointments.find({
     status: { in: ["pending", "confirmed"] },
   },
   with: { barber: true, service: true },
-  sort: { date: "asc" },
+  orderBy: { date: "asc" },
   limit: 10,
 });
 
 // Functions — fully typed input and output
-const slots = await client.fn.getAvailableSlots({
+const slots = await client.rpc.getAvailableSlots({
   barberId: selectedBarber.id,
   date: "2025-03-15",
 });`,

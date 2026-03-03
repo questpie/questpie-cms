@@ -9,7 +9,7 @@ import { ArrowRight, User } from "@phosphor-icons/react";
 import { RichTextRenderer, type TipTapDoc } from "@questpie/admin/client";
 import { useTranslation } from "../../../lib/providers/locale-provider";
 import { cn } from "../../../lib/utils";
-import type { BlockProps } from "./types";
+import type { BlockProps } from "../.generated/client";
 
 type Barber = {
 	id: string;

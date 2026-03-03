@@ -8,7 +8,7 @@
 import { ArrowRight } from "@phosphor-icons/react";
 import { buttonVariants } from "../../../components/ui/button";
 import { cn } from "../../../lib/utils";
-import type { BlockProps } from "./types";
+import type { BlockProps } from "../.generated/client";
 
 export function CTARenderer({ values }: BlockProps<"cta">) {
 	const variantStyles = {

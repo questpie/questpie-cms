@@ -17,6 +17,7 @@
 
 import type {
 	CategoryDeclaration,
+	DiscoverPattern,
 	DiscoveredFile,
 	DiscoveryResult,
 	SingletonFactory,
@@ -43,6 +44,8 @@ export interface TemplateOptions {
 	extraRuntimeCode?: string[];
 	/** Additional entity keys to pass to createApp (from plugins). */
 	extraEntities?: Map<string, string>;
+	/** Discover patterns from the resolved target (for ~-prefixed registryKey handling). */
+	discoverPatterns?: Record<string, DiscoverPattern>;
 }
 
 /**
@@ -61,6 +64,7 @@ export function generateTemplate(options: TemplateOptions): string {
 		extraTypeDeclarations,
 		extraRuntimeCode,
 		extraEntities,
+		discoverPatterns,
 	} = options;
 
 	// Build category declarations map from the resolved target
@@ -125,16 +129,7 @@ export function generateTemplate(options: TemplateOptions): string {
 		lines.push("");
 	}
 
-	// Import auth
-	if (discovered.auth) {
-		lines.push(
-			"// ── Auth ───────────────────────────────────────────────────",
-		);
-		lines.push(importStatement(discovered.auth));
-		lines.push("");
-	}
-
-	// Import core singles (locale, hooks, access, context) — excluding modules (already imported)
+	// Import core singles (auth, locale, hooks, access, context) — excluding modules (already imported)
 	const coreSingles = getCategorizedSingles(discovered.singles, allDecls);
 	if (coreSingles.core.length > 0) {
 		lines.push(
@@ -232,6 +227,50 @@ export function generateTemplate(options: TemplateOptions): string {
 	for (const [stateKey] of discovered.spreads) {
 		const moduleTypeName = deriveModuleTypeName(stateKey);
 		lines.push(`type ${moduleTypeName} = _MP<"${stateKey}">;`);
+	}
+
+	// NOTE: Module registries (views, listViews, formViews, components) are NOT
+	// extracted here via _MP<>. They are augmented into Registry by each module's
+	// own .generated/module.ts. This avoids circular references:
+	//   typeof _modules → CollectionBuilder augmentation → Registry → typeof _modules.
+	//
+	// However, ~-prefixed registryKeys (like ~fieldTypes) ARE extracted here via
+	// recursive module traversal. They must NOT be augmented per-module because
+	// multiple modules augmenting the same Registry property with different types
+	// causes TypeScript to degrade the merged type to `any`.
+
+	// ── ~-prefixed registryKey extraction from modules ───────────────
+	// Recursively extracts properties from modules + sub-modules.
+	// Unlike _MP<> (top-level only), this recurses into sub-modules because
+	// each module contributes its own field types (not merged into parent).
+	{
+		const tildeKeys = collectTildeRegistryKeys(discoverPatterns, discovered.singles);
+		if (tildeKeys.length > 0) {
+			lines.push(
+				"// Recursive module property extraction (for fields contributed at each level)",
+			);
+			lines.push(
+				`type _ExtractProp<M, K extends string> = (M extends { modules: infer Sub extends readonly any[] } ? _ExtractPropArr<Sub, K> : {}) & (K extends keyof M ? M[K] extends Record<string, any> ? M[K] : {} : {});`,
+			);
+			lines.push(
+				`type _ExtractPropArr<A extends readonly any[], K extends string> = A extends readonly [infer H, ...infer T extends readonly any[]] ? _ExtractProp<H, K> & _ExtractPropArr<T, K> : {};`,
+			);
+			lines.push("");
+
+			for (const { singleName, registryKey } of tildeKeys) {
+				const userFile = discovered.singles.get(singleName);
+				const typeName = `_AllModule${capitalize(singleName)}`;
+				if (userFile) {
+					lines.push(
+						`type ${typeName} = _ExtractProp<{ modules: typeof ${modulesFile.varName} }, "${singleName}"> & typeof ${userFile.varName};`,
+					);
+				} else {
+					lines.push(
+						`type ${typeName} = _ExtractProp<{ modules: typeof ${modulesFile.varName} }, "${singleName}">;`,
+					);
+				}
+			}
+		}
 	}
 	lines.push("");
 
@@ -390,6 +429,7 @@ export function generateTemplate(options: TemplateOptions): string {
 		lines.push("\t\t// Entity APIs");
 		lines.push("\t\tcollections: _AppInternal['api']['collections'];");
 		lines.push("\t\tglobals: _AppInternal['api']['globals'];");
+		lines.push("\t\ttables: _AppInternal['tables'];");
 		lines.push("");
 		lines.push("\t\t// Request-scoped");
 		lines.push(
@@ -418,22 +458,30 @@ export function generateTemplate(options: TemplateOptions): string {
 
 		lines.push("\t}");
 
-		// Registry — augment with all app categories for autocomplete
-		lines.push("\tinterface Registry {");
-		for (const [catName] of discovered.categories) {
-			const decl = allDecls.get(catName);
-			const regKey = decl?.registryKey;
-
-			// Categories without metadata default to registryKey: true
-			const shouldInclude = decl ? regKey !== false : true;
-			if (!shouldInclude) continue;
-
-			// Determine the registry key name
-			const keyName = typeof regKey === "string" ? regKey : catName;
-			const appTypeName = deriveAppTypeName(catName, decl);
-			lines.push(`\t\t${keyName}: ${appTypeName};`);
+		// Registry — category entries (collections, globals, jobs, etc.) are NOT added
+		// here because they depend on _MP<> which depends on typeof _modules, creating
+		// a circular reference:
+		//   typeof _modules → modules → CollectionBuilder augmentation → Registry → AppCollections → _MP<> → typeof _modules
+		//
+		// Module registries (views, listViews, formViews, components) are augmented
+		// by each module's .generated/module.ts instead. See module-template.ts.
+		//
+		// EXCEPTION: ~-prefixed registryKeys (like ~fieldTypes) ARE augmented here
+		// centrally because they use recursive extraction (_ExtractProp) which does
+		// NOT depend on CollectionBuilder types. Augmenting per-module causes merge
+		// conflicts (multiple modules → different types → TypeScript degrades to `any`).
+		{
+			const tildeKeys = collectTildeRegistryKeys(discoverPatterns, discovered.singles);
+			if (tildeKeys.length > 0) {
+				lines.push("");
+				lines.push("\tinterface Registry {");
+				for (const { singleName, registryKey } of tildeKeys) {
+					const typeName = `_AllModule${capitalize(singleName)}`;
+					lines.push(`\t\t${safeKey(registryKey)}: ${typeName};`);
+				}
+				lines.push("\t}");
+			}
 		}
-		lines.push("\t}");
 
 		lines.push("}");
 		lines.push("");
@@ -450,10 +498,13 @@ export function generateTemplate(options: TemplateOptions): string {
 	);
 	lines.push(" */");
 	lines.push("export type AppConfig = {");
-	lines.push("\tcollections: AppCollections;");
-	lines.push("\tglobals: AppGlobals;");
-	if (discovered.auth) {
-		lines.push(`\tauth: typeof ${discovered.auth.varName};`);
+	lines.push("\tcollections: AppCollections & Record<string, any>;");
+	lines.push("\tglobals: AppGlobals & Record<string, any>;");
+	lines.push("\tfunctions: AppFunctions;");
+	lines.push("\troutes: AppRoutes;");
+	const authFile = discovered.singles.get("auth");
+	if (authFile) {
+		lines.push(`\tauth: typeof ${authFile.varName};`);
 	}
 	lines.push("};");
 	lines.push("");
@@ -564,7 +615,11 @@ function emitNewArchitectureRuntime(
 			case "record": {
 				lines.push(`\t\t${safeKey(createAppKey)}: {`);
 				for (const file of sortedValues(fileMap)) {
-					lines.push(`\t\t\t${safeKey(file.key)}: ${file.varName},`);
+					if (decl?.keyFromProperty) {
+						lines.push(`\t\t\t[${file.varName}.${decl.keyFromProperty}]: ${file.varName},`);
+					} else {
+						lines.push(`\t\t\t${safeKey(file.key)}: ${file.varName},`);
+					}
 				}
 				lines.push("\t\t},");
 				break;
@@ -586,12 +641,7 @@ function emitNewArchitectureRuntime(
 		}
 	}
 
-	// Auth
-	if (discovered.auth) {
-		lines.push(`\t\tauth: ${discovered.auth.varName},`);
-	}
-
-	// Core singles (locale, hooks, access, context)
+	// Core singles (auth, locale, hooks, access, context)
 	// Cast with `as any` because user files may use `as const` (readonly),
 	// and the whole expression is cast to App anyway.
 	for (const file of coreSingles.core) {
@@ -696,6 +746,7 @@ function getCoreSingleKeys(
 	// We use a simple heuristic: keys that match well-known core patterns.
 	return new Set([
 		"modules",
+		"auth",
 		"locale",
 		"hooks",
 		"defaultAccess",
@@ -897,4 +948,25 @@ function getFactoryNames(
 		}
 	}
 	return [...names].sort();
+}
+
+/**
+ * Collect singleton discover patterns with ~-prefixed registryKeys.
+ * These need centralized augmentation in the root template (not per-module)
+ * to avoid TypeScript merge conflicts when multiple modules contribute.
+ */
+function collectTildeRegistryKeys(
+	discoverPatterns: Record<string, DiscoverPattern> | undefined,
+	singles: Map<string, DiscoveredFile>,
+): Array<{ singleName: string; registryKey: string }> {
+	if (!discoverPatterns) return [];
+	const result: Array<{ singleName: string; registryKey: string }> = [];
+	for (const [name, pattern] of Object.entries(discoverPatterns)) {
+		if (typeof pattern !== "object" || !pattern.registryKey) continue;
+		if (!pattern.registryKey.startsWith("~")) continue;
+		// Only include if at least modules exist (which provide the fields).
+		// The user may also have a fields.ts — handled by the type emission.
+		result.push({ singleName: name, registryKey: pattern.registryKey });
+	}
+	return result.sort((a, b) => a.singleName.localeCompare(b.singleName));
 }

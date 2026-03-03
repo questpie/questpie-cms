@@ -11,9 +11,9 @@ QuestPie provides a typed client SDK that connects to your backend with full typ
 
 ```ts title="lib/client.ts"
 import { createClient } from "questpie/client";
-import type { AppConfig, AppFunctions } from "@/questpie/server/.generated";
+import type { AppConfig } from "@/questpie/server/.generated";
 
-export const client = createClient<AppConfig, AppFunctions>({
+export const client = createClient<AppConfig>({
   baseURL:
     typeof window !== "undefined"
       ? window.location.origin
@@ -89,6 +89,24 @@ const result = await client.rpc.createBooking({
   customerEmail: "john@example.com",
 });
 ```
+
+## Routes
+
+Call custom HTTP routes defined in `routes/`:
+
+```ts
+// Call a route — returns raw Response
+const response = await client.routes["webhooks/stripe"]({
+  method: "POST",
+  body: JSON.stringify(payload),
+  headers: { "stripe-signature": sig },
+});
+
+// Get the URL for a route (useful for forms, links)
+const healthUrl = client.routes["health"].url;
+```
+
+Unlike collections and RPC, routes return raw `Response` objects — you handle parsing yourself.
 
 ## Locale
 

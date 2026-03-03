@@ -125,7 +125,7 @@ type BadgeReference = ComponentReference<
  * ```
  */
 // biome-ignore lint/complexity/noBannedTypes: Empty interface for declaration merging augmentation
-export type ComponentTypeRegistry = {};
+export interface ComponentTypeRegistry {}
 
 /**
  * Union of all registered component type names.
@@ -143,7 +143,7 @@ export type ComponentType = [keyof ComponentTypeRegistry] extends [never]
  * Open augmentation point for view kinds.
  * Plugins extend this interface to register new view kinds.
  *
- * The admin plugin registers "list" and "edit" by default.
+ * The admin plugin registers "list" and "form" by default.
  * Third-party plugins can add new kinds (e.g., "dashboard", "kanban-board").
  *
  * @example
@@ -166,7 +166,7 @@ export type ComponentType = [keyof ComponentTypeRegistry] extends [never]
  */
 export interface ViewKindRegistry {
 	list: {};
-	edit: {};
+	form: {};
 }
 
 /**
@@ -185,7 +185,7 @@ export type ViewKind = keyof ViewKindRegistry;
  *
  * The `kind` field determines which builder extension this view is used in:
  * - `"list"` → available in `.list()` callback
- * - `"edit"` → available in `.form()` callback
+ * - `"form"` → available in `.form()` callback
  *
  * Each view carries its own config — codegen extracts the type and
  * introspection serializes the schema for the client.
@@ -229,7 +229,7 @@ export interface ListViewDefinition<TName extends string = string> {
 
 /**
  * View definition for edit views (form, wizard, etc.)
- * @deprecated Use ViewDefinition with kind: "edit" instead.
+ * @deprecated Use ViewDefinition with kind: "form" instead.
  */
 export interface EditViewDefinition<TName extends string = string> {
 	type: "editView";

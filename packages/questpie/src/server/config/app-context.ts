@@ -91,8 +91,8 @@ export type KnownRouteNames = RegistryNames<"routes">;
 /** Known list view names (from admin modules). @see Registry['listViews'] */
 export type KnownListViewNames = RegistryNames<"listViews">;
 
-/** Known edit view names (from admin modules). @see Registry['editViews'] */
-export type KnownEditViewNames = RegistryNames<"editViews">;
+/** Known form view names (from admin modules). @see Registry['formViews'] */
+export type KnownFormViewNames = RegistryNames<"formViews">;
 
 /** Known component names (from admin modules). @see Registry['components'] */
 export type KnownComponentNames = RegistryNames<"components">;
@@ -123,6 +123,7 @@ export function extractAppServices(
 		realtime: app.realtime,
 		collections: app.api?.collections,
 		globals: app.api?.globals,
+		tables: app.tables ?? {},
 		t: app.t,
 	};
 }

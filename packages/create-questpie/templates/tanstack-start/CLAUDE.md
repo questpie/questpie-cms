@@ -32,7 +32,9 @@ src/questpie/
     jobs/              ← Background job definitions (auto-discovered)
     blocks/            ← Block definitions (auto-discovered)
   admin/               ← HOW: UI rendering concerns
-    builder.ts         ← Client builder: qa<App>().use(adminModule)
+    admin.ts           ← Re-exports generated admin config
+    .generated/        ← Codegen output (admin client config)
+      client.ts
 ```
 
 ## Key Files

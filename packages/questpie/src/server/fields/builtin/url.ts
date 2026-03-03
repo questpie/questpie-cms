@@ -131,7 +131,7 @@ export const urlField = field<UrlFieldConfig, string>()({
 	type: "url" as const,
 	_value: undefined as unknown as string,
 
-	toColumn(name: string, config: UrlFieldConfig) {
+	toColumn(name: string, config: UrlFieldConfig): ReturnType<typeof varchar> {
 		const { maxLength = 2048, textMode = false } = config;
 
 		let column: any = textMode

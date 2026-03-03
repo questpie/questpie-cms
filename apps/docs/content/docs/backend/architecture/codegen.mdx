@@ -44,14 +44,27 @@ export type AppJobs = {
   // ...
 };
 
+export type AppRoutes = {
+  health: typeof healthRoute;
+  "webhooks/stripe": typeof stripeWebhookRoute;
+  // ...
+};
+
 export type AppServices = {
   blog: BlogService;
+};
+
+export type AppEmails = {
+  appointmentConfirmation: typeof appointmentConfirmationEmail;
+  // ...
 };
 
 // Flat config type for client SDK
 export type AppConfig = {
   collections: AppCollections;
   globals: AppGlobals;
+  functions: AppFunctions;
+  routes: AppRoutes;
   // auth, locales, etc.
 };
 ```
@@ -95,9 +108,9 @@ export async function createContext(options?: {
 ### Client SDK
 
 ```ts
-import type { AppConfig, AppFunctions } from "@/questpie/server/.generated";
+import type { AppConfig } from "@/questpie/server/.generated";
 
-export const client = createClient<AppConfig, AppFunctions>({
+export const client = createClient<AppConfig>({
   baseURL: "http://localhost:3000",
   basePath: "/api",
 });
@@ -112,13 +125,21 @@ const ctx = await createContext({ accessMode: "system" });
 const posts = await app.api.collections.posts.find({}, ctx);
 ```
 
-### Admin hooks
+### Typed admin hooks
 
-```ts
+```ts title="admin/hooks.ts"
+import { createTypedHooks } from "@questpie/admin/client";
 import type { AppConfig } from "@/questpie/server/.generated";
 
-// Factory functions that produce typed hooks
-export const { useCollectionList, useCollectionItem } = createAdminHooks<AppConfig>();
+export const {
+  useCollectionList,
+  useCollectionItem,
+  useCollectionCreate,
+  useCollectionUpdate,
+  useCollectionDelete,
+  useGlobal,
+  useGlobalUpdate,
+} = createTypedHooks<AppConfig>();
 ```
 
 ## When to Re-Run Codegen

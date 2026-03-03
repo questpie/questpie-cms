@@ -8,7 +8,7 @@
 import { ArrowRight, Clock } from "@phosphor-icons/react";
 import { useTranslation } from "../../../lib/providers/locale-provider";
 import { cn } from "../../../lib/utils";
-import type { BlockProps } from "./types";
+import type { BlockProps } from "../.generated/client";
 
 type Service = {
 	id: string;

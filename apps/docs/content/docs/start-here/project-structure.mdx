@@ -58,8 +58,10 @@ my-app/
 │   │   │       └── module.ts             # Merged module
 │   │   │
 │   │   └── admin/                        # Admin client customizations
-│   │       ├── builder.ts                # Typed admin builder
+│   │       ├── admin.ts                  # Re-exports generated admin config
 │   │       ├── hooks.ts                  # Typed React hooks
+│   │       ├── .generated/               # Codegen output (never edit)
+│   │       │   └── client.ts             # Admin client config
 │   │       └── blocks/                   # Block renderers (React)
 │   │           ├── hero.tsx
 │   │           └── gallery.tsx
@@ -122,16 +124,18 @@ Running `bunx questpie generate` creates `.generated/` with:
 
 ```ts
 // Auto-generated — do not edit
-import type { AppCollections, AppGlobals, AppFunctions, AppJobs } from "./module";
+import type { AppCollections, AppGlobals, AppFunctions, AppRoutes, AppJobs } from "./module";
 
 export type AppConfig = {
   collections: AppCollections;
   globals: AppGlobals;
+  functions: AppFunctions;
+  routes: AppRoutes;
   // ... auth, locales
 };
 
 export { app, createContext } from "./app";
-export type { AppConfig, AppCollections, AppGlobals, AppFunctions, AppJobs };
+export type { AppConfig, AppCollections, AppGlobals, AppFunctions, AppRoutes, AppJobs };
 ```
 
 ### Module augmentation

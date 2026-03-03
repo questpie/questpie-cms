@@ -118,7 +118,7 @@ export const emailField = field<EmailFieldConfig, string>()({
 	type: "email" as const,
 	_value: undefined as unknown as string,
 
-	toColumn(name: string, config: EmailFieldConfig) {
+	toColumn(name: string, config: EmailFieldConfig): ReturnType<typeof varchar> {
 		const { maxLength = 255 } = config;
 
 		let column: any = varchar(name, { length: maxLength });

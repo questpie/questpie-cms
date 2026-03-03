@@ -151,7 +151,7 @@ function getTimeOperators() {
 export const timeField = field<TimeFieldConfig, string>()({
 	type: "time" as const,
 	_value: undefined as unknown as string,
-	toColumn(name: string, config: TimeFieldConfig) {
+	toColumn(name: string, config: TimeFieldConfig): ReturnType<typeof time> {
 		const { precision = 0 } = config;
 
 		let column: any = time(name, { precision });

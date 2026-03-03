@@ -21,6 +21,8 @@ import { generateTemplate } from "../../src/cli/codegen/template.js";
 import type {
 	CategoryDeclaration,
 	CodegenPlugin,
+	CodegenResult,
+	CrossTargetValidator,
 	DiscoveredFile,
 	DiscoveryResult,
 	SingletonFactory,
@@ -83,7 +85,6 @@ function emptyResult(categoryNames: string[] = []): DiscoveryResult {
 	}
 	return {
 		categories,
-		auth: null,
 		singles: new Map(),
 		spreads: new Map(),
 	};
@@ -189,6 +190,7 @@ describe("generateTemplate — minimal (modules.ts only)", () => {
 	it("emits declare module augmentation for AppContext", () => {
 		expect(code).toContain('declare module "questpie"');
 		expect(code).toContain("interface AppContext");
+		expect(code).toContain("tables: _AppInternal['tables']");
 	});
 
 	it("emits AppConfig type", () => {
@@ -670,11 +672,14 @@ describe("generateTemplate — functions (nested keys)", () => {
 describe("generateTemplate — auth", () => {
 	it("emits auth import and includes it in createApp and AppConfig", () => {
 		const result = minimalResult();
-		result.auth = makeFile("auth", {
-			varName: "_auth",
-			importPath: "../auth",
-			exportType: "default",
-		});
+		result.singles.set(
+			"auth",
+			makeFile("auth", {
+				varName: "_auth",
+				importPath: "../auth",
+				exportType: "default",
+			}),
+		);
 
 		const code = generateTemplate({
 			configImportPath: "../questpie.config",
@@ -684,7 +689,7 @@ describe("generateTemplate — auth", () => {
 		});
 
 		expect(code).toContain('import _auth from "../auth"');
-		expect(code).toContain("auth: _auth,");
+		expect(code).toContain("auth: _auth as any,");
 		expect(code).toContain("auth: typeof _auth;");
 	});
 });
@@ -1194,5 +1199,719 @@ describe("runAllTargets", () => {
 		expect(adminResult.outputPath).toContain("admin");
 		expect(adminResult.outputPath).toContain(".generated");
 		expect(adminResult.outputPath).toContain("client.ts");
+	});
+
+	it("returns empty validationErrors when no validators registered", async () => {
+		const { mkdtemp, writeFile } = await import("node:fs/promises");
+		const { tmpdir } = await import("node:os");
+		const { join } = await import("node:path");
+
+		const dir = await mkdtemp(join(tmpdir(), "codegen-noval-"));
+		const configPath = join(dir, "questpie.config.ts");
+		await writeFile(
+			configPath,
+			'export default { app: { url: "http://localhost" }, db: { url: "sqlite://:memory:" } };',
+		);
+		await writeFile(join(dir, "modules.ts"), "export default [];");
+
+		const result = await runAllTargets({
+			rootDir: dir,
+			configPath,
+			plugins: [],
+		});
+
+		expect(result.validationErrors).toEqual([]);
+	});
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 11. Cross-target projection validators
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("cross-target projection validators", () => {
+	/**
+	 * Helper: create a minimal CodegenResult with specified category files.
+	 */
+	function makeFakeResult(
+		targetId: string,
+		categories: Record<string, string[]>,
+	): CodegenResult {
+		const catMap = new Map<string, Map<string, DiscoveredFile>>();
+		for (const [catName, keys] of Object.entries(categories)) {
+			const fileMap = new Map<string, DiscoveredFile>();
+			for (const key of keys) {
+				fileMap.set(
+					key,
+					makeFile(key, {
+						varName: `_${catName}_${key}`,
+						importPath: `../${catName}/${key}`,
+						exportType: "default",
+					}),
+				);
+			}
+			catMap.set(catName, fileMap);
+		}
+
+		return {
+			targetId,
+			code: "// fake",
+			outputPath: `/fake/.generated/${targetId}.ts`,
+			discovered: {
+				categories: catMap,
+				singles: new Map(),
+				spreads: new Map(),
+			},
+		};
+	}
+
+	/**
+	 * Simple projection validator for testing — checks that server "blocks"
+	 * keys all exist in admin-client "blocks" keys.
+	 */
+	const testBlocksValidator: CrossTargetValidator = (targets) => {
+		const server = targets.get("server");
+		const client = targets.get("admin-client");
+		if (!server || !client) return [];
+
+		const errors: import("../../src/cli/codegen/types.js").ProjectionError[] =
+			[];
+		const serverBlocks = server.discovered.categories.get("blocks");
+		const clientBlocks = client.discovered.categories.get("blocks");
+
+		if (!serverBlocks) return [];
+		const clientKeys = new Set(clientBlocks?.keys() ?? []);
+
+		for (const [key, file] of serverBlocks) {
+			if (!clientKeys.has(key)) {
+				errors.push({
+					severity: "error",
+					category: "blocks",
+					key,
+					sourceTarget: "server",
+					consumerTarget: "admin-client",
+					message: `Server block "${key}" has no admin client renderer. Create admin/blocks/${key}.tsx`,
+				});
+			}
+		}
+		return errors;
+	};
+
+	it("reports no errors when server and client blocks match", async () => {
+		const { mkdtemp, writeFile, mkdir } = await import("node:fs/promises");
+		const { tmpdir } = await import("node:os");
+		const { join } = await import("node:path");
+
+		const dir = await mkdtemp(join(tmpdir(), "codegen-proj-ok-"));
+		const serverDir = join(dir, "server");
+		const adminDir = join(dir, "admin");
+		await mkdir(join(serverDir, "blocks"), { recursive: true });
+		await mkdir(join(adminDir, "blocks"), { recursive: true });
+
+		const configPath = join(serverDir, "questpie.config.ts");
+		await writeFile(
+			configPath,
+			'export default { app: { url: "http://localhost" }, db: { url: "sqlite://:memory:" } };',
+		);
+		await writeFile(join(serverDir, "modules.ts"), "export default [];");
+
+		// Both server and client have "hero" block
+		await writeFile(
+			join(serverDir, "blocks", "hero.ts"),
+			"export default { name: 'hero' };",
+		);
+		await writeFile(
+			join(adminDir, "blocks", "hero.tsx"),
+			"export default function HeroBlock() { return null; }",
+		);
+
+		const plugin: CodegenPlugin = {
+			name: "test-proj",
+			validators: [testBlocksValidator],
+			targets: {
+				server: {
+					root: ".",
+					outputFile: "index.ts",
+					discover: {
+						blocks: "blocks/*.ts",
+					},
+				},
+				"admin-client": {
+					root: "../admin",
+					outputFile: "client.ts",
+					categories: {
+						blocks: {
+							dirs: ["blocks"],
+							prefix: "block",
+							registryKey: false,
+							includeInAppState: false,
+							extractFromModules: false,
+						},
+					},
+					generate: async () => ({ code: "// ok" }),
+				},
+			},
+		};
+
+		const result = await runAllTargets({
+			rootDir: serverDir,
+			configPath,
+			plugins: [plugin],
+		});
+
+		expect(result.validationErrors).toEqual([]);
+	});
+
+	it("reports errors when server blocks have no admin client counterpart", async () => {
+		const { mkdtemp, writeFile, mkdir } = await import("node:fs/promises");
+		const { tmpdir } = await import("node:os");
+		const { join } = await import("node:path");
+
+		const dir = await mkdtemp(join(tmpdir(), "codegen-proj-fail-"));
+		const serverDir = join(dir, "server");
+		const adminDir = join(dir, "admin");
+		await mkdir(join(serverDir, "blocks"), { recursive: true });
+		await mkdir(join(adminDir, "blocks"), { recursive: true });
+
+		const configPath = join(serverDir, "questpie.config.ts");
+		await writeFile(
+			configPath,
+			'export default { app: { url: "http://localhost" }, db: { url: "sqlite://:memory:" } };',
+		);
+		await writeFile(join(serverDir, "modules.ts"), "export default [];");
+
+		// Server has "hero" and "gallery" blocks, client only has "hero"
+		await writeFile(
+			join(serverDir, "blocks", "hero.ts"),
+			"export default { name: 'hero' };",
+		);
+		await writeFile(
+			join(serverDir, "blocks", "gallery.ts"),
+			"export default { name: 'gallery' };",
+		);
+		await writeFile(
+			join(adminDir, "blocks", "hero.tsx"),
+			"export default function HeroBlock() { return null; }",
+		);
+
+		const plugin: CodegenPlugin = {
+			name: "test-proj-fail",
+			validators: [testBlocksValidator],
+			targets: {
+				server: {
+					root: ".",
+					outputFile: "index.ts",
+					discover: {
+						blocks: "blocks/*.ts",
+					},
+				},
+				"admin-client": {
+					root: "../admin",
+					outputFile: "client.ts",
+					categories: {
+						blocks: {
+							dirs: ["blocks"],
+							prefix: "block",
+							registryKey: false,
+							includeInAppState: false,
+							extractFromModules: false,
+						},
+					},
+					generate: async () => ({ code: "// ok" }),
+				},
+			},
+		};
+
+		const result = await runAllTargets({
+			rootDir: serverDir,
+			configPath,
+			plugins: [plugin],
+		});
+
+		expect(result.validationErrors.length).toBe(1);
+		expect(result.validationErrors[0].severity).toBe("error");
+		expect(result.validationErrors[0].category).toBe("blocks");
+		expect(result.validationErrors[0].key).toBe("gallery");
+		expect(result.validationErrors[0].sourceTarget).toBe("server");
+		expect(result.validationErrors[0].consumerTarget).toBe("admin-client");
+		expect(result.validationErrors[0].message).toContain("gallery");
+	});
+
+	it("reports multiple validation errors from multiple categories", async () => {
+		const { mkdtemp, writeFile, mkdir } = await import("node:fs/promises");
+		const { tmpdir } = await import("node:os");
+		const { join } = await import("node:path");
+
+		const dir = await mkdtemp(join(tmpdir(), "codegen-proj-multi-"));
+		const serverDir = join(dir, "server");
+		const adminDir = join(dir, "admin");
+		await mkdir(join(serverDir, "blocks"), { recursive: true });
+		await mkdir(join(serverDir, "components"), { recursive: true });
+		await mkdir(join(adminDir, "blocks"), { recursive: true });
+		// Note: no admin/components/ directory
+
+		const configPath = join(serverDir, "questpie.config.ts");
+		await writeFile(
+			configPath,
+			'export default { app: { url: "http://localhost" }, db: { url: "sqlite://:memory:" } };',
+		);
+		await writeFile(join(serverDir, "modules.ts"), "export default [];");
+
+		// Server has blocks and components, client has neither
+		await writeFile(
+			join(serverDir, "blocks", "hero.ts"),
+			"export default { name: 'hero' };",
+		);
+		await writeFile(
+			join(serverDir, "components", "rating.ts"),
+			"export default { name: 'rating' };",
+		);
+
+		// Validator for both blocks and components
+		const multiValidator: CrossTargetValidator = (targets) => {
+			const server = targets.get("server");
+			const client = targets.get("admin-client");
+			if (!server || !client) return [];
+
+			const errors: import("../../src/cli/codegen/types.js").ProjectionError[] =
+				[];
+			for (const cat of ["blocks", "components"]) {
+				const serverFiles = server.discovered.categories.get(cat);
+				const clientFiles = client.discovered.categories.get(cat);
+				if (!serverFiles) continue;
+				const clientKeys = new Set(clientFiles?.keys() ?? []);
+				for (const [key] of serverFiles) {
+					if (!clientKeys.has(key)) {
+						errors.push({
+							severity: "error",
+							category: cat,
+							key,
+							sourceTarget: "server",
+							consumerTarget: "admin-client",
+							message: `Missing ${cat}/${key}`,
+						});
+					}
+				}
+			}
+			return errors;
+		};
+
+		const plugin: CodegenPlugin = {
+			name: "test-multi-val",
+			validators: [multiValidator],
+			targets: {
+				server: {
+					root: ".",
+					outputFile: "index.ts",
+					discover: {
+						blocks: "blocks/*.ts",
+						components: "components/*.ts",
+					},
+				},
+				"admin-client": {
+					root: "../admin",
+					outputFile: "client.ts",
+					categories: {
+						blocks: {
+							dirs: ["blocks"],
+							prefix: "block",
+							registryKey: false,
+							includeInAppState: false,
+							extractFromModules: false,
+						},
+						components: {
+							dirs: ["components"],
+							prefix: "comp",
+							registryKey: false,
+							includeInAppState: false,
+							extractFromModules: false,
+						},
+					},
+					generate: async () => ({ code: "// ok" }),
+				},
+			},
+		};
+
+		const result = await runAllTargets({
+			rootDir: serverDir,
+			configPath,
+			plugins: [plugin],
+		});
+
+		expect(result.validationErrors.length).toBe(2);
+		const blockErr = result.validationErrors.find(
+			(e) => e.category === "blocks",
+		);
+		const compErr = result.validationErrors.find(
+			(e) => e.category === "components",
+		);
+		expect(blockErr).toBeDefined();
+		expect(blockErr!.key).toBe("hero");
+		expect(compErr).toBeDefined();
+		expect(compErr!.key).toBe("rating");
+	});
+
+	it("skips validation when one target is missing", async () => {
+		const { mkdtemp, writeFile, mkdir } = await import("node:fs/promises");
+		const { tmpdir } = await import("node:os");
+		const { join } = await import("node:path");
+
+		const dir = await mkdtemp(join(tmpdir(), "codegen-proj-skip-"));
+		const configPath = join(dir, "questpie.config.ts");
+		await writeFile(
+			configPath,
+			'export default { app: { url: "http://localhost" }, db: { url: "sqlite://:memory:" } };',
+		);
+		await writeFile(join(dir, "modules.ts"), "export default [];");
+
+		// Validator that checks server + admin-client, but admin-client target doesn't exist
+		const skippedValidator: CrossTargetValidator = (targets) => {
+			const server = targets.get("server");
+			const client = targets.get("admin-client");
+			if (!server || !client) return [];
+			return [
+				{
+					severity: "error",
+					category: "test",
+					key: "should-not-appear",
+					sourceTarget: "server",
+					consumerTarget: "admin-client",
+					message: "This should never be reached",
+				},
+			];
+		};
+
+		const plugin: CodegenPlugin = {
+			name: "test-skip",
+			validators: [skippedValidator],
+			targets: {},
+		};
+
+		const result = await runAllTargets({
+			rootDir: dir,
+			configPath,
+			plugins: [plugin],
+		});
+
+		// No admin-client target → validator returns [] → no validation errors
+		expect(result.validationErrors).toEqual([]);
+	});
+
+	it("aggregates validators from multiple plugins", async () => {
+		const { mkdtemp, writeFile, mkdir } = await import("node:fs/promises");
+		const { tmpdir } = await import("node:os");
+		const { join } = await import("node:path");
+
+		const dir = await mkdtemp(join(tmpdir(), "codegen-proj-agg-"));
+		const configPath = join(dir, "questpie.config.ts");
+		await writeFile(
+			configPath,
+			'export default { app: { url: "http://localhost" }, db: { url: "sqlite://:memory:" } };',
+		);
+		await writeFile(join(dir, "modules.ts"), "export default [];");
+
+		// Two plugins each with a validator that returns one error
+		const plugin1: CodegenPlugin = {
+			name: "plugin-1",
+			validators: [
+				() => [
+					{
+						severity: "error" as const,
+						category: "test1",
+						key: "a",
+						sourceTarget: "server",
+						consumerTarget: "other",
+						message: "Error from plugin 1",
+					},
+				],
+			],
+			targets: {},
+		};
+
+		const plugin2: CodegenPlugin = {
+			name: "plugin-2",
+			validators: [
+				() => [
+					{
+						severity: "warning" as const,
+						category: "test2",
+						key: "b",
+						sourceTarget: "server",
+						consumerTarget: "other",
+						message: "Warning from plugin 2",
+					},
+				],
+			],
+			targets: {},
+		};
+
+		const result = await runAllTargets({
+			rootDir: dir,
+			configPath,
+			plugins: [plugin1, plugin2],
+		});
+
+		expect(result.validationErrors.length).toBe(2);
+		expect(result.validationErrors[0].category).toBe("test1");
+		expect(result.validationErrors[0].severity).toBe("error");
+		expect(result.validationErrors[1].category).toBe("test2");
+		expect(result.validationErrors[1].severity).toBe("warning");
+	});
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 12. resolveTargetGraph — conflict detection
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("resolveTargetGraph — conflict detection", () => {
+	it("throws on root conflict for the same target", () => {
+		const plugin1: CodegenPlugin = {
+			name: "plugin-a",
+			targets: {
+				"my-target": {
+					root: "./src",
+					outputFile: "index.ts",
+				},
+			},
+		};
+		const plugin2: CodegenPlugin = {
+			name: "plugin-b",
+			targets: {
+				"my-target": {
+					root: "./lib",
+					outputFile: "index.ts",
+				},
+			},
+		};
+
+		expect(() => resolveTargetGraph([plugin1, plugin2])).toThrow(
+			/root conflict/,
+		);
+		expect(() => resolveTargetGraph([plugin1, plugin2])).toThrow(
+			/plugin "plugin-b"/,
+		);
+	});
+
+	it("throws on outDir conflict for the same target", () => {
+		const plugin1: CodegenPlugin = {
+			name: "plugin-a",
+			targets: {
+				"my-target": {
+					root: ".",
+					outDir: ".generated",
+					outputFile: "index.ts",
+				},
+			},
+		};
+		const plugin2: CodegenPlugin = {
+			name: "plugin-b",
+			targets: {
+				"my-target": {
+					root: ".",
+					outDir: ".codegen",
+					outputFile: "index.ts",
+				},
+			},
+		};
+
+		expect(() => resolveTargetGraph([plugin1, plugin2])).toThrow(
+			/outDir conflict/,
+		);
+		expect(() => resolveTargetGraph([plugin1, plugin2])).toThrow(
+			/plugin "plugin-b"/,
+		);
+	});
+
+	it("throws on outputFile conflict for the same target", () => {
+		const plugin1: CodegenPlugin = {
+			name: "plugin-a",
+			targets: {
+				"my-target": {
+					root: ".",
+					outputFile: "index.ts",
+				},
+			},
+		};
+		const plugin2: CodegenPlugin = {
+			name: "plugin-b",
+			targets: {
+				"my-target": {
+					root: ".",
+					outputFile: "main.ts",
+				},
+			},
+		};
+
+		expect(() => resolveTargetGraph([plugin1, plugin2])).toThrow(
+			/outputFile conflict/,
+		);
+		expect(() => resolveTargetGraph([plugin1, plugin2])).toThrow(
+			/plugin "plugin-b"/,
+		);
+	});
+
+	it("throws when two plugins provide a generator for the same target", () => {
+		const plugin1: CodegenPlugin = {
+			name: "plugin-a",
+			targets: {
+				"my-target": {
+					root: ".",
+					outputFile: "index.ts",
+					generate: async () => ({ code: "// a" }),
+				},
+			},
+		};
+		const plugin2: CodegenPlugin = {
+			name: "plugin-b",
+			targets: {
+				"my-target": {
+					root: ".",
+					outputFile: "index.ts",
+					generate: async () => ({ code: "// b" }),
+				},
+			},
+		};
+
+		expect(() => resolveTargetGraph([plugin1, plugin2])).toThrow(
+			/multiple generators/,
+		);
+		expect(() => resolveTargetGraph([plugin1, plugin2])).toThrow(
+			/Plugin "plugin-b"/,
+		);
+	});
+
+	it("allows compatible contributions from two plugins to the same target", () => {
+		const plugin1: CodegenPlugin = {
+			name: "plugin-a",
+			targets: {
+				"my-target": {
+					root: ".",
+					outputFile: "index.ts",
+					categories: {
+						blocks: {
+							dirs: ["blocks"],
+							prefix: "block",
+							registryKey: false,
+							includeInAppState: false,
+							extractFromModules: false,
+						},
+					},
+				},
+			},
+		};
+		const plugin2: CodegenPlugin = {
+			name: "plugin-b",
+			targets: {
+				"my-target": {
+					root: ".",
+					outputFile: "index.ts",
+					categories: {
+						views: {
+							dirs: ["views"],
+							prefix: "view",
+							registryKey: false,
+							includeInAppState: false,
+							extractFromModules: false,
+						},
+					},
+					discover: {
+						branding: "branding.ts",
+					},
+				},
+			},
+		};
+
+		const graph = resolveTargetGraph([plugin1, plugin2]);
+		const target = graph.get("my-target")!;
+
+		expect(target).toBeDefined();
+		expect(target.categories.blocks).toBeDefined();
+		expect(target.categories.views).toBeDefined();
+		expect(target.discover.branding).toBe("branding.ts");
+	});
+
+	it("allows omitting outDir (defaults to .generated) without conflict", () => {
+		const plugin1: CodegenPlugin = {
+			name: "plugin-a",
+			targets: {
+				"my-target": {
+					root: ".",
+					outputFile: "index.ts",
+					// no outDir — defaults to .generated
+				},
+			},
+		};
+		const plugin2: CodegenPlugin = {
+			name: "plugin-b",
+			targets: {
+				"my-target": {
+					root: ".",
+					outputFile: "index.ts",
+					// also no outDir — should not conflict
+				},
+			},
+		};
+
+		const graph = resolveTargetGraph([plugin1, plugin2]);
+		expect(graph.get("my-target")!.outDir).toBe(".generated");
+	});
+
+	it("merges transforms from multiple plugins in order", () => {
+		const order: string[] = [];
+
+		const plugin1: CodegenPlugin = {
+			name: "plugin-a",
+			targets: {
+				"my-target": {
+					root: ".",
+					outputFile: "index.ts",
+					transform: () => {
+						order.push("a");
+					},
+				},
+			},
+		};
+		const plugin2: CodegenPlugin = {
+			name: "plugin-b",
+			targets: {
+				"my-target": {
+					root: ".",
+					outputFile: "index.ts",
+					transform: () => {
+						order.push("b");
+					},
+				},
+			},
+		};
+
+		const graph = resolveTargetGraph([plugin1, plugin2]);
+		const target = graph.get("my-target")!;
+
+		expect(target.transforms.length).toBe(2);
+		// Execute transforms to verify order
+		for (const t of target.transforms) {
+			t({} as any);
+		}
+		expect(order).toEqual(["a", "b"]);
+	});
+
+	it("creates separate targets for different target IDs", () => {
+		const plugin: CodegenPlugin = {
+			name: "multi-target",
+			targets: {
+				server: {
+					root: ".",
+					outputFile: "index.ts",
+				},
+				"admin-client": {
+					root: "../admin",
+					outputFile: "client.ts",
+				},
+			},
+		};
+
+		const graph = resolveTargetGraph([plugin]);
+		expect(graph.size).toBe(2);
+		expect(graph.get("server")!.root).toBe(".");
+		expect(graph.get("admin-client")!.root).toBe("../admin");
 	});
 });

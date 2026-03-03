@@ -184,7 +184,7 @@ function getDatetimeOperators() {
 export const datetimeField = field<DatetimeFieldConfig, Date>()({
 	type: "datetime" as const,
 	_value: undefined as unknown as Date,
-	toColumn(name: string, config: DatetimeFieldConfig) {
+	toColumn(name: string, config: DatetimeFieldConfig): ReturnType<typeof timestamp> {
 		const { precision = 3, withTimezone = true } = config;
 
 		let column: any = timestamp(name, {

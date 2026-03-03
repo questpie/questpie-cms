@@ -6,7 +6,7 @@
  */
 
 import type React from "react";
-import type { FieldDefinition } from "../../builder/field/field";
+import type { FieldInstance } from "../../builder/field/field";
 import type { DynamicI18nText } from "../../builder/types/common";
 
 // ============================================================================
@@ -21,7 +21,7 @@ export type FieldContext = {
 	fieldName: string;
 	fullFieldName: string;
 	collection: string;
-	fieldDef?: FieldDefinition;
+	fieldDef?: FieldInstance;
 	fieldValue: any;
 	/** Can be I18nText - must be resolved before passing to component */
 	label?: DynamicI18nText;
@@ -54,38 +54,38 @@ export type FieldContext = {
 // ============================================================================
 
 /**
- * Get field type from FieldDefinition
- * FieldDefinition.name contains the type name (e.g., "text", "relation")
+ * Get field type from FieldInstance
+ * FieldInstance.name contains the type name (e.g., "text", "relation")
  */
 function getFieldType(
-	fieldDef: FieldDefinition | undefined,
+	fieldDef: FieldInstance | undefined,
 ): string | undefined {
 	if (!fieldDef) return undefined;
-	// FieldDefinition stores the field type in 'name' property
+	// FieldInstance stores the field type in 'name' property
 	// This comes from field("text", ...) where "text" is the type
 	return fieldDef.name;
 }
 
 /**
- * Get field options from FieldDefinition
+ * Get field options from FieldInstance
  * Options are stored in "~options" property
  */
 export function getFieldOptions(
-	fieldDef: FieldDefinition | undefined,
+	fieldDef: FieldInstance | undefined,
 ): Record<string, any> {
 	if (!fieldDef) return {};
-	return (fieldDef as any)["~options"] || {};
+	return fieldDef["~options"] || {};
 }
 
 /**
- * Get field component from FieldDefinition
- * Component is stored in field.component
+ * Get field component from FieldInstance
+ * Component is stored directly on the instance
  */
 function getFieldComponent(
-	fieldDef: FieldDefinition | undefined,
+	fieldDef: FieldInstance | undefined,
 ): React.ComponentType<any> | undefined {
-	if (!fieldDef?.field?.component) return undefined;
-	return fieldDef.field.component as React.ComponentType<any>;
+	if (!fieldDef?.component) return undefined;
+	return fieldDef.component as React.ComponentType<any>;
 }
 
 // ============================================================================
@@ -136,7 +136,7 @@ export function getFullFieldName(fieldName: string, fieldPrefix?: string) {
 
 interface GetFieldContextParams {
 	fieldName: string;
-	fieldDef?: FieldDefinition;
+	fieldDef?: FieldInstance;
 	collection: string;
 	form: any;
 	fieldPrefix?: string;
@@ -174,7 +174,7 @@ export function getFieldContext({
 	const fieldError = fieldState?.error?.message;
 	const fieldValue = formValues[fieldName];
 
-	// Get options from FieldDefinition
+	// Get options from FieldInstance
 	const options = getFieldOptions(fieldDef);
 	const type = getFieldType(fieldDef);
 	const component = getFieldComponent(fieldDef);
@@ -264,7 +264,7 @@ type RawComponentProps = {
 };
 
 /**
- * Build props for a FieldDefinition component (field.component).
+ * Build props for a FieldInstance component (field.component).
  * Returns raw props with I18nText - resolve before passing to component.
  */
 export function buildComponentProps(context: FieldContext): RawComponentProps {

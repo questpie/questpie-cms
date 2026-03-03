@@ -4,7 +4,7 @@
 
 import type { ComponentReference } from "#questpie/admin/server";
 import type { I18nText } from "../../i18n/types.js";
-import type { AdminBuilder } from "../admin-builder";
+import type { Admin } from "../admin";
 import type { IconComponent } from "./common";
 
 /**
@@ -69,7 +69,7 @@ interface GlobalConfig<TApp = any> {
 }
 
 export interface GlobalBuilderState<
-	TAdminApp extends AdminBuilder<any> = AdminBuilder<any>,
+	TAdminApp extends Admin<any> = Admin<any>,
 > {
 	readonly name: string;
 	readonly "~adminApp": TAdminApp;

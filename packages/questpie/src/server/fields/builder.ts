@@ -8,13 +8,13 @@
  * into a callable factory: f.text(config) → FieldDefinition<...>.
  */
 
-import type { AnyPgColumn } from "drizzle-orm/pg-core";
 
 export type { BuiltinFields } from "./builtin/defaults.js";
 
 import {
 	type BuildFieldState,
 	createFieldDefinition,
+	type ExtractColumnFromFieldDef,
 	type ExtractConfigFromFieldDef,
 	type ExtractOpsFromFieldDef,
 	type ExtractTypeFromFieldDef,
@@ -66,7 +66,12 @@ export type FieldBuilderProxy<TMap = BuiltinFields> = {
 				? ExtractConfigFromFieldDef<TMap[K]>
 				: TUserConfig,
 			ExtractValueFromFieldDef<TMap[K]>,
-			AnyPgColumn,
+			ExtractColumnFromFieldDef<
+				TMap[K],
+				TUserConfig extends undefined
+					? ExtractConfigFromFieldDef<TMap[K]>
+					: TUserConfig
+			>,
 			ExtractOpsFromFieldDef<TMap[K]>
 		>
 	>;

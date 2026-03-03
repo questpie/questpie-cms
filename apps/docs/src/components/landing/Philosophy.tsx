@@ -1,6 +1,6 @@
 import { CodeWindow } from "./CodeWindow";
 
-const serverCode = `// collections/posts.collection.ts
+const serverCode = `// collections/posts.ts
 import { collection } from '#questpie'
 
 export default collection('posts')
@@ -21,12 +21,11 @@ export default collection('posts')
   }))`;
 
 const clientCode = `// admin/admin.ts
-import { qa, adminModule } from '@questpie/admin/client'
-import type { AppConfig } from "#questpie"
+// Re-export the auto-generated admin config
+export { default as admin } from "./.generated/client"
 
-// That's it. The client just renders.
-export const admin = qa<AppConfig>()
-  .use(adminModule)`;
+// That's it. Codegen wires everything.
+// Fields, views, components — all from your server config.`;
 
 export function Philosophy() {
 	return (
@@ -62,7 +61,7 @@ export function Philosophy() {
 								— Schema + Admin + Access
 							</span>
 						</div>
-						<CodeWindow title="collections/posts.collection.ts">
+						<CodeWindow title="collections/posts.ts">
 							{serverCode}
 						</CodeWindow>
 					</div>
@@ -70,10 +69,10 @@ export function Philosophy() {
 					<div className="space-y-3">
 						<div className="flex items-center gap-2">
 							<span className="font-mono text-xs text-primary font-medium">
-								Client — qa() builder
+								Client — auto-generated
 							</span>
 							<span className="text-sm text-muted-foreground">
-								— Registry wiring
+								— Codegen output
 							</span>
 						</div>
 						<CodeWindow title="admin/admin.ts">{clientCode}</CodeWindow>

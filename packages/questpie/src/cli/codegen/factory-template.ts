@@ -15,7 +15,7 @@
 
 import type {
 	CallbackParamDefinition,
-	ModuleRegistryConfig,
+	CategoryDeclaration,
 	RegistryExtension,
 	ResolvedTarget,
 	SingletonFactory,
@@ -68,12 +68,12 @@ export function generateFactoryTemplate(
 		collectSingletonImports(factory, allImports);
 	}
 
-	// Module registries from the resolved target
-	const moduleRegistries = new Map<string, ModuleRegistryConfig>();
-	for (const [key, config] of Object.entries(
-		target.registries.moduleRegistries,
-	)) {
-		moduleRegistries.set(key, config);
+	// Categories with placeholder/recordPlaceholder/typeRegistry (drive type extraction)
+	const registryCategories = new Map<string, CategoryDeclaration>();
+	for (const [key, decl] of Object.entries(target.categories)) {
+		if (decl.placeholder || decl.recordPlaceholder || decl.typeRegistry) {
+			registryCategories.set(key, decl);
+		}
 	}
 
 	// Callback params from the resolved target
@@ -119,13 +119,13 @@ export function generateFactoryTemplate(
 	// Core imports
 	lines.push("// ── Core Imports ───────────────────────────────────────────");
 	lines.push(
-		'import { CollectionBuilder, GlobalBuilder, type EmptyCollectionState, type EmptyGlobalState } from "questpie";',
+		'import { CollectionBuilder, GlobalBuilder, type EmptyCollectionState, type EmptyGlobalState, type Registry } from "questpie";',
 	);
 	lines.push("");
 
-	// Module import (for type extraction AND runtime field merging)
+	// Module import (for runtime field merging only — types come from Registry)
 	if (hasModules) {
-		lines.push("// ── Module import (for type extraction + runtime fields) ──");
+		lines.push("// ── Module import (for runtime fields) ──");
 		lines.push('import _modulesArr from "../modules";');
 		lines.push("");
 	}
@@ -151,83 +151,69 @@ export function generateFactoryTemplate(
 		lines.push("");
 	}
 
-	// ── Module type extraction ──────────────────────────────
+	// ── Type extraction from Registry (breaks circular reference) ──
+	// Instead of deriving types from `typeof _modulesArr` (which causes circular
+	// refs with CollectionBuilder augmentation), we read from the Registry
+	// interface which is augmented by each module's .generated/module.ts.
 	if (hasModules) {
 		lines.push(
 			"// ════════════════════════════════════════════════════════════",
 		);
 		lines.push(
-			"// Module type extraction — views, components, field types (all from modules)",
+			"// Type extraction from Registry — driven by CategoryDeclaration",
 		);
 		lines.push(
 			"// ════════════════════════════════════════════════════════════",
 		);
 		lines.push("");
 
-		lines.push("type _FlattenModules<T> = T extends readonly (infer M)[]");
+		// Registry-based property extraction (no dependency on typeof _modulesArr)
 		lines.push(
-			"  ? M | (M extends { modules: infer Sub } ? _FlattenModules<Sub> : never)",
+			"type _RegistryProp<K extends string> = Registry extends Record<K, infer V> ? V : Record<string, unknown>;",
 		);
-		lines.push("  : never;");
-		lines.push("type _AllModules = _FlattenModules<typeof _modulesArr>;");
 		lines.push("");
 
-		// Shared utility: union-to-intersection (used by both registry and field type extraction)
-		lines.push(
-			"// Module registry helpers — extracted from module registrations",
-		);
-		lines.push(
-			"type _U2I<U> = (U extends any ? (x: U) => void : never) extends (x: infer I) => void ? I : never;",
-		);
-
-		// Extract keys helper (string union of registry entry names)
-		lines.push(
-			"type _ExtractKeys<K extends string> = _AllModules extends infer M ? M extends Record<K, Record<infer V extends string, any>> ? V : never : never;",
-		);
-		// Extract full registry record (intersected from all modules)
-		lines.push(
-			"type _ExtractRegistry<K extends string> = _U2I<_AllModules extends infer M ? M extends Record<K, infer R> ? R : never : never>;",
-		);
-
-		// Dynamic: generate type alias for each moduleRegistry
-		// Also generate strict (no string fallback) versions for type registry augmentations
-		// Also generate record types when recordPlaceholder is set
-		for (const [key, config] of moduleRegistries) {
-			const typeName = `_${key.charAt(0).toUpperCase() + key.slice(1)}Names`;
-			lines.push(`type ${typeName} = _ExtractKeys<"${key}"> | (string & {});`);
-			if (config.typeRegistry) {
-				lines.push(`type ${typeName}_Strict = _ExtractKeys<"${key}">;`);
+		// Generate type aliases for each category that has placeholder/recordPlaceholder
+		for (const [key, decl] of registryCategories) {
+			const registryKey = typeof decl.registryKey === "string" ? decl.registryKey : key;
+			if (decl.placeholder) {
+				const typeName = `_${key.charAt(0).toUpperCase() + key.slice(1)}Names`;
+				lines.push(
+					`type ${typeName} = (keyof _RegistryProp<"${registryKey}"> & string) | (string & {});`,
+				);
+				if (decl.typeRegistry) {
+					lines.push(
+						`type ${typeName}_Strict = keyof _RegistryProp<"${registryKey}"> & string;`,
+					);
+				}
 			}
-			if (config.recordPlaceholder) {
+			if (decl.recordPlaceholder) {
 				const recordTypeName = `_${key.charAt(0).toUpperCase() + key.slice(1)}Record`;
 				lines.push(
-					`type ${recordTypeName} = [_ExtractRegistry<"${key}">] extends [never] ? Record<string, any> : _ExtractRegistry<"${key}">;`,
+					`type ${recordTypeName} = _RegistryProp<"${registryKey}">;`,
 				);
 			}
 		}
 		lines.push("");
 
-		// Extract field types from modules (all field types come from modules — no hardcoded builtins)
+		// Field types from Registry (augmented by module.ts with ~fieldTypes)
+		lines.push("// Field types — extracted from Registry");
 		lines.push(
-			"// Field types — all field types come from modules (starter, admin, etc.)",
-		);
-		lines.push(
-			"type _ModuleFieldTypes = _U2I<_AllModules extends infer M ? M extends { fields: infer F } ? F : never : never>;",
-		);
-		lines.push(
-			"type _AllFieldTypes = [_ModuleFieldTypes] extends [never] ? Record<string, never> : _ModuleFieldTypes;",
+			'type _AllFieldTypes = Registry extends { "~fieldTypes": infer F } ? F : Record<string, never>;',
 		);
 		lines.push("");
 	} else {
-		// No modules — use string fallback for all module registries
+		// No modules — use string fallback for all registry categories
 		lines.push("// No modules.ts — using string fallback for type extraction");
-		for (const [key, config] of moduleRegistries) {
-			const typeName = `_${key.charAt(0).toUpperCase() + key.slice(1)}Names`;
-			lines.push(`type ${typeName} = string;`);
-			if (config.typeRegistry) {
-				lines.push(`type ${typeName}_Strict = never;`);
+		for (const [key, decl] of registryCategories) {
+			if (decl.placeholder) {
+				const typeName = `_${key.charAt(0).toUpperCase() + key.slice(1)}Names`;
+				lines.push(`type ${typeName} = string;`);
+				if (decl.typeRegistry) {
+					lines.push(`type ${typeName}_Strict = never;`);
+				}
 			}
-			if (config.recordPlaceholder) {
+			if (decl.recordPlaceholder) {
 				const recordTypeName = `_${key.charAt(0).toUpperCase() + key.slice(1)}Record`;
 				lines.push(`type ${recordTypeName} = Record<string, any>;`);
 			}
@@ -263,7 +249,7 @@ export function generateFactoryTemplate(
 	lines.push("// ════════════════════════════════════════════════════════════");
 	lines.push("");
 
-	const placeholderMap = buildPlaceholderMap(moduleRegistries);
+	const placeholderMap = buildPlaceholderMap(registryCategories);
 
 	lines.push('declare module "questpie" {');
 
@@ -293,31 +279,18 @@ export function generateFactoryTemplate(
 		lines.push("\t}");
 	}
 
-	// Registry entries from module registries
-	const registryEntries = [...moduleRegistries.entries()].filter(
-		([_, c]) => c.registryKey,
-	);
-	if (registryEntries.length > 0) {
-		lines.push("\tinterface Registry {");
-		for (const [key, config] of registryEntries) {
-			const typeName = `_${key.charAt(0).toUpperCase() + key.slice(1)}Names`;
-			lines.push(`\t\t${config.registryKey}: Record<${typeName}, unknown>;`);
-		}
-		lines.push("\t}");
-	}
-
 	// FieldTypeRegistry augmentation — always in the "questpie" module
 	// Uses keyof _AllFieldTypes so it narrows to exact field type literals
 	lines.push(
 		"\tinterface FieldTypeRegistry extends Record<keyof _AllFieldTypes, {}> {}",
 	);
 
-	// Plugin type registries that target "questpie" module
-	for (const [key, config] of moduleRegistries) {
-		if (config.typeRegistry?.module === "questpie") {
+	// Type registries from categories that target "questpie" module
+	for (const [key, decl] of registryCategories) {
+		if (decl.typeRegistry?.module === "questpie") {
 			const strictName = `_${key.charAt(0).toUpperCase() + key.slice(1)}Names_Strict`;
 			lines.push(
-				`\tinterface ${config.typeRegistry.interface} extends Record<${strictName}, {}> {}`,
+				`\tinterface ${decl.typeRegistry.interface} extends Record<${strictName}, {}> {}`,
 			);
 		}
 	}
@@ -325,29 +298,29 @@ export function generateFactoryTemplate(
 	lines.push("}");
 	lines.push("");
 
-	// Plugin type registries that target other modules (e.g., "@questpie/admin/server")
+	// Type registries from categories that target other modules (e.g., "@questpie/admin/server")
 	// Group by module to minimize declare module blocks
 	const externalTypeRegistries = new Map<
 		string,
-		Array<{ key: string; config: ModuleRegistryConfig }>
+		Array<{ key: string; decl: CategoryDeclaration }>
 	>();
-	for (const [key, config] of moduleRegistries) {
-		if (config.typeRegistry && config.typeRegistry.module !== "questpie") {
-			let entries = externalTypeRegistries.get(config.typeRegistry.module);
+	for (const [key, decl] of registryCategories) {
+		if (decl.typeRegistry && decl.typeRegistry.module !== "questpie") {
+			let entries = externalTypeRegistries.get(decl.typeRegistry.module);
 			if (!entries) {
 				entries = [];
-				externalTypeRegistries.set(config.typeRegistry.module, entries);
+				externalTypeRegistries.set(decl.typeRegistry.module, entries);
 			}
-			entries.push({ key, config });
+			entries.push({ key, decl });
 		}
 	}
 
 	for (const [moduleName, entries] of externalTypeRegistries) {
 		lines.push(`declare module "${moduleName}" {`);
-		for (const { key, config } of entries) {
+		for (const { key, decl } of entries) {
 			const strictName = `_${key.charAt(0).toUpperCase() + key.slice(1)}Names_Strict`;
 			lines.push(
-				`\tinterface ${config.typeRegistry?.interface} extends Record<${strictName}, {}> {}`,
+				`\tinterface ${decl.typeRegistry?.interface} extends Record<${strictName}, {}> {}`,
 			);
 		}
 		lines.push("}");
@@ -520,22 +493,22 @@ function emitSingletonFactory(
 // ============================================================================
 
 /**
- * Build a placeholder → type alias mapping from moduleRegistries.
- * Each moduleRegistry with a `placeholder` gets an entry that maps
+ * Build a placeholder → type alias mapping from categories with placeholder/recordPlaceholder.
+ * Each category with a `placeholder` gets an entry that maps
  * the placeholder token to the generated type alias name.
  */
 function buildPlaceholderMap(
-	moduleRegistries: Map<string, ModuleRegistryConfig>,
+	categories: Map<string, CategoryDeclaration>,
 ): Record<string, { withModules: string; fallback: string }> {
 	const map: Record<string, { withModules: string; fallback: string }> = {};
-	for (const [key, config] of moduleRegistries) {
-		if (config.placeholder) {
+	for (const [key, decl] of categories) {
+		if (decl.placeholder) {
 			const typeName = `_${key.charAt(0).toUpperCase() + key.slice(1)}Names`;
-			map[config.placeholder] = { withModules: typeName, fallback: "string" };
+			map[decl.placeholder] = { withModules: typeName, fallback: "string" };
 		}
-		if (config.recordPlaceholder) {
+		if (decl.recordPlaceholder) {
 			const recordTypeName = `_${key.charAt(0).toUpperCase() + key.slice(1)}Record`;
-			map[config.recordPlaceholder] = {
+			map[decl.recordPlaceholder] = {
 				withModules: recordTypeName,
 				fallback: "Record<string, any>",
 			};
@@ -582,20 +555,38 @@ function emitExtensionRegistry(
 		`const ${varName}: Record<string, { stateKey: string; resolve: (v: any) => any }> = {`,
 	);
 	for (const [name, ext] of extensions) {
+		const hasDefaults = ext.defaults && Object.keys(ext.defaults).length > 0;
+		const defaultsJson = hasDefaults ? JSON.stringify(ext.defaults) : null;
+
 		if (ext.isCallback) {
 			lines.push(`\t${name}: {`);
 			lines.push(`\t\tstateKey: "${ext.stateKey}",`);
 			lines.push("\t\tresolve(configOrFn: any) {");
-			lines.push(
-				`\t\t\tif (typeof configOrFn === 'function') return configOrFn(${emitCallbackContext(ext, callbackParams)});`,
-			);
-			lines.push("\t\t\treturn configOrFn;");
+			if (hasDefaults) {
+				lines.push(
+					`\t\t\tconst resolved = typeof configOrFn === 'function' ? configOrFn(${emitCallbackContext(ext, callbackParams)}) : configOrFn;`,
+				);
+				lines.push(
+					`\t\t\treturn { ...${defaultsJson}, ...resolved };`,
+				);
+			} else {
+				lines.push(
+					`\t\t\tif (typeof configOrFn === 'function') return configOrFn(${emitCallbackContext(ext, callbackParams)});`,
+				);
+				lines.push("\t\t\treturn configOrFn;");
+			}
 			lines.push("\t\t},");
 			lines.push("\t},");
 		} else {
-			lines.push(
-				`\t${name}: { stateKey: "${ext.stateKey}", resolve: (v: any) => v },`,
-			);
+			if (hasDefaults) {
+				lines.push(
+					`\t${name}: { stateKey: "${ext.stateKey}", resolve: (v: any) => ({ ...${defaultsJson}, ...v }) },`,
+				);
+			} else {
+				lines.push(
+					`\t${name}: { stateKey: "${ext.stateKey}", resolve: (v: any) => v },`,
+				);
+			}
 		}
 	}
 	lines.push("};");

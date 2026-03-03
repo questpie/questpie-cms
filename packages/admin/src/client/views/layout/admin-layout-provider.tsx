@@ -58,7 +58,6 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import type { QuestpieClient } from "questpie/client";
 import type * as React from "react";
 import { Admin, type AdminInput } from "../../builder/admin";
-import type { AdminBuilder } from "../../builder/admin-builder";
 import { AuthGuard } from "../../components/auth";
 import { AdminProvider } from "../../runtime/provider";
 import { AdminLayout, type AdminLayoutSharedProps } from "./admin-layout";
@@ -70,8 +69,7 @@ import { AdminLayout, type AdminLayoutSharedProps } from "./admin-layout";
 interface AdminLayoutProviderProps
 	extends AdminLayoutSharedProps {
 	/**
-	 * Admin configuration - pass your AdminBuilder directly.
-	 * Can also accept an Admin instance for backward compatibility.
+	 * Admin configuration - pass plain AdminState or Admin instance.
 	 *
 	 * @example
 	 * ```tsx
@@ -286,7 +284,7 @@ export function AdminLayoutProvider({
 }: AdminLayoutProviderProps): React.ReactElement {
 	const qc = queryClient ?? getDefaultQueryClient();
 
-	// Normalize admin input - accepts both AdminBuilder and Admin instance
+	// Normalize admin input - accepts plain state or Admin instance
 	const admin = Admin.normalize(adminInput);
 
 	// Determine if auth guard should be enabled

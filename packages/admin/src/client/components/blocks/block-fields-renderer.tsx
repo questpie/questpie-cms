@@ -9,7 +9,7 @@
 
 import * as React from "react";
 import type { BlockSchema } from "#questpie/admin/server";
-import type { FieldDefinition } from "../../builder/field/field.js";
+import type { FieldInstance } from "../../builder/field/field.js";
 import { useResolveText } from "../../i18n/hooks.js";
 import { selectAdmin, useAdminStore } from "../../runtime/provider.js";
 import { buildFieldDefinitionsFromMetadata } from "../../utils/build-field-definitions-from-schema.js";
@@ -77,12 +77,12 @@ export function BlockFieldsRenderer({
 type BlockFieldProps = {
 	name: string;
 	blockId: string;
-	definition: FieldDefinition;
+	definition: FieldInstance;
 };
 
 function BlockField({ name, blockId, definition }: BlockFieldProps) {
 	const resolveText = useResolveText();
-	const options = (definition as any)["~options"] || {};
+	const options = (definition["~options"] || {}) as Record<string, any>;
 	const fieldType = definition.name;
 
 	// Resolve i18n texts
@@ -95,7 +95,7 @@ function BlockField({ name, blockId, definition }: BlockFieldProps) {
 	const scopedName = `content._values.${blockId}.${name}`;
 
 	// Check if field has a registered component
-	const FieldComponent = definition.field?.component as
+	const FieldComponent = definition.component as
 		| React.ComponentType<any>
 		| undefined;
 

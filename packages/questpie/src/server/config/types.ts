@@ -39,6 +39,41 @@ type LocalizedFields<
 	? ExtractFieldsByLocation<TFields, "i18n">
 	: Pick<TFields, TLocalized[number]>;
 
+/**
+ * Resolve which fields property to use for schema inference.
+ * When fieldDefinitions has keys (new builder pattern), use it — it carries
+ * FieldDefinition types that NonLocalizedFields/LocalizedFields can dispatch on.
+ * Otherwise fall back to raw Drizzle columns in `fields` (legacy pattern).
+ */
+type SchemaFields<
+	TState extends { fields: Record<string, any>; fieldDefinitions: Record<string, any> },
+> = [keyof TState["fieldDefinitions"]] extends [never]
+	? TState["fields"]
+	: TState["fieldDefinitions"];
+
+/**
+ * Check if a collection state has i18n fields.
+ * New builder pattern: check ExtractFieldsByLocation for "i18n" keys.
+ * Legacy pattern: check localized tuple.
+ */
+type HasI18nFields<
+	TState extends {
+		fieldDefinitions: Record<string, any>;
+		localized: readonly any[];
+	},
+> = [keyof TState["fieldDefinitions"]] extends [never]
+	? TState["localized"][number] extends string
+		? true
+		: false
+	: [
+				keyof ExtractFieldsByLocation<
+					TState["fieldDefinitions"] & Record<string, FieldDefinition<FieldDefinitionState>>,
+					"i18n"
+				>,
+		  ] extends [never]
+		? false
+		: true;
+
 // Re-export for convenience (many files import from here)
 export type {
 	AnyCollectionOrBuilder,
@@ -75,41 +110,41 @@ export type DrizzleSchemaFromCollections<
 			: never]: TCollections[K] extends Collection<infer TState>
 		? InferTableWithColumns<
 				TState["name"],
-				NonLocalizedFields<TState["fields"], TState["localized"]>,
+				NonLocalizedFields<SchemaFields<TState>, TState["localized"]>,
 				TState["title"],
 				TState["options"]
 			>
 		: TCollections[K] extends CollectionBuilder<infer TState>
 			? InferTableWithColumns<
 					TState["name"],
-					NonLocalizedFields<TState["fields"], TState["localized"]>,
+					NonLocalizedFields<SchemaFields<TState>, TState["localized"]>,
 					TState["title"],
 					TState["options"]
 				>
 			: never;
 } & {
 	[K in keyof TCollections as TCollections[K] extends Collection<infer TState>
-		? TState["localized"][number] extends string
+		? HasI18nFields<TState> extends true
 			? `${TState["name"]}_i18n`
 			: never
 		: TCollections[K] extends CollectionBuilder<infer TState>
-			? TState["localized"][number] extends string
+			? HasI18nFields<TState> extends true
 				? `${TState["name"]}_i18n`
 				: never
 			: never]: TCollections[K] extends Collection<infer TState>
-		? TState["localized"][number] extends string
+		? HasI18nFields<TState> extends true
 			? InferTableWithColumns<
 					TState["name"],
-					LocalizedFields<TState["fields"], TState["localized"]>,
+					LocalizedFields<SchemaFields<TState>, TState["localized"]>,
 					TState["title"],
 					TState["options"]
 				>
 			: never
 		: TCollections[K] extends CollectionBuilder<infer TState>
-			? TState["localized"][number] extends string
+			? HasI18nFields<TState> extends true
 				? InferTableWithColumns<
 						TState["name"],
-						LocalizedFields<TState["fields"], TState["localized"]>,
+						LocalizedFields<SchemaFields<TState>, TState["localized"]>,
 						TState["title"],
 						TState["options"]
 					>
@@ -168,6 +203,12 @@ export type DrizzleSchemaFromGlobals<
 				: never
 			: never;
 };
+
+export type TablesFromConfig<TConfig extends QuestpieConfig> =
+	DrizzleSchemaFromCollections<TConfig["collections"]> &
+		(TConfig["globals"] extends Record<string, AnyGlobalOrBuilder>
+			? DrizzleSchemaFromGlobals<TConfig["globals"]>
+			: {});
 
 export type Locale = {
 	/** Locale code (e.g. "en", "sk", "en-US") */

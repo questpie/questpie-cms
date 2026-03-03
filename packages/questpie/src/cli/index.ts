@@ -366,9 +366,9 @@ program
 
 // Scaffold entity files
 program
-	.command("add <type> <name>")
+	.command("add [type] [name]")
 	.description(
-		"Scaffold a new entity file (collection, global, fn, job, service, block, email, route, seed, migration)",
+		"Scaffold new entity files (run with --list to see available types)",
 	)
 	.option(
 		"-c, --config <path>",
@@ -376,6 +376,8 @@ program
 		"questpie.config.ts",
 	)
 	.option("--dry-run", "Show what would be created without writing files")
+	.option("--list", "List all available scaffold types")
+	.option("--target <target>", "Restrict scaffold to a specific codegen target")
 	.action(async (type, name, options) => {
 		try {
 			await addCommand({
@@ -383,6 +385,8 @@ program
 				name,
 				configPath: options.config,
 				dryRun: options.dryRun,
+				list: options.list,
+				target: options.target,
 			});
 		} catch (error) {
 			console.error("❌ Failed to add entity:", error);

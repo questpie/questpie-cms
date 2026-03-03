@@ -37,10 +37,10 @@ export type AppConfig = {
 
 ## Client Autocompletion
 
-The client uses `AppConfig` and `AppFunctions` generics:
+The client uses `AppConfig` which includes collections, globals, and functions:
 
 ```ts
-const client = createClient<AppConfig, AppFunctions>({
+const client = createClient<AppConfig>({
   baseURL: "http://localhost:3000",
   basePath: "/api",
 });
@@ -48,6 +48,7 @@ const client = createClient<AppConfig, AppFunctions>({
 // Autocomplete: collections.posts, collections.barbers, ...
 // Autocomplete: where.status, where.title, ...
 // Autocomplete: rpc.createBooking, rpc.getActiveBarbers, ...
+// Autocomplete: routes["health"], routes["webhooks/stripe"], ...
 ```
 
 ## Server Context Types

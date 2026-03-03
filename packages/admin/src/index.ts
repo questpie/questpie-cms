@@ -22,7 +22,6 @@ export type {
 // ============================================================================
 
 export type {
-	AdminBuilderState,
 	AppAdmin,
 	CollectionFieldKeys,
 	CollectionItem,
@@ -30,7 +29,7 @@ export type {
 	GlobalNames,
 	InferAdminCMS,
 } from "./client/builder/index.js";
-export { Admin, AdminBuilder, qa } from "./client/builder/index.js";
+export { Admin } from "./client/builder/index.js";
 
 // ============================================================================
 // Re-exports from runtime

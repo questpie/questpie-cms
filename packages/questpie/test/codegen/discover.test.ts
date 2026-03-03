@@ -218,7 +218,6 @@ describe("discoverFiles", () => {
 		expect(cat(result, "emails").size).toBe(0);
 		expect(cat(result, "migrations").size).toBe(0);
 		expect(cat(result, "seeds").size).toBe(0);
-		expect(result.auth).toBeNull();
 		expect(result.singles.size).toBe(0);
 	});
 
@@ -350,10 +349,11 @@ describe("discoverFiles", () => {
 		await write("auth.ts", "export default {};");
 
 		const result = await discoverFiles(rootDir, outDir, coreDiscoverOptions());
-		expect(result.auth).not.toBeNull();
-		expect(result.auth!.key).toBe("auth");
-		expect(result.auth!.varName).toBe("_auth");
-		expect(result.auth!.exportType).toBe("default");
+		const authSingle = result.singles.get("auth");
+		expect(authSingle).not.toBeUndefined();
+		expect(authSingle!.key).toBe("auth");
+		expect(authSingle!.varName).toBe("_auth");
+		expect(authSingle!.exportType).toBe("default");
 	});
 
 	it("does not treat auth.ts as a collection/job/etc.", async () => {
@@ -362,7 +362,7 @@ describe("discoverFiles", () => {
 
 		const result = await discoverFiles(rootDir, outDir, coreDiscoverOptions());
 		expect(cat(result, "collections").size).toBe(1);
-		expect(result.auth).not.toBeNull();
+		expect(result.singles.has("auth")).toBe(true);
 	});
 
 	// ── Singles (modules, locale, hooks, access, context) ────────────────────

@@ -16,10 +16,8 @@ import _job_realtimeCleanup from "../jobs/realtime-cleanup";
 // ── Messages ────────────────────────────────────────────
 import _msg_en from "../messages/en";
 
-// ── Auth ───────────────────────────────────────────────────
-import _auth from "../auth";
-
 // ── Singles ────────────────────────────────────────────────
+import _auth from "../auth";
 import _defaultAccess from "../access";
 import _fields from "../fields";
 
@@ -60,6 +58,13 @@ const _module = {
 	messages: {
 		en: _msg_en,
 	},
+	globals: {},
+	functions: {},
+	routes: {},
+	services: {},
+	emails: {},
+	migrations: [] as const,
+	seeds: [] as const,
 	auth: _auth,
 	defaultAccess: _defaultAccess,
 	fields: _fields,
@@ -67,3 +72,14 @@ const _module = {
 
 export type StarterModule = typeof _module;
 export default _module;
+
+// ════════════════════════════════════════════════════════════
+// Registry augmentation — module registries
+// ════════════════════════════════════════════════════════════
+
+declare module "questpie" {
+	interface Registry {
+		collections: StarterCollections;
+		jobs: StarterJobs;
+	}
+}

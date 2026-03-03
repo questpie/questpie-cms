@@ -32,7 +32,7 @@ export const appointments = collection('appointments')
   .fields(({ f }) => ({
     barberId: f.relation({ to: 'barbers', required: true }),
     customerName: f.text({ label: 'Customer', required: true }),
-    scheduledAt: f.dateTime({ label: 'Scheduled At', required: true }),
+    scheduledAt: f.datetime({ label: 'Scheduled At', required: true }),
     status: f.select({ label: 'Status', options: ['pending', 'confirmed', 'completed'], default: 'pending' }),
   }))`,
 	},
@@ -67,10 +67,10 @@ export default fn({
   }),
   handler: async ({ input, email }) => {
     // Send reminder email
-    await email.send({
+    await email.sendTemplate({
+      template: 'appointmentReminder',
+      input: { email: input.email },
       to: input.email,
-      subject: 'Appointment Reminder',
-      text: \`Don't forget your appointment!\`,
     })
   },
 })`,

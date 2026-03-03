@@ -21,6 +21,7 @@
 
 import type {
 	CategoryDeclaration,
+	DiscoverPattern,
 	DiscoveredFile,
 	DiscoveryResult,
 } from "./types.js";
@@ -49,6 +50,11 @@ export interface ModuleTemplateOptions {
 	 * Each entry is a line like `listViews: { table: listView("table") },`.
 	 */
 	extraModuleProperties?: string[];
+	/**
+	 * Merged discover patterns from the target.
+	 * Used to check `registryKey` on singles for Registry augmentation.
+	 */
+	discoverPatterns?: Record<string, DiscoverPattern>;
 }
 
 // ============================================================================
@@ -103,16 +109,7 @@ export function generateModuleTemplate(options: ModuleTemplateOptions): string {
 		lines.push("");
 	}
 
-	// Import auth
-	if (discovered.auth) {
-		lines.push(
-			"// ── Auth ───────────────────────────────────────────────────",
-		);
-		lines.push(importStatement(discovered.auth));
-		lines.push("");
-	}
-
-	// Import singles (locale, hooks, access, context, fields, sidebar, etc.)
+	// Import singles (auth, locale, hooks, access, context, fields, sidebar, etc.)
 	const singles = getNonModuleSingles(discovered.singles);
 	if (singles.length > 0) {
 		lines.push(
@@ -148,6 +145,9 @@ export function generateModuleTemplate(options: ModuleTemplateOptions): string {
 		const typeEmit = decl?.typeEmit ?? "standard";
 		// Skip categories that don't produce meaningful named types for modules
 		if (typeEmit === "none" || typeEmit === "messages") continue;
+		// Skip keyFromProperty categories — file-derived keys would mismatch
+		// runtime keys, so the named type would be wrong. Use typeof instead.
+		if (decl?.keyFromProperty) continue;
 		categoriesNeedingTypes.add(catName);
 	}
 
@@ -195,6 +195,9 @@ export function generateModuleTemplate(options: ModuleTemplateOptions): string {
 					emitNestedTypeObject(lines, nested, 1);
 					lines.push("}");
 					lines.push("");
+				} else {
+					// All files are bundles — no named type emitted
+					categoriesNeedingTypes.delete(catName);
 				}
 			} else {
 				emitSimpleTypeInterface(lines, typeName, fileMap);
@@ -219,6 +222,44 @@ export function generateModuleTemplate(options: ModuleTemplateOptions): string {
 	lines.push("// ════════════════════════════════════════════════════════════");
 	lines.push("");
 
+	// Pre-scan extraModuleProperties to identify registry-matching properties.
+	// These need separate const declarations BEFORE _module to avoid circular
+	// typeof _module references in Registry augmentation:
+	//   typeof _module → collections → CollectionBuilder augmentation → Registry
+	//   → typeof _module["listViews"] → cycle!
+	// By extracting to a separate const, Registry can use typeof _reg_listViews.
+	const extractedConsts = new Map<
+		string,
+		{ constName: string; expression: string }
+	>();
+	const extraPropNames = new Set<string>();
+	if (extraModuleProperties && extraModuleProperties.length > 0) {
+		// Build the set of category names that have registryKey — these need extraction
+		const registryPropNames = new Set<string>();
+		for (const [catName, decl] of categoryMeta) {
+			if (decl.registryKey) registryPropNames.add(catName);
+		}
+		for (const prop of extraModuleProperties) {
+			const match = prop.match(/^(\w+)\s*:\s*(.+?),?\s*$/);
+			if (match) {
+				const [, propName, expression] = match;
+				extraPropNames.add(propName);
+				if (registryPropNames.has(propName)) {
+					const constName = `_reg_${propName}`;
+					extractedConsts.set(propName, { constName, expression });
+				}
+			}
+		}
+	}
+
+	// Emit extracted consts before _module to break typeof circular references
+	if (extractedConsts.size > 0) {
+		for (const [, { constName, expression }] of extractedConsts) {
+			lines.push(`const ${constName} = ${expression};`);
+		}
+		lines.push("");
+	}
+
 	lines.push("const _module = {");
 	lines.push(`\tname: "${moduleName}" as const,`);
 
@@ -228,8 +269,12 @@ export function generateModuleTemplate(options: ModuleTemplateOptions): string {
 	}
 
 	// Emit all categories — driven by CategoryDeclaration.emit
+	// Track which categories were emitted with files
+	const emittedCategories = new Set<string>();
+
 	for (const [catName, fileMap] of discovered.categories) {
 		if (fileMap.size === 0) continue;
+		emittedCategories.add(catName);
 		const decl = categoryMeta.get(catName);
 		const emitStrategy = decl?.emit ?? "record";
 		const typeEmit = decl?.typeEmit ?? "standard";
@@ -270,7 +315,11 @@ export function generateModuleTemplate(options: ModuleTemplateOptions): string {
 			// Record emission (collections, globals, jobs, messages, etc.)
 			lines.push(`\t${safeKey(catName)}: {`);
 			for (const file of sortedValues(fileMap)) {
-				lines.push(`\t\t${safeKey(file.key)}: ${file.varName},`);
+				if (decl?.keyFromProperty) {
+					lines.push(`\t\t[${file.varName}.${decl.keyFromProperty}]: ${file.varName},`);
+				} else {
+					lines.push(`\t\t${safeKey(file.key)}: ${file.varName},`);
+				}
 			}
 			if (hasNamedType && typeEmit !== "messages") {
 				lines.push(`\t} as ${typeName},`);
@@ -280,12 +329,21 @@ export function generateModuleTemplate(options: ModuleTemplateOptions): string {
 		}
 	}
 
-	// Auth
-	if (discovered.auth) {
-		lines.push(`\tauth: ${discovered.auth.varName},`);
+	// Emit empty stubs for declared categories with no discovered files.
+	// This ensures the module type always includes all target categories,
+	// so consumers can spread `module.blocks` without type assertions.
+	for (const [catName, decl] of categoryMeta) {
+		if (emittedCategories.has(catName)) continue;
+		if (extraPropNames.has(catName)) continue; // provided by extraModuleProperties
+		const emitStrategy = decl.emit ?? "record";
+		if (emitStrategy === "array") {
+			lines.push(`\t${safeKey(catName)}: [] as const,`);
+		} else {
+			lines.push(`\t${safeKey(catName)}: {},`);
+		}
 	}
 
-	// Singles (hooks, access, sidebar as array, etc.)
+	// Singles (auth, hooks, access, sidebar as array, etc.)
 	for (const file of singles) {
 		// Some singles are arrays (sidebar, dashboard contributions)
 		if (file.key === "sidebar" || file.key === "dashboard") {
@@ -298,7 +356,19 @@ export function generateModuleTemplate(options: ModuleTemplateOptions): string {
 	// Extra module properties from plugins
 	if (extraModuleProperties && extraModuleProperties.length > 0) {
 		for (const prop of extraModuleProperties) {
-			lines.push(`\t${prop}`);
+			const match = prop.match(/^(\w+)\s*:\s*(.+?),?\s*$/);
+			if (match) {
+				const [, propName] = match;
+				const extracted = extractedConsts.get(propName);
+				if (extracted) {
+					// Reference the extracted const instead of inline expression
+					lines.push(`\t${propName}: ${extracted.constName},`);
+				} else {
+					lines.push(`\t${prop}`);
+				}
+			} else {
+				lines.push(`\t${prop}`);
+			}
 		}
 	}
 
@@ -309,6 +379,76 @@ export function generateModuleTemplate(options: ModuleTemplateOptions): string {
 	lines.push(`export type ${typePrefix}Module = typeof _module;`);
 	lines.push("export default _module;");
 	lines.push("");
+
+	// ════════════════════════════════════════════════════════════
+	// Registry augmentation — break circular references
+	// ════════════════════════════════════════════════════════════
+	//
+	// Each module augments the global Registry with its categories that have
+	// `registryKey` on their CategoryDeclaration. This way factories.ts can
+	// read from Registry without referencing `typeof _modules`, which would
+	// create a circular type dependency:
+	//   typeof _modules → CollectionBuilder augmentation → Registry → typeof _modules
+	//
+	{
+		const registryLines: string[] = [];
+
+		// Iterate ALL categories with registryKey — unified path for everything
+		for (const [catName, decl] of categoryMeta) {
+			if (!decl.registryKey) continue;
+			const regKey = typeof decl.registryKey === "string" ? decl.registryKey : catName;
+
+			// Check if this category has a named type interface
+			const hasNamedType = categoriesNeedingTypes.has(catName);
+			const catTypeName = `${typePrefix}${catName.charAt(0).toUpperCase() + catName.slice(1)}`;
+
+			// Check if this property was extracted to a separate const (derived categories like listViews/formViews)
+			const extracted = extractedConsts.get(catName);
+
+			if (hasNamedType) {
+				registryLines.push(`\t\t${safeKey(regKey)}: ${catTypeName};`);
+			} else if (extracted) {
+				registryLines.push(`\t\t${safeKey(regKey)}: typeof ${extracted.constName};`);
+			} else if (emittedCategories.has(catName)) {
+				registryLines.push(`\t\t${safeKey(regKey)}: typeof _module["${catName}"];`);
+			} else if (extraPropNames.has(catName)) {
+				registryLines.push(`\t\t${safeKey(regKey)}: typeof _module["${catName}"];`);
+			} else {
+				// No discovered files, no extra property — skip to avoid conflicts
+				continue;
+			}
+		}
+
+		// Singles with registryKey — emit typeof augmentation for each.
+		// e.g., fields.ts with registryKey: "~fieldTypes" → "~fieldTypes": typeof _fields;
+		//
+		// SKIP ~-prefixed keys (e.g. "~fieldTypes") — these are emitted ONCE by the
+		// root template to avoid merge conflicts when multiple modules augment the
+		// same Registry property with different types (TypeScript degrades to `any`).
+		const discoverPatterns = options.discoverPatterns ?? {};
+		for (const [singleName, pattern] of Object.entries(discoverPatterns)) {
+			if (typeof pattern !== "object" || !pattern.registryKey) continue;
+			if (pattern.registryKey.startsWith("~")) continue;
+			const singleFile = discovered.singles.get(singleName);
+			if (!singleFile) continue;
+			registryLines.push(`\t\t${safeKey(pattern.registryKey)}: typeof ${singleFile.varName};`);
+		}
+
+		if (registryLines.length > 0) {
+			lines.push("// ════════════════════════════════════════════════════════════");
+			lines.push("// Registry augmentation — module registries");
+			lines.push("// ════════════════════════════════════════════════════════════");
+			lines.push("");
+			lines.push('declare module "questpie" {');
+			lines.push("\tinterface Registry {");
+			for (const line of registryLines) {
+				lines.push(line);
+			}
+			lines.push("\t}");
+			lines.push("}");
+			lines.push("");
+		}
+	}
 
 	return lines.join("\n");
 }

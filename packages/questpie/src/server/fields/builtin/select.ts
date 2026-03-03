@@ -330,7 +330,12 @@ const enumCache = new Map<string, any>();
 export const selectField = field<SelectFieldConfig, string | string[]>()({
 	type: "select" as const,
 	_value: undefined as unknown as string | string[],
-	toColumn(name: string, config: SelectFieldConfig) {
+	toColumn<T extends SelectFieldConfig>(
+		name: string,
+		config: T,
+	): T extends { multiple: true }
+		? ReturnType<typeof jsonb>
+		: ReturnType<typeof varchar> {
 		const { multiple = false, enumType = false, enumName } = config;
 		const staticOptions = getStaticOptions(config.options);
 

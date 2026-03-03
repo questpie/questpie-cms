@@ -3,14 +3,27 @@
 // Regenerate with: questpie generate --module
 
 // ── Collections ────────────────────────────────────────────
-import { auditLogCollection as _coll_adminAuditLog } from "../collections/audit-log.collection.js";
-import _dashboard from "../dashboard.js";
+import { auditLogCollection as _coll_auditLog_collection } from "../collections/audit-log.collection";
+
+// ── Jobs ────────────────────────────────────────────
+import { auditCleanupJob as _job_auditCleanup_job } from "../jobs/audit-cleanup.job";
 
 // ── Singles ────────────────────────────────────────────────
-import _hooks from "../hooks.js";
-// ── Jobs ───────────────────────────────────────────────────
-import { auditCleanupJob as _job_auditCleanup } from "../jobs/audit-cleanup.job.js";
-import _sidebar from "../sidebar.js";
+import _dashboard from "../dashboard";
+import _hooks from "../hooks";
+import _sidebar from "../sidebar";
+
+// ════════════════════════════════════════════════════════════
+// TYPES — composed from typeof references (zero inference cost)
+// ════════════════════════════════════════════════════════════
+
+export interface AuditCollections {
+	"auditLog.collection": typeof _coll_auditLog_collection;
+}
+
+export interface AuditJobs {
+	"auditCleanup.job": typeof _job_auditCleanup_job;
+}
 
 // ════════════════════════════════════════════════════════════
 // MODULE DEFINITION — static plain object
@@ -19,15 +32,39 @@ import _sidebar from "../sidebar.js";
 const _module = {
 	name: "questpie-audit" as const,
 	collections: {
-		adminAuditLog: _coll_adminAuditLog,
-	},
+		"auditLog.collection": _coll_auditLog_collection,
+	} as AuditCollections,
 	jobs: {
-		auditCleanup: _job_auditCleanup,
-	},
+		"auditCleanup.job": _job_auditCleanup_job,
+	} as AuditJobs,
+	globals: {},
+	functions: {},
+	routes: {},
+	messages: {},
+	services: {},
+	emails: {},
+	migrations: [] as const,
+	seeds: [] as const,
+	views: {},
+	listViews: {},
+	formViews: {},
+	components: {},
+	blocks: {},
+	dashboard: [_dashboard],
 	hooks: _hooks,
 	sidebar: [_sidebar],
-	dashboard: [_dashboard],
 };
 
 export type AuditModule = typeof _module;
 export default _module;
+
+// ════════════════════════════════════════════════════════════
+// Registry augmentation — module registries
+// ════════════════════════════════════════════════════════════
+
+declare module "questpie" {
+	interface Registry {
+		collections: AuditCollections;
+		jobs: AuditJobs;
+	}
+}

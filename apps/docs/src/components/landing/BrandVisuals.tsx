@@ -517,7 +517,7 @@ export function AnimLayerStack({ className }: { className?: string }) {
 		{ label: "Core", sub: "config()", size: 220 },
 		{ label: "Adapters", sub: "createApp()", size: 170 },
 		{ label: "Modules", sub: "modules", size: 120 },
-		{ label: "Client", sub: "qa()", size: 70 },
+		{ label: "Client", sub: ".generated/", size: 70 },
 	];
 	const ox = 60;
 	return (

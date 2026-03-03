@@ -212,7 +212,7 @@ function resolveFields(
 export const objectField = field<ObjectFieldConfig, Record<string, unknown>>()({
 	type: "object" as const,
 	_value: undefined as unknown as Record<string, unknown>,
-	toColumn(name: string, config: ObjectFieldConfig) {
+	toColumn(name: string, config: ObjectFieldConfig): ReturnType<typeof jsonb> {
 		const { mode = "jsonb" } = config;
 
 		let column: any = mode === "json" ? json(name) : jsonb(name);

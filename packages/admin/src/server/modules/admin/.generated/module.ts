@@ -28,6 +28,7 @@ import { widgetDataFunctions as _fn_widgetData } from "../functions/widget-data"
 
 // ── Views ────────────────────────────────────────────
 import _view_form from "../views/form";
+import _view_globalForm from "../views/global-form";
 import _view_table from "../views/table";
 
 // ── Components ────────────────────────────────────────────
@@ -59,6 +60,7 @@ export interface AdminCollections {
 
 export interface AdminViews {
 	form: typeof _view_form;
+	globalForm: typeof _view_globalForm;
 	table: typeof _view_table;
 }
 
@@ -70,6 +72,9 @@ export interface AdminComponents {
 // ════════════════════════════════════════════════════════════
 // MODULE DEFINITION — static plain object
 // ════════════════════════════════════════════════════════════
+
+const _reg_listViews = filterViewsByKind({ form: _view_form, globalForm: _view_globalForm, table: _view_table }, "list");
+const _reg_formViews = filterViewsByKind({ form: _view_form, globalForm: _view_globalForm, table: _view_table }, "form");
 
 const _module = {
 	name: "questpie-admin" as const,
@@ -97,18 +102,43 @@ const _module = {
 	},
 	views: {
 		form: _view_form,
+		globalForm: _view_globalForm,
 		table: _view_table,
 	} as AdminViews,
 	components: {
 		badge: _comp_badge,
 		icon: _comp_icon,
 	} as AdminComponents,
+	globals: {},
+	jobs: {},
+	routes: {},
+	messages: {},
+	services: {},
+	emails: {},
+	migrations: [] as const,
+	seeds: [] as const,
+	blocks: {},
 	fields: _fields,
 	sidebar: [_sidebar],
-	listViews: filterViewsByKind({ form: _view_form, table: _view_table }, "list"),
-	editViews: filterViewsByKind({ form: _view_form, table: _view_table }, "edit"),
+	listViews: _reg_listViews,
+	formViews: _reg_formViews,
 	dashboard: [] as const,
 };
 
 export type AdminModule = typeof _module;
 export default _module;
+
+// ════════════════════════════════════════════════════════════
+// Registry augmentation — module registries
+// ════════════════════════════════════════════════════════════
+
+declare module "questpie" {
+	interface Registry {
+		collections: AdminCollections;
+		functions: typeof _module["functions"];
+		views: AdminViews;
+		listViews: typeof _reg_listViews;
+		formViews: typeof _reg_formViews;
+		components: AdminComponents;
+	}
+}

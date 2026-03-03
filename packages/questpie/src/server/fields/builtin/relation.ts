@@ -573,7 +573,7 @@ export const relationField = field<
 		| string[]
 		| { type: string; id: string }
 		| null,
-	toColumn(name: string, config: RelationFieldConfig) {
+	toColumn(name: string, config: RelationFieldConfig): ReturnType<typeof varchar> | ReturnType<typeof jsonb> | ReturnType<typeof varchar>[] | null {
 		const relationType = inferRelationType(config);
 
 		// HasMany, ManyToMany, MorphMany - no column on this table

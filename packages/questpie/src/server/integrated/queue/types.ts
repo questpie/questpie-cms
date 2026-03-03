@@ -228,7 +228,7 @@ export interface QueueListenHandle {
 /**
  * Typesafe queue client for publishing jobs
  */
-export type QueueClient<TJobs extends Record<string, JobDefinition<any, any>>> =
+export type QueueClient<TJobs extends Record<string, any>> =
 	{
 		[K in keyof TJobs]: {
 			/**

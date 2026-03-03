@@ -10,7 +10,7 @@
  */
 
 import type { SQL } from "drizzle-orm";
-import type { AnyPgColumn, PgColumn } from "drizzle-orm/pg-core";
+import type { AnyPgColumn } from "drizzle-orm/pg-core";
 import type { ZodType } from "zod";
 import type { I18nText } from "#questpie/shared/i18n/types.js";
 
@@ -42,7 +42,7 @@ import type { I18nText } from "#questpie/shared/i18n/types.js";
  * ```
  */
 // biome-ignore lint/complexity/noBannedTypes: Empty interface for declaration merging augmentation
-export type FieldTypeRegistry = {};
+export interface FieldTypeRegistry {}
 
 /**
  * Union of all registered field type names.
@@ -681,51 +681,6 @@ export interface JoinBuilder {
 }
 
 // ============================================================================
-// Type Inference Helpers
-// ============================================================================
-
-/**
- * Infer input type from field config.
- * Handles required, nullable, virtual, input options.
- */
-export type InferInputType<
-	TConfig extends BaseFieldConfig,
-	TValue,
-> = TConfig extends { virtual: true | SQL<unknown> }
-	? TConfig extends { input: true }
-		? TValue | undefined // Explicitly enabled input for virtual
-		: never // Default: no input for virtual
-	: TConfig extends { input: false }
-		? never
-		: TConfig extends { input: "optional" }
-			? TValue | undefined
-			: TConfig extends { required: true }
-				? TValue
-				: TValue | null | undefined;
-
-/**
- * Infer output type from field config.
- * Handles output: false and access.read functions.
- */
-export type InferOutputType<
-	TConfig extends BaseFieldConfig,
-	TValue,
-> = TConfig extends { output: false }
-	? never
-	: TConfig extends { access: { read: (...args: unknown[]) => unknown } }
-		? TValue | undefined // Runtime check = might be filtered
-		: TValue;
-
-/**
- * Infer column type from field config.
- * Virtual fields have null columns.
- */
-export type InferColumnType<
-	TConfig extends BaseFieldConfig,
-	TColumn,
-> = TConfig extends { virtual: true | SQL<unknown> } ? null : TColumn;
-
-// ============================================================================
 // Field Definition Generic Type
 // ============================================================================
 
@@ -764,8 +719,12 @@ export interface FieldDefinitionState {
 	/** Select type for CRUD (defaults to output when not overridden) */
 	select: unknown;
 
-	/** Drizzle column type (null for virtual/relation fields) */
-	column: AnyPgColumn | null;
+	/**
+	 * Drizzle column type (null for virtual/relation fields).
+	 * Uses `unknown` to accept both column builders (PgVarcharBuilder, etc.)
+	 * and built columns (AnyPgColumn). Concrete types flow through BuildFieldState.
+	 */
+	column: unknown;
 
 	/** Field location - determines which table the field belongs to */
 	location: FieldLocation;
@@ -787,7 +746,7 @@ export type EmptyFieldState = {
 	input: unknown;
 	output: unknown;
 	select: unknown;
-	column: AnyPgColumn | null;
+	column: unknown;
 	location: "main";
 };
 
@@ -839,22 +798,6 @@ export type ExtractRelationFields<
 > = ExtractFieldsByLocation<TFields, "relation">;
 
 /**
- * Extract column types from field definitions.
- * Maps each field to its Drizzle column type.
- */
-export type ExtractColumnsFromFields<
-	TFields extends Record<string, FieldDefinition<FieldDefinitionState>>,
-> = {
-	[K in keyof TFields as TFields[K] extends FieldDefinition<infer TState>
-		? TState["column"] extends null
-			? never // Skip virtual/relation fields
-			: K
-		: never]: TFields[K] extends FieldDefinition<infer TState>
-		? TState["column"]
-		: never;
-};
-
-/**
  * Generic FieldDefinition type for use when the specific field type is unknown.
  * Uses a default FieldDefinitionState with all unknown types.
  *
@@ -870,7 +813,7 @@ export type AnyFieldDefinition = FieldDefinition<{
 	input: unknown;
 	output: unknown;
 	select: unknown;
-	column: AnyPgColumn | null;
+	column: unknown;
 	location: FieldLocation;
 	operators: ContextualOperators<any, any>;
 }>;

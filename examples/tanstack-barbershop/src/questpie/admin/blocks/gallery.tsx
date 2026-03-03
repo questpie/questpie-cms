@@ -6,7 +6,7 @@
  */
 
 import { cn } from "../../../lib/utils";
-import type { BlockProps } from "./types";
+import type { BlockProps } from "../.generated/client";
 
 export function GalleryRenderer({ values, data }: BlockProps<"gallery">) {
 	const imageUrls =

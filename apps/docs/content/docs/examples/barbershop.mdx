@@ -50,8 +50,10 @@ examples/tanstack-barbershop/
 │   │   │   ├── emails/                        # Email templates
 │   │   │   └── .generated/                    # Codegen output
 │   │   └── admin/
-│   │       ├── builder.ts                     # Typed admin builder
+│   │       ├── admin.ts                       # Re-exports generated admin config
 │   │       ├── hooks.ts                       # Typed React hooks
+│   │       ├── .generated/                    # Codegen output
+│   │       │   └── client.ts                  # Admin client config
 │   │       └── blocks/                        # Block renderers
 │   ├── lib/
 │   │   ├── client.ts                          # Client SDK setup
@@ -164,9 +166,9 @@ Used in hooks via context — no imports:
 
 ```ts title="lib/client.ts"
 import { createClient } from "questpie/client";
-import type { AppConfig, AppFunctions } from "@/questpie/server/.generated";
+import type { AppConfig } from "@/questpie/server/.generated";
 
-export const client = createClient<AppConfig, AppFunctions>({
+export const client = createClient<AppConfig>({
   baseURL: typeof window !== "undefined"
     ? window.location.origin
     : process.env.APP_URL,

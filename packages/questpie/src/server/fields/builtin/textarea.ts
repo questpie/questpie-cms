@@ -127,7 +127,7 @@ function getTextareaOperators() {
 export const textareaField = field<TextareaFieldConfig, string>()({
 	type: "textarea" as const,
 	_value: undefined as unknown as string,
-	toColumn(name: string, config: TextareaFieldConfig) {
+	toColumn(name: string, config: TextareaFieldConfig): ReturnType<typeof text> {
 		let column: any = text(name);
 
 		// Apply constraints

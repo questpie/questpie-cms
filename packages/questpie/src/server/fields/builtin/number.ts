@@ -235,7 +235,7 @@ function getNumberOperators() {
 export const numberField = field<NumberFieldConfig, number>()({
 	type: "number" as const,
 	_value: undefined as unknown as number,
-	toColumn(name: string, config: NumberFieldConfig) {
+	toColumn(name: string, config: NumberFieldConfig): ReturnType<typeof integer> {
 		const { mode = "integer", precision = 10, scale = 2 } = config;
 
 		let column: any;

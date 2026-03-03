@@ -1,14 +1,14 @@
 /**
  * Hook for resolving field definitions from collection schema
  *
- * Builds FieldDefinition objects from server introspection schema
+ * Builds FieldInstance objects from server introspection schema
  * and merges with any local overrides.
  */
 
 import type { UseQueryOptions } from "@tanstack/react-query";
 import type { CollectionSchema } from "questpie";
 import { useMemo } from "react";
-import type { FieldDefinition } from "../builder/field/field";
+import type { FieldInstance } from "../builder/field/field";
 import { selectAdmin, useAdminStore } from "../runtime";
 import {
 	type BuildFieldDefinitionsOptions,
@@ -31,7 +31,7 @@ interface UseCollectionFieldsOptions {
 	/**
 	 * Local field definitions to merge as overrides
 	 */
-	fallbackFields?: Record<string, FieldDefinition>;
+	fallbackFields?: Record<string, FieldInstance>;
 }
 
 export function useCollectionFields(

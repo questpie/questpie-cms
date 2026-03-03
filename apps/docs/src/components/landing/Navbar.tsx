@@ -8,14 +8,14 @@ const navItems = [
 	{ label: "Docs", href: "/docs/$", type: "internal" as const },
 	{
 		label: "Examples",
-		href: "https://github.com/questpie/questpie/tree/main/examples",
-		type: "external" as const,
-	},
-	{
-		label: "Guides",
 		href: "/docs/$",
 		type: "internal" as const,
-		params: { _splat: "guides" },
+		params: { _splat: "examples" },
+	},
+	{
+		label: "GitHub",
+		href: "https://github.com/questpie/questpie",
+		type: "external" as const,
 	},
 ];
 
@@ -101,7 +101,7 @@ export function Navbar() {
 						<ThemeToggle />
 						<Link
 							to="/docs/$"
-							params={{ _splat: "getting-started/quickstart" }}
+							params={{ _splat: "start-here/first-app" }}
 							className="inline-flex h-9 items-center justify-center border border-primary/30 bg-primary/10 px-4 font-mono text-[11px] font-medium uppercase tracking-wider text-primary transition-all hover:bg-primary/20"
 						>
 							Build Platform
@@ -134,11 +134,11 @@ export function Navbar() {
 							</Link>
 							<Link
 								to="/docs/$"
-								params={{ _splat: "guides" }}
+								params={{ _splat: "examples" }}
 								className="py-1 text-sm font-medium text-muted-foreground"
 								onClick={() => setIsMobileMenuOpen(false)}
 							>
-								Guides
+								Examples
 							</Link>
 							<a
 								href="https://github.com/questpie/questpie/tree/main/examples"
@@ -165,7 +165,7 @@ export function Navbar() {
 								</div>
 								<Link
 									to="/docs/$"
-									params={{ _splat: "getting-started/quickstart" }}
+									params={{ _splat: "start-here/first-app" }}
 									className="inline-flex h-8 items-center justify-center border border-primary/30 bg-primary/10 px-3 font-mono text-[11px] uppercase tracking-wider text-primary"
 									onClick={() => setIsMobileMenuOpen(false)}
 								>

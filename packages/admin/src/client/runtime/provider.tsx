@@ -173,8 +173,7 @@ const AdminStoreContext = createContext<AdminStore | null>(null);
 
 export interface AdminProviderProps {
 	/**
-	 * Admin configuration - pass your AdminBuilder directly.
-	 * Can also accept an Admin instance for backward compatibility.
+	 * Admin configuration - pass plain AdminState or Admin instance.
 	 */
 	admin: AdminInput<any>;
 
@@ -392,7 +391,7 @@ export function AdminProvider({
 	translationsFallback,
 	children,
 }: AdminProviderProps): ReactElement {
-	// Normalize admin input - accepts both AdminBuilder and Admin instance
+	// Normalize admin input - accepts plain state or Admin instance
 	const admin = useMemo(() => Admin.normalize(adminInput), [adminInput]);
 
 	// Default navigate function

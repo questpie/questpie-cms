@@ -144,7 +144,7 @@ function getDateOperators() {
 export const dateField = field<DateFieldConfig, string>()({
 	type: "date" as const,
 	_value: undefined as unknown as string,
-	toColumn(name: string, config: DateFieldConfig) {
+	toColumn(name: string, config: DateFieldConfig): ReturnType<typeof date> {
 		let column: any = date(name, { mode: "string" });
 
 		// Apply constraints

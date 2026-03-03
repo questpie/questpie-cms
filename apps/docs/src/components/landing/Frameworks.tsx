@@ -64,7 +64,7 @@ export function Frameworks() {
 						<div className="mt-6">
 							<Link
 								to="/docs/$"
-								params={{ _splat: "client/adapters-overview" }}
+								params={{ _splat: "frontend/adapters" }}
 								className="inline-flex items-center gap-2 font-mono text-xs text-primary transition-colors hover:text-primary/80"
 							>
 								Read the adapter docs →

@@ -144,7 +144,7 @@ function getBooleanOperators() {
 export const booleanField = field<BooleanFieldConfig, boolean>()({
 	type: "boolean" as const,
 	_value: undefined as unknown as boolean,
-	toColumn(name: string, config: BooleanFieldConfig) {
+	toColumn(name: string, config: BooleanFieldConfig): ReturnType<typeof boolean> {
 		let column: any = boolean(name);
 
 		// Apply constraints

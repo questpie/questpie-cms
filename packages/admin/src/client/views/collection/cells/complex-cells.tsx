@@ -12,7 +12,7 @@ import * as React from "react";
 import type { BlockSchema } from "#questpie/admin/server";
 import type { BlockContent, BlockNode } from "../../../blocks/types";
 import { isBlockContent } from "../../../blocks/types";
-import type { FieldDefinition } from "../../../builder/field/field";
+import type { FieldInstance } from "../../../builder/field/field";
 import { Badge } from "../../../components/ui/badge";
 import {
 	Tooltip,
@@ -65,7 +65,7 @@ export function ObjectCell({
 }: {
 	value: unknown;
 	row?: unknown;
-	fieldDef?: FieldDefinition;
+	fieldDef?: FieldInstance;
 }) {
 	const resolveText = useResolveText();
 	if (value === null || value === undefined) {
@@ -84,7 +84,10 @@ export function ObjectCell({
 	}
 
 	// Get nested field definitions for labels
-	const nestedFieldsOption = fieldDef?.["~options"]?.fields;
+	const nestedFieldsOption = fieldDef?.["~options"]?.fields as
+		| Record<string, any>
+		| ((...args: any[]) => any)
+		| undefined;
 	const nestedFields =
 		typeof nestedFieldsOption === "function" ? undefined : nestedFieldsOption;
 
@@ -207,7 +210,7 @@ export function ArrayCell({
 }: {
 	value: unknown;
 	row?: unknown;
-	fieldDef?: FieldDefinition;
+	fieldDef?: FieldInstance;
 }) {
 	const resolveText = useResolveText();
 	if (value === null || value === undefined) {
@@ -222,11 +225,14 @@ export function ArrayCell({
 		return <span className="text-muted-foreground">-</span>;
 	}
 
-	const fieldOptions = fieldDef?.["~options"] ?? {};
+	const fieldOptions = (fieldDef?.["~options"] ?? {}) as Record<string, any>;
 	const itemLabelFn = fieldOptions.itemLabel as
 		| ((item: unknown) => string)
 		| undefined;
-	const itemFieldsOption = fieldOptions.item;
+	const itemFieldsOption = fieldOptions.item as
+		| Record<string, any>
+		| ((...args: any[]) => any)
+		| undefined;
 	const itemFields =
 		typeof itemFieldsOption === "function" ? undefined : itemFieldsOption;
 

@@ -6,11 +6,9 @@ import type { CollectionInfer } from "questpie";
 import type { QuestpieApp, QuestpieClient } from "questpie/client";
 
 export { Admin, type AppAdmin, type InferAdminCMS } from "./admin";
-export { AdminBuilder } from "./admin-builder";
-export type { AdminBuilderState } from "./admin-types";
+export type { AdminState } from "./admin-types";
 // Action types and registry
 export type { PageDefinition } from "./page/page";
-export { qa } from "./qa";
 // ============================================================================
 // Common Types
 // ============================================================================

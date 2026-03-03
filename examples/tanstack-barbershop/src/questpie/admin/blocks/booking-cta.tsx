@@ -7,7 +7,7 @@
 
 import { buttonVariants } from "../../../components/ui/button";
 import { cn } from "../../../lib/utils";
-import type { BlockProps } from "./types";
+import type { BlockProps } from "../.generated/client";
 
 export function BookingCtaRenderer({ values }: BlockProps<"bookingCta">) {
 	// Build booking URL with query params

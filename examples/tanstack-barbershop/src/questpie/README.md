@@ -19,18 +19,21 @@ questpie/
   .generated/          # Auto-generated app instance (codegen)
     index.ts
 
-  admin/               # Admin UI (qa builder)
-    builder.ts         # Main admin builder with module augmentation
+  admin/               # Admin UI (generated config)
+    admin.ts           # Re-exports generated admin config
+    hooks.ts           # Typed hooks (useQPAdmin, etc.)
     collections/       # Collection UI configs
       barbers.ts
       services.ts
       appointments.ts
       reviews.ts
+    .generated/        # Auto-generated admin client config (codegen)
+      client.ts
 ```
 
-## Module Augmentation Pattern
+## Codegen-Driven Setup
 
-Both server and admin use module augmentation for type-safe access throughout the app.
+Both server and admin are fully code-generated from file conventions. No manual wiring needed.
 
 ### Server (`questpie.config.ts` + `.generated/index.ts`)
 
@@ -51,15 +54,20 @@ export default config({
 //   export type App = typeof app;
 ```
 
-### Admin (`/admin/builder.ts`)
+### Admin (`/admin/.generated/client.ts`)
+
+The admin client config is **auto-generated** by codegen from discovered files in
+the `admin/` directory. The generated file merges built-in defaults with user
+files (blocks, views, components, etc.) and exports a plain config object.
 
 ```typescript
-import { qa, adminModule } from "@questpie/admin/client";
+// admin/admin.ts — re-exports the generated config
+export { default as admin } from "./.generated/client";
+
+// admin/hooks.ts — typed hooks with module augmentation
 import type { App } from "../.generated";
+import type { admin } from "./admin";
 
-export const admin = qa<App>().use(adminModule);
-
-// Module augmentation for type-safe hooks
 declare module "@questpie/admin/client" {
   interface AdminTypeRegistry {
     app: App;
@@ -99,10 +107,10 @@ const { client } = useAdminContext();
 
 **Admin (`/admin`):**
 
-- Frontend admin UI using `qa()` builder
+- Frontend admin UI config (auto-generated from file conventions)
 - UI-specific config (labels, icons, layout)
 - Field rendering, views, widgets
-- Example: `qa.collection("barbers").fields(({ r }) => ({ ... }))`
+- Files discovered by codegen from `admin/blocks/`, `admin/views/`, `admin/components/`, etc.
 
 ## Key Patterns
 
@@ -122,50 +130,20 @@ export default collection("barbers").fields(({ f }) => ({
 
 ### Admin Collection (UI)
 
+Admin collection configs are auto-discovered from `admin/collections/`:
+
 ```typescript
 // admin/collections/barbers.ts
-import { qa } from "@/questpie/builder";
-
-export const barbersAdmin = qa
-  .collection("barbers")
-  .meta({
-    label: "Barbers",
-    icon: UsersIcon,
-  })
-  .fields(({ r }) => ({
-    // r = field registry with autocomplete
-    name: r.text({ label: "Full Name", maxLength: 255 }),
-    email: r.email({ label: "Email Address" }),
-    bio: r.textarea({ label: "Biography" }),
-    isActive: r.switch({ label: "Active" }),
-  }))
-  .list(({ v, f }) =>
-    // v = view registry, f = field proxy
-    v.table({
-      columns: [f.name, f.email, f.isActive], // Autocomplete!
-    }),
-  )
-  .form(({ v, f }) =>
-    v.form({
-      fields: [f.name, f.email, f.bio, f.isActive],
-    }),
-  );
-```
-
-### Shared Builder (`/builder.ts`)
-
-```typescript
-// builder.ts - Single source for typed qa namespace
-import type { App } from "@/questpie/.generated";
-import { qa as originalQa, adminModule } from "@questpie/admin/client";
-
-// Pre-configured qa with app types and admin module
-export const qa = originalQa<App>().use(adminModule).toNamespace();
+export default {
+  label: "Barbers",
+  icon: "ph:users",
+  // Field renderers, list/form view config, etc.
+};
 ```
 
 ## API Features
 
-### 1. `config()` Replaces `.build()`
+### 1. `config()` + Codegen
 
 Server configuration uses the top-level `config()` factory. Collections, functions, and jobs are auto-discovered by codegen from file conventions — no need to manually wire them:
 
@@ -182,30 +160,7 @@ export default config({
 // Codegen generates .generated/index.ts with the typed app instance
 ```
 
-### 2. Scoped Helpers with Builder Pattern
-
-```typescript
-// Create a builder with module - this is the recommended pattern
-const builder = qa<App>().use(adminModule);
-const barbers = builder.collection("barbers").fields(({ r }) => ({ ... }));
-```
-
-### 3. Proxy Pattern for Autocomplete
-
-```typescript
-.fields(({ r }) => ({
-  // r = FieldRegistryProxy - autocomplete for all fields
-  name: r.text({ ... }),
-}))
-
-.list(({ v, f }) => v.table({
-  // v = ViewRegistryProxy - autocomplete for views
-  // f = FieldProxy - autocomplete for field names
-  columns: [f.name, f.email], // Full autocomplete!
-}))
-```
-
-### 4. Type-Safe Relations
+### 2. Type-Safe Relations
 
 ```typescript
 .fields(({ r }) => ({
@@ -221,7 +176,7 @@ const barbers = builder.collection("barbers").fields(({ r }) => ({ ... }));
 ```typescript
 // routes/admin.tsx
 import { AdminLayoutProvider } from "@questpie/admin/client";
-import { admin } from "~/questpie/admin/builder";
+import { admin } from "~/questpie/admin/admin";
 import { client } from "~/lib/client";
 
 function AdminLayout() {

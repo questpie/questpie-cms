@@ -51,9 +51,4 @@ export default runtimeConfig({
 	},
 
 	queue: { adapter: pgBossAdapter({ connectionString: DATABASE_URL }) },
-
-	cli: {
-		migrations: { directory: "./src/migrations" },
-		seeds: { directory: "./src/seeds" },
-	},
 });

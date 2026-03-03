@@ -50,7 +50,25 @@ type InferFieldLocation<TConfig extends BaseFieldConfig> = TConfig extends {
 	? "virtual"
 	: TConfig extends { localized: true }
 		? "i18n"
-		: "main";
+		: IsNoColumnRelation<TConfig> extends true
+			? "relation"
+			: "main";
+
+/**
+ * Detect configs that don't create a column on this table.
+ * - hasMany (without multiple) → hasMany or manyToMany or morphMany → no column
+ * - through (without hasMany) → upload M2M via junction table → no column
+ */
+type IsNoColumnRelation<TConfig> = TConfig extends {
+	hasMany: true;
+	multiple: true;
+}
+	? false // multiple creates a jsonb column
+	: TConfig extends { hasMany: true }
+		? true // hasMany / manyToMany / morphMany — no column
+		: TConfig extends { through: string }
+			? true // upload M2M via junction — no column
+			: false;
 
 /**
  * Infer input type from config.
@@ -123,10 +141,8 @@ export type InferSelectType<
  * Infer column type from config.
  * Virtual fields have null columns.
  */
-type InferColumnType<
-	TConfig extends BaseFieldConfig,
-	TColumn extends AnyPgColumn | null,
-> = TConfig extends { virtual: true | SQL<unknown> } ? null : TColumn;
+type InferColumnType<TConfig extends BaseFieldConfig, TColumn> =
+	TConfig extends { virtual: true | SQL<unknown> } ? null : TColumn;
 
 /**
  * Narrow the value type for relation/upload fields based on config.
@@ -195,13 +211,14 @@ type NarrowFieldValue<
  * Build complete field state from config + implementation.
  * This is the TState that FieldDefinition will use.
  *
+ * @template TColumn - Real Drizzle column type from ExtractColumnFromFieldDef.
  * @template TOps - Concrete operators type (e.g. typeof stringColumnOperators).
  */
 export type BuildFieldState<
 	TType extends string,
 	TConfig extends BaseFieldConfig,
 	TValue,
-	TColumn extends AnyPgColumn | null,
+	TColumn,
 	TOps extends ContextualOperators,
 > = {
 	type: TType;
@@ -234,10 +251,7 @@ export interface FieldDef<TConfig extends BaseFieldConfig, TValue> {
 	_value?: TValue;
 
 	/** Generate Drizzle column(s) for this field. */
-	toColumn: (
-		name: string,
-		config: TConfig,
-	) => AnyPgColumn | AnyPgColumn[] | null;
+	toColumn: (name: string, config: TConfig) => any;
 
 	/** Generate Zod schema for input validation. */
 	toZodSchema: (config: TConfig) => ZodType;
@@ -316,6 +330,41 @@ export type ExtractOpsFromFieldDef<TFieldDef> = TFieldDef extends {
 		: ContextualOperators
 	: ContextualOperators;
 
+/**
+ * Extract base column type from a field def's toColumn return type.
+ * Strips null and array variants (morphTo returns array, hasMany returns null).
+ * Falls back to AnyPgColumn when toColumn returns any (no annotation).
+ *
+ * When TConfig is provided (not the default `any`), generic toColumn methods
+ * resolve their conditional return types based on the specific config.
+ * E.g., select field's `toColumn<T>(name, config: T): T extends { multiple: true } ? jsonb : varchar`
+ * resolves to `jsonb` when TConfig has `multiple: true`.
+ */
+export type ExtractColumnFromFieldDef<
+	TFieldDef,
+	TConfig = any,
+> = TFieldDef extends {
+	toColumn: (name: string, config: TConfig) => infer TReturn;
+}
+	? StripArrayAndNull<TReturn> extends infer TCol
+		? IsAny<TCol> extends true
+			? AnyPgColumn // fallback for unannotated toColumn (returns any)
+			: [TCol] extends [never]
+				? AnyPgColumn // all variants were null/array — fallback
+				: TCol
+		: AnyPgColumn
+	: AnyPgColumn;
+
+/** Strip null and array from union (for morphTo/hasMany variants) */
+type StripArrayAndNull<T> = T extends null
+	? never
+	: T extends any[]
+		? never
+		: T;
+
+/** Detect `any` type */
+type IsAny<T> = 0 extends 1 & T ? true : false;
+
 // ============================================================================
 // field — Curried "as const satisfies" Pattern
 // ============================================================================
@@ -375,7 +424,7 @@ export function createFieldDefinition<
 		ExtractTypeFromFieldDef<TFieldDef>,
 		TConfig,
 		ExtractValueFromFieldDef<TFieldDef>,
-		AnyPgColumn,
+		ExtractColumnFromFieldDef<TFieldDef, TConfig>,
 		ExtractOpsFromFieldDef<TFieldDef>
 	>
 >;
@@ -397,7 +446,11 @@ export function createFieldDefinition(
 			? "virtual"
 			: fieldConfig.localized === true
 				? "i18n"
-				: "main";
+				: fieldConfig.hasMany === true && fieldConfig.multiple !== true
+					? "relation"
+					: typeof fieldConfig.through === "string"
+						? "relation"
+						: "main";
 
 	const state = {
 		type: fieldDef.type,

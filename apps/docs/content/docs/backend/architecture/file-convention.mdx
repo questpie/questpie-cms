@@ -15,12 +15,15 @@ Each directory maps to a category of entity:
 |---|---|---|---|
 | `collections/` | Collections | Default or named | Filename → camelCase |
 | `globals/` | Globals | Default or named | Filename → camelCase |
-| `functions/` | Functions | Default | Filename → camelCase |
+| `functions/` | Functions | Default | Filename → camelCase (nested: dot-separated) |
 | `jobs/` | Jobs | Default | Filename → camelCase |
-| `routes/` | Routes | Default | Filename → path |
+| `routes/` | Routes | Default | Filename → slash-separated path |
 | `services/` | Services | Default | Filename → camelCase |
-| `blocks/` | Blocks | Named exports | Export name |
 | `emails/` | Email templates | Default | Filename → camelCase |
+| `blocks/` | Blocks | Named exports | Export name |
+| `messages/` | i18n messages | Default | Filename → locale key |
+| `migrations/` | DB migrations | Default | Array (ordered) |
+| `seeds/` | DB seeds | Default | Array (ordered) |
 
 ### Name derivation
 
@@ -42,6 +45,10 @@ Some configs are single files, not directories:
 | `modules.ts` | `export default [...]` | Module dependencies |
 | `auth.ts` | `satisfies AuthConfig` | Auth configuration |
 | `locale.ts` | `locale({...})` | Content locales |
+| `hooks.ts` | `export default { collections, globals }` | Global lifecycle hooks (applied across all entities) |
+| `access.ts` | `export default { read, create, update, delete }` | Default access rules for all entities |
+| `context.ts` | `export default contextResolver(...)` | Custom context resolution (e.g., tenant scoping) |
+| `fields.ts` | `export default { ...customFields }` | Custom field type definitions |
 | `sidebar.ts` | `sidebar({...})` | Admin sidebar |
 | `dashboard.ts` | `dashboard({...})` | Admin dashboard |
 | `branding.ts` | `branding({...})` | Admin branding |

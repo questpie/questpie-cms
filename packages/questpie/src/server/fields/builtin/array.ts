@@ -241,7 +241,7 @@ function resolveItemField(
 export const arrayField = field<ArrayFieldConfig, unknown[]>()({
 	type: "array" as const,
 	_value: undefined as unknown as unknown[],
-	toColumn(name: string, config: ArrayFieldConfig) {
+	toColumn(name: string, config: ArrayFieldConfig): ReturnType<typeof jsonb> {
 		// Always use JSONB for complex typed arrays
 		let column: any = jsonb(name);
 

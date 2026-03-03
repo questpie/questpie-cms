@@ -2,7 +2,7 @@
  * AdminRouter Component
  *
  * Handles routing for the admin UI based on URL segments.
- * Uses the view registry to resolve list/edit views dynamically.
+ * Uses the view registry to resolve list/form views dynamically.
  *
  * URL Patterns:
  * - /admin -> Dashboard
@@ -19,7 +19,6 @@ import type { PageDefinition } from "../../builder/page/page.js";
 import type { MaybeLazyComponent } from "../../builder/types/common.js";
 import type { ComponentRegistry } from "../../builder/types/field-types.js";
 import type { DashboardConfig } from "../../builder/types/ui-config.js";
-import type { DefaultViewsConfig } from "../../builder/types/views.js";
 import { Card } from "../../components/ui/card.js";
 import { Skeleton } from "../../components/ui/skeleton.js";
 import { useSuspenseAdminConfig } from "../../hooks/use-admin-config";
@@ -104,11 +103,6 @@ export interface AdminRouterProps {
 	dashboardConfig?: DashboardConfig;
 
 	/**
-	 * Default views configuration
-	 */
-	defaultViews?: DefaultViewsConfig;
-
-	/**
 	 * Custom collection components (override default views)
 	 */
 	collectionComponents?: Record<
@@ -153,11 +147,9 @@ interface RouterConfig {
 	collections: Record<string, CollectionRouterConfig>;
 	globals: Record<string, GlobalRouterConfig>;
 	pages: Record<string, PageDefinition<string>>;
-	listViews: Record<string, any>;
-	editViews: Record<string, any>;
+	views: Record<string, any>;
 	dashboardConfig?: DashboardConfig;
 	DashboardComponent?: React.ComponentType;
-	defaultViews?: DefaultViewsConfig;
 }
 
 /**
@@ -170,7 +162,6 @@ function useRouterConfig(props: {
 	pages?: Record<string, PageDefinition<string>>;
 	dashboardConfig?: DashboardConfig;
 	DashboardComponent?: React.ComponentType;
-	defaultViews?: DefaultViewsConfig;
 }): RouterConfig {
 	// Subscribe to admin from store reactively
 	const admin = useAdminStore((s) => s.admin);
@@ -179,9 +170,7 @@ function useRouterConfig(props: {
 	const { data: serverConfig } = useSuspenseAdminConfig();
 
 	const storePages = admin.getPages();
-	const storeListViews = admin.getListViews() as Record<string, any>;
-	const storeEditViews = admin.getEditViews() as Record<string, any>;
-	const storeDefaultViews = admin.getDefaultViews();
+	const storeViews = admin.getViews() as Record<string, any>;
 
 	// Build collection/global configs from server config keys
 	// Hidden collections are included - they can be accessed via ResourceSheet
@@ -223,11 +212,9 @@ function useRouterConfig(props: {
 		collections: serverCollections,
 		globals: serverGlobals,
 		pages: props.pages ?? storePages,
-		listViews: storeListViews,
-		editViews: storeEditViews,
+		views: storeViews,
 		dashboardConfig: mergedDashboard,
 		DashboardComponent: props.DashboardComponent,
-		defaultViews: props.defaultViews ?? storeDefaultViews,
 	};
 }
 
@@ -284,26 +271,18 @@ function matchRoute(
 	return { type: "not-found" };
 }
 
-const DEFAULT_LIST_VIEW_ID = "table";
-const DEFAULT_EDIT_VIEW_ID = "form";
-
 function getConfiguredViewName(config: unknown): string | undefined {
 	if (!config || typeof config !== "object") return undefined;
 	const maybeConfig = config as Record<string, any>;
 	if (typeof maybeConfig.view === "string") return maybeConfig.view;
 	if (typeof maybeConfig.name === "string") return maybeConfig.name;
-	if (typeof maybeConfig.state?.name === "string")
-		return maybeConfig.state.name;
 	return undefined;
 }
 
 function getViewLoader(definition: unknown): MaybeLazyComponent | undefined {
 	if (!definition || typeof definition !== "object") return undefined;
 	const maybeDefinition = definition as Record<string, any>;
-	return (
-		(maybeDefinition.component as MaybeLazyComponent | undefined) ??
-		(maybeDefinition.state?.component as MaybeLazyComponent | undefined)
-	);
+	return maybeDefinition.component as MaybeLazyComponent | undefined;
 }
 
 function getViewBaseConfig(
@@ -311,9 +290,7 @@ function getViewBaseConfig(
 ): Record<string, unknown> | undefined {
 	if (!definition || typeof definition !== "object") return undefined;
 	const maybeDefinition = definition as Record<string, any>;
-	const config =
-		(maybeDefinition["~config"] as Record<string, unknown> | undefined) ??
-		(maybeDefinition.state?.["~config"] as Record<string, unknown> | undefined);
+	const config = maybeDefinition.config as Record<string, unknown> | undefined;
 
 	if (!config || typeof config !== "object") return undefined;
 	return config;
@@ -369,7 +346,7 @@ function UnknownViewState({
 	viewKind,
 	viewId,
 }: {
-	viewKind: "list" | "edit";
+	viewKind: "list" | "form";
 	viewId: string;
 }) {
 	return (
@@ -429,13 +406,13 @@ function areRegistryViewRendererPropsEqual(
 	prev: {
 		loader?: MaybeLazyComponent;
 		componentProps: Record<string, unknown>;
-		viewKind: "list" | "edit";
+		viewKind: "list" | "form";
 		viewId: string;
 	},
 	next: {
 		loader?: MaybeLazyComponent;
 		componentProps: Record<string, unknown>;
-		viewKind: "list" | "edit";
+		viewKind: "list" | "form";
 		viewId: string;
 	},
 ): boolean {
@@ -454,7 +431,7 @@ const RegistryViewRenderer = React.memo(function RegistryViewRenderer({
 }: {
 	loader?: MaybeLazyComponent;
 	componentProps: Record<string, unknown>;
-	viewKind: "list" | "edit";
+	viewKind: "list" | "form";
 	viewId: string;
 }) {
 	const [state, setState] = React.useState<{
@@ -539,11 +516,7 @@ const RegistryViewRenderer = React.memo(function RegistryViewRenderer({
 // Sub-components
 // ============================================================================
 
-function DefaultDashboard({
-	config,
-}: {
-	config?: DefaultViewsConfig["dashboard"];
-}) {
+function DefaultDashboard() {
 	const date = new Date().toLocaleDateString("en-US", {
 		weekday: "long",
 		year: "numeric",
@@ -555,14 +528,10 @@ function DefaultDashboard({
 		<div className="container ">
 			<div className="mb-8 flex items-end justify-between">
 				<div>
-					<h1 className="text-3xl font-bold tracking-tight">
-						{config?.header?.title || "Dashboard"}
-					</h1>
-					{config?.header?.showDate !== false && (
-						<p className="text-muted-foreground mt-1 font-mono text-xs uppercase tracking-widest">
-							{date}
-						</p>
-					)}
+					<h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
+					<p className="text-muted-foreground mt-1 font-mono text-xs uppercase tracking-widest">
+						{date}
+					</p>
 				</div>
 			</div>
 
@@ -576,12 +545,9 @@ function DefaultDashboard({
 								System Status
 							</h3>
 						</div>
-						<h2 className="mb-2 text-xl font-bold">
-							{config?.welcomeCard?.title || "Welcome back"}
-						</h2>
+						<h2 className="mb-2 text-xl font-bold">Welcome back</h2>
 						<p className="text-sm leading-relaxed text-muted-foreground">
-							{config?.welcomeCard?.description ||
-								"Select a collection from the sidebar to manage your content."}
+							Select a collection from the sidebar to manage your content.
 						</p>
 					</div>
 				</Card>
@@ -739,31 +705,6 @@ function LazyPageRenderer({ config }: { config: PageDefinition<string> }) {
  * AdminRouter Component
  *
  * Routes to the appropriate view based on URL segments.
- * Uses the view registry to resolve list/edit views dynamically.
- *
- * When used inside AdminProvider, collections/globals/pages are automatically
- * read from context if not provided as props.
- *
- * @example
- * ```tsx
- * // With AdminProvider (automatic)
- * <AdminProvider admin={admin} client={client}>
- *   <AdminRouter segments={segments} navigate={navigate} />
- * </AdminProvider>
- *
- * // Without AdminProvider (manual)
- * <AdminRouter
- *   segments={segments}
- *   navigate={navigate}
- *   collections={collections}
- *   globals={globals}
- * />
- * ```
- */
-/**
- * AdminRouter Component
- *
- * Routes to the appropriate view based on URL segments.
  * Uses Suspense internally - shows skeleton while config loads.
  */
 export function AdminRouter(props: AdminRouterProps): React.ReactElement {
@@ -788,7 +729,6 @@ function AdminRouterInner({
 	pages: pagesProp,
 	DashboardComponent: DashboardComponentProp,
 	dashboardConfig: dashboardConfigProp,
-	defaultViews: defaultViewsProp,
 	collectionComponents,
 	globalComponents,
 	renderFormFields: _renderFormFields,
@@ -818,18 +758,15 @@ function AdminRouterInner({
 		collections,
 		globals,
 		pages,
-		listViews,
-		editViews,
+		views,
 		dashboardConfig,
 		DashboardComponent,
-		defaultViews,
 	} = useRouterConfig({
 		collections: collectionsProp,
 		globals: globalsProp,
 		pages: pagesProp,
 		dashboardConfig: dashboardConfigProp,
 		DashboardComponent: DashboardComponentProp,
-		defaultViews: defaultViewsProp,
 	});
 
 	const route = React.useMemo(
@@ -862,18 +799,12 @@ function AdminRouterInner({
 
 	// Dashboard
 	if (route.type === "dashboard") {
-		// Priority 1: defaultViews.dashboard.component
-		if (defaultViews?.dashboard?.component) {
-			const Component = defaultViews.dashboard.component;
-			return <Component />;
-		}
-
-		// Priority 2: Legacy DashboardComponent prop
+		// Priority 1: Legacy DashboardComponent prop
 		if (DashboardComponent) {
 			return <DashboardComponent />;
 		}
 
-		// Priority 3: DashboardGrid (if items or widgets exist)
+		// Priority 2: DashboardGrid (if items or widgets exist)
 		if (dashboardConfig?.items?.length || dashboardConfig?.widgets?.length) {
 			return (
 				<DashboardGrid
@@ -884,8 +815,8 @@ function AdminRouterInner({
 			);
 		}
 
-		// Priority 4: Default Dashboard
-		return <DefaultDashboard config={defaultViews?.dashboard} />;
+		// Priority 3: Default Dashboard
+		return <DefaultDashboard />;
 	}
 
 	// Collection List
@@ -909,19 +840,24 @@ function AdminRouterInner({
 		const viewNameFromSchema = (activeCollectionSchema as any)?.admin?.list
 			?.view;
 		const viewNameFromConfig = getConfiguredViewName((config as any)?.list);
-		const selectedListView =
-			viewNameFromSchema ?? viewNameFromConfig ?? DEFAULT_LIST_VIEW_ID;
-		const selectedListViewDefinition = listViews[selectedListView];
+		const selectedListView = viewNameFromSchema ?? viewNameFromConfig;
+		if (!selectedListView) {
+			console.warn(`No list view configured for collection "${name}". Add .list() to the collection.`);
+		}
+		const selectedListViewDefinition = views[selectedListView];
 		const selectedListViewConfig = mergeViewConfig(
 			getViewBaseConfig(selectedListViewDefinition),
-			(config as any)?.list?.["~config"] ??
+			(config as any)?.list?.config ??
 				(config as any)?.list ??
 				(activeCollectionSchema as any)?.admin?.list,
 		);
 
-		const listViewLoader =
-			getViewLoader(selectedListViewDefinition) ??
-			defaultViews?.collectionList?.component;
+		const listViewLoader = getViewLoader(selectedListViewDefinition);
+
+		// Kind validation
+		if (selectedListViewDefinition && (selectedListViewDefinition as any).kind !== "list") {
+			console.warn(`View "${selectedListView}" kind "${(selectedListViewDefinition as any).kind}" != expected "list"`);
+		}
 
 		// Priority 1: Custom component override
 		if (custom?.List) {
@@ -935,10 +871,6 @@ function AdminRouterInner({
 			viewConfig: selectedListViewConfig,
 			navigate,
 			basePath,
-			showSearch: defaultViews?.collectionList?.showSearch,
-			showFilters: defaultViews?.collectionList?.showFilters,
-			showToolbar: defaultViews?.collectionList?.showToolbar,
-			realtime: defaultViews?.collectionList?.realtime,
 		};
 		return (
 			<RegistryViewRenderer
@@ -970,22 +902,27 @@ function AdminRouterInner({
 		}
 
 		const custom = resolvedCollectionComponents[name];
-		const formDefaults = defaultViews?.collectionForm;
 		const viewNameFromSchema = (activeCollectionSchema as any)?.admin?.form
 			?.view;
 		const viewNameFromConfig = getConfiguredViewName((config as any)?.form);
-		const selectedEditView =
-			viewNameFromSchema ?? viewNameFromConfig ?? DEFAULT_EDIT_VIEW_ID;
-		const selectedEditViewDefinition = editViews[selectedEditView];
-		const selectedEditViewConfig = mergeViewConfig(
-			getViewBaseConfig(selectedEditViewDefinition),
-			(config as any)?.form?.["~config"] ??
+		const selectedFormView = viewNameFromSchema ?? viewNameFromConfig;
+		if (!selectedFormView) {
+			console.warn(`No form view configured for collection "${name}". Add .form() to the collection.`);
+		}
+		const selectedFormViewDefinition = views[selectedFormView];
+		const selectedFormViewConfig = mergeViewConfig(
+			getViewBaseConfig(selectedFormViewDefinition),
+			(config as any)?.form?.config ??
 				(config as any)?.form ??
 				(activeCollectionSchema as any)?.admin?.form,
 		);
 
-		const editViewLoader =
-			getViewLoader(selectedEditViewDefinition) ?? formDefaults?.component;
+		const formViewLoader = getViewLoader(selectedFormViewDefinition);
+
+		// Kind validation
+		if (selectedFormViewDefinition && (selectedFormViewDefinition as any).kind !== "form") {
+			console.warn(`View "${selectedFormView}" kind "${(selectedFormViewDefinition as any).kind}" != expected "form"`);
+		}
 
 		// Priority 1: Custom component override
 		if (custom?.Form) {
@@ -999,25 +936,24 @@ function AdminRouterInner({
 				? prefillValues
 				: undefined;
 
-		// Priority 2: Registry-resolved edit view
+		// Priority 2: Registry-resolved form view
 		const editComponentProps = {
 			collection: name,
 			id,
 			config,
-			viewConfig: selectedEditViewConfig,
+			viewConfig: selectedFormViewConfig,
 			navigate,
 			basePath,
 			defaultValues,
 			registry,
 			allCollectionsConfig: collections,
-			showMeta: formDefaults?.showMeta,
 		};
 		return (
 			<RegistryViewRenderer
 				key={`${name}-${id ?? "create"}`}
-				loader={editViewLoader}
-				viewKind="edit"
-				viewId={selectedEditView}
+				loader={formViewLoader}
+				viewKind="form"
+				viewId={selectedFormView}
 				componentProps={editComponentProps}
 			/>
 		);
@@ -1043,27 +979,24 @@ function AdminRouterInner({
 		const custom = resolvedGlobalComponents[name];
 		const viewNameFromSchema = (activeGlobalSchema as any)?.admin?.form?.view;
 		const viewNameFromConfig = getConfiguredViewName((config as any)?.form);
-		// For globals, only use editViews registry if a custom view is explicitly specified
-		// Otherwise, use the dedicated globalForm default view
-		const hasCustomViewSpecified = !!(viewNameFromSchema ?? viewNameFromConfig);
-		const selectedEditView =
-			viewNameFromSchema ?? viewNameFromConfig ?? DEFAULT_EDIT_VIEW_ID;
-		const selectedEditViewDefinition = hasCustomViewSpecified
-			? editViews[selectedEditView]
-			: undefined;
-		const selectedEditViewConfig = mergeViewConfig(
-			getViewBaseConfig(selectedEditViewDefinition),
-			(config as any)?.form?.["~config"] ??
+		const selectedFormView = viewNameFromSchema ?? viewNameFromConfig;
+		if (!selectedFormView) {
+			console.warn(`No form view configured for global "${name}". Add .form() to the global.`);
+		}
+		const selectedFormViewDefinition = views[selectedFormView];
+		const selectedFormViewConfig = mergeViewConfig(
+			getViewBaseConfig(selectedFormViewDefinition),
+			(config as any)?.form?.config ??
 				(config as any)?.form ??
 				(activeGlobalSchema as any)?.admin?.form,
 		);
 
-		// For globals: prefer defaultViews.globalForm.component (GlobalFormView)
-		// Only use editViews registry if a custom view was explicitly specified
-		const globalViewLoader =
-			(hasCustomViewSpecified
-				? getViewLoader(selectedEditViewDefinition)
-				: undefined) ?? defaultViews?.globalForm?.component;
+		const globalViewLoader = getViewLoader(selectedFormViewDefinition);
+
+		// Kind validation
+		if (selectedFormViewDefinition && (selectedFormViewDefinition as any).kind !== "form") {
+			console.warn(`View "${selectedFormView}" kind "${(selectedFormViewDefinition as any).kind}" != expected "form"`);
+		}
 
 		if (custom?.Form) {
 			return <custom.Form />;
@@ -1072,7 +1005,7 @@ function AdminRouterInner({
 		const globalComponentProps = {
 			global: name,
 			config,
-			viewConfig: selectedEditViewConfig,
+			viewConfig: selectedFormViewConfig,
 			navigate,
 			basePath,
 			registry,
@@ -1082,8 +1015,8 @@ function AdminRouterInner({
 			<RegistryViewRenderer
 				key={name}
 				loader={globalViewLoader}
-				viewKind="edit"
-				viewId={selectedEditView}
+				viewKind="form"
+				viewId={selectedFormView}
 				componentProps={globalComponentProps}
 			/>
 		);

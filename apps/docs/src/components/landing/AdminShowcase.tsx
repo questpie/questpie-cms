@@ -63,26 +63,21 @@ const snippets: Record<TabId, { code: string; filename: string }> = {
 		filename: "server/collections/posts.ts",
 	},
 	sidebar: {
-		code: `.sidebar(({ s, c }) => s.sidebar({
+		code: `// sidebar.ts — file convention
+import { sidebar } from "#questpie"
+
+export default sidebar({
   sections: [
-    s.section({
-      id: "content",
-      title: { en: "Content" },
-      items: [
-        { type: "collection", collection: "posts" },
-        { type: "collection", collection: "pages" },
-      ],
-    }),
-    s.section({
-      id: "system",
-      title: { en: "System" },
-      items: [
-        { type: "global", global: "settings" },
-      ],
-    }),
+    { id: "content", title: { en: "Content" } },
+    { id: "system", title: { en: "System" } },
   ],
-}))`,
-		filename: "server/admin.ts",
+  items: [
+    { sectionId: "content", type: "collection", collection: "posts" },
+    { sectionId: "content", type: "collection", collection: "pages" },
+    { sectionId: "system", type: "global", global: "settings" },
+  ],
+})`,
+		filename: "server/sidebar.ts",
 	},
 };
 
@@ -399,7 +394,7 @@ export function AdminShowcase() {
 				>
 					<Link
 						to="/docs/$"
-						params={{ _splat: "admin" }}
+						params={{ _splat: "workspace" }}
 						className="inline-flex items-center gap-2 font-mono text-xs text-primary transition-colors hover:text-primary/80 group"
 					>
 						Explore the admin module

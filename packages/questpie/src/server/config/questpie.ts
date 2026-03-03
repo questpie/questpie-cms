@@ -27,6 +27,7 @@ import type {
 	AccessMode,
 	DrizzleClientFromQuestpieConfig,
 	Locale,
+	TablesFromConfig,
 } from "#questpie/server/config/types.js";
 import {
 	type Global,
@@ -888,6 +889,10 @@ export class Questpie<TConfig extends QuestpieConfig = QuestpieConfig> {
 			}
 		}
 		return tables;
+	}
+
+	public get tables(): TablesFromConfig<TConfig> {
+		return this.getTables() as TablesFromConfig<TConfig>;
 	}
 
 	public getSchema(): Record<string, unknown> {

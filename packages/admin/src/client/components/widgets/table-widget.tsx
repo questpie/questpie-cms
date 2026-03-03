@@ -10,7 +10,7 @@
  */
 
 import type * as React from "react";
-import type { FieldDefinition } from "../../builder/field/field";
+import type { FieldInstance } from "../../builder/field/field";
 import type {
 	TableWidgetColumn,
 	TableWidgetColumnConfig,
@@ -60,7 +60,7 @@ function normalizeColumn(column: TableWidgetColumn): TableWidgetColumnConfig {
  */
 function getColumnLabel(
 	column: TableWidgetColumnConfig,
-	fieldDef: FieldDefinition | undefined,
+	fieldDef: FieldInstance | undefined,
 ): I18nText | string {
 	// Use override if provided
 	if (column.label) {
@@ -81,17 +81,17 @@ function getColumnLabel(
  * Resolve cell component from field definition
  */
 function resolveCellComponent(
-	fieldDef: FieldDefinition | undefined,
+	fieldDef: FieldInstance | undefined,
 ): React.ComponentType<{
 	value: unknown;
 	row?: unknown;
-	fieldDef?: FieldDefinition;
+	fieldDef?: FieldInstance;
 }> {
-	if (fieldDef?.cell?.component) {
-		return fieldDef.cell.component as React.ComponentType<{
+	if (fieldDef?.cell) {
+		return fieldDef.cell as React.ComponentType<{
 			value: unknown;
 			row?: unknown;
-			fieldDef?: FieldDefinition;
+			fieldDef?: FieldInstance;
 		}>;
 	}
 	return DefaultCell;
@@ -107,7 +107,7 @@ function TableCellRenderer({
 }: {
 	item: any;
 	column: TableWidgetColumnConfig;
-	fields: Record<string, FieldDefinition> | undefined;
+	fields: Record<string, FieldInstance> | undefined;
 }): React.ReactNode {
 	const value = item[column.key];
 
@@ -158,7 +158,7 @@ export default function TableWidget({
 	const columns = rawColumns.map(normalizeColumn);
 
 	// Field definitions are not available from server config (schema-driven)
-	const fields = undefined as Record<string, FieldDefinition> | undefined;
+	const fields = undefined as Record<string, FieldInstance> | undefined;
 
 	// Build query options
 	const queryOptions: any = { limit };

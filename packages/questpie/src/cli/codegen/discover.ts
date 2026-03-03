@@ -82,6 +82,8 @@ async function scanDir(
 			const ext = extname(name);
 			if (
 				TS_EXTENSIONS.has(ext) &&
+				!name.endsWith(".d.ts") &&
+				!name.endsWith(".d.mts") &&
 				!IGNORE_FILES.has(name) &&
 				!isPrivateFile(name)
 			) {
@@ -212,7 +214,6 @@ export async function discoverFiles(
 ): Promise<DiscoveryResult> {
 	const result: DiscoveryResult = {
 		categories: new Map(),
-		auth: null,
 		singles: new Map(),
 		spreads: new Map(),
 	};
@@ -253,27 +254,7 @@ export async function discoverFiles(
 		}
 	}
 
-	// ── Phase 2: Discover auth.ts (legacy single file) ────────
-	for (const authFile of ["auth.ts", "auth.mts"]) {
-		const authPath = join(rootDir, authFile);
-		if (await fileExists(authPath)) {
-			const importPath = relativeImport(outDir, join(rootDir, authFile));
-			const exportInfo = await detectExportType(authPath);
-			result.auth = {
-				absolutePath: authPath,
-				key: "auth",
-				importPath,
-				varName: "_auth",
-				source: authFile,
-				exportType: exportInfo.type,
-				namedExportName: exportInfo.namedExportName,
-				isBundle: exportInfo.isBundle,
-			};
-			break;
-		}
-	}
-
-	// ── Phase 3: Discover plugin discover patterns ────────────
+	// ── Phase 2: Discover plugin discover patterns ────────────
 	// These are single-file, spread, and directory patterns from the merged target.
 	if (options?.discover) {
 		for (const [stateKey, rawPattern] of Object.entries(options.discover)) {
