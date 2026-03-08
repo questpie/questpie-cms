@@ -4,7 +4,7 @@
 	"private": true,
 	"type": "module",
 	"imports": {
-		"#questpie": "./src/questpie/server/.generated/index.ts"
+		"#questpie": "./src/questpie/server/.generated/factories.ts"
 	},
 	"scripts": {
 		"dev": "bun --bun vite dev --port 3001",

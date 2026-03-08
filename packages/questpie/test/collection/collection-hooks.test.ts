@@ -51,10 +51,9 @@ const createBeforeAfterModule = (hookCallOrder: string[]) => ({
 							.replace(/[^a-z0-9-]/g, "");
 					}
 				},
-				afterChange: async ({ data, operation, app }) => {
+				afterChange: async ({ data, operation, queue }) => {
 					hookCallOrder.push(`after-${operation}`);
-					// Use app from context instead of getAppFromContext
-					await (app as any).queue.articleCreated.publish({
+					await (queue as any).articleCreated.publish({
 						articleId: data.id,
 						title: data.title,
 					});
@@ -75,23 +74,21 @@ const testModuleUpdate = {
 				viewCount: f.text(),
 			}))
 			.hooks({
-				beforeChange: async ({ data, operation, app }) => {
-					// Use app from context
+				beforeChange: async ({ data, operation, logger }) => {
 					if (operation === "update" && data.status === "published") {
-						(app as any).logger.info("Article being published", {
+						(logger as any).info("Article being published", {
 							title: data.title,
 						});
 					}
 				},
-				afterChange: async ({ data, original, operation, app }) => {
-					// Use app from context
+				afterChange: async ({ data, original, operation, email }) => {
 					if (
 						operation === "update" &&
 						original &&
 						original.status !== "published" &&
 						data.status === "published"
 					) {
-						(app as any).email?.send({
+						(email as any)?.send({
 							to: "admin@example.com",
 							subject: "Article Published",
 							text: `Article "${data.title}" has been published`,
@@ -109,15 +106,13 @@ const testModuleDelete = {
 				title: f.textarea({ required: true }),
 			}))
 			.hooks({
-				beforeDelete: async ({ data, app }) => {
-					// Use app from context
-					(app as any).logger?.warn("Article deletion requested", {
+				beforeDelete: async ({ data, logger }) => {
+					(logger as any)?.warn("Article deletion requested", {
 						id: data.id,
 					});
 				},
-				afterDelete: async ({ data, app }) => {
-					// Use app from context
-					await (app as any).queue.articleCleanup.publish({
+				afterDelete: async ({ data, queue }) => {
+					await (queue as any).articleCleanup.publish({
 						articleId: data.id,
 					});
 				},
@@ -159,10 +154,9 @@ const createEnrichmentModule = (enrichmentData: Map<string, any>) => ({
 						timestamp: Date.now(),
 					});
 				},
-				afterChange: async ({ data, app }) => {
-					// Use app from context
+				afterChange: async ({ data, queue }) => {
 					const enrichment = enrichmentData.get(data.id);
-					await (app as any).queue.articleEnriched.publish({
+					await (queue as any).articleEnriched.publish({
 						articleId: data.id,
 						enrichment,
 					});

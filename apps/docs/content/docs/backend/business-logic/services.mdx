@@ -5,40 +5,44 @@ description: Singleton and request-scoped services — define once, inject every
 
 # Services
 
-Services are reusable units of logic that get injected into `AppContext`. Define a service in `services/`, and it becomes available in every hook, function, job, and route handler.
+Services are reusable units of logic that get injected into `AppContext` under the `services` key. Define a service in `services/`, and it becomes available in every hook, function, job, and route handler.
 
 ## Defining a Service
 
 ```ts title="services/blog.ts"
 import { service } from "questpie";
 
-export class BlogService {
-  computeReadingTime(content: string): number {
-    const text = content.replace(/<[^>]*>/g, " ");
-    const words = text.trim().split(/\s+/).filter((w) => w.length > 0).length;
-    return Math.max(1, Math.ceil(words / 200));
-  }
+const WORDS_PER_MINUTE = 200;
 
-  generateSlug(title: string): string {
-    return title
-      .toLowerCase()
-      .replace(/[^a-z0-9\s-]/g, "")
-      .trim()
-      .replace(/\s+/g, "-");
-  }
+function stripHtml(html: string): string {
+  return html.replace(/<[^>]*>/g, " ");
 }
 
 export default service({
   lifecycle: "singleton",
-  create: () => new BlogService(),
+  create: () => ({
+    computeReadingTime(content: string): number {
+      const text = stripHtml(content);
+      const words = text.trim().split(/\s+/).filter((w) => w.length > 0).length;
+      return Math.max(1, Math.ceil(words / WORDS_PER_MINUTE));
+    },
+
+    generateSlug(title: string): string {
+      return title
+        .toLowerCase()
+        .replace(/[^a-z0-9\s-]/g, "")
+        .trim()
+        .replace(/\s+/g, "-");
+    },
+  }),
 });
 ```
 
-The filename becomes the context key: `services/blog.ts` → `{ blog }` in AppContext.
+The filename becomes the key inside `services`: `services/blog.ts` → `ctx.services.blog`.
 
 ## Using Services
 
-Services are available in every handler via context destructuring:
+Services are available in every handler via `services` destructuring:
 
 ```ts title="collections/posts.ts"
 export const posts = collection("posts")
@@ -49,7 +53,8 @@ export const posts = collection("posts")
     slug: f.text({ label: "Slug" }),
   }))
   .hooks({
-    beforeChange: async ({ data, blog }) => {
+    beforeChange: async ({ data, services }) => {
+      const { blog } = services;
       if (data.content) {
         data.readingTime = blog.computeReadingTime(data.content);
       }
@@ -63,11 +68,11 @@ export const posts = collection("posts")
 ```ts title="functions/get-post-stats.ts"
 export default fn({
   schema: z.object({ postId: z.string() }),
-  handler: async ({ input, collections, blog }) => {
+  handler: async ({ input, collections, services }) => {
     const post = await collections.posts.findOne({ where: { id: input.postId } });
     return {
-      readingTime: blog.computeReadingTime(post.content),
-      excerpt: blog.extractExcerpt(post.content),
+      readingTime: services.blog.computeReadingTime(post.content),
+      excerpt: services.blog.extractExcerpt(post.content),
     };
   },
 });

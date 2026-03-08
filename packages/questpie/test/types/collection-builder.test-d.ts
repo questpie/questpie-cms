@@ -384,3 +384,41 @@ type _withHasAuthor = Expect<Equal<HasKey<PostWith, "author">, true>>;
 type _withHasComments = Expect<Equal<HasKey<PostWith, "comments">, true>>;
 // With should NOT have random keys
 type _withNoRandom = Expect<Equal<HasKey<PostWith, "random">, false>>;
+
+// ============================================================================
+// .merge() — localized, upload, validation, output, fieldDefinitions
+// ============================================================================
+
+const baseWithUpload = q
+	.collection("media")
+	.fields(({ f }) => ({ alt: f.textarea() }))
+	.upload({ visibility: "public" });
+
+const otherWithUpload = q
+	.collection("media")
+	.fields(({ f }) => ({ caption: f.textarea() }))
+	.upload({ visibility: "private" });
+
+const mergedUpload = baseWithUpload.merge(otherWithUpload);
+type MergedUploadState =
+	typeof mergedUpload extends CollectionBuilder<infer S> ? S : never;
+
+// upload: other wins when defined
+type _mergedUploadDefined = Expect<
+	Equal<MergedUploadState["upload"] extends undefined ? false : true, true>
+>;
+
+// fieldDefinitions: intersection (both sides merged)
+type _mergedFieldDefsExist = Expect<
+	Equal<
+		MergedUploadState["fieldDefinitions"] extends Record<string, any> ? true : false,
+		true
+	>
+>;
+
+// merged fields from both sides present
+type MergedUploadFields = MergedUploadState["fields"];
+type _mergedHasAlt = Expect<Equal<HasKey<MergedUploadFields, "alt">, true>>;
+type _mergedHasCaption = Expect<
+	Equal<HasKey<MergedUploadFields, "caption">, true>
+>;

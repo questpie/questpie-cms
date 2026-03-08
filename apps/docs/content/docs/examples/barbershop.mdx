@@ -139,25 +139,23 @@ export const appointments = collection("appointments")
 ```ts title="services/blog.ts"
 import { service } from "questpie";
 
-export class BlogService {
-  computeReadingTime(content: string): number { /* ... */ }
-  generateSlug(title: string): string { /* ... */ }
-  extractExcerpt(content: string): string { /* ... */ }
-}
-
 export default service({
   lifecycle: "singleton",
-  create: () => new BlogService(),
+  create: () => ({
+    computeReadingTime(content: string): number { /* ... */ },
+    generateSlug(title: string): string { /* ... */ },
+    extractExcerpt(content: string): string { /* ... */ },
+  }),
 });
 ```
 
-Used in hooks via context — no imports:
+Used in hooks via `services` — no imports:
 
 ```ts
 .hooks({
-  beforeChange: async ({ data, blog }) => {
-    data.slug = blog.generateSlug(data.title);
-    data.readingTime = blog.computeReadingTime(data.content);
+  beforeChange: async ({ data, services }) => {
+    data.slug = services.blog.generateSlug(data.title);
+    data.readingTime = services.blog.computeReadingTime(data.content);
   },
 })
 ```

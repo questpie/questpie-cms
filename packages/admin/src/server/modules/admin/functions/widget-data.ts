@@ -5,7 +5,7 @@
  * Called by the client when a widget has `hasLoader: true`.
  */
 
-import { fn, type Questpie } from "questpie";
+import { fn, tryGetContext } from "questpie";
 import { z } from "zod";
 import type { ServerDashboardItem } from "../../../augmentation.js";
 
@@ -63,9 +63,10 @@ export const fetchWidgetData = fn({
 	schema: fetchWidgetDataSchema,
 	outputSchema: z.unknown(),
 	handler: async (ctx) => {
-		const app = (ctx as any).app as Questpie<any>;
-		const state = (app as any).state || {};
-		const dashboard = state.dashboard;
+		// Access dashboard config from the app's internal state
+		const stored = tryGetContext();
+		const appState = (stored?.app as any)?.state || {};
+		const dashboard = appState.dashboard;
 
 		if (!dashboard?.items) {
 			throw new Error("No dashboard configured");
@@ -79,16 +80,19 @@ export const fetchWidgetData = fn({
 			throw new Error(`Widget "${ctx.input.widgetId}" has no loader`);
 		}
 
+		const widgetCtx = {
+			collections: (ctx as any).collections,
+			globals: (ctx as any).globals,
+			db: (ctx as any).db,
+			session: (ctx as any).session,
+			locale: (ctx as any).locale,
+		};
+
 		// Evaluate per-widget access (if defined)
 		if (widget.access !== undefined) {
 			const accessResult =
 				typeof widget.access === "function"
-					? await widget.access({
-							app: app,
-							db: (ctx as any).db,
-							session: (ctx as any).session,
-							locale: (ctx as any).locale,
-						})
+					? await widget.access(widgetCtx)
 					: widget.access;
 			if (accessResult === false) {
 				throw new Error("Access denied");
@@ -96,12 +100,7 @@ export const fetchWidgetData = fn({
 		}
 
 		// Execute loader with server context
-		return widget.loader({
-			app: app,
-			db: (ctx as any).db,
-			session: (ctx as any).session,
-			locale: (ctx as any).locale,
-		});
+		return widget.loader(widgetCtx);
 	},
 });
 

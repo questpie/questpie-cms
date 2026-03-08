@@ -190,7 +190,7 @@ describe("generateTemplate — minimal (modules.ts only)", () => {
 	it("emits declare module augmentation for AppContext", () => {
 		expect(code).toContain('declare module "questpie"');
 		expect(code).toContain("interface AppContext");
-		expect(code).toContain("tables: _AppInternal['tables']");
+		expect(code).toContain("collections: _AppInternal['api']['collections']");
 	});
 
 	it("emits AppConfig type", () => {

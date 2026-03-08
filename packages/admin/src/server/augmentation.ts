@@ -653,10 +653,11 @@ export interface AdminGlobalConfig {
 
 /**
  * Context available to widget loader and access functions on the server.
- * Use `typedApp<App>(ctx.app)` for typed access.
+ * Provides typed access to collections, globals, and infrastructure.
  */
 export type WidgetFetchContext = {
-	app: any;
+	collections: any;
+	globals: any;
 	db: any;
 	session?: any;
 	locale?: string;
@@ -1453,8 +1454,12 @@ export interface ServerActionContext<TData = Record<string, unknown>> {
 	itemId?: string;
 	/** Item IDs (for bulk actions) */
 	itemIds?: string[];
-	/** app instance — use `typedApp<App>(ctx.app)` for typed access */
-	app: any;
+	/** Auth instance (Better Auth API) */
+	auth: any;
+	/** Collection CRUD APIs */
+	collections: any;
+	/** Global CRUD APIs */
+	globals: any;
 	/** Database client */
 	db: unknown;
 	/** Current user session */

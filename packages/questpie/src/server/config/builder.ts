@@ -537,15 +537,15 @@ export class QuestpieBuilder<
 	 *   .hooks({
 	 *     collections: {
 	 *       exclude: ["audit_log"],
-	 *       afterChange: async ({ collection, data, operation, app }) => {
+	 *       afterChange: async ({ collection, data, operation }) => {
 	 *         console.log(`[${collection}] ${operation}:`, data.id);
 	 *       },
-	 *       afterDelete: async ({ collection, data, app }) => {
+	 *       afterDelete: async ({ collection, data }) => {
 	 *         console.log(`[${collection}] deleted:`, data.id);
 	 *       },
 	 *     },
 	 *     globals: {
-	 *       afterChange: async ({ global, data, app }) => {
+	 *       afterChange: async ({ global, data }) => {
 	 *         console.log(`[${global}] updated`);
 	 *       },
 	 *     },
@@ -875,8 +875,8 @@ export class QuestpieBuilder<
 	 *     to: z.string().email(),
 	 *     subject: z.string(),
 	 *   }),
-	 *   handler: async ({ payload, app }) => {
-	 *     await app.email.send({ to: payload.to, subject: payload.subject, html: '...' });
+	 *   handler: async ({ payload, email }) => {
+	 *     await email.send({ to: payload.to, subject: payload.subject, html: '...' });
 	 *   },
 	 * });
 	 *
@@ -896,7 +896,7 @@ export class QuestpieBuilder<
 	 * ```ts
 	 * const getStats = q.fn({
 	 *   schema: z.object({ period: z.enum(['day', 'week', 'month']) }),
-	 *   handler: async ({ input, app }) => {
+	 *   handler: async ({ input, collections }) => {
 	 *     return { visits: 100, orders: 50 };
 	 *   },
 	 * });

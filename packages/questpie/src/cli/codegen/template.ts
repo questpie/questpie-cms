@@ -429,7 +429,6 @@ export function generateTemplate(options: TemplateOptions): string {
 		lines.push("\t\t// Entity APIs");
 		lines.push("\t\tcollections: _AppInternal['api']['collections'];");
 		lines.push("\t\tglobals: _AppInternal['api']['globals'];");
-		lines.push("\t\ttables: _AppInternal['tables'];");
 		lines.push("");
 		lines.push("\t\t// Request-scoped");
 		lines.push(
@@ -445,15 +444,17 @@ export function generateTemplate(options: TemplateOptions): string {
 			);
 		}
 
-		// Services — flat on context (driven by appContextEmit: "services")
+		// Services — namespaced under `services` key
 		if (hasServices) {
 			lines.push("");
 			lines.push("\t\t// User services");
+			lines.push("\t\tservices: {");
 			for (const file of sortedValues(servicesCat!)) {
 				lines.push(
-					`\t\t${safeKey(file.key)}: ServiceInstanceOf<typeof ${file.varName}>;`,
+					`\t\t\t${safeKey(file.key)}: ServiceInstanceOf<typeof ${file.varName}>;`,
 				);
 			}
+			lines.push("\t\t};");
 		}
 
 		lines.push("\t}");

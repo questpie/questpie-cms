@@ -102,8 +102,9 @@ Hooks use context-first injection. All dependencies are available through destru
 
 ```ts title="collections/blog-posts.ts"
 .hooks({
-  beforeChange: async ({ data, blog }) => {
-    // `blog` is a custom service from services/blog.ts
+  beforeChange: async ({ data, services }) => {
+    // `services.blog` is a custom service from services/blog.ts
+    const { blog } = services;
     data.slug = blog.generateSlug(data.title);
     data.readingTime = blog.computeReadingTime(data.content);
     data.excerpt = blog.extractExcerpt(data.content);
@@ -166,9 +167,9 @@ Hooks use context-first injection. All dependencies are available through destru
 
 ```ts
 .hooks({
-  beforeChange: async ({ data, blog }) => {
-    data.readingTime = blog.computeReadingTime(data.content);
-    data.excerpt = blog.extractExcerpt(data.content);
+  beforeChange: async ({ data, services }) => {
+    data.readingTime = services.blog.computeReadingTime(data.content);
+    data.excerpt = services.blog.extractExcerpt(data.content);
   },
 })
 ```

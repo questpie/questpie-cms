@@ -109,7 +109,7 @@ export default dashboard({
 			type: "value",
 			span: 2,
 			refreshInterval: 1000 * 60 * 5,
-			loader: async ({ app }: any) => {
+			loader: async (ctx: any) => {
 				const now = new Date();
 				const currentStart = new Date(
 					now.getFullYear(),
@@ -139,7 +139,7 @@ export default dashboard({
 							endDate: currentEnd,
 							completedOnly: true,
 						},
-						app,
+						collections: ctx.collections,
 					} as any),
 					getRevenueStats.handler({
 						input: {
@@ -147,7 +147,7 @@ export default dashboard({
 							endDate: previousEnd,
 							completedOnly: true,
 						},
-						app,
+						collections: ctx.collections,
 					} as any),
 				]);
 
@@ -185,7 +185,7 @@ export default dashboard({
 			span: 1,
 			showPercentage: true,
 			label: { en: "Monthly Goal", sk: "Mesačný cieľ" },
-			loader: async ({ app }: any) => {
+			loader: async (ctx: any) => {
 				const now = new Date();
 				const currentStart = new Date(
 					now.getFullYear(),
@@ -198,7 +198,7 @@ export default dashboard({
 						endDate: now.toISOString(),
 						completedOnly: true,
 					},
-					app,
+					collections: ctx.collections,
 				} as any);
 				const target = 500000;
 
@@ -245,8 +245,8 @@ export default dashboard({
 			maxItems: 8,
 			showTimestamps: true,
 			timestampFormat: "relative",
-			loader: async ({ app }: any) => {
-				const res = await app.api.collections.appointments.find({
+			loader: async ({ collections }: any) => {
+				const res = await collections.appointments.find({
 					limit: 8,
 					orderBy: { updatedAt: "desc" },
 				});

@@ -128,7 +128,6 @@ declare module "questpie" {
 		// Entity APIs
 		collections: _AppInternal['api']['collections'];
 		globals: _AppInternal['api']['globals'];
-		tables: _AppInternal['tables'];
 
 		// Request-scoped
 		session: _AppInternal['auth'] extends { api: { getSession: (...args: any[]) => Promise<infer TSession> } } ? NonNullable<TSession> | null : null;

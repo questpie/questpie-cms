@@ -2,7 +2,7 @@
  * Blog Posts Collection
  *
  * Demonstrates context-first service injection:
- * - `blog` service (from services/blog.ts) is available directly in hooks
+ * - `services.blog` (from services/blog.ts) is available in hooks via `ctx.services`
  * - `queue` is used to schedule email notifications on publish
  * - No `import { app }` — everything comes from the hook context
  */
@@ -95,9 +95,11 @@ export const blogPosts = collection("blog_posts")
 		/**
 		 * Before create/update: auto-compute readingTime and slug via blog service.
 		 *
-		 * Context-first: `blog` is injected from services/blog.ts (no `import { app }`).
+		 * Context-first: `services.blog` is injected from services/blog.ts.
 		 */
-		beforeChange: async ({ data, operation, blog, }) => {
+		beforeChange: async ({ data, operation, services }) => {
+			const { blog } = services;
+
 			// Auto-generate slug from title on create (if not set)
 			if (operation === "create" && data.title && !data.slug) {
 				data.slug = blog.generateSlug(data.title);

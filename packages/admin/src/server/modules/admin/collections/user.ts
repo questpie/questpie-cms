@@ -136,8 +136,8 @@ const adminUserCollection = collection("user")
 						}),
 					},
 				},
-				handler: async ({ data, app, session }: any) => {
-					const authApi = (app as any)?.auth?.api;
+				handler: async ({ data, auth, session }: any) => {
+					const authApi = (auth as any)?.api;
 					if (!authApi?.createUser) {
 						return {
 							type: "error",
@@ -219,7 +219,7 @@ const adminUserCollection = collection("user")
 						}),
 					},
 				},
-				handler: async ({ data, itemId, app, session }: any) => {
+				handler: async ({ data, itemId, auth, session }: any) => {
 					if (!itemId) {
 						return {
 							type: "error",
@@ -239,7 +239,7 @@ const adminUserCollection = collection("user")
 						};
 					}
 
-					const authApi = (app as any)?.auth?.api;
+					const authApi = (auth as any)?.api;
 					if (!authApi?.setUserPassword) {
 						return {
 							type: "error",

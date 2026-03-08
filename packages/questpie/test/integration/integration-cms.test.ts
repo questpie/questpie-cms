@@ -32,11 +32,10 @@ const createTestDefinition = () => {
 		}))
 		.title(({ f }) => f.name)
 		.hooks({
-			afterChange: async ({ data, operation, app: appInstance }) => {
+			afterChange: async ({ data, operation, email }) => {
 				if (operation !== "create") return;
-				const app = appInstance as any;
 				// Send welcome email when author is created
-				await app.email?.send({
+				await (email as any)?.send({
 					to: data.email,
 					subject: "Welcome to our platform!",
 					text: `Hi ${data.name}, welcome!`,
@@ -84,32 +83,30 @@ const createTestDefinition = () => {
 						.replace(/[^a-z0-9-]/g, "");
 				}
 			},
-			afterChange: async ({ data, original, operation, app: appInstance }) => {
-				const app = appInstance as any;
+			afterChange: async ({ data, original, operation, logger, queue }) => {
 				if (operation === "create") {
-					await app.logger?.info("Article created", {
+					await (logger as any)?.info("Article created", {
 						id: data.id,
 						title: data.title,
 					});
 				} else if (operation === "update" && original) {
 					// Track publication
 					if (original.status !== "published" && data.status === "published") {
-						await app.queue.articlePublished.publish({
+						await (queue as any).articlePublished.publish({
 							articleId: data.id,
 							title: data.title,
 							authorId: (data as any).author, // FK column key is field name with unified API
 						});
 
-						await app.logger?.info("Article published", {
+						await (logger as any)?.info("Article published", {
 							id: data.id,
 							title: data.title,
 						});
 					}
 				}
 			},
-			afterDelete: async ({ data, app: appInstance }) => {
-				const app = appInstance as any;
-				await app.queue.articleDeleted.publish({ articleId: data.id });
+			afterDelete: async ({ data, queue }) => {
+				await (queue as any).articleDeleted.publish({ articleId: data.id });
 			},
 		});
 

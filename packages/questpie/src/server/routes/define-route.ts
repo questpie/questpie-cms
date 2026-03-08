@@ -23,7 +23,7 @@ import type { RouteDefinition } from "./types.js";
  *
  * export default route({
  *   method: "POST",
- *   handler: async ({ request, app }) => {
+ *   handler: async ({ request }) => {
  *     const body = await request.text();
  *     return new Response("ok", { status: 200 });
  *   },

@@ -8,6 +8,7 @@ import {
 	type BuiltinFields,
 	builtinFields,
 } from "#questpie/server/fields/builtin/defaults.js";
+import type { ExtractColumnsFromFieldDefinitions } from "#questpie/server/fields/builder-type-utils.js";
 import type {
 	FieldDefinition,
 	FieldDefinitionState,
@@ -22,17 +23,6 @@ import type {
 	GlobalOptions,
 } from "#questpie/server/global/builder/types.js";
 import type { Override, Prettify } from "#questpie/shared/type-utils.js";
-
-/**
- * Extract Drizzle column types from field definitions.
- */
-type ExtractColumnsFromFieldDefinitions<
-	TFields extends Record<string, FieldDefinition<FieldDefinitionState>>,
-> = {
-	[K in keyof TFields]: TFields[K]["$types"]["column"] extends null
-		? never
-		: TFields[K]["$types"]["column"];
-};
 
 /**
  * Extract field types from GlobalBuilderState.
@@ -418,15 +408,13 @@ export class GlobalBuilder<TState extends GlobalBuilderState> {
  * const settings = global("settings").fields({ ... });
  * ```
  *
- * @example With typed app (recommended for full type safety)
+ * @example With context-first hooks
  * ```ts
- * import type { App } from './app';
- *
- * const settings = global<App>()("settings")
+ * const settings = global("settings")
  *   .fields({ ... })
  *   .hooks({
- *     afterUpdate: ({ app }) => {
- *       app.kv.set('cache', ...); // fully typed!
+ *     afterUpdate: ({ kv }) => {
+ *       kv.set('cache', ...); // fully typed!
  *     }
  *   });
  * ```

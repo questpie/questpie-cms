@@ -251,8 +251,7 @@ describe("global hooks injection", () => {
 					{
 						exclude: ["auditLog"],
 						afterChange: async (ctx: any) => {
-							const app = ctx.app as any;
-							await app.api.collections.auditLog.create({
+							await ctx.collections.auditLog.create({
 								action: ctx.operation,
 								resource: ctx.collection,
 								resourceId: ctx.data?.id ? String(ctx.data.id) : null,
