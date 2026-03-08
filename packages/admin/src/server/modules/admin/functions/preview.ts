@@ -8,7 +8,7 @@
  */
 
 import { createHmac, timingSafeEqual } from "node:crypto";
-import { fn, type Questpie } from "questpie";
+import { ApiError, fn, type Questpie } from "questpie";
 import { z } from "zod";
 import { getPreviewSecret } from "#questpie/admin/shared/preview-utils.js";
 import type { PreviewConfig } from "../../../augmentation.js";
@@ -110,7 +110,7 @@ export function createPreviewFunctions(secret: string) {
 			const session = (ctx as any).session;
 			// Require authenticated admin session
 			if (!session) {
-				throw new Error("Unauthorized: Admin session required");
+				throw ApiError.unauthorized("Admin session required");
 			}
 
 			const { path, ttlMs = DEFAULT_TTL_MS } = input;

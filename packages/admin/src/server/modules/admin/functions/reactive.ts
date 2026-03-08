@@ -11,7 +11,7 @@ import type {
 	ReactiveContext,
 	ReactiveServerContext,
 } from "questpie";
-import { fn, type Questpie } from "questpie";
+import { ApiError, fn, type Questpie } from "questpie";
 import { z } from "zod";
 
 // ============================================================================
@@ -74,7 +74,7 @@ function getCollection(app: Questpie<any>, collectionName: string) {
 	const collections = app.getCollections();
 	const collection = collections[collectionName];
 	if (!collection) {
-		throw new Error(`Collection '${collectionName}' not found`);
+		throw ApiError.notFound("Collection", collectionName);
 	}
 
 	return collection;
@@ -87,7 +87,7 @@ function getGlobal(app: Questpie<any>, globalName: string) {
 	const globals = app.getGlobals();
 	const global = globals[globalName];
 	if (!global) {
-		throw new Error(`Global '${globalName}' not found`);
+		throw ApiError.notFound("Global", globalName);
 	}
 
 	return global;
@@ -147,15 +147,13 @@ function getFieldDefinition(
 				}
 			}
 		} else {
-			throw new Error(`Field '${part}' not found in path '${fieldPath}'`);
+			throw ApiError.notFound("Field", `${part} in path '${fieldPath}'`);
 		}
 	}
 
 	if (!fieldDef) {
-		const entityType = type === "global" ? "global" : "collection";
-		throw new Error(
-			`Field '${fieldPath}' not found in ${entityType} '${entityName}'`,
-		);
+		const entityType = type === "global" ? "Global" : "Collection";
+		throw ApiError.notFound(`${entityType} field`, `${entityName}.${fieldPath}`);
 	}
 
 	return fieldDef;
