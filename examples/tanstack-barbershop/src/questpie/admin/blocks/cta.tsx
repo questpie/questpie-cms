@@ -5,7 +5,7 @@
  * Design: Bold background colors with contrasting text.
  */
 
-import { ArrowRight } from "@phosphor-icons/react";
+import { Icon } from "@iconify/react";
 import { buttonVariants } from "../../../components/ui/button";
 import { cn } from "../../../lib/utils";
 import type { BlockProps } from "../.generated/client";
@@ -55,10 +55,9 @@ export function CTARenderer({ values }: BlockProps<"cta">) {
 						)}
 					>
 						{values.buttonText}
-						<ArrowRight
+						<Icon icon="ph:arrow-right-bold"
 							className="size-5 transition-transform group-hover:translate-x-1"
-							weight="bold"
-						/>
+						 />
 					</a>
 				)}
 			</div>

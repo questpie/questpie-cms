@@ -7,11 +7,11 @@
 
 import { varchar } from "drizzle-orm/pg-core";
 import { z } from "zod";
-import type { KnownCollectionNames } from "../../../config/app-context.js";
-import { belongsToOps, toManyOps } from "../../operators/builtin.js";
-import { createField } from "../field.js";
-import type { DefaultFieldState } from "../types.js";
-import type { RelationFieldMetadata, ReferentialAction } from "../../types.js";
+import type { KnownCollectionNames } from "../../config/app-context.js";
+import { belongsToOps, toManyOps } from "../operators/builtin.js";
+import { createField } from "../field-class.js";
+import type { DefaultFieldState } from "../field-class-types.js";
+import type { RelationFieldMetadata, ReferentialAction } from "../types.js";
 
 // ============================================================================
 // Types
@@ -100,4 +100,4 @@ export function upload(config?: UploadConfig): Field<UploadFieldState> {
 	});
 }
 
-import type { Field } from "../field.js";
+import type { Field } from "../field-class.js";

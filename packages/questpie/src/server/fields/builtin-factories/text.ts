@@ -4,9 +4,9 @@
 
 import { text as pgText, varchar } from "drizzle-orm/pg-core";
 import { z } from "zod";
-import { stringOps } from "../../operators/builtin.js";
-import { createField, Field } from "../field.js";
-import type { DefaultFieldState } from "../types.js";
+import { stringOps } from "../operators/builtin.js";
+import { createField, Field } from "../field-class.js";
+import type { DefaultFieldState } from "../field-class-types.js";
 
 export type TextFieldState = DefaultFieldState & {
 	type: "text";

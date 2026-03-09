@@ -36,17 +36,13 @@
  */
 
 // V2 Field builder class
-export { Field } from "./v2/field.js";
+export { Field } from "./field-class.js";
 
 // Builder
 export {
 	type BuiltinFields,
 	createFieldBuilder,
-	/** @deprecated Use `createFieldBuilder` instead */
-	createFieldBuilderFromDefs,
 	createFieldsCallbackContext,
-	/** @deprecated Use `BuiltinFields` instead */
-	type DefaultFieldTypeMap,
 	extractFieldDefinitions,
 	type FieldBuilderProxy,
 	type FieldInputs,

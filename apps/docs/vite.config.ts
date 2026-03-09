@@ -28,7 +28,7 @@ export default defineConfig({
 				manualChunks(id) {
 					if (!id.includes("node_modules")) return;
 
-					if (id.includes("@phosphor-icons") || id.includes("lucide-react")) {
+					if (id.includes("@iconify") || id.includes("lucide-react")) {
 						return "vendor-icons";
 					}
 				},

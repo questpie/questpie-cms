@@ -1,13 +1,4 @@
-import {
-	Buildings,
-	Cube,
-	FileText,
-	Key,
-	ListChecks,
-	MagnifyingGlass,
-	ShieldCheck,
-	Translate,
-} from "@phosphor-icons/react";
+import { Icon } from "@iconify/react";
 import { Link } from "@tanstack/react-router";
 import { motion } from "motion/react";
 import {
@@ -18,56 +9,56 @@ import {
 
 const features = [
 	{
-		icon: Cube,
+		icon: "ph:cube",
 		title: "Blocks System",
 		description:
 			"Define reusable blocks on the server and render them in admin or custom UIs.",
 		link: "workspace/blocks",
 	},
 	{
-		icon: MagnifyingGlass,
+		icon: "ph:magnifying-glass",
 		title: "Search & Semantic",
 		description:
 			"Built-in PostgreSQL FTS, pgVector semantic search, and faceted filters.",
 		link: "production/search",
 	},
 	{
-		icon: FileText,
+		icon: "ph:file-text",
 		title: "OpenAPI & Scalar",
 		description:
 			"Generate OpenAPI from collections, globals, and functions with built-in Scalar docs.",
 		link: "reference",
 	},
 	{
-		icon: Translate,
+		icon: "ph:translate",
 		title: "i18n / Localization",
 		description:
 			"Field-level localization with typed locales and admin locale switching.",
 		link: "backend/data-modeling/localization",
 	},
 	{
-		icon: ListChecks,
+		icon: "ph:list-checks",
 		title: "Jobs & Queues",
 		description:
 			"pg-boss jobs with cron schedules, retries, and priority queues.",
 		link: "production/queue",
 	},
 	{
-		icon: ShieldCheck,
+		icon: "ph:shield-check",
 		title: "Access Control",
 		description:
 			"Collection and field-level rules evaluated with full user/session context.",
 		link: "backend/rules/access-control",
 	},
 	{
-		icon: Buildings,
+		icon: "ph:buildings",
 		title: "Multitenancy & Scopes",
 		description:
 			"Scopes, tenant isolation, row-level filters, and admin scope picker.",
 		link: "backend/rules/access-control",
 	},
 	{
-		icon: Key,
+		icon: "ph:key",
 		title: "Auth (Better Auth)",
 		description:
 			"Better Auth integration: email/password, OAuth, 2FA, sessions, and API keys.",
@@ -140,7 +131,7 @@ export function Features() {
 						>
 							<CardDecoration index={i} />
 							<div className="mb-3 flex h-9 w-9 items-center justify-center border border-primary/20 bg-primary/10 text-primary transition-colors group-hover:bg-primary/20">
-								<feature.icon className="h-4 w-4" aria-hidden="true" />
+								<Icon icon={feature.icon} className="h-4 w-4" aria-hidden="true" />
 							</div>
 							<h4 className="font-mono text-sm font-semibold mb-1">
 								{feature.title}

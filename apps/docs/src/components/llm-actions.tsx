@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, Copy } from "@phosphor-icons/react";
+import { Icon } from "@iconify/react";
 import { useState } from "react";
 
 export function LLMCopyButton({ markdownUrl }: { markdownUrl: string }) {
@@ -22,12 +22,12 @@ export function LLMCopyButton({ markdownUrl }: { markdownUrl: string }) {
 		>
 			{copied ? (
 				<>
-					<Check className="size-3.5" />
+					<Icon icon="ph:check" className="size-3.5" />
 					Copied
 				</>
 			) : (
 				<>
-					<Copy className="size-3.5" />
+					<Icon icon="ph:copy" className="size-3.5" />
 					Copy for AI
 				</>
 			)}

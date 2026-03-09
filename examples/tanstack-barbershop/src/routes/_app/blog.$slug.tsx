@@ -4,7 +4,7 @@
  * Displays a single blog post with full content, author info, and live preview support.
  */
 
-import { ArrowLeft, Clock, User } from "@phosphor-icons/react";
+import { Icon } from "@iconify/react";
 import {
 	PreviewField,
 	PreviewProvider,
@@ -59,7 +59,7 @@ function BlogPostPage() {
 						to="/blog"
 						className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground mb-12 transition-colors group"
 					>
-						<ArrowLeft className="size-4 transition-transform group-hover:-translate-x-1" />
+						<Icon icon="ph:arrow-left" className="size-4 transition-transform group-hover:-translate-x-1" />
 						Back to Blog
 					</Link>
 
@@ -84,7 +84,7 @@ function BlogPostPage() {
 						)}
 						{previewPost.readingTime && (
 							<span className="flex items-center gap-1.5">
-								<Clock className="size-4" />
+								<Icon icon="ph:clock" className="size-4" />
 								{previewPost.readingTime} min read
 							</span>
 						)}
@@ -125,7 +125,7 @@ function BlogPostPage() {
 							className="flex items-center gap-4 p-6 bg-muted/30 border border-border mb-12"
 						>
 							<div className="size-12 bg-muted border border-border flex items-center justify-center shrink-0">
-								<User className="size-6 text-muted-foreground/40" />
+								<Icon icon="ph:user" className="size-6 text-muted-foreground/40" />
 							</div>
 							<div>
 								<p className="font-bold">

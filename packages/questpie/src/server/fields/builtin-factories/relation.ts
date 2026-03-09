@@ -12,19 +12,19 @@
 
 import { jsonb, varchar } from "drizzle-orm/pg-core";
 import { z } from "zod";
-import type { KnownCollectionNames } from "../../../config/app-context.js";
+import type { KnownCollectionNames } from "../../config/app-context.js";
 import {
 	belongsToOps,
 	multipleOps,
 	toManyOps,
-} from "../../operators/builtin.js";
-import { createField, Field } from "../field.js";
-import type { DefaultFieldState } from "../types.js";
+} from "../operators/builtin.js";
+import { createField, Field } from "../field-class.js";
+import type { DefaultFieldState } from "../field-class-types.js";
 import type {
 	InferredRelationType,
 	ReferentialAction,
 	RelationFieldMetadata,
-} from "../../types.js";
+} from "../types.js";
 
 // ============================================================================
 // Types
@@ -92,7 +92,7 @@ function isPolymorphicTarget(target: RelationTarget): boolean {
 	return typeof target === "object" && target !== null && typeof target !== "function";
 }
 
-function buildRelationMetadata(state: import("../types.js").FieldRuntimeState): RelationFieldMetadata {
+function buildRelationMetadata(state: import("../field-class-types.js").FieldRuntimeState): RelationFieldMetadata {
 	const to = state.to as RelationTarget;
 	const targetCollection = (to ? resolveTargetName(to) : undefined) ?? "__unresolved__";
 	const through = resolveJunctionName(state.through as JunctionTarget | undefined);

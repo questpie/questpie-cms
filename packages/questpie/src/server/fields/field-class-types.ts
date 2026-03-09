@@ -11,7 +11,7 @@
 
 import type { SQL } from "drizzle-orm";
 import type { I18nText } from "#questpie/shared/i18n/types.js";
-import type { OperatorSetDefinition } from "../operators/types.js";
+import type { OperatorSetDefinition } from "./operators/types.js";
 import type {
 	ContextualOperators,
 	FieldDefinitionAccess,
@@ -19,7 +19,7 @@ import type {
 	FieldLocation,
 	FieldMetadata,
 	OperatorMap,
-} from "../types.js";
+} from "./types.js";
 import type { ZodType } from "zod";
 
 // ============================================================================

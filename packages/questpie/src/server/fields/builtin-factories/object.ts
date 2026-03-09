@@ -4,10 +4,10 @@
 
 import { jsonb } from "drizzle-orm/pg-core";
 import { z } from "zod";
-import { objectOps } from "../../operators/builtin.js";
-import { createField } from "../field.js";
-import type { DefaultFieldState } from "../types.js";
-import type { FieldDefinition, FieldDefinitionState, NestedFieldMetadata } from "../../types.js";
+import { objectOps } from "../operators/builtin.js";
+import { createField } from "../field-class.js";
+import type { DefaultFieldState } from "../field-class-types.js";
+import type { FieldDefinition, FieldDefinitionState, NestedFieldMetadata } from "../types.js";
 
 export type ObjectFieldState = DefaultFieldState & {
 	type: "object";
@@ -73,4 +73,4 @@ export function object(
 	});
 }
 
-import type { Field } from "../field.js";
+import type { Field } from "../field-class.js";

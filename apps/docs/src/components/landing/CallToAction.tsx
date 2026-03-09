@@ -1,4 +1,4 @@
-import { ArrowRight, GithubLogo, Terminal } from "@phosphor-icons/react";
+import { Icon } from "@iconify/react";
 import { Link } from "@tanstack/react-router";
 import { motion } from "motion/react";
 import { AnimFloatingPies } from "@/components/landing/BrandVisuals";
@@ -73,10 +73,10 @@ export function CallToAction() {
 						className="group inline-flex h-11 items-center justify-center bg-primary px-7 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
 					>
 						Start with Quickstart
-						<ArrowRight
+						<Icon icon="ph:arrow-right"
 							className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-0.5"
 							aria-hidden="true"
-						/>
+						 />
 					</Link>
 					<Link
 						to="/docs/$"
@@ -93,7 +93,7 @@ export function CallToAction() {
 						rel="noreferrer"
 						className="inline-flex h-11 items-center justify-center gap-2 px-7 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
 					>
-						<GithubLogo className="h-4 w-4" aria-hidden="true" />
+						<Icon icon="ph:github-logo" className="h-4 w-4" aria-hidden="true" />
 						GitHub
 					</a>
 				</motion.div>
@@ -106,7 +106,7 @@ export function CallToAction() {
 					viewport={{ once: true }}
 					transition={{ duration: 0.5, delay: 0.3 }}
 				>
-					<Terminal className="h-4 w-4 text-primary" aria-hidden="true" />
+					<Icon icon="ph:terminal" className="h-4 w-4 text-primary" aria-hidden="true" />
 					<div className="text-left leading-tight">
 						<div>
 							<span className="text-primary">$</span> bun i questpie

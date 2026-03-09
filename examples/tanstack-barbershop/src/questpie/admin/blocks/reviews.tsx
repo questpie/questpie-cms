@@ -5,7 +5,7 @@
  * Supports filter and configurable columns.
  */
 
-import { Quotes, Star } from "@phosphor-icons/react";
+import { Icon } from "@iconify/react";
 import { useTranslation } from "../../../lib/providers/locale-provider";
 import { cn } from "../../../lib/utils";
 import type { BlockProps } from "../.generated/client";
@@ -54,24 +54,22 @@ export function ReviewsRenderer({ values, data }: BlockProps<"reviews">) {
 							style={{ animationDelay: `${i * 100}ms` }}
 						>
 							{/* Quote Icon */}
-							<Quotes
+							<Icon icon="ph:quotes-fill"
 								className="size-10 text-highlight/20 mb-4"
-								weight="fill"
-							/>
+							 />
 
 							{/* Rating */}
 							<div className="flex items-center gap-0.5 mb-4">
 								{[1, 2, 3, 4, 5].map((star) => (
-									<Star
+									<Icon icon={star <= review.rating ? "ph:star-fill" : "ph:star"}
 										key={star}
-										weight={star <= review.rating ? "fill" : "regular"}
 										className={cn(
 											"size-5",
 											star <= review.rating
 												? "text-highlight"
 												: "text-muted-foreground/30",
 										)}
-									/>
+									 />
 								))}
 							</div>
 

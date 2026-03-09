@@ -5,7 +5,7 @@
  * Design: Two-column layout with info cards and map.
  */
 
-import { Envelope, MapPin, Phone } from "@phosphor-icons/react";
+import { Icon } from "@iconify/react";
 import { useTranslation } from "../../../lib/providers/locale-provider";
 import { cn } from "../../../lib/utils";
 import type { BlockProps } from "../.generated/client";
@@ -48,10 +48,9 @@ export function ContactInfoRenderer({
 					<div className="space-y-6">
 						{contactPhone && (
 							<div className="flex items-start gap-4 p-6 bg-card border rounded-lg">
-								<Phone
+								<Icon icon="ph:phone-bold"
 									className="size-6 text-highlight flex-shrink-0 mt-1"
-									weight="bold"
-								/>
+								 />
 								<div>
 									<h3 className="font-semibold mb-1">
 										{t("blocks.contact.phone")}
@@ -68,10 +67,9 @@ export function ContactInfoRenderer({
 
 						{contactEmail && (
 							<div className="flex items-start gap-4 p-6 bg-card border rounded-lg">
-								<Envelope
+								<Icon icon="ph:envelope-bold"
 									className="size-6 text-highlight flex-shrink-0 mt-1"
-									weight="bold"
-								/>
+								 />
 								<div>
 									<h3 className="font-semibold mb-1">
 										{t("blocks.contact.email")}
@@ -88,10 +86,9 @@ export function ContactInfoRenderer({
 
 						{fullAddress && (
 							<div className="flex items-start gap-4 p-6 bg-card border rounded-lg">
-								<MapPin
+								<Icon icon="ph:map-pin-bold"
 									className="size-6 text-highlight flex-shrink-0 mt-1"
-									weight="bold"
-								/>
+								 />
 								<div>
 									<h3 className="font-semibold mb-1">
 										{t("blocks.contact.address")}

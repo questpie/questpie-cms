@@ -4,9 +4,9 @@
 
 import { time as pgTime } from "drizzle-orm/pg-core";
 import { z } from "zod";
-import { dateOps } from "../../operators/builtin.js";
-import { createField } from "../field.js";
-import type { DefaultFieldState } from "../types.js";
+import { dateOps } from "../operators/builtin.js";
+import { createField } from "../field-class.js";
+import type { DefaultFieldState } from "../field-class-types.js";
 
 export type TimeFieldState = DefaultFieldState & {
 	type: "time";
@@ -56,4 +56,4 @@ export function time(config?: TimeConfig): Field<TimeFieldState> {
 	});
 }
 
-import type { Field } from "../field.js";
+import type { Field } from "../field-class.js";

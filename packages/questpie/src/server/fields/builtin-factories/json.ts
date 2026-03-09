@@ -4,9 +4,9 @@
 
 import { json as pgJson, jsonb } from "drizzle-orm/pg-core";
 import { z } from "zod";
-import { basicOps } from "../../operators/builtin.js";
-import { createField } from "../field.js";
-import type { DefaultFieldState } from "../types.js";
+import { basicOps } from "../operators/builtin.js";
+import { createField } from "../field-class.js";
+import type { DefaultFieldState } from "../field-class-types.js";
 
 export type JsonValue =
 	| string
@@ -52,4 +52,4 @@ export function json(config?: { mode?: "jsonb" | "json" }): Field<JsonFieldState
 	});
 }
 
-import type { Field } from "../field.js";
+import type { Field } from "../field-class.js";

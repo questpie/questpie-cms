@@ -7,7 +7,7 @@
  * The `backgroundImage` upload field is expanded via `.prefetch({ with: ['backgroundImage'] })`.
  */
 
-import { ArrowRight } from "@phosphor-icons/react";
+import { Icon } from "@iconify/react";
 import { buttonVariants } from "../../../components/ui/button";
 import { cn } from "../../../lib/utils";
 import type { BlockProps } from "../.generated/client";
@@ -70,10 +70,9 @@ export function HeroRenderer({ values, data, children }: BlockProps<"hero">) {
 						)}
 					>
 						{values.ctaText}
-						<ArrowRight
+						<Icon icon="ph:arrow-right-bold"
 							className="size-5 transition-transform group-hover:translate-x-1"
-							weight="bold"
-						/>
+						 />
 					</a>
 				)}
 

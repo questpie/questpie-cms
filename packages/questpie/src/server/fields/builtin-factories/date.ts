@@ -4,9 +4,9 @@
 
 import { date as pgDate } from "drizzle-orm/pg-core";
 import { z } from "zod";
-import { dateOps } from "../../operators/builtin.js";
-import { createField, Field } from "../field.js";
-import type { DefaultFieldState } from "../types.js";
+import { dateOps } from "../operators/builtin.js";
+import { createField, Field } from "../field-class.js";
+import type { DefaultFieldState } from "../field-class-types.js";
 
 export type DateFieldState = DefaultFieldState & {
 	type: "date";

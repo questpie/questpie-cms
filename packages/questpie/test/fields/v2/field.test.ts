@@ -7,9 +7,9 @@
 import { describe, expect, it } from "bun:test";
 import { z } from "zod";
 import { varchar, integer, boolean as pgBoolean, text as pgText } from "drizzle-orm/pg-core";
-import { Field, createField } from "#questpie/server/fields/v2/field.js";
+import { Field, createField } from "#questpie/server/fields/field-class.js";
 import { stringOps, numberOps, booleanOps } from "#questpie/server/fields/operators/builtin.js";
-import type { DefaultFieldState, FieldRuntimeState } from "#questpie/server/fields/v2/types.js";
+import type { DefaultFieldState, FieldRuntimeState } from "#questpie/server/fields/field-class-types.js";
 
 // ============================================================================
 // Helper: Create a text field for testing

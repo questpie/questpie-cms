@@ -55,7 +55,7 @@ type ExtractColumnsFromFieldDefinitions<
 
 /**
  * Extract field types from CollectionBuilderState.
- * Falls back to DefaultFieldTypeMap if not available.
+ * Falls back to BuiltinFields if not available.
  *
  * Uses ~fieldTypes phantom property which is set by EmptyCollectionState
  * based on the QuestpieBuilder's state.fields.

@@ -6,7 +6,7 @@
  */
 
 import { z, type ZodType } from "zod";
-import type { FieldRuntimeState } from "./types.js";
+import type { FieldRuntimeState } from "./field-class-types.js";
 
 // ============================================================================
 // Base Schema Per Type

@@ -1,11 +1,4 @@
-import {
-	Broadcast,
-	FilePlus,
-	Lock,
-	Sparkle,
-	Trash,
-	Users,
-} from "@phosphor-icons/react";
+import { Icon } from "@iconify/react";
 import { Link } from "@tanstack/react-router";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useRef, useState } from "react";
@@ -14,23 +7,23 @@ import { cn } from "@/lib/utils";
 
 const features = [
 	{
-		icon: Broadcast,
+		icon: "ph:broadcast",
 		title: "Streamed Queries",
 		description: "SSE-powered live updates. No polling, no WebSocket setup.",
 	},
 	{
-		icon: Lock,
+		icon: "ph:lock",
 		title: "Document Locks",
 		description: "Collaborative editing awareness. See who's editing what.",
 	},
 	{
-		icon: Sparkle,
+		icon: "ph:sparkle",
 		title: "Change Highlighting",
 		description:
 			"Visual pulse on modified rows so operators never miss updates.",
 	},
 	{
-		icon: FilePlus,
+		icon: "ph:file-plus",
 		title: "Document Events",
 		description:
 			"Create, update, and delete — every mutation streams to connected clients.",
@@ -292,7 +285,7 @@ export function RealtimeDemo() {
 
 								{/* Presence dots */}
 								<div className="flex items-center gap-1">
-									<Users className="h-3 w-3 text-muted-foreground mr-1" />
+									<Icon icon="ph:users" className="h-3 w-3 text-muted-foreground mr-1" />
 									{["AK", "MJ", "JT"].map((user, i) => (
 										<span
 											key={user}
@@ -353,7 +346,7 @@ export function RealtimeDemo() {
 										<div className="flex items-center justify-end w-10">
 											{row.locked && (
 												<span className="inline-flex items-center gap-0.5">
-													<Lock className="h-2.5 w-2.5 text-muted-foreground" />
+													<Icon icon="ph:lock" className="h-2.5 w-2.5 text-muted-foreground" />
 													<span className="inline-flex h-4 w-4 items-center justify-center bg-primary/10 text-[7px] font-mono text-primary">
 														{row.lockedBy}
 													</span>
@@ -484,7 +477,7 @@ export function RealtimeDemo() {
 							transition={{ duration: 0.4, delay: i * 0.08 }}
 						>
 							<div className="mb-3 flex h-9 w-9 items-center justify-center border border-primary/20 bg-primary/10 text-primary transition-colors group-hover:bg-primary/20">
-								<feature.icon className="h-4 w-4" />
+								<Icon icon={feature.icon} className="h-4 w-4" />
 							</div>
 							<h4 className="text-sm font-semibold mb-1">{feature.title}</h4>
 							<p className="text-xs text-muted-foreground leading-relaxed">
@@ -512,16 +505,16 @@ export function RealtimeDemo() {
 function EventIcon({ type }: { type: EventType }) {
 	if (type === "create")
 		return (
-			<FilePlus className="h-3 w-3 shrink-0 text-primary" aria-hidden="true" />
+			<Icon icon="ph:file-plus" className="h-3 w-3 shrink-0 text-primary" aria-hidden="true" />
 		);
 	if (type === "delete")
 		return (
-			<Trash className="h-3 w-3 shrink-0 text-destructive" aria-hidden="true" />
+			<Icon icon="ph:trash" className="h-3 w-3 shrink-0 text-destructive" aria-hidden="true" />
 		);
 	return (
-		<Sparkle
+		<Icon icon="ph:sparkle"
 			className="h-3 w-3 shrink-0 text-muted-foreground"
 			aria-hidden="true"
-		/>
+		 />
 	);
 }

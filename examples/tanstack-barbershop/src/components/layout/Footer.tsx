@@ -10,17 +10,7 @@
  * - Copyright
  */
 
-import {
-	EnvelopeSimple,
-	FacebookLogo,
-	InstagramLogo,
-	MapPin,
-	Phone,
-	Scissors,
-	TiktokLogo,
-	TwitterLogo,
-	YoutubeLogo,
-} from "@phosphor-icons/react";
+import { Icon } from "@iconify/react";
 import { useTranslation } from "@/lib/providers/locale-provider";
 
 // Types matching site-settings global
@@ -67,12 +57,12 @@ export interface FooterProps {
 	copyrightText?: string;
 }
 
-const socialIcons: Record<SocialPlatform, typeof InstagramLogo> = {
-	instagram: InstagramLogo,
-	facebook: FacebookLogo,
-	twitter: TwitterLogo,
-	tiktok: TiktokLogo,
-	youtube: YoutubeLogo,
+const socialIcons: Record<SocialPlatform, string> = {
+	instagram: "ph:instagram-logo",
+	facebook: "ph:facebook-logo",
+	twitter: "ph:twitter-logo",
+	tiktok: "ph:tiktok-logo",
+	youtube: "ph:youtube-logo",
 };
 
 export function Footer({
@@ -113,7 +103,7 @@ export function Footer({
 					{/* Brand */}
 					<div className="space-y-4">
 						<div className="flex items-center gap-2 font-bold text-xl">
-							<Scissors className="size-6" weight="bold" />
+							<Icon icon="ph:scissors-bold" className="size-6" />
 							<span>{shopName}</span>
 						</div>
 						{tagline && (
@@ -123,7 +113,7 @@ export function Footer({
 						{socialLinks.length > 0 && (
 							<div className="flex items-center gap-3 pt-2">
 								{socialLinks.map((social) => {
-									const Icon = socialIcons[social.platform];
+									const iconName = socialIcons[social.platform];
 									return (
 										<a
 											key={social.platform}
@@ -133,7 +123,7 @@ export function Footer({
 											className="text-muted-foreground hover:text-foreground transition-colors"
 											aria-label={social.platform}
 										>
-											<Icon className="size-5" />
+											<Icon icon={iconName} className="size-5" />
 										</a>
 									);
 								})}
@@ -200,7 +190,7 @@ export function Footer({
 						<div className="space-y-3 text-sm">
 							{fullAddress && (
 								<div className="flex items-start gap-3 text-muted-foreground">
-									<MapPin className="size-4 mt-0.5 shrink-0" />
+									<Icon icon="ph:map-pin" className="size-4 mt-0.5 shrink-0" />
 									<span>{fullAddress}</span>
 								</div>
 							)}
@@ -209,7 +199,7 @@ export function Footer({
 									href={`tel:${contactPhone.replace(/\s/g, "")}`}
 									className="flex items-center gap-3 text-muted-foreground hover:text-foreground transition-colors"
 								>
-									<Phone className="size-4 shrink-0" />
+									<Icon icon="ph:phone" className="size-4 shrink-0" />
 									<span>{contactPhone}</span>
 								</a>
 							)}
@@ -218,7 +208,7 @@ export function Footer({
 									href={`mailto:${contactEmail}`}
 									className="flex items-center gap-3 text-muted-foreground hover:text-foreground transition-colors"
 								>
-									<EnvelopeSimple className="size-4 shrink-0" />
+									<Icon icon="ph:envelope-simple" className="size-4 shrink-0" />
 									<span>{contactEmail}</span>
 								</a>
 							)}

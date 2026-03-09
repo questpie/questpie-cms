@@ -4,9 +4,9 @@
 
 import { varchar } from "drizzle-orm/pg-core";
 import { z } from "zod";
-import { emailOps } from "../../operators/builtin.js";
-import { createField } from "../field.js";
-import type { DefaultFieldState } from "../types.js";
+import { emailOps } from "../operators/builtin.js";
+import { createField } from "../field-class.js";
+import type { DefaultFieldState } from "../field-class-types.js";
 
 export type EmailFieldState = DefaultFieldState & {
 	type: "email";
@@ -40,4 +40,4 @@ export function email(maxLength = 255): Field<EmailFieldState> {
 	});
 }
 
-import type { Field } from "../field.js";
+import type { Field } from "../field-class.js";

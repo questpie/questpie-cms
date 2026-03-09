@@ -6,9 +6,9 @@
  */
 
 import { z, type ZodType } from "zod";
-import { basicOps } from "../../operators/builtin.js";
-import { createField } from "../field.js";
-import type { DefaultFieldState } from "../types.js";
+import { basicOps } from "../operators/builtin.js";
+import { createField } from "../field-class.js";
+import type { DefaultFieldState } from "../field-class-types.js";
 
 export type CustomFieldState = DefaultFieldState & {
 	type: "custom";
@@ -68,7 +68,7 @@ declare module "../field.js" {
 	}
 }
 
-import { Field } from "../field.js";
+import { Field } from "../field-class.js";
 
 Field.prototype.type = function (typeName: string) {
 	return new Field({ ...this._state, customType: typeName });

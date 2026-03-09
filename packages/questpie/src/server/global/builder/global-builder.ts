@@ -36,7 +36,7 @@ type ExtractColumnsFromFieldDefinitions<
 
 /**
  * Extract field types from GlobalBuilderState.
- * Falls back to DefaultFieldTypeMap if not available.
+ * Falls back to BuiltinFields if not available.
  *
  * Uses ~fieldTypes phantom property which is set by EmptyGlobalState
  * based on the QuestpieBuilder's state.fields.

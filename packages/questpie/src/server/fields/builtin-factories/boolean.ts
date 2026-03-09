@@ -4,9 +4,9 @@
 
 import { boolean as pgBoolean } from "drizzle-orm/pg-core";
 import { z } from "zod";
-import { booleanOps } from "../../operators/builtin.js";
-import { createField } from "../field.js";
-import type { DefaultFieldState } from "../types.js";
+import { booleanOps } from "../operators/builtin.js";
+import { createField } from "../field-class.js";
+import type { DefaultFieldState } from "../field-class-types.js";
 
 export type BooleanFieldState = DefaultFieldState & {
 	type: "boolean";
@@ -38,4 +38,4 @@ export function boolean(): Field<BooleanFieldState> {
 	});
 }
 
-import type { Field } from "../field.js";
+import type { Field } from "../field-class.js";

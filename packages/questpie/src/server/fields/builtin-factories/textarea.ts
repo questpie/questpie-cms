@@ -4,9 +4,9 @@
 
 import { text as pgText } from "drizzle-orm/pg-core";
 import { z } from "zod";
-import { stringOps } from "../../operators/builtin.js";
-import { createField } from "../field.js";
-import type { DefaultFieldState } from "../types.js";
+import { stringOps } from "../operators/builtin.js";
+import { createField } from "../field-class.js";
+import type { DefaultFieldState } from "../field-class-types.js";
 
 export type TextareaFieldState = DefaultFieldState & {
 	type: "textarea";
@@ -38,4 +38,4 @@ export function textarea(): Field<TextareaFieldState> {
 }
 
 // Re-export Field to avoid missing import in return type
-import type { Field } from "../field.js";
+import type { Field } from "../field-class.js";

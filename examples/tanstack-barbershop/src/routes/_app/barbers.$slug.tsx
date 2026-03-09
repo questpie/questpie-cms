@@ -4,13 +4,7 @@
  * Displays individual barber bio, specialties, and their specific services.
  */
 
-import {
-	ArrowLeft,
-	Clock,
-	EnvelopeSimple,
-	Phone,
-	User,
-} from "@phosphor-icons/react";
+import { Icon } from "@iconify/react";
 import {
 	PreviewField,
 	PreviewProvider,
@@ -61,7 +55,7 @@ function BarberProfilePage() {
 						to="/barbers"
 						className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground mb-12 transition-colors group"
 					>
-						<ArrowLeft className="size-4 transition-transform group-hover:-translate-x-1" />
+						<Icon icon="ph:arrow-left" className="size-4 transition-transform group-hover:-translate-x-1" />
 						Back to Team
 					</Link>
 
@@ -80,7 +74,7 @@ function BarberProfilePage() {
 									/>
 								) : (
 									<div className="w-full h-full flex items-center justify-center">
-										<User className="size-40 text-muted-foreground/20" />
+										<Icon icon="ph:user" className="size-40 text-muted-foreground/20" />
 									</div>
 								)}
 							</PreviewField>
@@ -143,7 +137,7 @@ function BarberProfilePage() {
 										href={`mailto:${previewBarber.email}`}
 										className="flex items-center gap-2 font-medium hover:text-highlight transition-colors"
 									>
-										<EnvelopeSimple className="size-5" />
+										<Icon icon="ph:envelope-simple" className="size-5" />
 										{previewBarber.email}
 									</a>
 								</PreviewField>
@@ -155,7 +149,7 @@ function BarberProfilePage() {
 										href={`tel:${previewBarber.phone}`}
 										className="flex items-center gap-2 font-medium hover:text-highlight transition-colors"
 									>
-										<Phone className="size-5" />
+										<Icon icon="ph:phone" className="size-5" />
 										{previewBarber.phone}
 									</a>
 								</PreviewField>
@@ -184,7 +178,7 @@ function BarberProfilePage() {
 													</h3>
 													<div className="flex items-center gap-4 mt-1 text-sm text-muted-foreground">
 														<span className="flex items-center gap-1.5">
-															<Clock className="size-4" />
+															<Icon icon="ph:clock" className="size-4" />
 															{service.duration} min
 														</span>
 														<span className="font-bold text-highlight">

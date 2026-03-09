@@ -11,9 +11,9 @@ import {
 	smallint,
 } from "drizzle-orm/pg-core";
 import { z } from "zod";
-import { numberOps } from "../../operators/builtin.js";
-import { createField, Field } from "../field.js";
-import type { DefaultFieldState } from "../types.js";
+import { numberOps } from "../operators/builtin.js";
+import { createField, Field } from "../field-class.js";
+import type { DefaultFieldState } from "../field-class-types.js";
 
 export type NumberFieldState = DefaultFieldState & {
 	type: "number";

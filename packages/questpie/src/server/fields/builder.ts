@@ -9,6 +9,7 @@
  */
 
 
+import type { BuiltinFields } from "./builtin/defaults.js";
 export type { BuiltinFields } from "./builtin/defaults.js";
 
 import {
@@ -25,15 +26,6 @@ import type { FieldDefinition, FieldDefinitionState } from "./types.js";
 // ============================================================================
 // Field Builder Proxy Types
 // ============================================================================
-
-// Re-export BuiltinFields for backwards compat
-import type { BuiltinFields } from "./builtin/defaults.js";
-
-/**
- * Default field type map for built-in fields.
- * @deprecated Use `BuiltinFields` instead
- */
-export type DefaultFieldTypeMap = BuiltinFields;
 
 /**
  * Field builder proxy type.
@@ -164,10 +156,6 @@ export function createFieldBuilder<TFields extends Record<string, any>>(
 	});
 }
 
-/**
- * @deprecated Use `createFieldBuilder` instead
- */
-export const createFieldBuilderFromDefs = createFieldBuilder;
 
 // ============================================================================
 // Field Definition Extraction

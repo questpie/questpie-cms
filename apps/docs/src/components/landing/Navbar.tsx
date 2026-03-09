@@ -1,4 +1,4 @@
-import { GithubLogo, List, X } from "@phosphor-icons/react";
+import { Icon } from "@iconify/react";
 import { Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -96,7 +96,7 @@ export function Navbar() {
 							aria-label="QUESTPIE on GitHub"
 							className="text-muted-foreground transition-colors hover:text-foreground"
 						>
-							<GithubLogo className="h-5 w-5" aria-hidden="true" />
+							<Icon icon="ph:github-logo" className="h-5 w-5" aria-hidden="true" />
 						</a>
 						<ThemeToggle />
 						<Link
@@ -115,9 +115,9 @@ export function Navbar() {
 						aria-label="Toggle navigation"
 					>
 						{isMobileMenuOpen ? (
-							<X className="h-6 w-6" aria-hidden="true" />
+							<Icon icon="ph:x" className="h-6 w-6" aria-hidden="true" />
 						) : (
-							<List className="h-6 w-6" aria-hidden="true" />
+							<Icon icon="ph:list" className="h-6 w-6" aria-hidden="true" />
 						)}
 					</button>
 				</nav>
@@ -159,7 +159,7 @@ export function Navbar() {
 										rel="noreferrer"
 										className="inline-flex items-center gap-2 text-sm text-muted-foreground"
 									>
-										<GithubLogo className="h-5 w-5" aria-hidden="true" />
+										<Icon icon="ph:github-logo" className="h-5 w-5" aria-hidden="true" />
 										GitHub
 									</a>
 								</div>

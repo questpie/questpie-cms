@@ -4,7 +4,7 @@
  * Displays all published blog posts with cover images, excerpts, and metadata.
  */
 
-import { ArrowRight, Clock, Article } from "@phosphor-icons/react";
+import { Icon } from "@iconify/react";
 import { createFileRoute } from "@tanstack/react-router";
 import { getAllBlogPosts } from "@/lib/getBlogPosts.function";
 import { useTranslation } from "@/lib/providers/locale-provider";
@@ -59,7 +59,7 @@ function BlogIndexPage() {
 									/>
 								) : (
 									<div className="w-full h-full flex items-center justify-center bg-muted">
-										<Article className="size-20 text-muted-foreground/20" />
+										<Icon icon="ph:article" className="size-20 text-muted-foreground/20" />
 									</div>
 								)}
 								<div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors duration-500" />
@@ -71,7 +71,7 @@ function BlogIndexPage() {
 								)}
 								{post.readingTime && (
 									<span className="flex items-center gap-1">
-										<Clock className="size-3.5" />
+										<Icon icon="ph:clock" className="size-3.5" />
 										{post.readingTime} min read
 									</span>
 								)}

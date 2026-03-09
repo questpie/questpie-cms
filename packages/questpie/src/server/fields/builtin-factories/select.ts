@@ -5,11 +5,11 @@
 import { jsonb, pgEnum, varchar } from "drizzle-orm/pg-core";
 import { z } from "zod";
 import type { I18nText } from "#questpie/shared/i18n/types.js";
-import { selectMultiOps, selectSingleOps } from "../../operators/builtin.js";
-import { createField, Field } from "../field.js";
-import type { OptionsConfig } from "../../reactive.js";
-import type { DefaultFieldState } from "../types.js";
-import type { SelectFieldMetadata } from "../../types.js";
+import { selectMultiOps, selectSingleOps } from "../operators/builtin.js";
+import { createField, Field } from "../field-class.js";
+import type { OptionsConfig } from "../reactive.js";
+import type { DefaultFieldState } from "../field-class-types.js";
+import type { SelectFieldMetadata } from "../types.js";
 
 export type SelectFieldState = DefaultFieldState & {
 	type: "select";

@@ -1,4 +1,4 @@
-import { GithubLogo } from "@phosphor-icons/react";
+import { Icon } from "@iconify/react";
 import { Link } from "@tanstack/react-router";
 
 export function Footer() {
@@ -180,7 +180,7 @@ export function Footer() {
 						aria-label="QUESTPIE on GitHub"
 						className="text-muted-foreground transition-colors hover:text-foreground"
 					>
-						<GithubLogo className="h-4 w-4" aria-hidden="true" />
+						<Icon icon="ph:github-logo" className="h-4 w-4" aria-hidden="true" />
 					</a>
 				</div>
 			</div>

@@ -22,9 +22,9 @@ import type { SQL } from "drizzle-orm";
 import { jsonb } from "drizzle-orm/pg-core";
 import { z, type ZodType } from "zod";
 import type { I18nText } from "#questpie/shared/i18n/types.js";
-import type { OperatorSetDefinition } from "../operators/types.js";
-import { resolveContextualOperators } from "../operators/resolve.js";
-import { selectMultiOps } from "../operators/builtin.js";
+import type { OperatorSetDefinition } from "./operators/types.js";
+import { resolveContextualOperators } from "./operators/resolve.js";
+import { selectMultiOps } from "./operators/builtin.js";
 import type {
 	ContextualOperators,
 	FieldDefinition,
@@ -34,9 +34,9 @@ import type {
 	FieldLocation,
 	FieldMetadata,
 	FieldMetadataBase,
-} from "../types.js";
+} from "./types.js";
 import { buildZodFromState } from "./derive-schema.js";
-import type { ArrayFieldState, FieldRuntimeState, FieldState } from "./types.js";
+import type { ArrayFieldState, FieldRuntimeState, FieldState } from "./field-class-types.js";
 
 // ============================================================================
 // Field Class

@@ -6,7 +6,7 @@
  *
  * NOTE: Module augmentation is no longer used.
  * Field types are now derived from questpie.state.fields at compile time.
- * DefaultFieldTypeMap is a type alias to DefaultFields in builder.ts.
+ * BuiltinFields type in builder.ts maps the default set.
  */
 
 export {

@@ -9,7 +9,7 @@
 
 import { describe, expect, test } from "bun:test";
 import { sql } from "drizzle-orm";
-import { createFieldBuilderFromDefs } from "#questpie/server/fields/builder.js";
+import { createFieldBuilder } from "#questpie/server/fields/builder.js";
 import { defaultFields } from "#questpie/server/fields/builtin/defaults.js";
 import type {
 	FieldDefinition,
@@ -17,7 +17,7 @@ import type {
 } from "#questpie/server/fields/types.js";
 
 // Create callable proxy from plain field defs
-const f = createFieldBuilderFromDefs(defaultFields);
+const f = createFieldBuilder(defaultFields);
 
 describe("TState Type Inference (compile-time only)", () => {
 	test("field state is correctly typed", () => {
