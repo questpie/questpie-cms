@@ -318,10 +318,10 @@ function generateFreshIndex(migrationDir: string): string {
 
 	for (const file of migrationFiles) {
 		const baseName = file.replace(".ts", "");
-		const varMatch = baseName.match(/\d+_(.+)$/);
+		const varMatch = baseName.match(/^\d+T\d+_(.+)$/);
 		if (varMatch) {
 			const varName = toCamelCase(varMatch[1] || baseName);
-			const timestamp = baseName.match(/^(\d+)_/)?.[1] || "";
+			const timestamp = baseName.match(/^(\d+T\d+)_/)?.[1] || "";
 			const migrationVarName = `${varName}${timestamp}`;
 
 			imports.push(`import { ${migrationVarName} } from "./${baseName}.js"`);
