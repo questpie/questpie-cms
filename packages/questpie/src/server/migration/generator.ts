@@ -119,7 +119,9 @@ export class DrizzleMigrationGenerator {
 		);
 
 		// Post-process SQL to add IF EXISTS to constraint drops for safety
-		const processedSqlUp = this.addIfExistsToConstraintDrops(sqlStatementsUp);
+		const processedSqlUp = this.ensureRequiredExtensions(
+			this.addIfExistsToConstraintDrops(sqlStatementsUp),
+		);
 		const processedSqlDown =
 			this.addIfExistsToConstraintDrops(sqlStatementsDown);
 
@@ -304,10 +306,10 @@ export class DrizzleMigrationGenerator {
 		for (const file of migrationFiles) {
 			const baseName = file.replace(".ts", "");
 			// Extract migration variable name from file
-			const varMatch = baseName.match(/\d+_(.+)$/);
+			const varMatch = baseName.match(/^\d+T\d+_(.+)$/);
 			if (varMatch) {
 				const varName = this.toCamelCase(varMatch[1] || baseName);
-				const timestamp = baseName.match(/^(\d+)_/)?.[1] || "";
+				const timestamp = baseName.match(/^(\d+T\d+)_/)?.[1] || "";
 				const migrationVarName = `${varName}${timestamp}`;
 
 				imports.push(`import { ${migrationVarName} } from "./${baseName}.js";`);
@@ -465,6 +467,24 @@ export const ${migrationName}: Migration = {
 	snapshot,
 }
 `;
+	}
+
+	/**
+	 * Inject required extension creation statements based on generated SQL usage.
+	 *
+	 * Example: trigram indexes (`gin_trgm_ops`) require `pg_trgm`.
+	 */
+	private ensureRequiredExtensions(statements: string[]): string[] {
+		const usesPgTrgm = statements.some((stmt) => stmt.includes("gin_trgm_ops"));
+		const hasPgTrgmCreate = statements.some((stmt) =>
+			/CREATE\s+EXTENSION\s+IF\s+NOT\s+EXISTS\s+pg_trgm/i.test(stmt),
+		);
+
+		if (usesPgTrgm && !hasPgTrgmCreate) {
+			return ["CREATE EXTENSION IF NOT EXISTS pg_trgm;", ...statements];
+		}
+
+		return statements;
 	}
 
 	private getDefaultSnapshot(): DrizzleSnapshotJSON {
