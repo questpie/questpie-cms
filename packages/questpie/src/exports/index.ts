@@ -47,8 +47,10 @@ export {
 	type Registry,
 	type RegistryNames,
 } from "#questpie/server/config/app-context.js";
-export * from "#questpie/server/config/builder.js";
-export * from "#questpie/server/config/builder-types.js";
+export {
+	CLOUD_ENV,
+	isQuestpieCloud,
+} from "#questpie/server/config/cloud-env.js";
 // Re-export type safety helpers (getContext, etc. exported via context.js)
 export type {
 	InferAppFromApp,
@@ -63,8 +65,6 @@ export {
 	module,
 	runtimeConfig,
 } from "#questpie/server/config/create-app.js";
-// QuestpieBuilder state extraction utility (kept for backward compat)
-export type { QuestpieStateOf } from "#questpie/server/config/extensions.js";
 export * from "#questpie/server/config/global-hooks-types.js";
 export * from "#questpie/server/config/module-types.js";
 export * from "#questpie/server/config/questpie.js";

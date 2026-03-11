@@ -237,6 +237,45 @@ export interface RuntimeConfig {
 }
 
 // ============================================================================
+// RuntimeConfigInput — input type for runtimeConfig() with cloud defaults
+// ============================================================================
+
+/**
+ * Input type for {@link runtimeConfig} — accepts the same shape as
+ * {@link RuntimeConfig} but `app` and `db` are **optional** because they can
+ * be auto-resolved from environment variables.
+ *
+ * **Resolution order** (for each field):
+ * 1. Explicit value passed by the user (wins).
+ * 2. `QUESTPIE_*` environment variables (set by QUESTPIE Cloud).
+ * 3. Standard env vars (`DATABASE_URL`, `APP_URL`, `BETTER_AUTH_SECRET`).
+ * 4. Sensible defaults (`http://localhost:3000` for app URL).
+ *
+ * If `db` cannot be resolved from any source, `runtimeConfig()` throws.
+ *
+ * @example Zero-config for QUESTPIE Cloud:
+ * ```ts
+ * // questpie.config.ts — just works when QUESTPIE_* env vars are set
+ * export default runtimeConfig({
+ *   plugins: [adminPlugin()],
+ * });
+ * ```
+ *
+ * @example Explicit overrides:
+ * ```ts
+ * export default runtimeConfig({
+ *   plugins: [adminPlugin()],
+ *   app: { url: "https://my-app.example.com" },
+ *   db: { url: process.env.MY_CUSTOM_DB! },
+ * });
+ * ```
+ *
+ * @see {@link RuntimeConfig} for the resolved output type.
+ */
+export type RuntimeConfigInput = Partial<Pick<RuntimeConfig, "app" | "db">> &
+	Omit<RuntimeConfig, "app" | "db">;
+
+// ============================================================================
 // App Definition — what codegen generates (first arg to createApp)
 // ============================================================================
 

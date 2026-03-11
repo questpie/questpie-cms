@@ -129,7 +129,9 @@ async function handleCustomRoute<
 	const locale = resolved.appContext.locale ?? "en";
 
 	try {
-		const { extractAppServices } = await import("#questpie/server/config/app-context.js");
+		const { extractAppServices } = await import(
+			"#questpie/server/config/app-context.js"
+		);
 		const services = extractAppServices(app, {
 			db: resolved.appContext.db ?? app.db,
 			session: resolved.appContext.session,
@@ -222,6 +224,14 @@ export const createFetchHandler = (
 
 		if (segments.length === 0) {
 			return errorResponse(ApiError.notFound("Route"), request);
+		}
+
+		// Health check — public endpoint, no auth required
+		if (segments[0] === "health") {
+			return Response.json({
+				status: "ok",
+				timestamp: new Date().toISOString(),
+			});
 		}
 
 		// Auth routes
