@@ -83,11 +83,20 @@ export type KnownEmailNames = RegistryNames<"emails">;
 /** Known route names. @see Registry['routes'] */
 export type KnownRouteNames = RegistryNames<"routes">;
 
-/** Known list view names (from admin modules). @see Registry['listViews'] */
-export type KnownListViewNames = RegistryNames<"listViews">;
+/** Known view names (from admin modules). @see Registry['views'] */
+export type KnownViewNames = RegistryNames<"views">;
 
-/** Known form view names (from admin modules). @see Registry['formViews'] */
-export type KnownFormViewNames = RegistryNames<"formViews">;
+/**
+ * Known list view names (from admin modules).
+ * @deprecated Use KnownViewNames instead — list/form filtering is now type-level.
+ */
+export type KnownListViewNames = RegistryNames<"views">;
+
+/**
+ * Known form view names (from admin modules).
+ * @deprecated Use KnownViewNames instead — list/form filtering is now type-level.
+ */
+export type KnownFormViewNames = RegistryNames<"views">;
 
 /** Known component names (from admin modules). @see Registry['components'] */
 export type KnownComponentNames = RegistryNames<"components">;

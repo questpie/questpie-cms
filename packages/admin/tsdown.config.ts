@@ -58,23 +58,6 @@ export default defineConfig({
 					...cssExports,
 				};
 
-				const typedEntries: Record<string, string> = {
-					".": "./dist/index.d.mts",
-					"./client": "./dist/client.d.mts",
-					"./server": "./dist/server.d.mts",
-					"./shared": "./dist/shared.d.mts",
-					"./client-module": "./dist/client-module.d.mts",
-				};
-
-				for (const [entry, typesPath] of Object.entries(typedEntries)) {
-					const current = exports[entry];
-					if (typeof current === "string") {
-						mergedExports[entry] = {
-							types: typesPath,
-							default: current,
-						};
-					}
-				}
 
 				return {
 					...mergedExports,

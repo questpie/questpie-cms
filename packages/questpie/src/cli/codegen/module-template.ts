@@ -50,10 +50,7 @@ export interface ModuleTemplateOptions {
 	 * Each entry is a line like `listViews: { table: listView("table") },`.
 	 */
 	extraModuleProperties?: string[];
-	/**
-	 * Merged discover patterns from the target.
-	 * Used to check `registryKey` on singles for Registry augmentation.
-	 */
+	/** @deprecated No longer used — Registry augmentation moved to root template. */
 	discoverPatterns?: Record<string, DiscoverPattern>;
 }
 

@@ -88,7 +88,7 @@ export function generateTemplate(options: TemplateOptions): string {
 
 	// Import createApp + types
 	lines.push(
-		'import { createApp, extractAppServices, type Questpie, type AppContext, type Registry, type QuestpieConfig, type QueueClient } from "questpie";',
+		'import { createApp, createContextFactory, extractAppServices, type Questpie, type AppContext, type Registry, type QuestpieConfig, type QueueClient } from "questpie";',
 	);
 	lines.push("");
 
@@ -203,11 +203,11 @@ export function generateTemplate(options: TemplateOptions): string {
 	lines.push("");
 
 	lines.push(
-		"type _U2I<U> = (U extends any ? (x: U) => void : never) extends (x: infer I) => void ? I : never;",
+		'import type { UnionToIntersection } from "questpie";',
 	);
 	lines.push(`type _Module = (typeof ${modulesFile.varName})[number];`);
 	lines.push(
-		"type _MPRaw<K extends string> = _U2I<_Module extends infer M ? M extends Record<K, infer V> ? V : never : never>;",
+		"type _MPRaw<K extends string> = UnionToIntersection<_Module extends infer M ? M extends Record<K, infer V> ? V : never : never>;",
 	);
 	lines.push(
 		"type _MP<K extends string> = [_MPRaw<K>] extends [never] ? {} : _MPRaw<K>;",
@@ -229,15 +229,27 @@ export function generateTemplate(options: TemplateOptions): string {
 		lines.push(`type ${moduleTypeName} = _MP<"${stateKey}">;`);
 	}
 
-	// NOTE: Module registries (views, listViews, formViews, components) are NOT
-	// extracted here via _MP<>. They are augmented into Registry by each module's
-	// own .generated/module.ts. This avoids circular references:
-	//   typeof _modules → CollectionBuilder augmentation → Registry → typeof _modules.
-	//
-	// However, ~-prefixed registryKeys (like ~fieldTypes) ARE extracted here via
-	// recursive module traversal. They must NOT be augmented per-module because
-	// multiple modules augmenting the same Registry property with different types
-	// causes TypeScript to degrade the merged type to `any`.
+	// ── Registry categories — extracted from modules via _MP<> ──────────
+	// ALL categories with registryKey are extracted and merged here centrally.
+	// Modules MUST NOT augment Registry — multiple modules declaring the same
+	// key causes TS2717. The root template is the single source of truth.
+	{
+		const registryCatNames: Array<{ catName: string; regKey: string }> = [];
+		for (const [catName, decl] of allDecls) {
+			if (!decl.registryKey) continue;
+			const regKey = typeof decl.registryKey === "string" ? decl.registryKey : catName;
+			registryCatNames.push({ catName, regKey });
+		}
+
+		if (registryCatNames.length > 0) {
+			lines.push("// Registry category extraction from modules");
+			for (const { catName } of registryCatNames) {
+				const typeName = `_Registry_${capitalize(catName)}`;
+				lines.push(`type ${typeName} = _MP<"${catName}">;`);
+			}
+			lines.push("");
+		}
+	}
 
 	// ── ~-prefixed registryKey extraction from modules ───────────────
 	// Recursively extracts properties from modules + sub-modules.
@@ -250,10 +262,7 @@ export function generateTemplate(options: TemplateOptions): string {
 				"// Recursive module property extraction (for fields contributed at each level)",
 			);
 			lines.push(
-				`type _ExtractProp<M, K extends string> = (M extends { modules: infer Sub extends readonly any[] } ? _ExtractPropArr<Sub, K> : {}) & (K extends keyof M ? M[K] extends Record<string, any> ? M[K] : {} : {});`,
-			);
-			lines.push(
-				`type _ExtractPropArr<A extends readonly any[], K extends string> = A extends readonly [infer H, ...infer T extends readonly any[]] ? _ExtractProp<H, K> & _ExtractPropArr<T, K> : {};`,
+				'import type { ExtractModuleProp } from "questpie";',
 			);
 			lines.push("");
 
@@ -262,11 +271,11 @@ export function generateTemplate(options: TemplateOptions): string {
 				const typeName = `_AllModule${capitalize(singleName)}`;
 				if (userFile) {
 					lines.push(
-						`type ${typeName} = _ExtractProp<{ modules: typeof ${modulesFile.varName} }, "${singleName}"> & typeof ${userFile.varName};`,
+						`type ${typeName} = ExtractModuleProp<{ modules: typeof ${modulesFile.varName} }, "${singleName}"> & typeof ${userFile.varName};`,
 					);
 				} else {
 					lines.push(
-						`type ${typeName} = _ExtractProp<{ modules: typeof ${modulesFile.varName} }, "${singleName}">;`,
+						`type ${typeName} = ExtractModuleProp<{ modules: typeof ${modulesFile.varName} }, "${singleName}">;`,
 					);
 				}
 			}
@@ -439,15 +448,31 @@ export function generateTemplate(options: TemplateOptions): string {
 
 		lines.push("\t\t}");
 
-		// Registry — ~-prefixed registryKeys augmented centrally
+		// Registry — ALL registryKey categories + ~-prefixed singles augmented centrally.
+		// This is the SINGLE place that augments Registry. Modules never augment it.
 		{
+			const registryEntries: string[] = [];
+
+			// Category registryKeys (views, components, blocks, listViews, etc.)
+			for (const [catName, decl] of allDecls) {
+				if (!decl.registryKey) continue;
+				const regKey = typeof decl.registryKey === "string" ? decl.registryKey : catName;
+				const typeName = `_Registry_${capitalize(catName)}`;
+				registryEntries.push(`\t\t\t${safeKey(regKey)}: ${typeName};`);
+			}
+
+			// ~-prefixed registryKeys from singles (e.g. ~fieldTypes)
 			const tildeKeys = collectTildeRegistryKeys(discoverPatterns, discovered.singles);
-			if (tildeKeys.length > 0) {
+			for (const { singleName, registryKey } of tildeKeys) {
+				const typeName = `_AllModule${capitalize(singleName)}`;
+				registryEntries.push(`\t\t\t${safeKey(registryKey)}: ${typeName};`);
+			}
+
+			if (registryEntries.length > 0) {
 				lines.push("");
 				lines.push("\t\tinterface Registry {");
-				for (const { singleName, registryKey } of tildeKeys) {
-					const typeName = `_AllModule${capitalize(singleName)}`;
-					lines.push(`\t\t\t${safeKey(registryKey)}: ${typeName};`);
+				for (const entry of registryEntries) {
+					lines.push(entry);
 				}
 				lines.push("\t\t}");
 			}
@@ -508,20 +533,7 @@ export function generateTemplate(options: TemplateOptions): string {
 	lines.push(" * const posts = await ctx.collections.posts.find({});");
 	lines.push(" * ```");
 	lines.push(" */");
-	lines.push("export async function createContext(options?: {");
-	lines.push("\taccessMode?: 'system' | 'user';");
-	lines.push("}): Promise<AppContext> {");
-	lines.push("\tconst reqCtx = await (app as any).createContext({");
-	lines.push("\t\taccessMode: options?.accessMode ?? 'system',");
-	lines.push("\t});");
-	lines.push("\tconst services = extractAppServices(app, {");
-	lines.push("\t\tdb: (app as any).db,");
-	lines.push("\t\tsession: reqCtx.session,");
-	lines.push("\t});");
-	lines.push(
-		"\treturn { ...services, locale: reqCtx.locale } as unknown as AppContext;",
-	);
-	lines.push("}");
+	lines.push("export const createContext = createContextFactory(app);");
 	lines.push("");
 
 	// Factories are available via #questpie/factories (separate entry to avoid circular deps)

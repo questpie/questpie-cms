@@ -205,7 +205,7 @@ describe("generateTemplate — minimal (modules.ts only)", () => {
 	});
 
 	it("emits createContext helper", () => {
-		expect(code).toContain("export async function createContext(");
+		expect(code).toContain("export const createContext = createContextFactory(app);");
 	});
 
 	it("emits factory comment", () => {

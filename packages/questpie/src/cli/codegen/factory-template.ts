@@ -6,11 +6,11 @@
  * (branding, sidebar, locale, etc.), and module-driven type extraction
  * for autocomplete on proxies (views, components, field types).
  *
- * Extension methods are intercepted by a Proxy wrapper that delegates to
- * `builder.set()`. Core builder methods are passed through and their results
- * are re-wrapped to preserve the Proxy chain across immutable builder calls.
+ * Extension methods are intercepted by `wrapBuilderWithExtensions()` which
+ * delegates to `builder.set()`. Initial state is created by `Builder.create()`.
  *
  * @see RFC-CONTEXT-FIRST §6 (Extension System Without Monkey-Patching)
+ * @see QUE-163 — Codegen Simplification
  */
 
 import type {
@@ -34,11 +34,12 @@ export interface FactoryTemplateOptions {
 
 /**
  * Generate `.generated/factories.ts` content.
- * Returns null if the target declares no registries (no factories needed).
+ * Always generates — even with zero extensions, exports `collection()` and `global()`
+ * as thin wrappers around `Builder.create()`.
  */
 export function generateFactoryTemplate(
 	options: FactoryTemplateOptions,
-): string | null {
+): string {
 	const { target, hasModules } = options;
 
 	// Extract merged registries and callback params from the resolved target
@@ -82,13 +83,11 @@ export function generateFactoryTemplate(
 		callbackParams.set(key, def);
 	}
 
-	// If nothing declared, no factories file needed
-	if (
-		collExtensions.size === 0 &&
-		globalExtensions.size === 0 &&
-		singletonFactories.size === 0
-	) {
-		return null;
+	// Collect imports for callback param factory functions (only when extensions exist)
+	const hasExtensions =
+		collExtensions.size > 0 || globalExtensions.size > 0;
+	if (hasExtensions) {
+		collectCallbackParamImports(callbackParams, allImports);
 	}
 
 	// Collect all configTypePlaceholders → category mappings
@@ -116,16 +115,22 @@ export function generateFactoryTemplate(
 	);
 	lines.push("");
 
-	// Core imports
+	// Core imports — always import builders; conditionally import wrapBuilderWithExtensions
 	lines.push("// ── Core Imports ───────────────────────────────────────────");
-	lines.push(
-		'import { CollectionBuilder, GlobalBuilder, type EmptyCollectionState, type EmptyGlobalState, type Registry } from "questpie";',
-	);
+	if (hasExtensions) {
+		lines.push(
+			'import { CollectionBuilder, GlobalBuilder, wrapBuilderWithExtensions, type EmptyCollectionState, type EmptyGlobalState } from "questpie";',
+		);
+	} else {
+		lines.push(
+			'import { CollectionBuilder, GlobalBuilder, type EmptyCollectionState, type EmptyGlobalState } from "questpie";',
+		);
+	}
 	lines.push("");
 
-	// Module import (for runtime field merging only — types come from Registry)
+	// Module import (for type-level field extraction only)
 	if (hasModules) {
-		lines.push("// ── Module import (for runtime fields) ──");
+		lines.push("// ── Module import (for type extraction) ──");
 		lines.push('import _modulesArr from "../modules";');
 		lines.push("");
 	}
@@ -152,10 +157,7 @@ export function generateFactoryTemplate(
 	}
 
 	// ── Type extraction from Registry (breaks circular reference) ──
-	// Instead of deriving types from `typeof _modulesArr` (which causes circular
-	// refs with CollectionBuilder augmentation), we read from the Registry
-	// interface which is augmented by each module's .generated/module.ts.
-	if (hasModules) {
+	if (hasModules && registryCategories.size > 0) {
 		lines.push(
 			"// ════════════════════════════════════════════════════════════",
 		);
@@ -167,9 +169,9 @@ export function generateFactoryTemplate(
 		);
 		lines.push("");
 
-		// Registry-based property extraction (no dependency on typeof _modulesArr)
+		// Registry-based property extraction (imported utility, no dependency on typeof _modulesArr)
 		lines.push(
-			"type _RegistryProp<K extends string> = Registry extends Record<K, infer V> ? V : Record<string, unknown>;",
+			'import type { RegistryProp } from "questpie";',
 		);
 		lines.push("");
 
@@ -180,34 +182,21 @@ export function generateFactoryTemplate(
 			if (decl.placeholder) {
 				const typeName = `_${key.charAt(0).toUpperCase() + key.slice(1)}Names`;
 				lines.push(
-					`type ${typeName} = (keyof _RegistryProp<"${registryKey}"> & string) | (string & {});`,
+					`type ${typeName} = (keyof RegistryProp<"${registryKey}"> & string) | (string & {});`,
 				);
 				if (decl.typeRegistry) {
 					lines.push(
-						`type ${typeName}_Strict = keyof _RegistryProp<"${registryKey}"> & string;`,
+						`type ${typeName}_Strict = keyof RegistryProp<"${registryKey}"> & string;`,
 					);
 				}
 			}
 			if (decl.recordPlaceholder) {
 				const recordTypeName = `_${key.charAt(0).toUpperCase() + key.slice(1)}Record`;
-				lines.push(`type ${recordTypeName} = _RegistryProp<"${registryKey}">;`);
+				lines.push(`type ${recordTypeName} = RegistryProp<"${registryKey}">;`);
 			}
 		}
 		lines.push("");
-
-		// Field types — extracted directly from modules (avoids circular dependency with index.ts Registry augmentation)
-		lines.push("// Field types — extracted from modules");
-		lines.push(
-			"type _ExtractProp<M, K extends string> = (M extends { modules: infer Sub extends readonly any[] } ? _ExtractPropArr<Sub, K> : {}) & (K extends keyof M ? M[K] extends Record<string, any> ? M[K] : {} : {});",
-		);
-		lines.push(
-			"type _ExtractPropArr<A extends readonly any[], K extends string> = A extends readonly [infer H, ...infer T extends readonly any[]] ? _ExtractProp<H, K> & _ExtractPropArr<T, K> : {};",
-		);
-		lines.push(
-			'type _AllFieldTypes = _ExtractProp<{ modules: typeof _modulesArr }, "fields">;',
-		);
-		lines.push("");
-	} else {
+	} else if (registryCategories.size > 0) {
 		// No modules — use string fallback for all registry categories
 		lines.push("// No modules.ts — using string fallback for type extraction");
 		for (const [key, decl] of registryCategories) {
@@ -223,143 +212,134 @@ export function generateFactoryTemplate(
 				lines.push(`type ${recordTypeName} = Record<string, any>;`);
 			}
 		}
+		lines.push("");
+	}
+
+	// Field types — extracted from modules using imported type utility
+	if (hasModules) {
+		lines.push("// Field types — extracted from modules");
+		lines.push(
+			'import type { ExtractModuleProp } from "questpie";',
+		);
+		lines.push(
+			'type _AllFieldTypes = ExtractModuleProp<{ modules: typeof _modulesArr }, "fields">;',
+		);
+		lines.push("");
+	} else {
 		lines.push("type _AllFieldTypes = Record<string, never>;");
 		lines.push("");
 	}
 
-	// ── Runtime field merging ────────────────────────────────
-	if (hasModules) {
-		lines.push(
-			"// ── Runtime: extract fields from modules ────────────────────",
-		);
-		lines.push(
-			"function _extractModuleFields(modules: readonly any[]): Record<string, any> {",
-		);
-		lines.push("\tconst merged: Record<string, any> = {};");
-		lines.push("\tfor (const m of modules) {");
-		lines.push("\t\tif (m.fields) Object.assign(merged, m.fields);");
-		lines.push(
-			"\t\tif (m.modules) Object.assign(merged, _extractModuleFields(m.modules));",
-		);
-		lines.push("\t}");
-		lines.push("\treturn merged;");
-		lines.push("}");
-		lines.push("const _allRuntimeFields = _extractModuleFields(_modulesArr);");
-		lines.push("");
-	}
-
 	// ── Type augmentations (declare module) ────────────────────
-	lines.push("// ════════════════════════════════════════════════════════════");
-	lines.push("// Type augmentations — generated from plugin registries");
-	lines.push("// ════════════════════════════════════════════════════════════");
-	lines.push("");
+	if (hasExtensions || registryCategories.size > 0) {
+		lines.push("// ════════════════════════════════════════════════════════════");
+		lines.push("// Type augmentations — generated from plugin registries");
+		lines.push("// ════════════════════════════════════════════════════════════");
+		lines.push("");
 
-	const placeholderMap = buildPlaceholderMap(registryCategories);
+		const placeholderMap = buildPlaceholderMap(registryCategories);
 
-	// Builder interface augmentations — keep declare module "questpie" for class merging
-	// (CollectionBuilder/GlobalBuilder are classes that need interface merging)
-	if (collExtensions.size > 0 || globalExtensions.size > 0) {
-		lines.push('declare module "questpie" {');
+		// Builder interface augmentations — keep declare module "questpie" for class merging
+		if (collExtensions.size > 0 || globalExtensions.size > 0) {
+			lines.push('declare module "questpie" {');
 
-		if (collExtensions.size > 0) {
-			lines.push("\tinterface CollectionBuilder<TState> {");
-			for (const [name, ext] of collExtensions) {
-				const paramName = ext.isCallback ? "configFn" : "config";
-				let paramType = ext.configType ?? "any";
-				paramType = resolvePlaceholders(paramType, hasModules, placeholderMap);
+			if (collExtensions.size > 0) {
+				lines.push("\tinterface CollectionBuilder<TState> {");
+				for (const [name, ext] of collExtensions) {
+					const paramName = ext.isCallback ? "configFn" : "config";
+					let paramType = ext.configType ?? "any";
+					paramType = resolvePlaceholders(paramType, hasModules, placeholderMap);
+					lines.push(
+						`\t\t${name}(${paramName}: ${paramType}): CollectionBuilder<TState>;`,
+					);
+				}
+				lines.push("\t}");
+			}
+
+			if (globalExtensions.size > 0) {
+				lines.push("\tinterface GlobalBuilder<TState> {");
+				for (const [name, ext] of globalExtensions) {
+					const paramName = ext.isCallback ? "configFn" : "config";
+					let paramType = ext.configType ?? "any";
+					paramType = resolvePlaceholders(paramType, hasModules, placeholderMap);
+					lines.push(
+						`\t\t${name}(${paramName}: ${paramType}): GlobalBuilder<TState>;`,
+					);
+				}
+				lines.push("\t}");
+			}
+
+			lines.push("}");
+			lines.push("");
+		}
+
+		// FieldTypeRegistry and type registries — use declare global (symlink-safe)
+		lines.push("declare global {");
+		lines.push("\tnamespace Questpie {");
+
+		lines.push(
+			"\t\tinterface FieldTypeRegistry extends Record<keyof _AllFieldTypes, {}> {}",
+		);
+
+		// Type registries from categories that target "questpie" module
+		for (const [key, decl] of registryCategories) {
+			if (decl.typeRegistry?.module === "questpie") {
+				const strictName = `_${key.charAt(0).toUpperCase() + key.slice(1)}Names_Strict`;
 				lines.push(
-					`\t\t${name}(${paramName}: ${paramType}): CollectionBuilder<TState>;`,
+					`\t\tinterface ${decl.typeRegistry.interface} extends Record<${strictName}, {}> {}`,
 				);
 			}
-			lines.push("\t}");
+		}
+
+		lines.push("\t}");
+		lines.push("}");
+		lines.push("");
+
+		// Type registries from categories that target other modules
+		const externalTypeRegistries = new Map<
+			string,
+			Array<{ key: string; decl: CategoryDeclaration }>
+		>();
+		for (const [key, decl] of registryCategories) {
+			if (decl.typeRegistry && decl.typeRegistry.module !== "questpie") {
+				let entries = externalTypeRegistries.get(decl.typeRegistry.module);
+				if (!entries) {
+					entries = [];
+					externalTypeRegistries.set(decl.typeRegistry.module, entries);
+				}
+				entries.push({ key, decl });
+			}
+		}
+
+		for (const [moduleName, entries] of externalTypeRegistries) {
+			lines.push(`declare module "${moduleName}" {`);
+			for (const { key, decl } of entries) {
+				const strictName = `_${key.charAt(0).toUpperCase() + key.slice(1)}Names_Strict`;
+				lines.push(
+					`\tinterface ${decl.typeRegistry?.interface} extends Record<${strictName}, {}> {}`,
+				);
+			}
+			lines.push("}");
+			lines.push("");
+		}
+	}
+
+	// ── Extension registries ─────────────────────────────────
+	if (hasExtensions) {
+		lines.push("// ════════════════════════════════════════════════════════════");
+		lines.push("// Extension registries");
+		lines.push("// ════════════════════════════════════════════════════════════");
+		lines.push("");
+
+		if (collExtensions.size > 0) {
+			emitExtensionRegistry(lines, "_collExt", collExtensions, callbackParams);
+			lines.push("");
 		}
 
 		if (globalExtensions.size > 0) {
-			lines.push("\tinterface GlobalBuilder<TState> {");
-			for (const [name, ext] of globalExtensions) {
-				const paramName = ext.isCallback ? "configFn" : "config";
-				let paramType = ext.configType ?? "any";
-				paramType = resolvePlaceholders(paramType, hasModules, placeholderMap);
-				lines.push(
-					`\t\t${name}(${paramName}: ${paramType}): GlobalBuilder<TState>;`,
-				);
-			}
-			lines.push("\t}");
+			emitExtensionRegistry(lines, "_globExt", globalExtensions, callbackParams);
+			lines.push("");
 		}
-
-		lines.push("}");
-		lines.push("");
-	}
-
-	// FieldTypeRegistry and type registries — use declare global (symlink-safe)
-	lines.push("declare global {");
-	lines.push("\tnamespace Questpie {");
-
-	lines.push(
-		"\t\tinterface FieldTypeRegistry extends Record<keyof _AllFieldTypes, {}> {}",
-	);
-
-	// Type registries from categories that target "questpie" module
-	for (const [key, decl] of registryCategories) {
-		if (decl.typeRegistry?.module === "questpie") {
-			const strictName = `_${key.charAt(0).toUpperCase() + key.slice(1)}Names_Strict`;
-			lines.push(
-				`\t\tinterface ${decl.typeRegistry.interface} extends Record<${strictName}, {}> {}`,
-			);
-		}
-	}
-
-	lines.push("\t}");
-	lines.push("}");
-	lines.push("");
-
-	// Type registries from categories that target other modules (e.g., "@questpie/admin/server")
-	// Group by module to minimize declare module blocks
-	const externalTypeRegistries = new Map<
-		string,
-		Array<{ key: string; decl: CategoryDeclaration }>
-	>();
-	for (const [key, decl] of registryCategories) {
-		if (decl.typeRegistry && decl.typeRegistry.module !== "questpie") {
-			let entries = externalTypeRegistries.get(decl.typeRegistry.module);
-			if (!entries) {
-				entries = [];
-				externalTypeRegistries.set(decl.typeRegistry.module, entries);
-			}
-			entries.push({ key, decl });
-		}
-	}
-
-	for (const [moduleName, entries] of externalTypeRegistries) {
-		lines.push(`declare module "${moduleName}" {`);
-		for (const { key, decl } of entries) {
-			const strictName = `_${key.charAt(0).toUpperCase() + key.slice(1)}Names_Strict`;
-			lines.push(
-				`\tinterface ${decl.typeRegistry?.interface} extends Record<${strictName}, {}> {}`,
-			);
-		}
-		lines.push("}");
-		lines.push("");
-	}
-
-	// ── Extension registries + Proxy wrappers ─────────────────
-	lines.push("// ════════════════════════════════════════════════════════════");
-	lines.push("// Extension registries + Proxy wrappers");
-	lines.push("// ════════════════════════════════════════════════════════════");
-	lines.push("");
-
-	if (collExtensions.size > 0) {
-		emitExtensionRegistry(lines, "_collExt", collExtensions, callbackParams);
-		lines.push("");
-		emitProxyWrapper(lines, "_wrapColl", "_collExt", "CollectionBuilder");
-		lines.push("");
-	}
-
-	if (globalExtensions.size > 0) {
-		emitExtensionRegistry(lines, "_globExt", globalExtensions, callbackParams);
-		lines.push("");
-		emitProxyWrapper(lines, "_wrapGlob", "_globExt", "GlobalBuilder");
-		lines.push("");
 	}
 
 	// ── Factory functions ─────────────────────────────────────
@@ -368,69 +348,57 @@ export function generateFactoryTemplate(
 	lines.push("// ════════════════════════════════════════════════════════════");
 	lines.push("");
 
-	// collection()
+	// collection() — always emitted
+	lines.push("/**");
+	lines.push(" * Create a typed collection builder with plugin extensions.");
+	lines.push(" *");
+	lines.push(" * @example");
+	lines.push(" * ```ts");
+	lines.push(' * import { collection } from "#questpie/factories";');
+	lines.push(" *");
+	lines.push(' * export default collection("posts")');
+	lines.push(
+		" *   .fields(({ f }) => ({ title: f.text({ required: true }) }))",
+	);
 	if (collExtensions.size > 0) {
-		lines.push("/**");
-		lines.push(" * Create a typed collection builder with plugin extensions.");
-		lines.push(" *");
-		lines.push(" * @example");
-		lines.push(" * ```ts");
-		lines.push(' * import { collection } from "#questpie/factories";');
-		lines.push(" *");
-		lines.push(' * export default collection("posts")');
-		lines.push(
-			" *   .fields(({ f }) => ({ title: f.text({ required: true }) }))",
-		);
 		lines.push(' *   .admin(({ c }) => ({ icon: c.icon("ph:article") }))');
 		lines.push(" *   .list(({ v, f }) => v.table({ columns: [f.title] }))");
-		lines.push(" * ```");
-		lines.push(" */");
-		lines.push(
-			"export function collection<TName extends string>(name: TName): CollectionBuilder<EmptyCollectionState<TName, undefined, _AllFieldTypes>> {",
-		);
-		lines.push("\treturn _wrapColl(new CollectionBuilder({");
-		lines.push("\t\tname: name as string,");
-		lines.push("\t\tfields: {},");
-		lines.push("\t\tlocalized: [],");
-		lines.push("\t\tvirtuals: undefined,");
-		lines.push("\t\trelations: {},");
-		lines.push("\t\tindexes: {},");
-		lines.push("\t\ttitle: undefined,");
-		lines.push("\t\toptions: {},");
-		lines.push("\t\thooks: {},");
-		lines.push("\t\taccess: {},");
-		lines.push("\t\tsearchable: undefined,");
-		lines.push("\t\tvalidation: undefined,");
-		lines.push("\t\toutput: undefined,");
-		lines.push("\t\tupload: undefined,");
-		lines.push("\t\tfieldDefinitions: {},");
-		lines.push("\t})) as any;");
-		lines.push("}");
-		lines.push("");
 	}
+	lines.push(" * ```");
+	lines.push(" */");
+	lines.push(
+		"export function collection<TName extends string>(name: TName): CollectionBuilder<EmptyCollectionState<TName, undefined, _AllFieldTypes>> {",
+	);
+	if (collExtensions.size > 0) {
+		lines.push(
+			"\treturn wrapBuilderWithExtensions(CollectionBuilder.create<TName, _AllFieldTypes>(name), _collExt, CollectionBuilder) as any;",
+		);
+	} else {
+		lines.push(
+			"\treturn CollectionBuilder.create<TName, _AllFieldTypes>(name);",
+		);
+	}
+	lines.push("}");
+	lines.push("");
 
-	// global()
+	// global() — always emitted
+	lines.push("/**");
+	lines.push(" * Create a typed global builder with plugin extensions.");
+	lines.push(" */");
+	lines.push(
+		"export function global<TName extends string>(name: TName): GlobalBuilder<EmptyGlobalState<TName, undefined, _AllFieldTypes>> {",
+	);
 	if (globalExtensions.size > 0) {
-		lines.push("/**");
-		lines.push(" * Create a typed global builder with plugin extensions.");
-		lines.push(" */");
 		lines.push(
-			"export function global<TName extends string>(name: TName): GlobalBuilder<EmptyGlobalState<TName, undefined, _AllFieldTypes>> {",
+			"\treturn wrapBuilderWithExtensions(GlobalBuilder.create<TName, _AllFieldTypes>(name), _globExt, GlobalBuilder) as any;",
 		);
-		lines.push("\treturn _wrapGlob(new GlobalBuilder({");
-		lines.push("\t\tname: name as string,");
-		lines.push("\t\tfields: {},");
-		lines.push("\t\tlocalized: [],");
-		lines.push("\t\tvirtuals: {},");
-		lines.push("\t\trelations: {},");
-		lines.push("\t\toptions: {},");
-		lines.push("\t\thooks: {},");
-		lines.push("\t\taccess: {},");
-		lines.push("\t\tfieldDefinitions: {},");
-		lines.push("\t})) as any;");
-		lines.push("}");
-		lines.push("");
+	} else {
+		lines.push(
+			"\treturn GlobalBuilder.create<TName, _AllFieldTypes>(name);",
+		);
 	}
+	lines.push("}");
+	lines.push("");
 
 	// ── Singleton factory functions ────────────────────────────
 	if (singletonFactories.size > 0) {
@@ -495,8 +463,6 @@ function emitSingletonFactory(
 
 /**
  * Build a placeholder → type alias mapping from categories with placeholder/recordPlaceholder.
- * Each category with a `placeholder` gets an entry that maps
- * the placeholder token to the generated type alias name.
  */
 function buildPlaceholderMap(
 	categories: Map<string, CategoryDeclaration>,
@@ -539,7 +505,7 @@ function resolvePlaceholders(
 }
 
 // ============================================================================
-// Extension registry + Proxy wrapper emission
+// Extension registry emission
 // ============================================================================
 
 /**
@@ -591,41 +557,6 @@ function emitExtensionRegistry(
 	lines.push("};");
 }
 
-/**
- * Emit a Proxy wrapper function that intercepts extension method calls
- * and delegates to `builder.set()`. Also re-wraps builder-returning
- * methods so the Proxy chain is preserved across immutable builder calls.
- */
-function emitProxyWrapper(
-	lines: string[],
-	fnName: string,
-	registryVar: string,
-	builderClass: string,
-): void {
-	lines.push(`function ${fnName}(builder: any): any {`);
-	lines.push("\treturn new Proxy(builder, {");
-	lines.push("\t\tget(target, prop, receiver) {");
-	lines.push(`\t\t\tif (typeof prop === 'string' && prop in ${registryVar}) {`);
-	lines.push(`\t\t\t\tconst ext = ${registryVar}[prop];`);
-	lines.push(
-		`\t\t\t\treturn (configOrFn: any) => ${fnName}(target.set(ext.stateKey, ext.resolve(configOrFn)));`,
-	);
-	lines.push("\t\t\t}");
-	lines.push("\t\t\tconst val = Reflect.get(target, prop, receiver);");
-	lines.push("\t\t\tif (typeof val === 'function') {");
-	lines.push("\t\t\t\treturn function(this: any, ...args: any[]) {");
-	lines.push("\t\t\t\t\tconst result = val.apply(target, args);");
-	lines.push(
-		`\t\t\t\t\treturn result instanceof ${builderClass} ? ${fnName}(result) : result;`,
-	);
-	lines.push("\t\t\t\t};");
-	lines.push("\t\t\t}");
-	lines.push("\t\t\treturn val;");
-	lines.push("\t\t},");
-	lines.push("\t});");
-	lines.push("}");
-}
-
 // ============================================================================
 // Helpers
 // ============================================================================
@@ -661,8 +592,6 @@ function collectSingletonImports(
 
 /**
  * Emit the callback context object for a callback-style extension.
- * Looks up each param name in the plugin-contributed callbackParams registry
- * and emits the registered proxyCode inline.
  */
 function emitCallbackContext(
 	ext: RegistryExtension,
@@ -676,12 +605,28 @@ function emitCallbackContext(
 	for (const param of ext.callbackContextParams) {
 		const def = callbackParams.get(param);
 		if (def) {
-			params.push(`${param}: ${def.proxyCode}`);
+			params.push(`${param}: ${def.factory}()`);
 		} else {
-			// Fallback for unknown params — empty object
 			params.push(`${param}: {}`);
 		}
 	}
 
 	return `{ ${params.join(", ")} }`;
+}
+
+/**
+ * Collect imports required by callback param factory functions.
+ */
+function collectCallbackParamImports(
+	callbackParams: Map<string, CallbackParamDefinition>,
+	allImports: Map<string, Set<string>>,
+): void {
+	for (const def of callbackParams.values()) {
+		let names = allImports.get(def.from);
+		if (!names) {
+			names = new Set();
+			allImports.set(def.from, names);
+		}
+		names.add(def.factory);
+	}
 }

@@ -37,8 +37,6 @@ const _module = {
 	migrations: [] as const,
 	seeds: [] as const,
 	views: {},
-	listViews: {},
-	formViews: {},
 	components: {},
 	blocks: {},
 	dashboard: [] as const,

@@ -1,0 +1,64 @@
+/**
+ * Codegen Type Utilities
+ *
+ * Type-level helpers used by generated code (.generated/index.ts, .generated/factories.ts).
+ * Moved out of codegen string templates into a proper TS file so they can be imported
+ * instead of emitted inline.
+ *
+ * @see QUE-163 — Codegen Simplification
+ */
+
+import type { Registry } from "./app-context.js";
+
+/**
+ * Convert a union type to an intersection type.
+ *
+ * Used in generated index.ts to merge module property types:
+ * `_U2I<ModuleUnion extends ... ? V : never>` collapses into an intersection.
+ */
+// biome-ignore lint/suspicious/noExplicitAny: Required for distributive conditional type
+export type UnionToIntersection<U> = (U extends any ? (x: U) => void : never) extends (
+	x: infer I,
+) => void
+	? I
+	: never;
+
+/**
+ * Extract a property type from the Registry interface by key.
+ *
+ * Used in generated factories.ts to derive view/component type aliases
+ * from the globally augmented Registry without importing modules directly.
+ */
+export type RegistryProp<K extends string> = Registry extends Record<K, infer V>
+	? V
+	: Record<string, unknown>;
+
+/**
+ * Recursively extract a named property from a module tree.
+ *
+ * A module may have direct `M[K]` properties and nested `M["modules"]` sub-modules.
+ * This type intersects them all, giving a flat merged record of all contributions
+ * at every nesting level.
+ *
+ * Used in generated code to derive `_AllFieldTypes` and `_AllModule*` types.
+ */
+// biome-ignore lint/suspicious/noExplicitAny: Required for generic module shape matching
+export type ExtractModuleProp<M, K extends string> = (M extends {
+	modules: infer Sub extends readonly any[];
+}
+	? ExtractModulePropArr<Sub, K>
+	: // biome-ignore lint/complexity/noBannedTypes: Empty object is correct base case
+		{}) &
+	// biome-ignore lint/suspicious/noExplicitAny: Required for generic module shape matching
+	(K extends keyof M ? (M[K] extends Record<string, any> ? M[K] : {}) : {});
+
+/**
+ * Array companion for ExtractModuleProp — recurses over a readonly tuple of modules.
+ */
+// biome-ignore lint/suspicious/noExplicitAny: Required for generic module shape matching
+export type ExtractModulePropArr<A extends readonly any[], K extends string> =
+	// biome-ignore lint/suspicious/noExplicitAny: Required for generic module shape matching
+	A extends readonly [infer H, ...infer T extends readonly any[]]
+		? ExtractModuleProp<H, K> & ExtractModulePropArr<T, K>
+		: // biome-ignore lint/complexity/noBannedTypes: Empty object is correct base case
+			{};

@@ -39,9 +39,6 @@ import _comp_icon from "../components/icon";
 import _fields from "../fields";
 import _sidebar from "../sidebar";
 
-// ── Plugin Imports ─────────────────────────────────────────
-import { filterViewsByKind } from "#questpie/admin/server/registry-helpers.js";
-
 // ════════════════════════════════════════════════════════════
 // TYPES — composed from typeof references (zero inference cost)
 // ════════════════════════════════════════════════════════════
@@ -74,9 +71,6 @@ export interface AdminComponents {
 // ════════════════════════════════════════════════════════════
 // MODULE DEFINITION — static plain object
 // ════════════════════════════════════════════════════════════
-
-const _reg_listViews = filterViewsByKind({ collectionForm: _view_collectionForm, collectionTable: _view_collectionTable, globalForm: _view_globalForm }, "list");
-const _reg_formViews = filterViewsByKind({ collectionForm: _view_collectionForm, collectionTable: _view_collectionTable, globalForm: _view_globalForm }, "form");
 
 const _module = {
 	name: "questpie-admin" as const,
@@ -121,8 +115,6 @@ const _module = {
 	blocks: {},
 	fields: _fields,
 	sidebar: [_sidebar],
-	listViews: _reg_listViews,
-	formViews: _reg_formViews,
 	dashboard: [] as const,
 };
 

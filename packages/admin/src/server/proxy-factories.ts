@@ -91,6 +91,90 @@ function normalizeComponentProps(
 }
 
 // ============================================================================
+// Callback Context Proxy Factories (used by codegen-generated factories.ts)
+// ============================================================================
+
+/**
+ * Create a simple view proxy for builder callback contexts.
+ * Accessing any property returns a function that creates a view config object.
+ *
+ * Used as the `v` callback param: `v.table({ columns: [...] })` → `{ view: "table", columns: [...] }`.
+ */
+export function createViewCallbackProxy(): Record<
+	string,
+	(config?: Record<string, unknown>) => Record<string, unknown>
+> {
+	return new Proxy(
+		{},
+		{
+			get: (_: unknown, prop: string | symbol) => {
+				return (config: Record<string, unknown> = {}) => ({
+					view: String(prop),
+					...config,
+				});
+			},
+		},
+	) as Record<
+		string,
+		(config?: Record<string, unknown>) => Record<string, unknown>
+	>;
+}
+
+/**
+ * Create a simple component proxy for builder callback contexts.
+ * Accessing any property returns a function that creates a component reference.
+ *
+ * Used as the `c` callback param: `c.icon("ph:article")` → `{ type: "icon", props: { name: "ph:article" } }`.
+ */
+export function createComponentCallbackProxy(): Record<
+	string,
+	(...args: unknown[]) => Record<string, unknown>
+> {
+	return new Proxy(
+		{},
+		{
+			get: (_: unknown, prop: string | symbol) => {
+				return (...args: unknown[]) => ({
+					type: String(prop),
+					props:
+						typeof args[0] === "string"
+							? { name: args[0] }
+							: (args[0] ?? {}),
+				});
+			},
+		},
+	) as Record<string, (...args: unknown[]) => Record<string, unknown>>;
+}
+
+/**
+ * Create a simple action proxy for builder callback contexts.
+ * Provides a `custom()` method and returns action names as strings for built-in actions.
+ *
+ * Used as the `a` callback param: `a.delete` → `"delete"`, `a.custom("archive", config)` → `{ id: "archive", ...config }`.
+ */
+export function createActionCallbackProxy(): Record<string, unknown> {
+	return new Proxy(
+		{
+			custom: (name: string, config?: Record<string, unknown>) => ({
+				id: name,
+				...config,
+			}),
+		} as Record<string, unknown>,
+		{
+			get: (
+				target: Record<string, unknown>,
+				prop: string | symbol,
+			) => {
+				return (
+					(target as Record<string | symbol, unknown>)[prop] ??
+					String(prop)
+				);
+			},
+		},
+	);
+}
+
+// ============================================================================
 // Proxy Factories
 // ============================================================================
 

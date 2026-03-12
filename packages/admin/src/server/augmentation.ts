@@ -166,6 +166,25 @@ export interface ViewKindRegistry {
  */
 export type ViewKind = keyof ViewKindRegistry;
 
+/**
+ * Type-level filter that selects views matching a specific kind.
+ *
+ * Used by codegen to derive list/form view types from the unified `views` registry
+ * without needing separate `listViews`/`formViews` categories.
+ *
+ * @example
+ * ```ts
+ * type ListViews = FilterViewsByKind<AllViews, "list">;
+ * type FormViews = FilterViewsByKind<AllViews, "form">;
+ * ```
+ */
+export type FilterViewsByKind<
+	TViews,
+	TKind extends ViewKind,
+> = {
+	[K in keyof TViews as TViews[K] extends { kind: TKind } ? K : never]: TViews[K];
+};
+
 // ============================================================================
 // View Definition — Unified
 // ============================================================================

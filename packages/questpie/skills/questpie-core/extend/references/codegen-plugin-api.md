@@ -218,12 +218,14 @@ Defines how to emit a callback context parameter at codegen time.
 ```ts
 interface CallbackParamDefinition {
   /**
-   * Inline JS expression creating the runtime proxy.
-   * Emitted directly into generated factories.ts.
+   * Name of the factory function to call (must be a named export from `from`).
    *
-   * Example: "new Proxy({}, { get: (_, prop) => String(prop) })"
+   * Example: { factory: "createFieldNameProxy", from: "questpie" }
    */
-  proxyCode: string;
+  factory: string;
+
+  /** Module specifier to import the factory from. */
+  from: string;
 }
 ```
 

@@ -3,10 +3,30 @@
 // Typed factory functions with plugin extensions. Regenerate with: questpie generate
 
 // ── Core Imports ───────────────────────────────────────────
-import { CollectionBuilder, GlobalBuilder, type BuiltinFields, type EmptyCollectionState, type EmptyGlobalState } from "questpie";
+import { CollectionBuilder, GlobalBuilder, wrapBuilderWithExtensions, type EmptyCollectionState, type EmptyGlobalState } from "questpie";
+
+// ── Module import (for type extraction) ──
+import _modulesArr from "../modules";
 
 // ── Plugin Imports ─────────────────────────────────────────
-import { type AdminCollectionConfig, type AdminConfigContext, type ListViewConfig, type ListViewConfigContext, type FormViewConfig, type FormViewConfigContext, type PreviewConfig, type ServerActionsConfig, type ActionsConfigContext, type AdminGlobalConfig, createComponentProxy, createViewProxy, createFieldProxy, createActionProxy } from "@questpie/admin/server";
+import { type AdminCollectionConfig, type AdminConfigContext, type ListViewConfig, type ListViewConfigContext, type FilterViewsByKind, type FormViewConfig, type FormViewConfigContext, type PreviewConfig, type ServerActionsConfig, type ActionsConfigContext, type AdminGlobalConfig, type ServerBrandingConfig, type AdminLocaleConfig, type SidebarContribution, type DashboardContribution, createViewCallbackProxy, createComponentCallbackProxy, createActionCallbackProxy } from "@questpie/admin/server";
+import { type LocaleConfig, type GlobalHooksInput, type CollectionAccess, type ContextResolver, createFieldNameProxy } from "questpie";
+
+// ════════════════════════════════════════════════════════════
+// Type extraction from Registry — driven by CategoryDeclaration
+// ════════════════════════════════════════════════════════════
+
+import type { RegistryProp } from "questpie";
+
+type _ViewsNames = (keyof RegistryProp<"views"> & string) | (string & {});
+type _ViewsRecord = RegistryProp<"views">;
+type _ComponentsNames = (keyof RegistryProp<"components"> & string) | (string & {});
+type _ComponentsNames_Strict = keyof RegistryProp<"components"> & string;
+type _ComponentsRecord = RegistryProp<"components">;
+
+// Field types — extracted from modules
+import type { ExtractModuleProp } from "questpie";
+type _AllFieldTypes = ExtractModuleProp<{ modules: typeof _modulesArr }, "fields">;
 
 // ════════════════════════════════════════════════════════════
 // Type augmentations — generated from plugin registries
@@ -14,108 +34,80 @@ import { type AdminCollectionConfig, type AdminConfigContext, type ListViewConfi
 
 declare module "questpie" {
 	interface CollectionBuilder<TState> {
-		admin(configFn: AdminCollectionConfig | ((ctx: AdminConfigContext) => AdminCollectionConfig)): CollectionBuilder<TState>;
-		list(configFn: (ctx: ListViewConfigContext<TState extends { fieldDefinitions: infer F } ? F : {}>) => ListViewConfig): CollectionBuilder<TState>;
-		form(configFn: (ctx: FormViewConfigContext<TState extends { fieldDefinitions: infer F } ? F : {}>) => FormViewConfig): CollectionBuilder<TState>;
+		admin(configFn: AdminCollectionConfig | ((ctx: AdminConfigContext<_ComponentsRecord>) => AdminCollectionConfig)): CollectionBuilder<TState>;
+		list(configFn: (ctx: ListViewConfigContext<TState extends { fieldDefinitions: infer F extends Record<string, any> } ? F : Record<string, any>, FilterViewsByKind<_ViewsRecord, "list">>) => ListViewConfig): CollectionBuilder<TState>;
+		form(configFn: (ctx: FormViewConfigContext<TState extends { fieldDefinitions: infer F extends Record<string, any> } ? F : Record<string, any>, FilterViewsByKind<_ViewsRecord, "form">>) => FormViewConfig): CollectionBuilder<TState>;
 		preview(config: PreviewConfig): CollectionBuilder<TState>;
-		actions(configFn: (ctx: ActionsConfigContext) => ServerActionsConfig): CollectionBuilder<TState>;
+		actions(configFn: (ctx: ActionsConfigContext<Record<string, unknown>, _ComponentsRecord>) => ServerActionsConfig): CollectionBuilder<TState>;
 	}
 	interface GlobalBuilder<TState> {
-		admin(configFn: AdminGlobalConfig | ((ctx: AdminConfigContext) => AdminGlobalConfig)): GlobalBuilder<TState>;
-		form(configFn: (ctx: FormViewConfigContext<TState extends { fieldDefinitions: infer F } ? F : {}>) => FormViewConfig): GlobalBuilder<TState>;
+		admin(configFn: AdminGlobalConfig | ((ctx: AdminConfigContext<_ComponentsRecord>) => AdminGlobalConfig)): GlobalBuilder<TState>;
+		form(configFn: (ctx: FormViewConfigContext<TState extends { fieldDefinitions: infer F extends Record<string, any> } ? F : Record<string, any>, FilterViewsByKind<_ViewsRecord, "form">>) => FormViewConfig): GlobalBuilder<TState>;
 	}
 }
 
+declare global {
+	namespace Questpie {
+		interface FieldTypeRegistry extends Record<keyof _AllFieldTypes, {}> {}
+	}
+}
+
+declare module "@questpie/admin/server" {
+	interface ComponentTypeRegistry extends Record<_ComponentsNames_Strict, {}> {}
+}
+
 // ════════════════════════════════════════════════════════════
-// Extension registries + Proxy wrappers
+// Extension registries
 // ════════════════════════════════════════════════════════════
 
 const _collExt: Record<string, { stateKey: string; resolve: (v: any) => any }> = {
 	admin: {
 		stateKey: "admin",
 		resolve(configOrFn: any) {
-			if (typeof configOrFn === 'function') return configOrFn({ c: new Proxy({}, { get: (_, prop) => (...args: any[]) => ({ type: String(prop), props: typeof args[0] === "string" ? { name: args[0] } : args[0] ?? {} }) }) });
+			if (typeof configOrFn === 'function') return configOrFn({ c: createComponentCallbackProxy() });
 			return configOrFn;
 		},
 	},
 	list: {
 		stateKey: "adminList",
 		resolve(configOrFn: any) {
-			if (typeof configOrFn === 'function') return configOrFn({ v: new Proxy({}, { get: (_, prop) => (config: any) => ({ view: String(prop), ...config }) }), f: new Proxy({}, { get: (_, prop) => String(prop) }), a: new Proxy({ custom: (name: string, config: any) => ({ id: name, ...config }) }, { get: (target, prop) => (target as any)[prop] ?? String(prop) }) });
-			return configOrFn;
+			const resolved = typeof configOrFn === 'function' ? configOrFn({ v: createViewCallbackProxy(), f: createFieldNameProxy(), a: createActionCallbackProxy() }) : configOrFn;
+			return { ...{"view":"collection-table","showSearch":true,"showFilters":true,"showToolbar":true}, ...resolved };
 		},
 	},
 	form: {
 		stateKey: "adminForm",
 		resolve(configOrFn: any) {
-			if (typeof configOrFn === 'function') return configOrFn({ v: new Proxy({}, { get: (_, prop) => (config: any) => ({ view: String(prop), ...config }) }), f: new Proxy({}, { get: (_, prop) => String(prop) }) });
-			return configOrFn;
+			const resolved = typeof configOrFn === 'function' ? configOrFn({ v: createViewCallbackProxy(), f: createFieldNameProxy() }) : configOrFn;
+			return { ...{"view":"collection-form","showMeta":true}, ...resolved };
 		},
 	},
 	preview: { stateKey: "adminPreview", resolve: (v: any) => v },
 	actions: {
 		stateKey: "adminActions",
 		resolve(configOrFn: any) {
-			if (typeof configOrFn === 'function') return configOrFn({ a: new Proxy({ custom: (name: string, config: any) => ({ id: name, ...config }) }, { get: (target, prop) => (target as any)[prop] ?? String(prop) }), c: new Proxy({}, { get: (_, prop) => (...args: any[]) => ({ type: String(prop), props: typeof args[0] === "string" ? { name: args[0] } : args[0] ?? {} }) }), f: new Proxy({}, { get: (_, prop) => String(prop) }) });
+			if (typeof configOrFn === 'function') return configOrFn({ a: createActionCallbackProxy(), c: createComponentCallbackProxy(), f: createFieldNameProxy() });
 			return configOrFn;
 		},
 	},
 };
 
-function _wrapColl(builder: any): any {
-	return new Proxy(builder, {
-		get(target, prop, receiver) {
-			if (typeof prop === 'string' && prop in _collExt) {
-				const ext = _collExt[prop];
-				return (configOrFn: any) => _wrapColl(target.set(ext.stateKey, ext.resolve(configOrFn)));
-			}
-			const val = Reflect.get(target, prop, receiver);
-			if (typeof val === 'function') {
-				return function(this: any, ...args: any[]) {
-					const result = val.apply(target, args);
-					return result instanceof CollectionBuilder ? _wrapColl(result) : result;
-				};
-			}
-			return val;
-		},
-	});
-}
-
 const _globExt: Record<string, { stateKey: string; resolve: (v: any) => any }> = {
 	admin: {
 		stateKey: "admin",
 		resolve(configOrFn: any) {
-			if (typeof configOrFn === 'function') return configOrFn({ c: new Proxy({}, { get: (_, prop) => (...args: any[]) => ({ type: String(prop), props: typeof args[0] === "string" ? { name: args[0] } : args[0] ?? {} }) }) });
+			if (typeof configOrFn === 'function') return configOrFn({ c: createComponentCallbackProxy() });
 			return configOrFn;
 		},
 	},
 	form: {
 		stateKey: "adminForm",
 		resolve(configOrFn: any) {
-			if (typeof configOrFn === 'function') return configOrFn({ v: new Proxy({}, { get: (_, prop) => (config: any) => ({ view: String(prop), ...config }) }), f: new Proxy({}, { get: (_, prop) => String(prop) }) });
-			return configOrFn;
+			const resolved = typeof configOrFn === 'function' ? configOrFn({ v: createViewCallbackProxy(), f: createFieldNameProxy() }) : configOrFn;
+			return { ...{"view":"global-form","showMeta":true}, ...resolved };
 		},
 	},
 };
-
-function _wrapGlob(builder: any): any {
-	return new Proxy(builder, {
-		get(target, prop, receiver) {
-			if (typeof prop === 'string' && prop in _globExt) {
-				const ext = _globExt[prop];
-				return (configOrFn: any) => _wrapGlob(target.set(ext.stateKey, ext.resolve(configOrFn)));
-			}
-			const val = Reflect.get(target, prop, receiver);
-			if (typeof val === 'function') {
-				return function(this: any, ...args: any[]) {
-					const result = val.apply(target, args);
-					return result instanceof GlobalBuilder ? _wrapGlob(result) : result;
-				};
-			}
-			return val;
-		},
-	});
-}
 
 // ════════════════════════════════════════════════════════════
 // Factory functions
@@ -134,41 +126,45 @@ function _wrapGlob(builder: any): any {
  *   .list(({ v, f }) => v.table({ columns: [f.title] }))
  * ```
  */
-export function collection<TName extends string>(name: TName): CollectionBuilder<EmptyCollectionState<TName, undefined, BuiltinFields>> {
-	return _wrapColl(new CollectionBuilder({
-		name: name as string,
-		fields: {},
-		localized: [],
-		virtuals: undefined,
-		relations: {},
-		indexes: {},
-		title: undefined,
-		options: {},
-		hooks: {},
-		access: {},
-		searchable: undefined,
-		validation: undefined,
-		output: undefined,
-		upload: undefined,
-		fieldDefinitions: {},
-		"~questpieApp": undefined,
-	})) as any;
+export function collection<TName extends string>(name: TName): CollectionBuilder<EmptyCollectionState<TName, undefined, _AllFieldTypes>> {
+	return wrapBuilderWithExtensions(CollectionBuilder.create<TName, _AllFieldTypes>(name), _collExt, CollectionBuilder) as any;
 }
 
 /**
  * Create a typed global builder with plugin extensions.
  */
-export function global<TName extends string>(name: TName): GlobalBuilder<EmptyGlobalState<TName, undefined, BuiltinFields>> {
-	return _wrapGlob(new GlobalBuilder({
-		name: name as string,
-		fields: {},
-		localized: [],
-		virtuals: {},
-		relations: {},
-		options: {},
-		hooks: {},
-		access: {},
-		fieldDefinitions: {},
-		"~questpieApp": undefined,
-	})) as any;
+export function global<TName extends string>(name: TName): GlobalBuilder<EmptyGlobalState<TName, undefined, _AllFieldTypes>> {
+	return wrapBuilderWithExtensions(GlobalBuilder.create<TName, _AllFieldTypes>(name), _globExt, GlobalBuilder) as any;
 }
+
+// ════════════════════════════════════════════════════════════
+// Singleton factory functions
+// ════════════════════════════════════════════════════════════
+
+/** Typed factory for locale config. */
+export function locale<T extends LocaleConfig>(config: T): T { return config; }
+
+/** Typed factory for hooks config. */
+export function hooks<T extends GlobalHooksInput>(config: T): T { return config; }
+
+/** Typed factory for access config. */
+export function access<T extends CollectionAccess>(config: T): T { return config; }
+
+/** Typed factory for context config. */
+export function context<T extends ContextResolver>(config: T): T { return config; }
+
+/** Typed factory for branding config. */
+export function branding<T extends ServerBrandingConfig>(config: T): T { return config; }
+
+/** Typed factory for adminLocale config. */
+export function adminLocale<T extends AdminLocaleConfig>(config: T): T { return config; }
+
+/** Typed factory for sidebar config. Accepts plain config or callback. */
+export function sidebar<T extends SidebarContribution>(config: T): T;
+export function sidebar<T extends (...args: any[]) => SidebarContribution>(cb: T): T;
+export function sidebar(v: any): any { return v; }
+
+/** Typed factory for dashboard config. Accepts plain config or callback. */
+export function dashboard<T extends DashboardContribution>(config: T): T;
+export function dashboard<T extends (...args: any[]) => DashboardContribution>(cb: T): T;
+export function dashboard(v: any): any { return v; }

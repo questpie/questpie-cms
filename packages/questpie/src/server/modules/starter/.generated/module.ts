@@ -71,16 +71,3 @@ const _module = {
 
 export type StarterModule = typeof _module;
 export default _module;
-
-// ════════════════════════════════════════════════════════════
-// Registry augmentation — module registries
-// ════════════════════════════════════════════════════════════
-
-declare global {
-	namespace Questpie {
-		interface Registry {
-			collections: StarterCollections;
-			jobs: StarterJobs;
-		}
-	}
-}

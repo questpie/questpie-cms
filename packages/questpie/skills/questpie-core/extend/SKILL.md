@@ -65,7 +65,8 @@ export function myPlugin(): CodegenPlugin {
         // Callback param definitions for extension methods
         callbackParams: {
           w: {
-            proxyCode: 'new Proxy({}, { get: (_, prop) => String(prop) })',
+            factory: 'createWidgetNameProxy',
+            from: 'my-plugin-package',
           },
         },
       },

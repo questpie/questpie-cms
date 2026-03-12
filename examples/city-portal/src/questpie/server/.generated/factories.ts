@@ -3,9 +3,9 @@
 // Typed factory functions with plugin extensions. Regenerate with: questpie generate
 
 // ── Core Imports ───────────────────────────────────────────
-import { CollectionBuilder, GlobalBuilder, type EmptyCollectionState, type EmptyGlobalState, type Registry } from "questpie";
+import { CollectionBuilder, GlobalBuilder, wrapBuilderWithExtensions, type EmptyCollectionState, type EmptyGlobalState } from "questpie";
 
-// ── Module import (for runtime fields) ──
+// ── Module import (for type extraction) ──
 import _modulesArr from "../modules";
 
 // ── Plugin Imports ─────────────────────────────────────────
@@ -19,20 +19,8 @@ type _RegistryProp<K extends string> = Registry extends Record<K, infer V> ? V :
 
 
 // Field types — extracted from modules
-type _ExtractProp<M, K extends string> = (M extends { modules: infer Sub extends readonly any[] } ? _ExtractPropArr<Sub, K> : {}) & (K extends keyof M ? M[K] extends Record<string, any> ? M[K] : {} : {});
-type _ExtractPropArr<A extends readonly any[], K extends string> = A extends readonly [infer H, ...infer T extends readonly any[]] ? _ExtractProp<H, K> & _ExtractPropArr<T, K> : {};
-type _AllFieldTypes = _ExtractProp<{ modules: typeof _modulesArr }, "fields">;
-
-// ── Runtime: extract fields from modules ────────────────────
-function _extractModuleFields(modules: readonly any[]): Record<string, any> {
-	const merged: Record<string, any> = {};
-	for (const m of modules) {
-		if (m.fields) Object.assign(merged, m.fields);
-		if (m.modules) Object.assign(merged, _extractModuleFields(m.modules));
-	}
-	return merged;
-}
-const _allRuntimeFields = _extractModuleFields(_modulesArr);
+import type { ExtractModuleProp } from "questpie";
+type _AllFieldTypes = ExtractModuleProp<{ modules: typeof _modulesArr }, "fields">;
 
 // ════════════════════════════════════════════════════════════
 // Type augmentations — generated from plugin registries
@@ -40,12 +28,12 @@ const _allRuntimeFields = _extractModuleFields(_modulesArr);
 
 declare global {
 	namespace Questpie {
-		interface FieldTypeRegistry extends Record<keyof _AllFieldTypes, {}> {}
+		interface FieldTypeRegistry extends Record<keyof _AllFieldTypes, {}> { }
 	}
 }
 
 // ════════════════════════════════════════════════════════════
-// Extension registries + Proxy wrappers
+// Extension registries
 // ════════════════════════════════════════════════════════════
 
 // ════════════════════════════════════════════════════════════

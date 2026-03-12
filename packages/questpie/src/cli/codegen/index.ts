@@ -164,7 +164,8 @@ export function coreCodegenPlugin(): CodegenPlugin {
 				},
 				callbackParams: {
 					f: {
-						proxyCode: "new Proxy({}, { get: (_, prop) => String(prop) })",
+						factory: "createFieldNameProxy",
+						from: "questpie",
 					},
 				},
 				scaffolds: {
@@ -559,7 +560,9 @@ export async function runCodegen(
 		});
 	}
 
-	// 6. Generate factories if target has registries (root app only)
+	// 6. Always generate factories.ts for root app mode
+	// Even with zero extensions, factories.ts exports collection()/global()
+	// so users always import from #questpie/factories (stable import path).
 	let factoriesCode: string | null = null;
 	if (!options.module) {
 		const hasModules = discovered.singles.has("modules");
@@ -575,7 +578,7 @@ export async function runCodegen(
 		await mkdir(outDir, { recursive: true });
 		await writeFile(outputPath, code, "utf-8");
 
-		// Write factories.ts if generated
+		// Always write factories.ts in root app mode
 		if (factoriesCode) {
 			const factoriesPath = join(outDir, "factories.ts");
 			await writeFile(factoriesPath, factoriesCode, "utf-8");

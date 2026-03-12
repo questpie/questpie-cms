@@ -92,6 +92,38 @@ export class CollectionBuilder<TState extends CollectionBuilderState> {
 	// Store callback functions for lazy evaluation
 	private _indexesFn?: CollectionBuilderIndexesFn<TState, TState["indexes"]>;
 
+	/**
+	 * Create a new CollectionBuilder with the standard empty initial state.
+	 *
+	 * Encapsulates the hardcoded initial state so that codegen-generated
+	 * factories.ts can use `CollectionBuilder.create(name)` instead of
+	 * duplicating the 14-property state object inline.
+	 */
+	static create<
+		TName extends string,
+		TFieldTypes extends Record<string, any> = BuiltinFields,
+	>(
+		name: TName,
+	): CollectionBuilder<EmptyCollectionState<TName, undefined, TFieldTypes>> {
+		return new CollectionBuilder({
+			name: name as string,
+			fields: {},
+			localized: [],
+			virtuals: undefined,
+			relations: {},
+			indexes: {},
+			title: undefined,
+			options: {},
+			hooks: {},
+			access: {},
+			searchable: undefined,
+			validation: undefined,
+			output: undefined,
+			upload: undefined,
+			fieldDefinitions: {},
+		}) as any;
+	}
+
 	constructor(state: TState) {
 		this.state = state;
 	}

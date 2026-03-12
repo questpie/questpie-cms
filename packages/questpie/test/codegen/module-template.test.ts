@@ -491,9 +491,37 @@ describe("generateModuleTemplate — no Registry augmentation", () => {
 		categoryMeta: baseCategoryMeta(),
 	});
 
-	it("does NOT emit Registry augmentation (handled centrally by root template)", () => {
+	it("does NOT emit Registry augmentation (handled by root template)", () => {
 		expect(output).not.toContain("interface Registry {");
 		expect(output).not.toContain("declare global {");
+	});
+});
+
+describe("generateModuleTemplate — no Registry even with custom registryKey", () => {
+	const meta = new Map<string, CategoryDeclaration>([
+		[
+			"views",
+			{
+				dirs: ["views"],
+				prefix: "view",
+				emit: "record",
+				registryKey: "~views",
+			},
+		],
+	]);
+
+	const result = emptyResult(["views"]);
+	const views = cat(result, "views");
+	views.set("table", makeFile("table", { varName: "_view_table" }));
+
+	const output = generateModuleTemplate({
+		moduleName: "questpie-test",
+		discovered: result,
+		categoryMeta: meta,
+	});
+
+	it("does NOT emit Registry augmentation (handled by root template)", () => {
+		expect(output).not.toContain("interface Registry {");
 	});
 });
 
@@ -567,7 +595,7 @@ describe("generateModuleTemplate — extra module properties", () => {
 		expect(output).toContain("listViews: _reg_listViews,");
 	});
 
-	it("does not emit Registry augmentation (handled centrally)", () => {
+	it("does NOT emit Registry augmentation (handled by root template)", () => {
 		expect(output).not.toContain("interface Registry {");
 	});
 });
@@ -608,7 +636,7 @@ describe("generateModuleTemplate — keyFromProperty", () => {
 		expect(output).not.toContain("export interface AdminViews");
 	});
 
-	it("does not emit Registry augmentation (handled centrally)", () => {
+	it("does NOT emit Registry augmentation (handled by root template)", () => {
 		expect(output).not.toContain("interface Registry {");
 	});
 });
