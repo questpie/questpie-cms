@@ -35,7 +35,7 @@ Key documentation pages:
 | Collections                | https://questpie.com/docs/server/collections                     |
 | Globals                    | https://questpie.com/docs/server/globals                         |
 | Relations                  | https://questpie.com/docs/server/relations                       |
-| RPC (Server Functions)     | https://questpie.com/docs/server/rpc                             |
+| Routes                     | https://questpie.com/docs/backend/business-logic/routes          |
 | Hooks & Lifecycle          | https://questpie.com/docs/server/hooks-and-lifecycle             |
 | Access Control             | https://questpie.com/docs/server/access-control                  |
 | Reactive Fields            | https://questpie.com/docs/server/reactive-fields                 |
@@ -70,7 +70,7 @@ src/
         index.ts
       collections/       ← One file per collection (auto-discovered)
       globals/           ← One file per global (auto-discovered)
-      functions/         ← Server functions via fn() (auto-discovered)
+      routes/            ← Server routes via route() (auto-discovered)
       jobs/              ← Background job definitions (auto-discovered)
       blocks/            ← Block definitions (auto-discovered)
     admin/               ← HOW: UI rendering concerns
@@ -93,7 +93,7 @@ src/
 
 | Directory          | Responsibility                    | Defines                            |
 | ------------------ | --------------------------------- | ---------------------------------- |
-| `questpie/server/` | **WHAT** — contracts and behavior | Schema, access, hooks, functions, jobs |
+| `questpie/server/` | **WHAT** — contracts and behavior | Schema, access, hooks, routes, jobs |
 | `questpie/admin/`  | **HOW** — rendering concerns      | Branding, locale, custom renderers |
 | `routes/`          | **Mounting** — HTTP wiring        | Route handlers, no business logic  |
 
@@ -101,7 +101,7 @@ src/
 
 - Collections: `*.ts` in `collections/` (e.g., `posts.ts`) — named exports
 - Globals: `*.ts` in `globals/` (e.g., `site-settings.ts`) — named exports
-- Functions: `*.ts` in `functions/` (e.g., `get-stats.ts`) — default exports
+- Routes: `*.ts` in `routes/` (e.g., `get-stats.ts`) — default exports
 - Jobs: `*.ts` in `jobs/` (e.g., `send-email.ts`) — default exports
 - Blocks: `*.ts` in `blocks/` (e.g., `hero.ts`) — named exports
 
@@ -193,28 +193,30 @@ Then:
 
 Globals are auto-discovered by codegen — no manual registration needed.
 
-### Creating a Server Function (End-to-End Type-Safe)
+### Creating a Server Route (End-to-End Type-Safe)
 
-Functions are defined as standalone files in `functions/` and auto-discovered by codegen.
+Routes are defined as standalone files in `routes/` and auto-discovered by codegen.
 
-**Step 1 — Define a function:**
+**Step 1 — Define a route:**
 
 ```ts
-// src/questpie/server/functions/get-stats.ts
-import { fn } from "questpie";
+// src/questpie/server/routes/get-stats.ts
+import { route } from "questpie";
 import { z } from "zod";
 
-export default fn({
-  schema: z.object({
-    period: z.enum(["day", "week", "month"]),
-  }),
-  handler: async ({ input, app }) => {
+export default route()
+  .post()
+  .schema(
+    z.object({
+      period: z.enum(["day", "week", "month"]),
+    }),
+  )
+  .handler(async ({ input, app }) => {
     // input: { period: "day" | "week" | "month" } — typed from Zod schema
     // app: fully typed app instance with autocomplete
     const count = await app.api.collections.posts.count({});
     return { totalPosts: count, period: input.period };
-  },
-});
+  });
 ```
 
 **Step 2 — Run codegen:**
@@ -223,16 +225,18 @@ export default fn({
 bunx questpie generate
 ```
 
-The function is auto-discovered and available at `/api/fn/get-stats`.
+The route is auto-discovered and available at `/api/get-stats`.
 
 **With access control:**
 
 ```ts
-export default fn({
-  access: ({ session }) => session?.user?.role === "admin",
-  schema: z.object({ ... }),
-  handler: async ({ input, app }) => { ... },
-});
+export default route()
+  .post()
+  .schema(z.object({ ... }))
+  .handler(async ({ input, app, session }) => {
+    if (session?.user?.role !== "admin") throw new Error("Forbidden");
+    return { ok: true };
+  });
 ```
 
 **With TanStack Query:**
@@ -242,7 +246,7 @@ import { useQuery } from "@tanstack/react-query";
 
 const { data } = useQuery({
   queryKey: ["stats", period],
-  queryFn: () => client.fn.getStats({ period }),
+  queryFn: () => client.routes.getStats({ period }),
 });
 ```
 
@@ -461,7 +465,7 @@ Always use these exact versions — check `package.json` before upgrading:
 
 - **Schema rules in client code** — Validation, access control, and hooks belong on the server.
 - **Splitting a collection across files** — Keep the full `.collection().fields().admin().list().form()` chain in one file.
-- **Business logic in route handlers** — Routes only mount handlers. Logic goes in server functions, hooks, or jobs.
+- **Business logic in route handlers** — Mounting files should only mount handlers. Business logic goes in server routes, hooks, or jobs.
 - **Hardcoding view components** — Use the registry pattern for custom views.
 - **Using `process.env` directly** — Use the `env` object from `src/lib/env.ts`.
 - **Using Zod v3 API** — This project uses Zod v4. Use `z.object()` etc. from `zod` (v4).

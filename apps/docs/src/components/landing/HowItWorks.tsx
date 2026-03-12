@@ -25,7 +25,7 @@ const steps = [
 		title: "Custom routes with end-to-end types",
 		description:
 			"Define typed routes for business logic. Input validation, database access, and return types — all inferred.",
-		file: "functions/get-available-slots.ts",
+		file: "routes/get-available-slots.ts",
 		code: `import { route } from 'questpie'
 
 export default route()

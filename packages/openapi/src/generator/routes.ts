@@ -92,7 +92,7 @@ export function generateRoutePaths(
 		if (isRaw) {
 			// Raw routes take a raw request and return a raw response
 			operation.description =
-				"Raw route — accepts any request body and returns a raw response.";
+				"Raw route - accepts any request body and returns a raw response.";
 			operation.requestBody = {
 				content: {
 					"application/json": { schema: {} },
@@ -113,7 +113,7 @@ export function generateRoutePaths(
 				},
 			};
 		} else {
-			// JSON routes — extract input/output schemas
+			// JSON routes - extract input/output schemas
 			let inputSchema: unknown = {};
 			let outputSchema: unknown = { type: "object" };
 
@@ -131,10 +131,7 @@ export function generateRoutePaths(
 				outputSchema = { $ref: `#/components/schemas/${schemaName}` };
 			}
 
-			operation.requestBody = jsonRequestBody(
-				inputSchema,
-				"Route input",
-			);
+			operation.requestBody = jsonRequestBody(inputSchema, "Route input");
 			operation.responses = jsonResponse(outputSchema, "Route output");
 		}
 

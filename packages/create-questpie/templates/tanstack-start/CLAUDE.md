@@ -28,7 +28,7 @@ src/questpie/
       index.ts
     collections/       ← One file per collection (auto-discovered)
     globals/           ← One file per global (auto-discovered)
-    functions/         ← Server functions via fn() (auto-discovered)
+    routes/            ← Server routes via route() (auto-discovered)
     jobs/              ← Background job definitions (auto-discovered)
     blocks/            ← Block definitions (auto-discovered)
   admin/               ← HOW: UI rendering concerns
@@ -78,25 +78,25 @@ Collections are auto-discovered by codegen — no manual registration needed.
 2. Run `bunx questpie generate`
 3. Run `bun questpie migrate:create`
 
-### Add a server function (end-to-end type-safe)
+### Add a server route (end-to-end type-safe)
 
-1. Create `src/questpie/server/functions/my-function.ts`:
+1. Create `src/questpie/server/routes/my-function.ts`:
    ```ts
-   import { fn } from "questpie";
+   import { route } from "questpie";
    import { z } from "zod";
 
-   export default fn({
-     schema: z.object({ id: z.string() }),
-     handler: async ({ input, app }) => {
+   export default route()
+     .post()
+     .schema(z.object({ id: z.string() }))
+     .handler(async ({ input, app }) => {
        // input: { id: string } — typed from Zod schema
        // app: fully typed, autocomplete works
        return { name: "result" };
-     },
-   });
+     });
    ```
-2. Run `bunx questpie generate` — function is auto-discovered and available at `/api/fn/my-function`
+2. Run `bunx questpie generate` — route is auto-discovered and available at `/api/my-function`
 
-See AGENTS.md for detailed function patterns, access control, and TanStack Query integration.
+See AGENTS.md for detailed route patterns, access control, and TanStack Query integration.
 
 ## Documentation
 

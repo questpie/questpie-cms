@@ -302,9 +302,7 @@ async function generatePackageModules(
 
 			if (options.verbose) {
 				console.log(`    [${targetId}] Root: ${discoveryRoot}`);
-				console.log(
-					`    [${targetId}] Output: ${moduleOutDir}/module.ts`,
-				);
+				console.log(`    [${targetId}] Output: ${moduleOutDir}/module.ts`);
 			}
 
 			const result = await runCodegen({
@@ -715,7 +713,7 @@ async function watchSingleTarget(
 		"collections",
 		"globals",
 		"jobs",
-		"functions",
+		"routes",
 		"messages",
 		"migrations",
 		"seeds",

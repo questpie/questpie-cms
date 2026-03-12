@@ -30,7 +30,7 @@ import { mergeAuthOptions } from "#questpie/server/integrated/auth/merge.js";
 
 /**
  * Define a module as a plain data object.
- * Modules contribute collections, globals, jobs, functions, fields,
+ * Modules contribute collections, globals, jobs, routes, fields,
  * auth config, migrations, messages, etc.
  *
  * @example

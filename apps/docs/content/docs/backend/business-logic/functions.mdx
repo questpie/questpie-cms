@@ -11,7 +11,7 @@ On the client, you call `client.routes.routeName()`.
 
 ## Defining a Route
 
-```ts title="functions/get-active-barbers.ts"
+```ts title="routes/get-active-barbers.ts"
 import { route } from "questpie";
 import z from "zod";
 
@@ -25,13 +25,13 @@ export default route()
   });
 ```
 
-Place route files in `functions/`. The filename becomes the route key: `get-active-barbers.ts` → `getActiveBarbers`.
+Place route files in `routes/`. The filename becomes the route key: `get-active-barbers.ts` → `getActiveBarbers`.
 
 ## Input Validation
 
 Routes validate input with Zod:
 
-```ts title="functions/create-booking.ts"
+```ts title="routes/create-booking.ts"
 import { route } from "questpie";
 import z from "zod";
 
@@ -103,10 +103,10 @@ const result = await client.routes.createBooking({
 
 ### Via HTTP
 
-Routes are accessible via `POST /routes/routeName`:
+Routes are accessible at flat URLs under your `basePath` (`/api` by default):
 
 ```bash
-curl -X POST http://localhost:3000/api/routes/createBooking \
+curl -X POST http://localhost:3000/api/create-booking \
   -H "Content-Type: application/json" \
   -d '{"barberId": "abc", "serviceId": "def", ...}'
 ```
@@ -116,7 +116,7 @@ curl -X POST http://localhost:3000/api/routes/createBooking \
 Organize routes in subdirectories for namespacing:
 
 ```text
-functions/
+routes/
 ├── booking/
 │   ├── create.ts          → client.routes.booking.create()
 │   └── cancel.ts          → client.routes.booking.cancel()
@@ -128,7 +128,7 @@ functions/
 
 Computing available time slots with business logic:
 
-```ts title="functions/get-available-time-slots.ts"
+```ts title="routes/get-available-time-slots.ts"
 import { route } from "questpie";
 import z from "zod";
 

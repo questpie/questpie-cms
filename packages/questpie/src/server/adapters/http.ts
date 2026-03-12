@@ -16,10 +16,7 @@ import {
 	executeJsonRoute,
 	executeRawRoute,
 } from "../routes/execute.js";
-import {
-	type RouteDefinition,
-	isJsonRoute,
-} from "../routes/types.js";
+import { isJsonRoute, type RouteDefinition } from "../routes/types.js";
 
 // Re-export types
 export type {
@@ -47,7 +44,7 @@ import {
 import type { AdapterConfig, AdapterContext, AdapterRoutes } from "./types.js";
 import { resolveContext } from "./utils/context.js";
 import { handleError, normalizeBasePath } from "./utils/index.js";
-import { parseRpcBody } from "./utils/request.js";
+import { parseRouteBody } from "./utils/request.js";
 import { smartResponse } from "./utils/response.js";
 
 // ============================================================================
@@ -105,10 +102,7 @@ function buildRouteMap(
 		}
 
 		// Convert camelCase segments to kebab-case for URL paths
-		path = path
-			.split("/")
-			.map(camelToKebab)
-			.join("/");
+		path = path.split("/").map(camelToKebab).join("/");
 
 		let methodMap = map.get(path);
 		if (!methodMap) {
@@ -186,14 +180,20 @@ async function handleRouteDispatch<
 
 	try {
 		if (isJsonRoute(def)) {
-			const body = await parseRpcBody(request);
+			const body = await parseRouteBody(request);
 			if (body === null) {
-				return handleError(
-					ApiError.badRequest("Invalid JSON body"),
-					{ request, app, locale },
-				);
+				return handleError(ApiError.badRequest("Invalid JSON body"), {
+					request,
+					app,
+					locale,
+				});
 			}
-			const result = await executeJsonRoute(app, def, body, resolved.appContext);
+			const result = await executeJsonRoute(
+				app,
+				def,
+				body,
+				resolved.appContext,
+			);
 			return smartResponse(result, request);
 		}
 

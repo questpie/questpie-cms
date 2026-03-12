@@ -3,7 +3,7 @@
  *
  * Generates the `.generated/module.ts` file content for npm package modules.
  * The generated file:
- * 1. Imports all discovered entities (collections, functions, jobs, etc.)
+ * 1. Imports all discovered entities (collections, routes, jobs, etc.)
  * 2. Imports sub-modules from `modules.ts` (if present)
  * 3. Emits type interfaces using typeof references (zero inference cost)
  * 4. Exports a plain static module definition object
@@ -21,8 +21,8 @@
 
 import type {
 	CategoryDeclaration,
-	DiscoverPattern,
 	DiscoveredFile,
+	DiscoverPattern,
 	DiscoveryResult,
 } from "./types.js";
 
@@ -95,7 +95,7 @@ export function generateModuleTemplate(options: ModuleTemplateOptions): string {
 		lines.push("");
 	}
 
-	// Import all categories (collections, globals, jobs, functions, etc.)
+	// Import all categories (collections, globals, jobs, routes, etc.)
 	for (const [catName, fileMap] of discovered.categories) {
 		if (fileMap.size === 0) continue;
 		const label = catName.charAt(0).toUpperCase() + catName.slice(1);
@@ -273,7 +273,9 @@ export function generateModuleTemplate(options: ModuleTemplateOptions): string {
 					// Bundle files are spread into the parent object
 					lines.push(`\t\t...${file.varName},`);
 				} else if (decl?.keyFromProperty) {
-					lines.push(`\t\t[${file.varName}.${decl.keyFromProperty}]: ${file.varName},`);
+					lines.push(
+						`\t\t[${file.varName}.${decl.keyFromProperty}]: ${file.varName},`,
+					);
 				} else {
 					lines.push(`\t\t${safeKey(file.key)}: ${file.varName},`);
 				}

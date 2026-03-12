@@ -1,6 +1,6 @@
 # questpie
 
-Server-first TypeScript backend framework with a proxy-based field builder, collections, globals, standalone functions, background jobs, and a generated REST API.
+Server-first TypeScript backend framework with a proxy-based field builder, collections, globals, standalone routes, background jobs, and a generated REST API.
 
 > **Active Development** — QUESTPIE is a bootstrapped, community-driven framework under active development. The API may still change between releases, but we follow semantic versioning. Full stability is targeted for v3.
 
@@ -9,7 +9,7 @@ Server-first TypeScript backend framework with a proxy-based field builder, coll
 - **Field Builder** — Proxy-based `f` factory: `f.text()`, `f.relation()`, `f.upload()`, `f.blocks()` — produces Drizzle columns, Zod schemas, typed operators, and admin metadata from a single definition
 - **Custom Fields & Operators** — `field<TConfig, TValue>()` and `operator<TValue>()` factories for fully custom field types
 - **Collections & Globals** — Fluent builder chain with hooks, access control, indexes, relations, localization
-- **Standalone Functions** — End-to-end type-safe server functions via `fn()`, auto-discovered by file convention
+- **Standalone Routes** — End-to-end type-safe server routes via `route()`, auto-discovered by file convention
 - **Reactive Fields** — Server-evaluated `hidden`, `readOnly`, `disabled`, `compute`, and dynamic `options`
 - **Introspection** — Serializable field metadata, relation info, reactive config for admin consumption
 - **Background Jobs** — `job()` with Zod schema validation, pg-boss or Cloudflare Queues adapters
@@ -231,26 +231,27 @@ const slugField = field<SlugConfig, string>()({
 .fields(({ f }) => ({ slug: f.slug({ required: true }) }))
 ```
 
-## Standalone Functions
+## Standalone Routes
 
-Type-safe server functions via file convention:
+Type-safe server routes via file convention:
 
 ```ts
-// src/questpie/server/functions/get-stats.ts
-import { fn } from "questpie";
+// src/questpie/server/routes/get-stats.ts
+import { route } from "questpie";
+import z from "zod";
 
-export default fn({
-  schema: z.object({ period: z.enum(["day", "week", "month"]) }),
-  handler: async ({ input, app }) => {
+export default route()
+  .post()
+  .schema(z.object({ period: z.enum(["day", "week", "month"]) }))
+  .handler(async ({ input, app }) => {
     const count = await app.api.collections.posts.count({
       where: { createdAt: { gte: startDate(input.period) } },
     });
     return { posts: count };
-  },
-});
+  });
 ```
 
-Functions are auto-discovered by codegen and available at `/api/fn/<name>`.
+Routes are auto-discovered by codegen and available at `/api/<name>`.
 
 ## Background Jobs
 

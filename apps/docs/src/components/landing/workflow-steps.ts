@@ -54,7 +54,7 @@ export default runtimeConfig({
 	// 3. Add a route
 	{
 		id: 3,
-		file: "functions/send-reminder.ts",
+		file: "routes/send-reminder.ts",
 		action: "Add a route",
 		mode: "full",
 		code: `import { route } from 'questpie'

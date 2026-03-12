@@ -119,7 +119,7 @@ interface DiscoveryCategory {
 	category: string;
 	/** Directories to scan (relative to root). */
 	dirs: string[];
-	/** Whether to scan recursively (only for functions and routes). */
+	/** Whether to scan directories recursively. */
 	recursive: boolean;
 	/** Variable name prefix. */
 	prefix: string;
@@ -185,6 +185,74 @@ async function discoverFeatures(
 	return results;
 }
 
+async function discoverLegacyFunctionFiles(rootDir: string): Promise<string[]> {
+	const files: string[] = [];
+
+	const rootFunctionsDir = join(rootDir, "functions");
+	const rootFunctionFiles = await scanDir(
+		rootFunctionsDir,
+		rootFunctionsDir,
+		true,
+	);
+	for (const relPath of rootFunctionFiles) {
+		files.push(join("functions", relPath));
+	}
+
+	const featuresDir = join(rootDir, "features");
+	let featureDirs: Dirent[];
+	try {
+		featureDirs = (await readdir(featuresDir, {
+			withFileTypes: true,
+		})) as Dirent[];
+	} catch {
+		featureDirs = [];
+	}
+
+	for (const fDir of featureDirs) {
+		if (!fDir.isDirectory()) continue;
+		const featureName = String(fDir.name);
+		const featureFunctionsDir = join(featuresDir, featureName, "functions");
+		const featureFunctionFiles = await scanDir(
+			featureFunctionsDir,
+			featureFunctionsDir,
+			true,
+		);
+		for (const relPath of featureFunctionFiles) {
+			files.push(join("features", featureName, "functions", relPath));
+		}
+	}
+
+	return files.sort((a, b) => a.localeCompare(b));
+}
+
+function mapLegacyFunctionPathToRoutePath(path: string): string {
+	if (path.startsWith("functions/")) {
+		return path.replace(/^functions\//, "routes/");
+	}
+	if (path.includes("/functions/")) {
+		return path.replace("/functions/", "/routes/");
+	}
+	return path;
+}
+
+function buildLegacyFunctionsError(paths: string[]): string {
+	const shown = paths.slice(0, 10);
+	const extra = paths.length - shown.length;
+
+	const mappings = shown
+		.map((path) => `  - ${path} -> ${mapLegacyFunctionPathToRoutePath(path)}`)
+		.join("\n");
+
+	const suffix = extra > 0 ? `\n  ... and ${extra} more file(s).` : "";
+
+	return (
+		"[codegen] Legacy functions/ convention detected.\n" +
+		"Route files must live in routes/ (functions/ is no longer supported).\n" +
+		"Move these files and run codegen again:\n" +
+		`${mappings}${suffix}`
+	);
+}
+
 // ============================================================================
 // Main discovery function
 // ============================================================================
@@ -220,6 +288,14 @@ export async function discoverFiles(
 		singles: new Map(),
 		spreads: new Map(),
 	};
+
+	const routesDecl = options?.categories?.routes;
+	if (routesDecl && !routesDecl.dirs.includes("functions")) {
+		const legacyFunctionFiles = await discoverLegacyFunctionFiles(rootDir);
+		if (legacyFunctionFiles.length > 0) {
+			throw new Error(buildLegacyFunctionsError(legacyFunctionFiles));
+		}
+	}
 
 	// ── Phase 1: Discover all category-declared directories ──────
 	// Categories are directory-pattern categories like collections, globals, blocks, etc.
@@ -577,14 +653,13 @@ async function discoverDirectoryPattern(
 
 /**
  * Derive the filename-based key for a file in a category.
- * Handles recursive categories (functions/routes use path segments as keys)
+ * Handles recursive categories (routes use path segments as keys)
  * and simple categories (filename → camelCase).
  */
 function deriveFileKey(relPath: string, category: DiscoveryCategory): string {
 	if (category.recursive) {
 		// Recursive categories: path segments become keys
 		// routes/webhooks/stripe.ts → "webhooks/stripe" (keySeparator: "/")
-		// functions/admin-config.ts → "admin-config" (keySeparator: "/")
 
 		// Determine which dir this file came from
 		let innerPath: string;
@@ -594,7 +669,7 @@ function deriveFileKey(relPath: string, category: DiscoveryCategory): string {
 			const dirIdx = parts.findIndex((p) => category.dirs.includes(p));
 			innerPath = parts.slice(dirIdx + 1).join("/");
 		} else {
-			// relPath is like "routes/webhook.ts" or "functions/admin-config.ts"
+			// relPath is like "routes/webhook.ts"
 			// Strip the leading dir segment
 			const matchedDir = category.dirs.find((d) => relPath.startsWith(d + "/"));
 			if (matchedDir) {

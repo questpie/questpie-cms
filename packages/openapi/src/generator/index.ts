@@ -7,7 +7,7 @@ import type { OpenApiConfig, OpenApiSpec } from "../types.js";
 import { generateAuthPaths } from "./auth.js";
 import { generateCollectionPaths } from "./collections.js";
 import { generateGlobalPaths } from "./globals.js";
-import { generateRoutePaths } from "./rpc.js";
+import { generateRoutePaths } from "./routes.js";
 import { baseComponentSchemas } from "./schemas.js";
 import { generateSearchPaths } from "./search.js";
 

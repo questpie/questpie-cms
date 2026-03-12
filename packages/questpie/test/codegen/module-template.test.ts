@@ -96,7 +96,7 @@ function baseCategoryMeta(): Map<string, CategoryDeclaration> {
 		[
 			"routes",
 			{
-				dirs: ["routes", "functions"],
+				dirs: ["routes"],
 				prefix: "route",
 				emit: "record",
 				recursive: true,
@@ -204,9 +204,7 @@ describe("generateModuleTemplate — type prefix", () => {
 			discovered: emptyResult(),
 			categoryMeta: new Map(),
 		});
-		expect(output).toContain(
-			"export type UserAuthModule = typeof _module;",
-		);
+		expect(output).toContain("export type UserAuthModule = typeof _module;");
 	});
 });
 
@@ -219,11 +217,17 @@ describe("generateModuleTemplate — collections", () => {
 	const colls = cat(result, "collections");
 	colls.set(
 		"posts",
-		makeFile("posts", { varName: "_coll_posts", importPath: "../collections/posts" }),
+		makeFile("posts", {
+			varName: "_coll_posts",
+			importPath: "../collections/posts",
+		}),
 	);
 	colls.set(
 		"comments",
-		makeFile("comments", { varName: "_coll_comments", importPath: "../collections/comments" }),
+		makeFile("comments", {
+			varName: "_coll_comments",
+			importPath: "../collections/comments",
+		}),
 	);
 
 	const output = generateModuleTemplate({
@@ -236,9 +240,7 @@ describe("generateModuleTemplate — collections", () => {
 		expect(output).toContain(
 			'import _coll_comments from "../collections/comments";',
 		);
-		expect(output).toContain(
-			'import _coll_posts from "../collections/posts";',
-		);
+		expect(output).toContain('import _coll_posts from "../collections/posts";');
 	});
 
 	it("emits type interface for collections", () => {
@@ -256,7 +258,7 @@ describe("generateModuleTemplate — collections", () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Functions — nested emission with bundles
+// Routes — nested emission with bundles
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe("generateModuleTemplate — routes with slash-separated keys", () => {
@@ -284,14 +286,18 @@ describe("generateModuleTemplate — routes with slash-separated keys", () => {
 	it("emits flat record with camelCase slash keys", () => {
 		expect(output).toContain("routes: {");
 		expect(output).toContain('"admin/stats": _route_admin_stats,');
-		expect(output).toContain('"admin/users/export": _route_admin_users_export,');
+		expect(output).toContain(
+			'"admin/users/export": _route_admin_users_export,',
+		);
 		expect(output).toContain("getConfig: _route_getConfig,");
 	});
 
 	it("emits flat type interface with camelCase slash keys", () => {
 		expect(output).toContain("export interface TestRoutes {");
 		expect(output).toContain('"admin/stats": typeof _route_admin_stats;');
-		expect(output).toContain('"admin/users/export": typeof _route_admin_users_export;');
+		expect(output).toContain(
+			'"admin/users/export": typeof _route_admin_users_export;',
+		);
 		expect(output).toContain("getConfig: typeof _route_getConfig;");
 	});
 });
@@ -337,10 +343,7 @@ describe("generateModuleTemplate — bundle routes", () => {
 describe("generateModuleTemplate — array emission", () => {
 	const result = emptyResult(["migrations"]);
 	const migs = cat(result, "migrations");
-	migs.set(
-		"001_init",
-		makeFile("001_init", { varName: "_mig_001_init" }),
-	);
+	migs.set("001_init", makeFile("001_init", { varName: "_mig_001_init" }));
 	migs.set(
 		"002_addUsers",
 		makeFile("002_addUsers", { varName: "_mig_002_addUsers" }),
@@ -353,9 +356,7 @@ describe("generateModuleTemplate — array emission", () => {
 	});
 
 	it("emits flat array", () => {
-		expect(output).toContain(
-			"migrations: [_mig_001_init, _mig_002_addUsers],",
-		);
+		expect(output).toContain("migrations: [_mig_001_init, _mig_002_addUsers],");
 	});
 
 	it("does not emit type interface for array categories", () => {
@@ -463,9 +464,6 @@ describe("generateModuleTemplate — singles with moduleEmit: array", () => {
 		moduleName: "questpie-test",
 		discovered: result,
 		categoryMeta: new Map(),
-		resolvedPatterns: {
-			sidebar: { pattern: "sidebar.ts", moduleEmit: "array" },
-		},
 	});
 
 	it("wraps moduleEmit: array singles in array", () => {
@@ -480,10 +478,7 @@ describe("generateModuleTemplate — singles with moduleEmit: array", () => {
 describe("generateModuleTemplate — no Registry augmentation", () => {
 	const result = emptyResult(["collections"]);
 	const colls = cat(result, "collections");
-	colls.set(
-		"posts",
-		makeFile("posts", { varName: "_coll_posts" }),
-	);
+	colls.set("posts", makeFile("posts", { varName: "_coll_posts" }));
 
 	const output = generateModuleTemplate({
 		moduleName: "questpie-test",
@@ -581,7 +576,7 @@ describe("generateModuleTemplate — extra module properties", () => {
 		discovered: emptyResult(),
 		categoryMeta: meta,
 		extraModuleProperties: [
-			'listViews: { table: _reg_table, form: _reg_form },',
+			"listViews: { table: _reg_table, form: _reg_form },",
 		],
 	});
 
@@ -679,12 +674,8 @@ describe("generateModuleTemplate — extra imports", () => {
 		moduleName: "questpie-test",
 		discovered: emptyResult(),
 		categoryMeta: new Map(),
-		extraImports: [
-			{ name: "{ filterViewsByKind }", path: "questpie/admin" },
-		],
-		extraTypeDeclarations: [
-			"export type CustomType = string;",
-		],
+		extraImports: [{ name: "{ filterViewsByKind }", path: "questpie/admin" }],
+		extraTypeDeclarations: ["export type CustomType = string;"],
 	});
 
 	it("emits extra plugin imports", () => {

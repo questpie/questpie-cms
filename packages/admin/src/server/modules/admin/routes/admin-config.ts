@@ -14,7 +14,7 @@
  * ```
  */
 
-import { executeAccessRule, route, type Questpie } from "questpie";
+import { executeAccessRule, type Questpie, route } from "questpie";
 import { z } from "zod";
 import type {
 	AdminCollectionConfig,
@@ -949,8 +949,8 @@ const getAdminConfig = route()
 // ============================================================================
 
 /**
- * Admin config functions group.
- * Add to your app RPC router via `rpc().router({ ...adminConfigFunctions })`.
+ * Admin config route handlers.
+ * Registered via module routes and exposed through the fetch handler.
  */
 export const adminConfigFunctions = {
 	getAdminConfig,

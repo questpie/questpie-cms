@@ -1,4 +1,4 @@
 {
 	"title": "Business Logic",
-	"pages": ["functions", "jobs", "routes", "services", "emails"]
+	"pages": ["routes", "jobs", "services", "emails"]
 }

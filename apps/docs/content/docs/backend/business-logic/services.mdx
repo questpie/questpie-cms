@@ -5,7 +5,7 @@ description: Singleton and request-scoped services — define once, inject every
 
 # Services
 
-Services are reusable units of logic that get injected into `AppContext` under the `services` key. Define a service in `services/`, and it becomes available in every hook, function, job, and route handler.
+Services are reusable units of logic that get injected into `AppContext` under the `services` key. Define a service in `services/`, and it becomes available in every hook, route, and job handler.
 
 ## Defining a Service
 
@@ -65,7 +65,7 @@ export const posts = collection("posts")
   });
 ```
 
-```ts title="functions/get-post-stats.ts"
+```ts title="routes/get-post-stats.ts"
 export default route()
   .post()
   .schema(z.object({ postId: z.string() }))

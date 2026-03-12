@@ -29,7 +29,7 @@ This defines:
 
 ## 2. Add a server route
 
-```ts title="src/questpie/server/functions/get-overdue-tasks.ts"
+```ts title="src/questpie/server/routes/get-overdue-tasks.ts"
 import { route } from "questpie";
 import z from "zod";
 
@@ -56,8 +56,8 @@ bunx questpie generate
 ```
 
 This discovers your files and generates:
-- `src/questpie/server/.generated/index.ts` — app instance with typed collections and functions
-- `AppConfig` type for the client SDK (includes collections, globals, and functions)
+- `src/questpie/server/.generated/index.ts` — app instance with typed collections and routes
+- `AppConfig` type for the client SDK (includes collections, globals, and routes)
 - `AppContext` module augmentation
 
 ## 4. Push to database
@@ -97,7 +97,7 @@ curl -X POST http://localhost:3000/api/tasks \
   -d '{"title": "Write docs", "priority": "high", "dueDate": "2025-03-01"}'
 
 # Call a route
-curl -X POST http://localhost:3000/api/routes/getOverdueTasks \
+curl -X POST http://localhost:3000/api/get-overdue-tasks \
   -H "Content-Type: application/json" \
   -d '{}'
 ```

@@ -17,14 +17,14 @@ import _coll_user from "../collections/user";
 import _coll_verification from "../collections/verification";
 
 // ── Routes ────────────────────────────────────────────
-import { adminConfigFunctions as _route_adminConfig } from "../functions/admin-config";
-import { actionFunctions as _route_executeAction } from "../functions/execute-action";
-import { localeFunctions as _route_locales } from "../functions/locales";
-import { previewFunctions as _route_preview } from "../functions/preview";
-import { reactiveFunctions as _route_reactive } from "../functions/reactive";
-import { setupFunctions as _route_setup } from "../functions/setup";
-import { translationFunctions as _route_translations } from "../functions/translations";
-import { widgetDataFunctions as _route_widgetData } from "../functions/widget-data";
+import { adminConfigFunctions as _route_adminConfig } from "../routes/admin-config";
+import { actionFunctions as _route_executeAction } from "../routes/execute-action";
+import { localeFunctions as _route_locales } from "../routes/locales";
+import { previewFunctions as _route_preview } from "../routes/preview";
+import { reactiveFunctions as _route_reactive } from "../routes/reactive";
+import { setupFunctions as _route_setup } from "../routes/setup";
+import { translationFunctions as _route_translations } from "../routes/translations";
+import { widgetDataFunctions as _route_widgetData } from "../routes/widget-data";
 
 // ── Views ────────────────────────────────────────────
 import _view_collectionForm from "../views/form";

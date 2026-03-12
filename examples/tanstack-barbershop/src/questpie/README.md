@@ -14,7 +14,7 @@ questpie/
     reviews.collection.ts
   jobs/                # Background jobs
     index.ts
-  functions/           # Standalone functions (auto-discovered)
+  routes/              # Standalone routes (auto-discovered)
     index.ts
   .generated/          # Auto-generated app instance (codegen)
     index.ts
@@ -145,7 +145,7 @@ export default {
 
 ### 1. `config()` + Codegen
 
-Server configuration uses the top-level `config()` factory. Collections, functions, and jobs are auto-discovered by codegen from file conventions — no need to manually wire them:
+Server configuration uses the top-level `config()` factory. Collections, routes, and jobs are auto-discovered by codegen from file conventions — no need to manually wire them:
 
 ```typescript
 // questpie.config.ts
@@ -275,7 +275,7 @@ export default config({
 });
 ```
 
-The client automatically fetches these translations via RPC (`useServerTranslations` prop on `AdminLayoutProvider`).
+The client automatically fetches these translations via server routes (`useServerTranslations` prop on `AdminLayoutProvider`).
 
 ### Using Translations in Components
 

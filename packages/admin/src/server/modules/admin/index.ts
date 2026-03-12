@@ -11,16 +11,16 @@
  *
  * The admin module itself follows the file convention:
  * - collections/  → merged starter collections + admin UI config
- * - functions/    → route handlers for admin panel operations
+ * - routes/       → route handlers for admin panel operations
  * - modules.ts    → [starterModule] dependency
  * - sidebar.ts    → admin sidebar contribution
  */
 
 // ── Generated module ──────────────────────────────────────────────────────────
-export type { AdminModule, AdminCollections } from "./.generated/module.js";
+export type { AdminCollections, AdminModule } from "./.generated/module.js";
 export { default as adminModule } from "./.generated/module.js";
 
-// ── Admin RPC bundle — derived from generated module (no manual duplication) ─
+// ── Admin route bundle — derived from generated module (no manual duplication) ─
 import adminModule from "./.generated/module.js";
 
 /**
@@ -50,7 +50,7 @@ export {
 	executeActionFn,
 	getActionsConfig,
 	getActionsConfigFn,
-} from "./functions/execute-action.js";
+} from "./routes/execute-action.js";
 
 // Preview token utilities (used for public preview routes)
 export {
@@ -58,13 +58,21 @@ export {
 	createPreviewTokenVerifier,
 	type PreviewTokenPayload,
 	verifyPreviewTokenDirect,
-} from "./functions/preview.js";
+} from "./routes/preview.js";
 
 // Reactive field utilities (used for field options/reactivity)
-export { batchReactive, fieldOptions, reactiveFunctions } from "./functions/reactive.js";
+export {
+	batchReactive,
+	fieldOptions,
+	reactiveFunctions,
+} from "./routes/reactive.js";
 
 // Setup utilities (used in CLI / first-run setup)
-export { createFirstAdmin, isSetupRequired, setupFunctions } from "./functions/setup.js";
+export {
+	createFirstAdmin,
+	isSetupRequired,
+	setupFunctions,
+} from "./routes/setup.js";
 
 // Widget data utilities (used in dashboard widgets)
-export { fetchWidgetData, widgetDataFunctions } from "./functions/widget-data.js";
+export { fetchWidgetData, widgetDataFunctions } from "./routes/widget-data.js";
