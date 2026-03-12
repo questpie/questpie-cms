@@ -624,19 +624,26 @@ export interface CodegenPlugin {
 /**
  * Defines how to emit a callback context parameter at codegen time.
  * Used by `emitCallbackContext()` to generate runtime proxy objects.
+ *
+ * Instead of inline JavaScript strings, each param references a real
+ * exported factory function that creates the proxy at runtime.
  */
 export interface CallbackParamDefinition {
 	/**
-	 * Inline JavaScript expression that creates the runtime proxy for this param.
-	 * This code is emitted directly into the generated factories.ts file.
+	 * Name of the factory function to call (must be a named export from `from`).
 	 *
 	 * @example
 	 * ```ts
 	 * // Field ref proxy: f.title → "title"
-	 * proxyCode: "new Proxy({}, { get: (_, prop) => String(prop) })"
+	 * { factory: "createFieldNameProxy", from: "questpie" }
 	 * ```
 	 */
-	proxyCode: string;
+	factory: string;
+
+	/**
+	 * Module specifier to import the factory from.
+	 */
+	from: string;
 }
 
 /**

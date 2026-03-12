@@ -48,6 +48,7 @@ export type {
 	EditViewDefinition,
 	EditViewFactory,
 	FieldLayoutItem,
+	FilterViewsByKind,
 	FormFieldLayoutItem,
 	FormReactiveConfig,
 	FormReactiveContext,
@@ -208,13 +209,16 @@ export {
 export { adminPlugin } from "../server/plugin.js";
 // Proxy factories (runtime helpers for admin config callbacks)
 export {
+	createActionCallbackProxy,
 	createActionProxy,
+	createComponentCallbackProxy,
 	createComponentProxy,
 	createDashboardCallbackContext,
 	createDashboardContributionProxy,
 	createFieldProxy,
 	createSidebarCallbackContext,
 	createSidebarContributionProxy,
+	createViewCallbackProxy,
 	createViewProxy,
 	resolveDashboardCallback,
 	resolveSidebarCallback,

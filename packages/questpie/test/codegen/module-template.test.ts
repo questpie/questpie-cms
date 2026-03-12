@@ -477,7 +477,7 @@ describe("generateModuleTemplate — singles with moduleEmit: array", () => {
 // Registry augmentation
 // ─────────────────────────────────────────────────────────────────────────────
 
-describe("generateModuleTemplate — Registry augmentation", () => {
+describe("generateModuleTemplate — no Registry augmentation", () => {
 	const result = emptyResult(["collections"]);
 	const colls = cat(result, "collections");
 	colls.set(
@@ -491,18 +491,13 @@ describe("generateModuleTemplate — Registry augmentation", () => {
 		categoryMeta: baseCategoryMeta(),
 	});
 
-	it("emits declare global with Questpie namespace and Registry", () => {
-		expect(output).toContain("declare global {");
-		expect(output).toContain("namespace Questpie {");
-		expect(output).toContain("interface Registry {");
-	});
-
-	it("uses named type for categories with type interfaces", () => {
-		expect(output).toContain("collections: TestCollections;");
+	it("does NOT emit Registry augmentation (handled by root template)", () => {
+		expect(output).not.toContain("interface Registry {");
+		expect(output).not.toContain("declare global {");
 	});
 });
 
-describe("generateModuleTemplate — Registry with custom registryKey", () => {
+describe("generateModuleTemplate — no Registry even with custom registryKey", () => {
 	const meta = new Map<string, CategoryDeclaration>([
 		[
 			"views",
@@ -525,8 +520,8 @@ describe("generateModuleTemplate — Registry with custom registryKey", () => {
 		categoryMeta: meta,
 	});
 
-	it("uses custom registryKey string", () => {
-		expect(output).toContain('"~views": TestViews;');
+	it("does NOT emit Registry augmentation (handled by root template)", () => {
+		expect(output).not.toContain("interface Registry {");
 	});
 });
 
@@ -600,8 +595,8 @@ describe("generateModuleTemplate — extra module properties", () => {
 		expect(output).toContain("listViews: _reg_listViews,");
 	});
 
-	it("uses typeof extracted const in Registry augmentation", () => {
-		expect(output).toContain("listViews: typeof _reg_listViews;");
+	it("does NOT emit Registry augmentation (handled by root template)", () => {
+		expect(output).not.toContain("interface Registry {");
 	});
 });
 
@@ -641,8 +636,8 @@ describe("generateModuleTemplate — keyFromProperty", () => {
 		expect(output).not.toContain("export interface AdminViews");
 	});
 
-	it("uses typeof _module in Registry instead of named type", () => {
-		expect(output).toContain('views: typeof _module["views"];');
+	it("does NOT emit Registry augmentation (handled by root template)", () => {
+		expect(output).not.toContain("interface Registry {");
 	});
 });
 

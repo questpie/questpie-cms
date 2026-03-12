@@ -44,6 +44,7 @@ export {
 	type KnownListViewNames,
 	type KnownRouteNames,
 	type KnownServiceNames,
+	type KnownViewNames,
 	type Registry,
 	type RegistryNames,
 } from "#questpie/server/config/app-context.js";
@@ -96,7 +97,16 @@ export { seed } from "#questpie/server/seed/define-seed.js";
 export * from "#questpie/server/seed/index.js";
 export * from "#questpie/server/services/define-service.js";
 export { service } from "#questpie/server/services/define-service.js";
+export * from "#questpie/server/utils/builder-extensions.js";
+export * from "#questpie/server/utils/callback-proxies.js";
 export * from "#questpie/server/utils/drizzle-to-zod.js";
+export type {
+	ExtractModuleProp,
+	ExtractModulePropArr,
+	RegistryProp,
+	UnionToIntersection,
+} from "#questpie/server/config/codegen-type-utils.js";
+export { createContextFactory } from "#questpie/server/config/create-context-factory.js";
 export type {
 	CollectionInfer,
 	CollectionInsert,

@@ -49,6 +49,32 @@ export class GlobalBuilder<TState extends GlobalBuilderState> {
 	private state: TState;
 	private _builtGlobal?: Global<TState>;
 
+	/**
+	 * Create a new GlobalBuilder with the standard empty initial state.
+	 *
+	 * Encapsulates the hardcoded initial state so that codegen-generated
+	 * factories.ts can use `GlobalBuilder.create(name)` instead of
+	 * duplicating the 9-property state object inline.
+	 */
+	static create<
+		TName extends string,
+		TFieldTypes extends Record<string, any> | undefined = BuiltinFields,
+	>(
+		name?: TName,
+	): GlobalBuilder<EmptyGlobalState<TName, undefined, TFieldTypes>> {
+		return new GlobalBuilder({
+			name: name as string,
+			fields: {},
+			localized: [],
+			virtuals: {},
+			relations: {},
+			options: {},
+			hooks: {},
+			access: {},
+			fieldDefinitions: {},
+		}) as any;
+	}
+
 	constructor(state: TState) {
 		this.state = state;
 	}

@@ -55,29 +55,10 @@ export function adminPlugin(): CodegenPlugin {
 						factoryFunctions: ["view"],
 						registryKey: true,
 						placeholder: "$VIEW_NAMES",
+						recordPlaceholder: "$VIEWS_RECORD",
 						includeInAppState: true,
 						extractFromModules: true,
 						typeEmit: "standard",
-					},
-					listViews: {
-						dirs: [], // derived from views via transform
-						prefix: "lv",
-						registryKey: true,
-						placeholder: "$LIST_VIEW_NAMES",
-						recordPlaceholder: "$LIST_VIEWS",
-						includeInAppState: false,
-						extractFromModules: false,
-						typeEmit: "none",
-					},
-					formViews: {
-						dirs: [], // derived from views via transform
-						prefix: "fv",
-						registryKey: true,
-						placeholder: "$FORM_VIEW_NAMES",
-						recordPlaceholder: "$FORM_VIEWS",
-						includeInAppState: false,
-						extractFromModules: false,
-						typeEmit: "none",
 					},
 					components: {
 						dirs: ["components"],
@@ -123,10 +104,6 @@ export function adminPlugin(): CodegenPlugin {
 									name: "AdminConfigContext",
 									from: "@questpie/admin/server",
 								},
-								{
-									name: "createComponentProxy",
-									from: "@questpie/admin/server",
-								},
 							],
 							configType:
 								"AdminCollectionConfig | ((ctx: AdminConfigContext<$COMPONENTS>) => AdminCollectionConfig)",
@@ -145,20 +122,12 @@ export function adminPlugin(): CodegenPlugin {
 									from: "@questpie/admin/server",
 								},
 								{
-									name: "createViewProxy",
-									from: "@questpie/admin/server",
-								},
-								{
-									name: "createFieldProxy",
-									from: "@questpie/admin/server",
-								},
-								{
-									name: "createActionProxy",
+									name: "FilterViewsByKind",
 									from: "@questpie/admin/server",
 								},
 							],
 							configType:
-								"(ctx: ListViewConfigContext<TState extends { fieldDefinitions: infer F extends Record<string, any> } ? F : Record<string, any>, $LIST_VIEWS>) => ListViewConfig",
+								'(ctx: ListViewConfigContext<TState extends { fieldDefinitions: infer F extends Record<string, any> } ? F : Record<string, any>, FilterViewsByKind<$VIEWS_RECORD, "list">>) => ListViewConfig',
 							isCallback: true,
 							callbackContextParams: ["v", "f", "a"],
 							defaults: {
@@ -179,9 +148,13 @@ export function adminPlugin(): CodegenPlugin {
 									name: "FormViewConfigContext",
 									from: "@questpie/admin/server",
 								},
+								{
+									name: "FilterViewsByKind",
+									from: "@questpie/admin/server",
+								},
 							],
 							configType:
-								"(ctx: FormViewConfigContext<TState extends { fieldDefinitions: infer F extends Record<string, any> } ? F : Record<string, any>, $FORM_VIEWS>) => FormViewConfig",
+								'(ctx: FormViewConfigContext<TState extends { fieldDefinitions: infer F extends Record<string, any> } ? F : Record<string, any>, FilterViewsByKind<$VIEWS_RECORD, "form">>) => FormViewConfig',
 							isCallback: true,
 							callbackContextParams: ["v", "f"],
 							defaults: {
@@ -246,9 +219,13 @@ export function adminPlugin(): CodegenPlugin {
 									name: "FormViewConfigContext",
 									from: "@questpie/admin/server",
 								},
+								{
+									name: "FilterViewsByKind",
+									from: "@questpie/admin/server",
+								},
 							],
 							configType:
-								"(ctx: FormViewConfigContext<TState extends { fieldDefinitions: infer F extends Record<string, any> } ? F : Record<string, any>, $FORM_VIEWS>) => FormViewConfig",
+								'(ctx: FormViewConfigContext<TState extends { fieldDefinitions: infer F extends Record<string, any> } ? F : Record<string, any>, FilterViewsByKind<$VIEWS_RECORD, "form">>) => FormViewConfig',
 							isCallback: true,
 							callbackContextParams: ["v", "f"],
 							defaults: {
@@ -299,24 +276,6 @@ export function adminPlugin(): CodegenPlugin {
 					},
 				},
 				transform(ctx) {
-					// Derive listViews/formViews from discovered views.
-					const viewFiles = ctx.categories.get("views");
-					if (viewFiles && viewFiles.size > 0) {
-						ctx.addImport("{ filterViewsByKind }", "@questpie/admin/server");
-
-						const viewVarNames = [...viewFiles.values()]
-							.sort((a, b) => a.key.localeCompare(b.key))
-							.map((f) => `${f.key}: ${f.varName}`);
-						const viewsObj = `{ ${viewVarNames.join(", ")} }`;
-
-						ctx.addRuntimeCode(
-							`listViews: filterViewsByKind(${viewsObj}, "list"),`,
-						);
-						ctx.addRuntimeCode(
-							`formViews: filterViewsByKind(${viewsObj}, "form"),`,
-						);
-					}
-
 					// Ensure dashboard exists as empty array when no dashboard.ts found
 					if (!ctx.singles.has("dashboard")) {
 						ctx.addRuntimeCode("dashboard: [] as const,");
@@ -324,16 +283,16 @@ export function adminPlugin(): CodegenPlugin {
 				},
 				callbackParams: {
 					v: {
-						proxyCode:
-							"new Proxy({}, { get: (_, prop) => (config: any) => ({ view: String(prop), ...config }) })",
+						factory: "createViewCallbackProxy",
+						from: "@questpie/admin/server",
 					},
 					c: {
-						proxyCode:
-							'new Proxy({}, { get: (_, prop) => (...args: any[]) => ({ type: String(prop), props: typeof args[0] === "string" ? { name: args[0] } : args[0] ?? {} }) })',
+						factory: "createComponentCallbackProxy",
+						from: "@questpie/admin/server",
 					},
 					a: {
-						proxyCode:
-							"new Proxy({ custom: (name: string, config: any) => ({ id: name, ...config }) }, { get: (target, prop) => (target as any)[prop] ?? String(prop) })",
+						factory: "createActionCallbackProxy",
+						from: "@questpie/admin/server",
 					},
 				},
 				scaffolds: {
