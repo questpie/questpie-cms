@@ -90,7 +90,7 @@ const _module = {
 		user: _coll_user,
 		verification: _coll_verification,
 	} as AdminCollections,
-	functions: {
+	routes: {
 		..._fn_adminConfig,
 		..._fn_executeAction,
 		..._fn_locales,
@@ -111,7 +111,6 @@ const _module = {
 	} as AdminComponents,
 	globals: {},
 	jobs: {},
-	routes: {},
 	messages: {},
 	services: {},
 	emails: {},

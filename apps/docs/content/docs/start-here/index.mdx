@@ -83,16 +83,17 @@ const posts = await client.collections.posts.find({
 Every handler in QuestPie receives its dependencies through context — no imports, no singletons, no god objects:
 
 ```ts title="functions/create-booking.ts"
-import { fn } from "questpie";
+import { route } from "questpie";
 import z from "zod";
 
-export default fn({
-  schema: z.object({
+export default route()
+  .post()
+  .schema(z.object({
     barberId: z.string(),
     serviceId: z.string(),
     scheduledAt: z.string().datetime(),
-  }),
-  handler: async ({ input, collections, queue }) => {
+  }))
+  .handler(async ({ input, collections, queue }) => {
     const service = await collections.services.findOne({
       where: { id: input.serviceId },
     });
@@ -109,8 +110,7 @@ export default fn({
     });
 
     return { success: true, appointmentId: appointment.id };
-  },
-});
+  });
 ```
 
 `collections`, `queue`, `email`, `db`, `session` — all injected through `AppContext`. Codegen generates the type augmentation, so everything is discoverable and typed.

@@ -94,14 +94,15 @@ function baseCategoryMeta(): Map<string, CategoryDeclaration> {
 			},
 		],
 		[
-			"functions",
+			"routes",
 			{
-				dirs: ["functions"],
-				prefix: "fn",
-				emit: "nested",
+				dirs: ["routes", "functions"],
+				prefix: "route",
+				emit: "record",
 				recursive: true,
-				keySeparator: ".",
+				keySeparator: "/",
 				registryKey: true,
+				includeInAppState: true,
 			},
 		],
 		[
@@ -258,20 +259,20 @@ describe("generateModuleTemplate — collections", () => {
 // Functions — nested emission with bundles
 // ─────────────────────────────────────────────────────────────────────────────
 
-describe("generateModuleTemplate — nested functions", () => {
-	const result = emptyResult(["functions"]);
-	const fns = cat(result, "functions");
-	fns.set(
-		"admin.stats",
-		makeFile("admin.stats", { varName: "_fn_admin_stats" }),
+describe("generateModuleTemplate — routes with slash-separated keys", () => {
+	const result = emptyResult(["routes"]);
+	const routes = cat(result, "routes");
+	routes.set(
+		"admin/stats",
+		makeFile("admin/stats", { varName: "_route_admin_stats" }),
 	);
-	fns.set(
-		"admin.users.export",
-		makeFile("admin.users.export", { varName: "_fn_admin_users_export" }),
+	routes.set(
+		"admin/users/export",
+		makeFile("admin/users/export", { varName: "_route_admin_users_export" }),
 	);
-	fns.set(
+	routes.set(
 		"getConfig",
-		makeFile("getConfig", { varName: "_fn_getConfig" }),
+		makeFile("getConfig", { varName: "_route_getConfig" }),
 	);
 
 	const output = generateModuleTemplate({
@@ -280,33 +281,31 @@ describe("generateModuleTemplate — nested functions", () => {
 		categoryMeta: baseCategoryMeta(),
 	});
 
-	it("emits nested object structure", () => {
-		expect(output).toContain("functions: {");
-		expect(output).toContain("admin: {");
-		expect(output).toContain("stats: _fn_admin_stats,");
-		expect(output).toContain("users: {");
-		expect(output).toContain("export: _fn_admin_users_export,");
-		expect(output).toContain("getConfig: _fn_getConfig,");
+	it("emits flat record with camelCase slash keys", () => {
+		expect(output).toContain("routes: {");
+		expect(output).toContain('"admin/stats": _route_admin_stats,');
+		expect(output).toContain('"admin/users/export": _route_admin_users_export,');
+		expect(output).toContain("getConfig: _route_getConfig,");
 	});
 
-	it("emits nested type interface", () => {
-		expect(output).toContain("export interface TestFunctions {");
-		expect(output).toContain("stats: typeof _fn_admin_stats;");
-		expect(output).toContain("export: typeof _fn_admin_users_export;");
-		expect(output).toContain("getConfig: typeof _fn_getConfig;");
+	it("emits flat type interface with camelCase slash keys", () => {
+		expect(output).toContain("export interface TestRoutes {");
+		expect(output).toContain('"admin/stats": typeof _route_admin_stats;');
+		expect(output).toContain('"admin/users/export": typeof _route_admin_users_export;');
+		expect(output).toContain("getConfig: typeof _route_getConfig;");
 	});
 });
 
-describe("generateModuleTemplate — bundle functions", () => {
-	const result = emptyResult(["functions"]);
-	const fns = cat(result, "functions");
-	fns.set(
+describe("generateModuleTemplate — bundle routes", () => {
+	const result = emptyResult(["routes"]);
+	const routes = cat(result, "routes");
+	routes.set(
 		"setup",
-		makeFile("setup", { varName: "_fn_setup", isBundle: true }),
+		makeFile("setup", { varName: "_route_setup", isBundle: true }),
 	);
-	fns.set(
+	routes.set(
 		"getConfig",
-		makeFile("getConfig", { varName: "_fn_getConfig" }),
+		makeFile("getConfig", { varName: "_route_getConfig" }),
 	);
 
 	const output = generateModuleTemplate({
@@ -315,18 +314,19 @@ describe("generateModuleTemplate — bundle functions", () => {
 		categoryMeta: baseCategoryMeta(),
 	});
 
-	it("spreads bundle files into function object", () => {
-		expect(output).toContain("..._fn_setup,");
+	it("spreads bundle files into routes object", () => {
+		expect(output).toContain("..._route_setup,");
 	});
 
-	it("emits leaf files as nested values", () => {
-		expect(output).toContain("getConfig: _fn_getConfig,");
+	it("emits leaf files as record values", () => {
+		expect(output).toContain("getConfig: _route_getConfig,");
 	});
 
-	it("does not include bundle in type interface (only leaf files)", () => {
-		expect(output).toContain("export interface TestFunctions {");
-		expect(output).toContain("getConfig: typeof _fn_getConfig;");
-		expect(output).not.toContain("setup: typeof _fn_setup;");
+	it("includes all entries in type interface", () => {
+		expect(output).toContain("export interface TestRoutes {");
+		expect(output).toContain("getConfig: typeof _route_getConfig;");
+		// Bundle files are spread at runtime but still appear in the type interface
+		expect(output).toContain("setup: typeof _route_setup;");
 	});
 });
 
@@ -549,7 +549,7 @@ describe("generateModuleTemplate — empty stubs", () => {
 	it("emits empty record for declared categories without files", () => {
 		expect(output).toContain("globals: {},");
 		expect(output).toContain("jobs: {},");
-		expect(output).toContain("functions: {},");
+		expect(output).toContain("routes: {},");
 		expect(output).toContain("messages: {},");
 	});
 

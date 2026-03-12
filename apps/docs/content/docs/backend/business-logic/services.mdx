@@ -66,16 +66,16 @@ export const posts = collection("posts")
 ```
 
 ```ts title="functions/get-post-stats.ts"
-export default fn({
-  schema: z.object({ postId: z.string() }),
-  handler: async ({ input, collections, services }) => {
+export default route()
+  .post()
+  .schema(z.object({ postId: z.string() }))
+  .handler(async ({ input, collections, services }) => {
     const post = await collections.posts.findOne({ where: { id: input.postId } });
     return {
       readingTime: services.blog.computeReadingTime(post.content),
       excerpt: services.blog.extractExcerpt(post.content),
     };
-  },
-});
+  });
 ```
 
 ## Lifecycle
@@ -163,6 +163,6 @@ service({
 
 ## Related Pages
 
-- [Functions](/docs/backend/business-logic/functions) — Use services in function handlers
+- [Routes](/docs/backend/business-logic/functions) — Use services in route handlers
 - [Hooks](/docs/backend/rules/hooks) — Use services in lifecycle hooks
 - [Codegen](/docs/backend/architecture/codegen) — How services appear in AppContext

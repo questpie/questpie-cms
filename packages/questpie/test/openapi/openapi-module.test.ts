@@ -341,15 +341,15 @@ describe("openApiPlugin", () => {
 });
 
 // ---------------------------------------------------------------------------
-// RPC paths
+// Routes (flat URLs)
 // ---------------------------------------------------------------------------
 
-describe("RPC in OpenAPI spec", () => {
-	it("generates paths for RPC functions", () => {
+describe("Routes in OpenAPI spec", () => {
+	it("generates flat paths for routes", () => {
 		const app = createMockApp();
 		const { z } = require("zod");
 
-		const functions = {
+		const routes = {
 			greet: {
 				handler: () => {},
 				schema: z.object({ name: z.string() }),
@@ -357,19 +357,19 @@ describe("RPC in OpenAPI spec", () => {
 			},
 		};
 
-		const spec = generateInternal(app as any, functions, {
+		const spec = generateInternal(app as any, routes, {
 			basePath: "/api",
 		});
 
-		expect(spec.paths["/api/rpc/greet"]).toBeDefined();
-		expect(spec.paths["/api/rpc/greet"].post).toBeDefined();
-		expect(spec.paths["/api/rpc/greet"].post.operationId).toBe("rpc_greet");
+		expect(spec.paths["/api/greet"]).toBeDefined();
+		expect(spec.paths["/api/greet"].post).toBeDefined();
+		expect(spec.paths["/api/greet"].post.operationId).toBe("route_greet");
 	});
 
-	it("generates nested RPC paths", () => {
+	it("generates nested flat paths for routes", () => {
 		const app = createMockApp();
 
-		const functions = {
+		const routes = {
 			admin: {
 				stats: {
 					handler: () => {},
@@ -382,11 +382,11 @@ describe("RPC in OpenAPI spec", () => {
 			},
 		};
 
-		const spec = generateInternal(app as any, functions, {
+		const spec = generateInternal(app as any, routes, {
 			basePath: "/api",
 		});
 
-		expect(spec.paths["/api/rpc/admin/stats"]).toBeDefined();
-		expect(spec.paths["/api/rpc/admin/users/list"]).toBeDefined();
+		expect(spec.paths["/api/admin/stats"]).toBeDefined();
+		expect(spec.paths["/api/admin/users/list"]).toBeDefined();
 	});
 });

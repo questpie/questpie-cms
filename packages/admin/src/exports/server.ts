@@ -167,7 +167,7 @@ export {
 	actionFunctions,
 	// Static module
 	adminModule,
-	adminRpc,
+	adminRoutes,
 	// Reactive field functions
 	batchReactive,
 	createFirstAdmin,

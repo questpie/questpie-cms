@@ -575,30 +575,34 @@ async function processFile(
 	// Derive key based on category
 	let key: string;
 	if (category.recursive) {
-		// Functions/routes: path segments become nested keys
-		// functions/admin/stats.ts → "admin.stats"
-		// routes/webhooks/stripe.ts → "webhooks/stripe"
-		const dir = category.dirs[0];
+		// Recursive categories: path segments become keys
+		// routes/webhooks/stripe.ts → "webhooks/stripe" (keySeparator: "/")
+		// functions/admin-config.ts → "admin-config" (keySeparator: "/")
+
+		// Determine which dir this file came from
 		let innerPath: string;
 		if (relPath.startsWith("features/")) {
 			const parts = relPath.split("/");
-			const dirIdx = parts.indexOf(dir);
+			// Find which category dir appears in the path
+			const dirIdx = parts.findIndex((p) => category.dirs.includes(p));
 			innerPath = parts.slice(dirIdx + 1).join("/");
 		} else {
-			innerPath = relPath.slice(dir.length + 1);
+			// relPath is like "routes/webhook.ts" or "functions/admin-config.ts"
+			// Strip the leading dir segment
+			const matchedDir = category.dirs.find((d) => relPath.startsWith(d + "/"));
+			if (matchedDir) {
+				innerPath = relPath.slice(matchedDir.length + 1);
+			} else {
+				innerPath = relPath;
+			}
 		}
 
-		if (category.category === "routes") {
-			// Routes use slash-separated keys to match URL paths
-			key = innerPath.replace(/\.(ts|tsx|mts|mjs|js|jsx)$/, "");
-		} else {
-			// Functions use dot-separated keys
-			const segments = innerPath
-				.replace(/\.(ts|tsx|mts|mjs|js|jsx)$/, "")
-				.split("/")
-				.map(kebabToCamelCase);
-			key = segments.join(".");
-		}
+		const sep = category.keySeparator ?? ".";
+		const segments = innerPath
+			.replace(/\.(ts|tsx|mts|mjs|js|jsx)$/, "")
+			.split("/")
+			.map(kebabToCamelCase);
+		key = segments.join(sep);
 	} else {
 		// Simple: filename → camelCase key
 		key = kebabToCamelCase(basename(relPath));

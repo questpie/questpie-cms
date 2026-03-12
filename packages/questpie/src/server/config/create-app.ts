@@ -226,7 +226,6 @@ const MERGE_FNS = new Map<string, MergeFn>([
 	["collections", mergeRecord],
 	["globals", mergeRecord],
 	["jobs", mergeRecord],
-	["functions", mergeRecord],
 	["routes", mergeRecord],
 	["fields", mergeRecord],
 	["services", mergeRecord],
@@ -269,7 +268,6 @@ function emptyMergedState(): Record<string, any> {
 		collections: {},
 		globals: {},
 		jobs: {},
-		functions: {},
 		routes: {},
 		fields: {},
 		services: {},
@@ -515,8 +513,6 @@ function createAppFromDefinition(
 						adapter: runtime.queue.adapter,
 					}
 				: undefined,
-		functions:
-			Object.keys(merged.functions).length > 0 ? merged.functions : undefined,
 		routes: Object.keys(merged.routes).length > 0 ? merged.routes : undefined,
 		search: runtime.search,
 		realtime: runtime.realtime,
@@ -603,8 +599,6 @@ function createAppLegacy(appConfig: AppConfig, entities?: AppEntities) {
 						adapter: appConfig.queue.adapter,
 					}
 				: undefined,
-		functions:
-			Object.keys(merged.functions).length > 0 ? merged.functions : undefined,
 		routes: Object.keys(merged.routes).length > 0 ? merged.routes : undefined,
 		search: appConfig.search,
 		realtime: appConfig.realtime,

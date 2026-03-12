@@ -290,25 +290,24 @@ describe("discoverFiles", () => {
 		expect(jobs.has("cleanup")).toBe(true);
 	});
 
-	// ── Functions (recursive) ─────────────────────────────────────────────────
+	// ── Functions dir discovered under routes category ───────────────────────
 
-	it("discovers flat functions with simple keys", async () => {
+	it("discovers functions dir files under routes category", async () => {
 		await write("functions/get-users.ts");
 
 		const result = await discoverFiles(rootDir, outDir, coreDiscoverOptions());
-		expect(cat(result, "functions").has("getUsers")).toBe(true);
+		expect(cat(result, "routes").has("getUsers")).toBe(true);
 	});
 
-	it("discovers nested functions with dot-separated keys", async () => {
+	it("discovers nested functions with slash-separated camelCase keys", async () => {
 		await write("functions/admin/get-stats.ts");
 
 		const result = await discoverFiles(rootDir, outDir, coreDiscoverOptions());
-		const functions = cat(result, "functions");
-		expect(functions.has("admin.getStats")).toBe(true);
+		const routes = cat(result, "routes");
+		expect(routes.has("admin/getStats")).toBe(true);
 
-		const file = functions.get("admin.getStats")!;
-		// varName replaces dots with underscores
-		expect(file.varName).toBe("_fn_admin_getStats");
+		const file = routes.get("admin/getStats")!;
+		expect(file.varName).toBe("_route_admin_getStats");
 	});
 
 	// ── Migrations ────────────────────────────────────────────────────────────

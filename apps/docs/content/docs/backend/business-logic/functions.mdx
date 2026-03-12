@@ -1,42 +1,43 @@
 ---
-title: Functions
-description: Typed server functions exposed via RPC — define input schema, handler logic, and call from the client.
+title: Routes
+description: Typed server routes — define input schema, handler logic, and call from the client.
 ---
 
-# Functions
+# Routes
 
-Functions are typed server-side logic exposed via RPC. Define an input schema with Zod, write a handler that receives typed context, and call it from the client with full type safety.
+Routes are typed server-side logic exposed as endpoints. Define an input schema with Zod, write a handler that receives typed context, and call it from the client with full type safety.
 
-The concept is "Functions" — the transport is RPC. On the client, you call `client.rpc.functionName()`.
+On the client, you call `client.routes.routeName()`.
 
-## Defining a Function
+## Defining a Route
 
 ```ts title="functions/get-active-barbers.ts"
-import { fn } from "questpie";
+import { route } from "questpie";
 import z from "zod";
 
-export default fn({
-  schema: z.object({}),
-  handler: async ({ collections }) => {
+export default route()
+  .post()
+  .schema(z.object({}))
+  .handler(async ({ collections }) => {
     return await collections.barbers.find({
       where: { isActive: true },
     });
-  },
-});
+  });
 ```
 
-Place function files in `functions/`. The filename becomes the function key: `get-active-barbers.ts` → `getActiveBarbers`.
+Place route files in `functions/`. The filename becomes the route key: `get-active-barbers.ts` → `getActiveBarbers`.
 
 ## Input Validation
 
-Functions validate input with Zod:
+Routes validate input with Zod:
 
 ```ts title="functions/create-booking.ts"
-import { fn } from "questpie";
+import { route } from "questpie";
 import z from "zod";
 
-export default fn({
-  schema: z.object({
+export default route()
+  .post()
+  .schema(z.object({
     barberId: z.string(),
     serviceId: z.string(),
     scheduledAt: z.string().datetime(),
@@ -44,8 +45,8 @@ export default fn({
     customerEmail: z.string().email(),
     customerPhone: z.string().optional(),
     notes: z.string().optional(),
-  }),
-  handler: async ({ input, collections }) => {
+  }))
+  .handler(async ({ input, collections }) => {
     const service = await collections.services.findOne({
       where: { id: input.serviceId },
     });
@@ -64,13 +65,12 @@ export default fn({
       appointmentId: appointment.id,
       message: "Appointment booked successfully!",
     };
-  },
-});
+  });
 ```
 
 ## Handler Context
 
-Function handlers receive the full `AppContext`:
+Route handlers receive the full `AppContext`:
 
 ```ts
 handler: async ({ input, collections, queue, email, db, session, blog }) => {
@@ -84,15 +84,15 @@ handler: async ({ input, collections, queue, email, db, session, blog }) => {
 }
 ```
 
-## Calling Functions
+## Calling Routes
 
 ### From the client SDK
 
 ```ts
 import { client } from "@/lib/client";
 
-// Fully typed — input and return type inferred from the function definition
-const result = await client.rpc.createBooking({
+// Fully typed — input and return type inferred from the route definition
+const result = await client.routes.createBooking({
   barberId: "abc",
   serviceId: "def",
   scheduledAt: "2025-03-15T10:00:00Z",
@@ -103,25 +103,25 @@ const result = await client.rpc.createBooking({
 
 ### Via HTTP
 
-Functions are accessible via `POST /rpc/functionName`:
+Routes are accessible via `POST /routes/routeName`:
 
 ```bash
-curl -X POST http://localhost:3000/api/rpc/createBooking \
+curl -X POST http://localhost:3000/api/routes/createBooking \
   -H "Content-Type: application/json" \
   -d '{"barberId": "abc", "serviceId": "def", ...}'
 ```
 
-## Nested Functions
+## Nested Routes
 
-Organize functions in subdirectories for namespacing:
+Organize routes in subdirectories for namespacing:
 
 ```text
 functions/
 ├── booking/
-│   ├── create.ts          → client.rpc.booking.create()
-│   └── cancel.ts          → client.rpc.booking.cancel()
-├── get-active-barbers.ts  → client.rpc.getActiveBarbers()
-└── get-stats.ts           → client.rpc.getStats()
+│   ├── create.ts          → client.routes.booking.create()
+│   └── cancel.ts          → client.routes.booking.cancel()
+├── get-active-barbers.ts  → client.routes.getActiveBarbers()
+└── get-stats.ts           → client.routes.getStats()
 ```
 
 ## Real-World Example
@@ -129,16 +129,17 @@ functions/
 Computing available time slots with business logic:
 
 ```ts title="functions/get-available-time-slots.ts"
-import { fn } from "questpie";
+import { route } from "questpie";
 import z from "zod";
 
-export default fn({
-  schema: z.object({
+export default route()
+  .post()
+  .schema(z.object({
     date: z.string(),
     barberId: z.string(),
     serviceId: z.string(),
-  }),
-  handler: async ({ input, collections }) => {
+  }))
+  .handler(async ({ input, collections }) => {
     const barber = await collections.barbers.findOne({
       where: { id: input.barberId, isActive: true },
     });
@@ -171,13 +172,12 @@ export default fn({
     );
 
     return slots;
-  },
-});
+  });
 ```
 
 ## Related Pages
 
 - [Jobs](/docs/backend/business-logic/jobs) — Background tasks
-- [Routes](/docs/backend/business-logic/routes) — Raw HTTP endpoints
+- [Routes API](/docs/reference/functions-api) — Route builder API reference
 - [Hooks](/docs/backend/rules/hooks) — Collection lifecycle hooks
 - [TanStack Query](/docs/frontend/tanstack-query) — Client-side data fetching

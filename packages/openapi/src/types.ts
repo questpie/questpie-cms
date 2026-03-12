@@ -1,4 +1,4 @@
-import type { FunctionsTree } from "questpie";
+import type { RoutesTree } from "questpie";
 
 /**
  * Configuration for OpenAPI spec generation.
@@ -50,8 +50,8 @@ export interface ScalarConfig {
 export interface WithOpenApiConfig extends OpenApiConfig {
 	/** QuestPie app instance (from createApp or #questpie) */
 	app: unknown;
-	/** Functions tree — if omitted, reads from `app.functions` automatically. */
-	functions?: FunctionsTree;
+	/** Routes tree — if omitted, reads from `app.config.routes` automatically. */
+	routes?: RoutesTree;
 	/** Scalar UI options */
 	scalar?: ScalarConfig;
 	/** Path for the JSON spec (relative to basePath, default: "openapi.json") */

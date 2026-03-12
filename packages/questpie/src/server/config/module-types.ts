@@ -57,7 +57,7 @@ import type {
 	LocaleConfig,
 	StorageConfig,
 } from "#questpie/server/config/types.js";
-import type { FunctionsTree } from "#questpie/server/functions/types.js";
+import type { RouteDefinition } from "#questpie/server/routes/types.js";
 import type { TranslationsConfig } from "#questpie/server/i18n/types.js";
 import type { KVConfig } from "#questpie/server/integrated/kv/index.js";
 import type { LoggerConfig } from "#questpie/server/integrated/logger/index.js";
@@ -69,7 +69,6 @@ import type {
 import type { RealtimeConfig } from "#questpie/server/integrated/realtime/index.js";
 import type { SearchAdapter } from "#questpie/server/integrated/search/index.js";
 import type { Migration } from "#questpie/server/migration/types.js";
-import type { RouteDefinition } from "#questpie/server/routes/types.js";
 import type { Seed, SeedCategory } from "#questpie/server/seed/types.js";
 
 // ============================================================================
@@ -102,10 +101,7 @@ export interface ModuleDefinition {
 	/** Job definitions this module contributes. */
 	jobs?: Record<string, JobDefinition<any, any>>;
 
-	/** Function definitions this module contributes. */
-	functions?: FunctionsTree;
-
-	/** Raw HTTP route definitions this module contributes. */
+	/** Route definitions this module contributes. */
 	routes?: Record<string, RouteDefinition>;
 
 	/** Custom field types this module contributes (extends the `f` proxy). */
@@ -294,8 +290,7 @@ export type RuntimeConfigInput = Partial<Pick<RuntimeConfig, "app" | "db">> &
  *     modules: _modules,
  *     collections: { posts: _coll_posts },
  *     globals: { siteSettings: _glob_siteSettings },
- *     functions: { createBooking: _fn_createBooking },
- *     routes: { "webhooks/stripe": _route_webhooks_stripe },
+ *     routes: { "webhooks/stripe": _route_webhooks_stripe, createBooking: _fn_createBooking },
  *     auth: _auth,
  *     locale: _locale,
  *     sidebar: _sidebar,
@@ -320,9 +315,6 @@ export interface AppDefinition {
 
 	/** Jobs discovered from `jobs/` directory. */
 	jobs?: Record<string, JobDefinition<any, any>>;
-
-	/** Functions discovered from `functions/` directory. */
-	functions?: FunctionsTree;
 
 	/** Routes discovered from `routes/` directory. */
 	routes?: Record<string, RouteDefinition>;
@@ -493,9 +485,6 @@ export interface AppEntities {
 	/** Jobs discovered from `jobs/` directory. */
 	jobs?: Record<string, JobDefinition<any, any>>;
 
-	/** Functions discovered from `functions/` directory. */
-	functions?: FunctionsTree;
-
 	/** Routes discovered from `routes/` directory. */
 	routes?: Record<string, RouteDefinition>;
 
@@ -572,7 +561,7 @@ export type ExtractFromModuleArray<
  *
  * type ModuleCollections = ExtractModulesProperty<typeof _config, "collections">;
  * type ModuleJobs = ExtractModulesProperty<typeof _config, "jobs">;
- * type ModuleFunctions = ExtractModulesProperty<typeof _config, "functions">;
+ * type ModuleRoutes = ExtractModulesProperty<typeof _config, "routes">;
  * ```
  *
  * @see RFC §15.1 (Complete .generated/index.ts Example)

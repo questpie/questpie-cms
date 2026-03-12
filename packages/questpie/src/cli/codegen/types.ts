@@ -160,12 +160,11 @@ export interface CategoryDeclaration {
 	/**
 	 * How to emit this category in the `createApp()` call.
 	 * - "record" (default): `{ key: varName, ... }` — standard record emission
-	 * - "nested": nested object from dot-separated keys (functions)
 	 * - "array": flat array `[var1, var2, ...]` (migrations, seeds)
 	 *
 	 * @default "record"
 	 */
-	emit?: "record" | "nested" | "array";
+	emit?: "record" | "array";
 
 	/**
 	 * Key separator for recursive categories.
@@ -211,7 +210,6 @@ export interface CategoryDeclaration {
 		| "services"
 		| "emails"
 		| "messages"
-		| "functions"
 		| "none";
 
 	/**

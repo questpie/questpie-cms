@@ -22,7 +22,7 @@
  * ```
  */
 
-import type { FunctionsTree } from "questpie";
+import type { RoutesTree } from "questpie";
 import { generateOpenApiSpec as generate } from "./generator/index.js";
 import { serveScalarUI } from "./scalar.js";
 import type {
@@ -41,15 +41,15 @@ export type {
 
 /**
  * Generate a complete OpenAPI 3.1 spec from a QuestPie instance.
- * Functions are read from `app.functions` automatically if not provided.
+ * Routes are read from `app.config.routes` automatically if not provided.
  */
 export function generateOpenApiSpec(
 	app: unknown,
-	functions?: FunctionsTree,
+	routes?: RoutesTree,
 	config?: OpenApiConfig,
 ): OpenApiSpec {
-	const fns = functions ?? (app as any).functions;
-	return generate(app as any, fns, config);
+	const r = routes ?? (app as any).config?.routes;
+	return generate(app as any, r, config);
 }
 
 /**
@@ -80,7 +80,7 @@ export function createOpenApiHandlers(
  * Intercepts requests to `{basePath}/{specPath}` and `{basePath}/{docsPath}`
  * before they reach the handler. Everything else passes through unchanged.
  *
- * Functions are read from `app.functions` automatically.
+ * Routes are read from `app.config.routes` automatically.
  *
  * @example
  * ```ts
@@ -110,15 +110,15 @@ export function withOpenApi(
 ) => Promise<Response | null> | Response | null {
 	const {
 		app,
-		functions,
+		routes,
 		scalar,
 		specPath = "openapi.json",
 		docsPath = "docs",
 		...openApiConfig
 	} = config;
 
-	const fns = functions ?? (app as any).functions;
-	const spec = generate(app as any, fns, openApiConfig);
+	const r = routes ?? (app as any).config?.routes;
+	const spec = generate(app as any, r, openApiConfig);
 	const { specHandler, scalarHandler } = createOpenApiHandlers(spec, {
 		scalar,
 	});
