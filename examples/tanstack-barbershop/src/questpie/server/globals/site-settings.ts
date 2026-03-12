@@ -1,4 +1,4 @@
-import { qb } from "@/questpie/server/builder";
+import { global } from "#questpie/factories";
 import type { WorkingHours } from "../collections/barbers";
 
 export type NavItem = {
@@ -26,140 +26,188 @@ export type BookingSettings = {
 	cancellationDeadlineHours: number;
 };
 
-export const siteSettings = qb
-	.global("site_settings")
-	.fields((f) => ({
-		shopName: f.text({
-			label: { en: "Shop Name", sk: "Názov obchodu" },
-			required: true,
-			default: "Sharp Cuts",
-		}),
-		tagline: f.text({
-			label: { en: "Tagline", sk: "Slogan" },
-			default: "Your Style, Our Passion",
-			localized: true,
-		}),
-		logo: f.upload({
-			to: "assets",
-			label: { en: "Logo", sk: "Logo" },
-		}),
+export const siteSettings = global("site_settings")
+	.fields(({ f }) => ({
+		shopName: f
+			.text()
+			.label({ en: "Shop Name", sk: "Názov obchodu" })
+			.required()
+			.default("Sharp Cuts"),
+		tagline: f
+			.text()
+			.label({ en: "Tagline", sk: "Slogan" })
+			.default("Your Style, Our Passion")
+			.localized(),
+		logo: f.upload({ to: "assets" }).label({ en: "Logo", sk: "Logo" }),
 
-		navigation: f.array({
-			label: { en: "Navigation", sk: "Navigácia" },
-			localized: true,
-			default: [
+		navigation: f
+			.object({
+				label: f.text().label({ en: "Label", sk: "Názov" }).required(),
+				href: f.text().label({ en: "URL", sk: "URL" }).required(),
+				isExternal: f
+					.boolean()
+					.label({ en: "External Link", sk: "Externý odkaz" })
+					.default(false),
+			})
+			.array()
+			.label({ en: "Navigation", sk: "Navigácia" })
+			.localized()
+			.default([
 				{ label: "Home", href: "/" },
 				{ label: "Services", href: "/services" },
 				{ label: "Our Team", href: "/barbers" },
 				{ label: "Contact", href: "/contact" },
-			] satisfies NavItem[],
-			of: f.object({
-				fields: {
-					label: f.text({
-						label: { en: "Label", sk: "Názov" },
-						required: true,
-					}),
-					href: f.text({
-						label: { en: "URL", sk: "URL" },
-						required: true,
-					}),
-					isExternal: f.boolean({
-						label: { en: "External Link", sk: "Externý odkaz" },
-						default: false,
-					}),
-				},
-			}),
-		}),
-		ctaButtonText: f.text({
-			label: { en: "CTA Button Text", sk: "Text CTA tlačidla" },
-			default: "Book Now",
-			localized: true,
-		}),
-		ctaButtonLink: f.text({
-			label: { en: "CTA Button Link", sk: "Odkaz CTA tlačidla" },
-			default: "/booking",
-		}),
+			] satisfies NavItem[]),
+		ctaButtonText: f
+			.text()
+			.label({ en: "CTA Button Text", sk: "Text CTA tlačidla" })
+			.default("Book Now")
+			.localized(),
+		ctaButtonLink: f
+			.text()
+			.label({ en: "CTA Button Link", sk: "Odkaz CTA tlačidla" })
+			.default("/booking"),
 
-		footerTagline: f.text({
-			label: { en: "Footer Tagline", sk: "Slogan v päte" },
-			default: "Your Style, Our Passion",
-			localized: true,
-		}),
-		footerLinks: f.array({
-			label: { en: "Footer Links", sk: "Odkazy v päte" },
-			localized: true,
-			default: [
+		footerTagline: f
+			.text()
+			.label({ en: "Footer Tagline", sk: "Slogan v päte" })
+			.default("Your Style, Our Passion")
+			.localized(),
+		footerLinks: f
+			.object({
+				label: f.text().label({ en: "Label", sk: "Názov" }).required(),
+				href: f.text().label({ en: "URL", sk: "URL" }).required(),
+				isExternal: f
+					.boolean()
+					.label({ en: "External Link", sk: "Externý odkaz" })
+					.default(false),
+			})
+			.array()
+			.label({ en: "Footer Links", sk: "Odkazy v päte" })
+			.localized()
+			.default([
 				{ label: "Services", href: "/services" },
 				{ label: "Our Team", href: "/barbers" },
 				{ label: "Contact", href: "/contact" },
 				{ label: "Privacy Policy", href: "/privacy" },
-			] satisfies FooterLink[],
-			of: f.object({
-				fields: {
-					label: f.text({
-						label: { en: "Label", sk: "Názov" },
-						required: true,
-					}),
-					href: f.text({
-						label: { en: "URL", sk: "URL" },
-						required: true,
-					}),
-					isExternal: f.boolean({
-						label: { en: "External Link", sk: "Externý odkaz" },
-						default: false,
-					}),
-				},
-			}),
-		}),
-		copyrightText: f.text({
-			label: { en: "Copyright Text", sk: "Text copyrightu" },
-			default: "Sharp Cuts. All rights reserved.",
-			localized: true,
-		}),
+			] satisfies FooterLink[]),
+		copyrightText: f
+			.text()
+			.label({ en: "Copyright Text", sk: "Text copyrightu" })
+			.default("Sharp Cuts. All rights reserved.")
+			.localized(),
 
-		contactEmail: f.email({
-			label: { en: "Email", sk: "Email" },
-			required: true,
-			default: "hello@barbershop.com",
-		}),
-		contactPhone: f.text({
-			label: { en: "Phone", sk: "Telefón" },
-			default: "+1 555 0100",
-		}),
-		address: f.text({
-			label: { en: "Address", sk: "Adresa" },
-			default: "123 Main Street",
-		}),
-		city: f.text({
-			label: { en: "City", sk: "Mesto" },
-			default: "New York",
-		}),
-		zipCode: f.text({
-			label: { en: "ZIP Code", sk: "PSČ" },
-			default: "10001",
-		}),
-		country: f.text({
-			label: { en: "Country", sk: "Krajina" },
-			default: "USA",
-		}),
-		mapEmbedUrl: f.text({
-			label: { en: "Map Embed URL", sk: "URL mapy" },
-		}),
+		contactEmail: f
+			.email()
+			.label({ en: "Email", sk: "Email" })
+			.required()
+			.default("hello@barbershop.com"),
+		contactPhone: f
+			.text()
+			.label({ en: "Phone", sk: "Telefón" })
+			.default("+1 555 0100"),
+		address: f
+			.text()
+			.label({ en: "Address", sk: "Adresa" })
+			.default("123 Main Street"),
+		city: f.text().label({ en: "City", sk: "Mesto" }).default("New York"),
+		zipCode: f.text().label({ en: "ZIP Code", sk: "PSČ" }).default("10001"),
+		country: f.text().label({ en: "Country", sk: "Krajina" }).default("USA"),
+		mapEmbedUrl: f.text().label({ en: "Map Embed URL", sk: "URL mapy" }),
 
-		isOpen: f.boolean({
-			label: { en: "Open", sk: "Otvorené" },
-			default: true,
-			required: true,
-		}),
-		bookingEnabled: f.boolean({
-			label: { en: "Booking Enabled", sk: "Rezervácie povolené" },
-			default: true,
-			required: true,
-		}),
+		isOpen: f
+			.boolean()
+			.label({ en: "Open", sk: "Otvorené" })
+			.default(true)
+			.required(),
+		bookingEnabled: f
+			.boolean()
+			.label({ en: "Booking Enabled", sk: "Rezervácie povolené" })
+			.default(true)
+			.required(),
 
-		businessHours: f.object({
-			label: { en: "Business Hours", sk: "Otváracie hodiny" },
-			default: {
+		businessHours: f
+			.object({
+				monday: f
+					.object({
+						isOpen: f
+							.boolean()
+							.label({ en: "Open", sk: "Otvorené" })
+							.default(true)
+							.required(),
+						start: f.time().label({ en: "Start", sk: "Začiatok" }),
+						end: f.time().label({ en: "End", sk: "Koniec" }),
+					})
+					.label({ en: "Monday", sk: "Pondelok" }),
+				tuesday: f
+					.object({
+						isOpen: f
+							.boolean()
+							.label({ en: "Open", sk: "Otvorené" })
+							.default(true)
+							.required(),
+						start: f.time().label({ en: "Start", sk: "Začiatok" }),
+						end: f.time().label({ en: "End", sk: "Koniec" }),
+					})
+					.label({ en: "Tuesday", sk: "Utorok" }),
+				wednesday: f
+					.object({
+						isOpen: f
+							.boolean()
+							.label({ en: "Open", sk: "Otvorené" })
+							.default(true)
+							.required(),
+						start: f.time().label({ en: "Start", sk: "Začiatok" }),
+						end: f.time().label({ en: "End", sk: "Koniec" }),
+					})
+					.label({ en: "Wednesday", sk: "Streda" }),
+				thursday: f
+					.object({
+						isOpen: f
+							.boolean()
+							.label({ en: "Open", sk: "Otvorené" })
+							.default(true)
+							.required(),
+						start: f.time().label({ en: "Start", sk: "Začiatok" }),
+						end: f.time().label({ en: "End", sk: "Koniec" }),
+					})
+					.label({ en: "Thursday", sk: "Štvrtok" }),
+				friday: f
+					.object({
+						isOpen: f
+							.boolean()
+							.label({ en: "Open", sk: "Otvorené" })
+							.default(true)
+							.required(),
+						start: f.time().label({ en: "Start", sk: "Začiatok" }),
+						end: f.time().label({ en: "End", sk: "Koniec" }),
+					})
+					.label({ en: "Friday", sk: "Piatok" }),
+				saturday: f
+					.object({
+						isOpen: f
+							.boolean()
+							.label({ en: "Open", sk: "Otvorené" })
+							.default(true)
+							.required(),
+						start: f.time().label({ en: "Start", sk: "Začiatok" }),
+						end: f.time().label({ en: "End", sk: "Koniec" }),
+					})
+					.label({ en: "Saturday", sk: "Sobota" }),
+				sunday: f
+					.object({
+						isOpen: f
+							.boolean()
+							.label({ en: "Open", sk: "Otvorené" })
+							.default(true)
+							.required(),
+						start: f.time().label({ en: "Start", sk: "Začiatok" }),
+						end: f.time().label({ en: "End", sk: "Koniec" }),
+					})
+					.label({ en: "Sunday", sk: "Nedeľa" }),
+			})
+			.label({ en: "Business Hours", sk: "Otváracie hodiny" })
+			.default({
 				monday: { isOpen: true, start: "09:00", end: "18:00" },
 				tuesday: { isOpen: true, start: "09:00", end: "18:00" },
 				wednesday: { isOpen: true, start: "09:00", end: "18:00" },
@@ -167,197 +215,76 @@ export const siteSettings = qb
 				friday: { isOpen: true, start: "09:00", end: "20:00" },
 				saturday: { isOpen: true, start: "10:00", end: "16:00" },
 				sunday: { isOpen: false, start: "", end: "" },
-			} satisfies WorkingHours,
-			fields: {
-				monday: f.object({
-					label: { en: "Monday", sk: "Pondelok" },
-					fields: {
-						isOpen: f.boolean({
-							label: { en: "Open", sk: "Otvorené" },
-							default: true,
-							required: true,
-						}),
-						start: f.time({
-							label: { en: "Start", sk: "Začiatok" },
-						}),
-						end: f.time({
-							label: { en: "End", sk: "Koniec" },
-						}),
-					},
-				}),
-				tuesday: f.object({
-					label: { en: "Tuesday", sk: "Utorok" },
-					fields: {
-						isOpen: f.boolean({
-							label: { en: "Open", sk: "Otvorené" },
-							default: true,
-							required: true,
-						}),
-						start: f.time({
-							label: { en: "Start", sk: "Začiatok" },
-						}),
-						end: f.time({
-							label: { en: "End", sk: "Koniec" },
-						}),
-					},
-				}),
-				wednesday: f.object({
-					label: { en: "Wednesday", sk: "Streda" },
-					fields: {
-						isOpen: f.boolean({
-							label: { en: "Open", sk: "Otvorené" },
-							default: true,
-							required: true,
-						}),
-						start: f.time({
-							label: { en: "Start", sk: "Začiatok" },
-						}),
-						end: f.time({
-							label: { en: "End", sk: "Koniec" },
-						}),
-					},
-				}),
-				thursday: f.object({
-					label: { en: "Thursday", sk: "Štvrtok" },
-					fields: {
-						isOpen: f.boolean({
-							label: { en: "Open", sk: "Otvorené" },
-							default: true,
-							required: true,
-						}),
-						start: f.time({
-							label: { en: "Start", sk: "Začiatok" },
-						}),
-						end: f.time({
-							label: { en: "End", sk: "Koniec" },
-						}),
-					},
-				}),
-				friday: f.object({
-					label: { en: "Friday", sk: "Piatok" },
-					fields: {
-						isOpen: f.boolean({
-							label: { en: "Open", sk: "Otvorené" },
-							default: true,
-							required: true,
-						}),
-						start: f.time({
-							label: { en: "Start", sk: "Začiatok" },
-						}),
-						end: f.time({
-							label: { en: "End", sk: "Koniec" },
-						}),
-					},
-				}),
-				saturday: f.object({
-					label: { en: "Saturday", sk: "Sobota" },
-					fields: {
-						isOpen: f.boolean({
-							label: { en: "Open", sk: "Otvorené" },
-							default: true,
-							required: true,
-						}),
-						start: f.time({
-							label: { en: "Start", sk: "Začiatok" },
-						}),
-						end: f.time({
-							label: { en: "End", sk: "Koniec" },
-						}),
-					},
-				}),
-				sunday: f.object({
-					label: { en: "Sunday", sk: "Nedeľa" },
-					fields: {
-						isOpen: f.boolean({
-							label: { en: "Open", sk: "Otvorené" },
-							default: true,
-							required: true,
-						}),
-						start: f.time({
-							label: { en: "Start", sk: "Začiatok" },
-						}),
-						end: f.time({
-							label: { en: "End", sk: "Koniec" },
-						}),
-					},
-				}),
-			},
-		}),
+			} satisfies WorkingHours),
 
-		bookingSettings: f.object({
-			label: { en: "Booking Settings", sk: "Nastavenia rezervácií" },
-			default: {
+		bookingSettings: f
+			.object({
+				minAdvanceHours: f
+					.number()
+					.label({ en: "Min. Advance (hours)", sk: "Min. vopred (hodiny)" })
+					.required(),
+				maxAdvanceDays: f
+					.number()
+					.label({ en: "Max. Advance (days)", sk: "Max. vopred (dni)" })
+					.required(),
+				slotDurationMinutes: f
+					.number()
+					.label({ en: "Slot Duration (min)", sk: "Trvanie slotu (min)" })
+					.required(),
+				allowCancellation: f
+					.boolean()
+					.label({ en: "Allow Cancellation", sk: "Povoliť zrušenie" })
+					.required(),
+				cancellationDeadlineHours: f
+					.number()
+					.label({
+						en: "Cancellation Deadline (hours)",
+						sk: "Lehota na zrušenie (hodiny)",
+					})
+					.required(),
+			})
+			.label({ en: "Booking Settings", sk: "Nastavenia rezervácií" })
+			.default({
 				minAdvanceHours: 2,
 				maxAdvanceDays: 30,
 				slotDurationMinutes: 30,
 				allowCancellation: true,
 				cancellationDeadlineHours: 24,
-			} satisfies BookingSettings,
-			fields: {
-				minAdvanceHours: f.number({
-					label: { en: "Min. Advance (hours)", sk: "Min. vopred (hodiny)" },
-					required: true,
-				}),
-				maxAdvanceDays: f.number({
-					label: { en: "Max. Advance (days)", sk: "Max. vopred (dni)" },
-					required: true,
-				}),
-				slotDurationMinutes: f.number({
-					label: { en: "Slot Duration (min)", sk: "Trvanie slotu (min)" },
-					required: true,
-				}),
-				allowCancellation: f.boolean({
-					label: { en: "Allow Cancellation", sk: "Povoliť zrušenie" },
-					required: true,
-				}),
-				cancellationDeadlineHours: f.number({
-					label: {
-						en: "Cancellation Deadline (hours)",
-						sk: "Lehota na zrušenie (hodiny)",
-					},
-					required: true,
-				}),
-			},
-		}),
+			} satisfies BookingSettings),
 
-		socialLinks: f.array({
-			label: { en: "Social Links", sk: "Sociálne siete" },
-			default: [
+		socialLinks: f
+			.object({
+				platform: f
+					.select([
+						{ value: "instagram", label: "Instagram" },
+						{ value: "facebook", label: "Facebook" },
+						{ value: "twitter", label: "Twitter" },
+						{ value: "tiktok", label: "TikTok" },
+						{ value: "youtube", label: "YouTube" },
+					])
+					.label({ en: "Platform", sk: "Platforma" })
+					.required(),
+				url: f.url().label({ en: "URL", sk: "URL" }).required(),
+			})
+			.array()
+			.label({ en: "Social Links", sk: "Sociálne siete" })
+			.default([
 				{ platform: "instagram", url: "https://instagram.com/sharpcuts" },
 				{ platform: "facebook", url: "https://facebook.com/sharpcuts" },
-			] satisfies SocialLink[],
-			of: f.object({
-				fields: {
-					platform: f.select({
-						label: { en: "Platform", sk: "Platforma" },
-						options: [
-							{ value: "instagram", label: "Instagram" },
-							{ value: "facebook", label: "Facebook" },
-							{ value: "twitter", label: "Twitter" },
-							{ value: "tiktok", label: "TikTok" },
-							{ value: "youtube", label: "YouTube" },
-						],
-						required: true,
-					}),
-					url: f.url({
-						label: { en: "URL", sk: "URL" },
-						required: true,
-					}),
-				},
-			}),
-		}),
+			] satisfies SocialLink[]),
 
-		metaTitle: f.text({
-			label: { en: "Meta Title", sk: "Meta názov" },
-			default: "Sharp Cuts - Premium Barbershop",
-			localized: true,
-		}),
-		metaDescription: f.textarea({
-			label: { en: "Meta Description", sk: "Meta popis" },
-			default:
+		metaTitle: f
+			.text()
+			.label({ en: "Meta Title", sk: "Meta názov" })
+			.default("Sharp Cuts - Premium Barbershop")
+			.localized(),
+		metaDescription: f
+			.textarea()
+			.label({ en: "Meta Description", sk: "Meta popis" })
+			.default(
 				"Professional barbershop services - haircuts, beard grooming, and more.",
-			localized: true,
-		}),
+			)
+			.localized(),
 	}))
 	.admin(({ c }) => ({
 		label: { en: "Site Settings", sk: "Nastavenia webu" },
@@ -440,5 +367,6 @@ export const siteSettings = qb
 	})
 	.access({
 		read: true,
-		update: ({ session }) => (session?.user as any)?.role === "admin",
+		update: ({ session }) =>
+			(session?.user as { role?: string } | undefined)?.role === "admin",
 	});

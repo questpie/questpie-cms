@@ -13,10 +13,10 @@ import {
 	extractFormReactiveConfigs,
 	type FieldReactiveSchema,
 } from "#questpie/server/collection/introspection.js";
+import type { Field } from "#questpie/server/fields/field-class.js";
+import type { FieldState } from "#questpie/server/fields/field-class-types.js";
 import type {
-	FieldDefinition,
-	FieldDefinitionAccess,
-	FieldDefinitionState,
+	FieldAccess,
 	FieldLocation,
 	FieldMetadata,
 } from "#questpie/server/fields/types.js";
@@ -86,7 +86,7 @@ export interface GlobalSchema {
 
 	/**
 	 * Admin configuration from .admin(), .form()
-	 * Only present when adminModule is used.
+	 * Only present when the `adminModule` is used.
 	 */
 	admin?: {
 		/** Global metadata (label, icon, hidden, group, order) */
@@ -332,7 +332,7 @@ export async function introspectGlobal(
 		fields[name] = {
 			name,
 			metadata,
-			location: fieldDef.state.location,
+			location: fieldDef.getLocation(),
 			access: fieldAccess,
 			validation,
 			...(reactive && { reactive }),
@@ -367,7 +367,7 @@ export async function introspectGlobal(
  * Uses field definitions as source of truth - respects input/output/virtual attributes.
  */
 function buildGlobalValidation(
-	fieldDefinitions: Record<string, FieldDefinition<FieldDefinitionState>>,
+	fieldDefinitions: Record<string, Field<FieldState>>,
 ): GlobalSchema["validation"] {
 	if (!fieldDefinitions || Object.keys(fieldDefinitions).length === 0) {
 		return undefined;
@@ -389,7 +389,7 @@ function buildGlobalValidation(
 
 /**
  * Extract admin configuration from global state.
- * These properties are added by adminModule via monkey patching.
+ * These properties are added by the `adminModule` via monkey patching.
  */
 function extractAdminConfig(
 	state: GlobalBuilderState,
@@ -442,12 +442,17 @@ async function evaluateGlobalAccess(
 	const { access } = state;
 	const appDefaultAccess = (app as any)?.defaultAccess;
 
-	const accessContext: GlobalAccessContext = {
-		app: app,
-		session: context.session,
+	const { extractAppServices } = await import(
+		"#questpie/server/config/app-context.js"
+	);
+	const services = extractAppServices(app, {
 		db: context.db,
+		session: context.session,
+	});
+	const accessContext: GlobalAccessContext = {
+		...services,
 		locale: context.locale,
-	};
+	} as GlobalAccessContext;
 
 	const operations = {
 		read: await evaluateAccessRule(
@@ -485,7 +490,7 @@ async function evaluateAccessRule(
 ): Promise<GlobalAccessResult> {
 	// No rule = require session (secure by default)
 	if (rule === undefined) {
-		return context.session ? { allowed: true } : { allowed: false };
+		return (context as any).session ? { allowed: true } : { allowed: false };
 	}
 
 	if (rule === true) {
@@ -517,13 +522,11 @@ async function evaluateAccessRule(
  * Evaluate field-level access for current user.
  */
 async function evaluateGlobalFieldAccess(
-	fieldDef: FieldDefinition<FieldDefinitionState>,
+	fieldDef: Field<FieldState>,
 	context: CRUDContext,
 	app?: unknown,
 ): Promise<GlobalFieldAccessInfo | undefined> {
-	const fieldAccess = fieldDef.state.config?.access as
-		| FieldDefinitionAccess
-		| undefined;
+	const fieldAccess = fieldDef._state.access as FieldAccess | undefined;
 
 	// No field-level access config
 	if (!fieldAccess) {

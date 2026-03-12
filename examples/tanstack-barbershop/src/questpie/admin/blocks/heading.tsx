@@ -6,7 +6,7 @@
  */
 
 import { cn } from "../../../lib/utils";
-import type { BlockProps } from "./types";
+import type { BlockProps } from "../.generated/client";
 
 export function HeadingRenderer({ values }: BlockProps<"heading">) {
 	const Tag = (values.level || "h2") as "h1" | "h2" | "h3" | "h4";

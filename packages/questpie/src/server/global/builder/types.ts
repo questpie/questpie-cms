@@ -2,7 +2,7 @@
 
 import type { BuildColumn, SQL } from "drizzle-orm";
 import type { PgTableWithColumns } from "drizzle-orm/pg-core";
-import type { Collection } from "#questpie/exports/index.js";
+import type { Collection } from "#questpie/server/collection/builder/collection.js";
 import type {
 	CollectionVersioningOptions,
 	ExtractFieldsByLocation,
@@ -11,14 +11,13 @@ import type {
 	RelationConfig,
 	RelationVariant,
 } from "#questpie/server/collection/builder/types.js";
+import type { AppContext } from "#questpie/server/config/app-context.js";
 import type { BaseRequestContext } from "#questpie/server/config/context.js";
-// Note: any types are intentional for composition flexibility.
-// Users should use typedApp<App>(), typedDb<App>(), and typedSession<App>() for type-safe access.
 import type {
 	AccessMode,
 	QuestpieContextExtension,
 } from "#questpie/server/config/types.js";
-import type { FieldDefinitionAccess } from "#questpie/server/fields/types.js";
+import type { FieldAccess } from "#questpie/server/fields/types.js";
 
 /**
  * Scope resolver function type for globals.
@@ -67,7 +66,7 @@ export interface GlobalOptions {
 	 *   .options({
 	 *     scoped: (ctx) => ctx.tenantId  // From context extension
 	 *   })
-	 *   .fields((f) => ({
+	 *   .fields(({ f }) => ({
 	 *     welcomeMessage: f.text(),
 	 *     theme: f.select({ options: ['light', 'dark'] })
 	 *   }))
@@ -78,7 +77,7 @@ export interface GlobalOptions {
 	 *   .options({
 	 *     scoped: (ctx) => ctx.propertyId
 	 *   })
-	 *   .fields((f) => ({
+	 *   .fields(({ f }) => ({
 	 *     checkInTime: f.text({ default: '14:00' }),
 	 *     checkOutTime: f.text({ default: '11:00' })
 	 *   }))
@@ -91,67 +90,37 @@ export interface GlobalOptions {
  * Context for global hooks.
  *
  * @template TData - The global data type
- * @template TApp - The app app type (defaults to any)
  *
  * @example
  * ```ts
- * import { typedApp } from "questpie";
- * import type { App } from "./questpie";
- *
  * .hooks({
- *   afterUpdate: async ({ app, data }) => {
- *     const app = typedApp<App>(app);
- *     await app.kv.set('settings-cache', data);
+ *   afterUpdate: async ({ data, kv }) => {
+ *     await kv.set('settings-cache', data);
  *   }
  * })
  * ```
  */
-export interface GlobalHookContext<TData = any, TApp = any> {
+export interface GlobalHookContext<TData = any> extends AppContext {
 	/** The global data */
 	data: TData;
 	/** Input data for update operations */
-	input?: any;
-	/** app instance - use typedApp<App>(app) for type-safe access */
-	app: TApp;
-	/**
-	 * Auth session (user + session) from Better Auth.
-	 * Use typedSession<App>(session) for type-safe access.
-	 * - undefined = session not resolved
-	 * - null = explicitly unauthenticated
-	 * - object = authenticated
-	 */
-	session?: any | null;
+	input?: unknown;
 	/** Current locale */
 	locale?: string;
 	/** Access mode */
 	accessMode?: AccessMode;
-	/** Database client - use typedDb<App>(db) for type-safe access */
-	db: any;
 }
 
 /**
  * Access control context for global operations.
  *
  * @template TData - The global data type
- * @template TApp - The app app type (defaults to any)
  */
-export interface GlobalAccessContext<TData = any, TApp = any> {
-	/** app instance - use typedApp<App>(app) for type-safe access */
-	app: TApp;
-	/**
-	 * Auth session (user + session) from Better Auth.
-	 * Use typedSession<App>(session) for type-safe access.
-	 * - undefined = session not resolved
-	 * - null = explicitly unauthenticated
-	 * - object = authenticated
-	 */
-	session?: any | null;
+export interface GlobalAccessContext<TData = any> extends AppContext {
 	/** The global data */
 	data?: TData;
 	/** Input data for update */
-	input?: any;
-	/** Database client - use typedDb<App>(db) for type-safe access */
-	db: any;
+	input?: unknown;
 	/** Current locale */
 	locale?: string;
 }
@@ -159,99 +128,79 @@ export interface GlobalAccessContext<TData = any, TApp = any> {
 /**
  * Hook function type
  * @template TRow - The global data type
- * @template TApp - The app app type
  */
-export type GlobalHookFunction<TRow = any, TApp = any> = (
-	ctx: GlobalHookContext<TRow, TApp>,
+export type GlobalHookFunction<TRow = any> = (
+	ctx: GlobalHookContext<TRow>,
 ) => Promise<void> | void;
 
 /**
  * Global lifecycle hooks
  * @template TRow - The global data type
- * @template TApp - The app app type
  */
-export interface GlobalHooks<TRow = any, TApp = any> {
-	beforeUpdate?:
-		| GlobalHookFunction<TRow, TApp>[]
-		| GlobalHookFunction<TRow, TApp>;
-	afterUpdate?:
-		| GlobalHookFunction<TRow, TApp>[]
-		| GlobalHookFunction<TRow, TApp>;
-	beforeRead?: GlobalHookFunction<any, TApp>[] | GlobalHookFunction<any, TApp>;
-	afterRead?: GlobalHookFunction<TRow, TApp>[] | GlobalHookFunction<TRow, TApp>;
+export interface GlobalHooks<TRow = any> {
+	beforeUpdate?: GlobalHookFunction<TRow>[] | GlobalHookFunction<TRow>;
+	afterUpdate?: GlobalHookFunction<TRow>[] | GlobalHookFunction<TRow>;
+	beforeRead?: GlobalHookFunction<any>[] | GlobalHookFunction<any>;
+	afterRead?: GlobalHookFunction<TRow>[] | GlobalHookFunction<TRow>;
 	// Shorthand: runs on update
-	beforeChange?:
-		| GlobalHookFunction<TRow, TApp>[]
-		| GlobalHookFunction<TRow, TApp>;
-	afterChange?:
-		| GlobalHookFunction<TRow, TApp>[]
-		| GlobalHookFunction<TRow, TApp>;
+	beforeChange?: GlobalHookFunction<TRow>[] | GlobalHookFunction<TRow>;
+	afterChange?: GlobalHookFunction<TRow>[] | GlobalHookFunction<TRow>;
 	/**
 	 * Runs before a workflow stage transition.
 	 * Throw to abort the transition.
 	 */
-	beforeTransition?:
-		| GlobalTransitionHook<TRow, TApp>[]
-		| GlobalTransitionHook<TRow, TApp>;
+	beforeTransition?: GlobalTransitionHook<TRow>[] | GlobalTransitionHook<TRow>;
 	/**
 	 * Runs after a workflow stage transition.
 	 */
-	afterTransition?:
-		| GlobalTransitionHook<TRow, TApp>[]
-		| GlobalTransitionHook<TRow, TApp>;
+	afterTransition?: GlobalTransitionHook<TRow>[] | GlobalTransitionHook<TRow>;
 }
 
 /**
  * Context passed to global workflow transition hooks.
  */
-export interface GlobalTransitionHookContext<TData = any, TApp = any> {
+export interface GlobalTransitionHookContext<TData = any> extends AppContext {
 	/** Global record being transitioned */
 	data: TData;
 	/** Stage the global is transitioning from */
 	fromStage: string;
 	/** Stage the global is transitioning to */
 	toStage: string;
-	/** app instance */
-	app: TApp;
-	/** Auth session */
-	session?: any | null;
 	/** Current locale */
 	locale?: string;
-	/** Database client */
-	db: any;
 }
 
 /**
  * Hook function for global workflow stage transitions.
  */
-export type GlobalTransitionHook<TData = any, TApp = any> = (
-	ctx: GlobalTransitionHookContext<TData, TApp>,
+export type GlobalTransitionHook<TData = any> = (
+	ctx: GlobalTransitionHookContext<TData>,
 ) => Promise<void> | void;
 
 /**
  * Access control function can return:
  * - boolean: true (allow) or false (deny)
  */
-export type GlobalAccessRule<TRow = any, TApp = any> =
+export type GlobalAccessRule<TRow = any> =
 	| boolean
-	| ((ctx: GlobalAccessContext<TRow, TApp>) => boolean | Promise<boolean>);
+	| ((ctx: GlobalAccessContext<TRow>) => boolean | Promise<boolean>);
 
 /**
  * Global access control configuration
  */
-export interface GlobalAccess<TRow = any, TApp = any> {
-	read?: GlobalAccessRule<TRow, TApp>;
-	update?: GlobalAccessRule<TRow, TApp>;
+export interface GlobalAccess<TRow = any> {
+	read?: GlobalAccessRule<TRow>;
+	update?: GlobalAccessRule<TRow>;
 	/**
 	 * Access rule for workflow stage transitions.
 	 * Falls back to `update` if not specified.
 	 */
-	transition?: GlobalAccessRule<TRow, TApp>;
+	transition?: GlobalAccessRule<TRow>;
 	/**
 	 * Field-scoped access rules.
 	 * Source-of-truth for per-field authorization in globals.
 	 */
-	fields?: Record<string, Pick<FieldDefinitionAccess, "read" | "update">>;
+	fields?: Record<string, Pick<FieldAccess, "read" | "update">>;
 }
 
 export type GlobalBuilderRelationFn<
@@ -306,37 +255,21 @@ export interface GlobalBuilderState {
 	 */
 	fieldDefinitions: Record<string, any> | undefined;
 	/**
-	 * Phantom type for QuestpieBuilder reference.
-	 * Used to access field types registered via q.fields().
-	 */
-	"~questpieApp"?: any;
-	/**
-	 * Phantom type for field types available in .fields((f) => ...).
-	 * Extracted from ~questpieApp at compile time for type inference.
+	 * Phantom type for field types available in .fields(({ f }) => ...).
+	 * Set directly via EmptyGlobalState generic parameter.
 	 */
 	"~fieldTypes"?: Record<string, any>;
 }
 
 /**
- * Extract field types from QuestpieBuilder.
- * QuestpieBuilder<TState> has `$state: TState` declared property for type extraction.
- */
-type ExtractFieldTypesFromApp<TQuestpieApp> = TQuestpieApp extends {
-	$state: { fields: infer TFields };
-}
-	? TFields
-	: undefined;
-
-/**
  * Default empty state for a new global
  *
  * @param TName - Global name
- * @param TQuestpieApp - Reference to QuestpieBuilder instance
- * @param TFieldTypes - Field types available in .fields((f) => ...)
+ * @param TFieldTypes - Field types available in .fields(({ f }) => ...)
  */
 export type EmptyGlobalState<
 	TName extends string,
-	TQuestpieApp = undefined,
+	_TDeprecated = undefined,
 	TFieldTypes extends Record<string, any> | undefined = undefined,
 > = GlobalBuilderState & {
 	name: TName;
@@ -348,7 +281,6 @@ export type EmptyGlobalState<
 	hooks: {};
 	access: {};
 	fieldDefinitions: undefined;
-	"~questpieApp": TQuestpieApp;
 	"~fieldTypes": TFieldTypes;
 };
 

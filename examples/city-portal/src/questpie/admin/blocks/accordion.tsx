@@ -2,18 +2,15 @@
  * Accordion / FAQ Block Renderer
  */
 
-import type { BlockComponentProps } from "@questpie/admin/client";
 import { useState } from "react";
-import type { App } from "@/questpie/server/app";
+import type { BlockProps } from "../.generated/client";
 
 type AccordionItem = {
 	title: string;
 	content: string;
 };
 
-export function AccordionRenderer({
-	values,
-}: BlockComponentProps<App, "accordion">) {
+export function AccordionRenderer({ values }: BlockProps<"accordion">) {
 	const [openItems, setOpenItems] = useState<Set<number>>(new Set());
 	const items = (values.items as AccordionItem[] | null) || [];
 

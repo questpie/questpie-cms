@@ -1,0 +1,46 @@
+---
+title: Queue
+description: Background job processing with pg-boss.
+---
+
+# Queue
+
+QuestPie uses [pg-boss](https://github.com/timgit/pg-boss) for background job processing. Jobs are stored in PostgreSQL — no external queue service needed.
+
+## Configuration
+
+```ts title="questpie.config.ts"
+import { pgBossAdapter, runtimeConfig } from "questpie";
+
+export default runtimeConfig({
+  queue: {
+    adapter: pgBossAdapter({
+      connectionString: process.env.DATABASE_URL,
+    }),
+  },
+});
+```
+
+## Publishing Jobs
+
+From hooks, functions, or other jobs:
+
+```ts
+handler: async ({ queue }) => {
+  await queue.sendAppointmentConfirmation.publish({
+    appointmentId: "abc",
+    customerId: "def",
+  });
+}
+```
+
+The `queue` object is fully typed — autocompletion shows all registered jobs and their payload schemas.
+
+## Job Definition
+
+See [Jobs](/docs/backend/business-logic/jobs) for defining job handlers.
+
+## Related Pages
+
+- [Jobs](/docs/backend/business-logic/jobs) — Defining job handlers
+- [Email](/docs/production/email) — Sending emails from jobs

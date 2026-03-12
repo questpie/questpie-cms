@@ -216,7 +216,13 @@ export function useUpload(): UseUploadReturn {
 				return result as Asset;
 			} catch (err) {
 				const uploadError =
-					err instanceof Error ? err : new Error("Upload failed");
+					err instanceof UploadError
+						? err
+						: new UploadError(
+								err instanceof Error ? err.message : "Upload failed",
+								undefined,
+								err,
+							);
 				setError(uploadError);
 				throw uploadError;
 			} finally {
@@ -278,7 +284,13 @@ export function useUpload(): UseUploadReturn {
 				return results as Asset[];
 			} catch (err) {
 				const uploadError =
-					err instanceof Error ? err : new Error("Upload failed");
+					err instanceof UploadError
+						? err
+						: new UploadError(
+								err instanceof Error ? err.message : "Upload failed",
+								undefined,
+								err,
+							);
 				setError(uploadError);
 				throw uploadError;
 			} finally {

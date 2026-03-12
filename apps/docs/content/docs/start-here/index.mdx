@@ -1,0 +1,122 @@
+---
+title: What is QuestPie
+description: A backend-first TypeScript framework where schema drives everything — from database to typed frontends.
+---
+
+# What is QuestPie
+
+QuestPie is a **backend-first TypeScript framework**. You define your data schema once, codegen generates the typed runtime, and any frontend can consume it through introspection.
+
+It is **not a CMS**. The admin panel is one projection of your schema — the same way an SDK, an OpenAPI spec, or a mobile app would be. The framework exists independently of any UI.
+
+## The Core Idea
+
+```text
+Schema Definition → Codegen → Typed Runtime → Projection → Frontend(s)
+                                    ↓
+                              Database tables
+                              API validation
+                              Query operators
+                              Type inference
+```
+
+You write a collection file. Codegen reads it and generates:
+
+1. **Database schema** — Drizzle ORM table definitions
+2. **API layer** — CRUD endpoints with Zod validation
+3. **Type exports** — `AppConfig`, `AppCollections`, `AppFunctions` for end-to-end type safety
+4. **Module augmentation** — `AppContext` with typed `collections`, `queue`, `email`, and any custom services
+
+The admin panel, client SDK, and OpenAPI spec all consume these generated types. Nothing is defined twice.
+
+## Mental Model
+
+Think of QuestPie in three layers:
+
+### Layer 1: Schema (you write this)
+
+```ts title="collections/posts.ts"
+import { collection } from "#questpie";
+
+export default collection("posts").fields(({ f }) => ({
+  title: f.text().required(),
+  body: f.textarea(),
+  status: f.select(["draft", "published"]),
+}));
+```
+
+### Layer 2: Codegen (automatic)
+
+Running `questpie generate` discovers your files and generates:
+
+- Type-safe `app` instance with all collections, functions, jobs, services
+- `AppContext` module augmentation so every handler gets typed DI
+- `AppConfig` type for the client SDK
+
+### Layer 3: Projection (consumers)
+
+```ts title="Client SDK"
+const posts = await client.collections.posts.find({
+  where: { status: "published" },
+  orderBy: { createdAt: "desc" },
+});
+// posts is fully typed from your schema
+```
+
+```ts title="Admin Panel"
+// Reads the same schema via introspection
+// Generates list views, form fields, filters automatically
+```
+
+## Why Not Just Use [X]?
+
+| If you need... | QuestPie gives you... |
+|---|---|
+| A typed API from schema | Collections → CRUD endpoints + Zod validation + query operators |
+| Business logic alongside data | Functions, hooks, jobs — all in the same project with DI |
+| An admin panel | `@questpie/admin` reads your schema, no separate config |
+| Multiple frontends | One schema, typed client SDK for any framework |
+| Full-stack type safety | Schema types flow from server → codegen → client |
+
+## Context-First Architecture
+
+Every handler in QuestPie receives its dependencies through context — no imports, no singletons, no god objects:
+
+```ts title="functions/create-booking.ts"
+import { fn } from "questpie";
+import z from "zod";
+
+export default fn({
+  schema: z.object({
+    barberId: z.string(),
+    serviceId: z.string(),
+    scheduledAt: z.string().datetime(),
+  }),
+  handler: async ({ input, collections, queue }) => {
+    const service = await collections.services.findOne({
+      where: { id: input.serviceId },
+    });
+
+    const appointment = await collections.appointments.create({
+      barber: input.barberId,
+      service: input.serviceId,
+      scheduledAt: new Date(input.scheduledAt),
+      status: "pending",
+    });
+
+    await queue.sendAppointmentConfirmation.publish({
+      appointmentId: appointment.id,
+    });
+
+    return { success: true, appointmentId: appointment.id };
+  },
+});
+```
+
+`collections`, `queue`, `email`, `db`, `session` — all injected through `AppContext`. Codegen generates the type augmentation, so everything is discoverable and typed.
+
+## What's Next
+
+- [Installation](/docs/start-here/installation) — Get QuestPie running
+- [First App](/docs/start-here/first-app) — Build a working API in 5 minutes
+- [Project Structure](/docs/start-here/project-structure) — File conventions and discovery rules

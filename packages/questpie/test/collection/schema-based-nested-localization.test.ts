@@ -1,6 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
-import { defaultFields } from "../../src/server/fields/builtin/defaults.js";
-import { questpie } from "../../src/server/index.js";
+import { collection } from "../../src/server/index.js";
 import { buildMockApp } from "../utils/mocks/mock-app-builder";
 import { createTestContext } from "../utils/test-context";
 import { runTestDbMigrations } from "../utils/test-db";
@@ -36,63 +35,46 @@ import { runTestDbMigrations } from "../utils/test-db";
  * 3. Stores extracted values in i18n table _localized column
  */
 
-const q = questpie({ name: "schema-based-i18n-test" }).fields(defaultFields);
-
 // Collection with nested localized fields in object
-const barbers = q
-	.collection("barbers")
-	.fields((f) => ({
-		name: f.text({ required: true, maxLength: 100 }),
+const barbers = collection("barbers")
+	.fields(({ f }) => ({
+		name: f.text(100).required(),
 		// Top-level localized field (needed to create i18n table)
-		bio: f.text({ localized: true }),
+		bio: f.text().localized(),
 		// Object with nested localized fields - NO top-level localized flag
 		// Note: Using direct object syntax (not factory function) - simpler!
 		workingHours: f.object({
-			fields: {
-				monday: f.object({
-					fields: {
-						isOpen: f.boolean({ default: false }),
-						start: f.text(),
-						end: f.text(),
-						// This nested field is localized!
-						note: f.text({ localized: true }),
-					},
-				}),
-				tuesday: f.object({
-					fields: {
-						isOpen: f.boolean({ default: false }),
-						start: f.text(),
-						end: f.text(),
-						note: f.text({ localized: true }),
-					},
-				}),
-			},
-		}),
-		// Array with localized fields in items
-		socialLinks: f.array({
-			of: f.object({
-				fields: {
-					platform: f.text({ required: true }),
-					url: f.text({ required: true }),
-					// Localized description in array items
-					description: f.text({ localized: true }),
-				},
+			monday: f.object({
+				isOpen: f.boolean().default(false),
+				start: f.text(),
+				end: f.text(),
+				// This nested field is localized!
+				note: f.text().localized(),
+			}),
+			tuesday: f.object({
+				isOpen: f.boolean().default(false),
+				start: f.text(),
+				end: f.text(),
+				note: f.text().localized(),
 			}),
 		}),
+		// Array with localized fields in items
+		socialLinks: f.object({
+			platform: f.text().required(),
+			url: f.text().required(),
+			// Localized description in array items
+			description: f.text().localized(),
+		}).array(),
 	}))
 	.options({
 		timestamps: true,
 	});
 
-const testModule = q.collections({
-	barbers,
-});
-
 describe("schema-based nested localization", () => {
-	let setup: Awaited<ReturnType<typeof buildMockApp<typeof testModule>>>;
+	let setup: Awaited<ReturnType<typeof buildMockApp>>;
 
 	beforeEach(async () => {
-		setup = await buildMockApp(testModule);
+		setup = await buildMockApp({ collections: { barbers } });
 		await runTestDbMigrations(setup.app);
 	});
 

@@ -8,13 +8,14 @@
  * - _tree: Array of block nodes with id, type, and children
  * - _values: Record mapping block id to field values
  *
- * This field type is only available when using adminModule.
+ * This field type is only available when using the `adminModule`.
  */
 
+import type { PgJsonbBuilder } from "drizzle-orm/pg-core";
 import {
-	type BaseFieldConfig,
 	type ContextualOperators,
-	type FieldMetadataBase,
+	type DefaultFieldState,
+	type Field,
 	field,
 	isNotNull,
 	isNull,
@@ -23,7 +24,6 @@ import {
 } from "questpie";
 
 import { z } from "zod";
-import type { AnyBlockDefinition } from "../block/block-builder.js";
 
 // ============================================================================
 // Blocks Data Schema
@@ -83,60 +83,6 @@ export interface BlocksDocument {
 export interface BlocksFieldMeta {
 	/** Phantom property to prevent interface collapse - enables module augmentation */
 	_?: never;
-}
-
-// ============================================================================
-// Blocks Field Configuration
-// ============================================================================
-
-/**
- * Blocks field configuration options.
- */
-export interface BlocksFieldConfig extends BaseFieldConfig {
-	/** Field-specific metadata, augmentable by external packages. */
-	meta?: BlocksFieldMeta;
-
-	/**
-	 * Allowed block types.
-	 * If specified, only these block types can be added.
-	 * Block types must be registered via `.blocks()` on the app builder.
-	 */
-	allowedBlocks?: string[];
-
-	/**
-	 * Minimum number of blocks required.
-	 */
-	minBlocks?: number;
-
-	/**
-	 * Maximum number of blocks allowed.
-	 */
-	maxBlocks?: number;
-
-	/**
-	 * Allow nesting blocks (blocks with children).
-	 * @default true
-	 */
-	allowNesting?: boolean;
-
-	/**
-	 * Maximum nesting depth for blocks.
-	 * Only applies when allowNesting is true.
-	 * @default 3
-	 */
-	maxDepth?: number;
-
-	/**
-	 * Placeholder text shown when no blocks exist.
-	 */
-	placeholder?: string;
-
-	/**
-	 * Block definitions injected at build time by `.blocks()` patch.
-	 * Used for per-block field validation in toZodSchema().
-	 * @internal
-	 */
-	_blockDefinitions?: Record<string, AnyBlockDefinition>;
 }
 
 // ============================================================================
@@ -224,178 +170,65 @@ function getBlocksOperators(): ContextualOperators {
  *
  * @example
  * ```ts
- * // Basic blocks field
- * const content = blocksField({ label: "Content" });
- *
- * // With allowed blocks
- * const pageContent = blocksField({
- *   label: "Page Sections",
- *   allowedBlocks: ["hero", "features", "testimonials", "cta"],
- *   minBlocks: 1,
- *   maxBlocks: 20,
- * });
- *
- * // With nesting disabled
- * const simpleBlocks = blocksField({
- *   label: "Components",
- *   allowNesting: false,
- * });
+ * // In collection fields callback:
+ * sections: f.blocks().required()
  * ```
  */
-export const blocksField = field<BlocksFieldConfig, BlocksDocument>()({
-	type: "blocks" as const,
-	_value: undefined as unknown as BlocksDocument,
+// ============================================================================
+// Blocks Field State & Factory
+// ============================================================================
 
-	toColumn(_name: string, config: BlocksFieldConfig) {
-		// Blocks are always stored as JSONB
-		let column: any = jsonb();
+export type BlocksFieldState = DefaultFieldState & {
+	type: "blocks";
+	data: BlocksDocument;
+	column: PgJsonbBuilder;
+};
 
-		// Apply constraints
-		if (config.required && config.nullable !== true) {
-			column = column.notNull();
-		}
-		if (config.default !== undefined) {
-			const defaultValue =
-				typeof config.default === "function"
-					? config.default()
-					: config.default;
-			column = column.default(defaultValue);
-		}
-
-		return column;
-	},
-
-	toZodSchema(config: BlocksFieldConfig) {
-		// Block node schema (recursive for nested blocks)
-		const blockNodeSchema: z.ZodType<BlockNode> = z.lazy(() =>
-			z.object({
-				id: z.string(),
-				type: z.string(),
-				children: z.array(blockNodeSchema).default([]),
-			}),
-		);
-
-		// Blocks document schema
-		let docSchema = z.object({
-			_tree: z.array(blockNodeSchema),
-			_values: z.record(z.string(), z.record(z.string(), z.any())),
-		});
-
-		// Apply validation for min/max blocks
-		if (config.minBlocks !== undefined || config.maxBlocks !== undefined) {
-			docSchema = docSchema.refine(
-				(doc) => {
-					const count = doc._tree.length;
-					if (config.minBlocks !== undefined && count < config.minBlocks) {
-						return false;
-					}
-					if (config.maxBlocks !== undefined && count > config.maxBlocks) {
-						return false;
-					}
-					return true;
-				},
-				{
-					message:
-						config.minBlocks !== undefined && config.maxBlocks !== undefined
-							? `Must have between ${config.minBlocks} and ${config.maxBlocks} blocks`
-							: config.minBlocks !== undefined
-								? `Must have at least ${config.minBlocks} blocks`
-								: `Must have at most ${config.maxBlocks} blocks`,
-				},
-			) as typeof docSchema;
-		}
-
-		// Per-block field validation when block definitions are available
-		if (
-			config._blockDefinitions &&
-			Object.keys(config._blockDefinitions).length > 0
-		) {
-			const blockDefs = config._blockDefinitions;
-			docSchema = docSchema.superRefine((doc, ctx) => {
-				// Collect all block nodes (flatten tree)
-				const allNodes: BlockNode[] = [];
-				const collectNodes = (nodes: BlockNode[]) => {
-					for (const node of nodes) {
-						allNodes.push(node);
-						if (node.children.length > 0) {
-							collectNodes(node.children);
-						}
-					}
-				};
-				collectNodes(doc._tree);
-
-				// Validate each block's values against its definition's field schemas
-				for (const node of allNodes) {
-					const blockDef = blockDefs[node.type];
-					if (!blockDef?.state.fields) continue;
-
-					const blockValues = doc._values[node.id] || {};
-
-					for (const [fieldName, fieldDef] of Object.entries(
-						blockDef.state.fields,
-					)) {
-						// Server FieldDefinition has toZodSchema()
-						if (
-							fieldDef &&
-							typeof fieldDef === "object" &&
-							"toZodSchema" in fieldDef &&
-							typeof (fieldDef as any).toZodSchema === "function"
-						) {
-							const fieldSchema = (fieldDef as any).toZodSchema() as z.ZodType;
-							const result = fieldSchema.safeParse(blockValues[fieldName]);
-							if (!result.success) {
-								for (const issue of result.error.issues) {
-									ctx.addIssue({
-										...issue,
-										path: ["_values", node.id, fieldName, ...issue.path],
-										message: `Block "${node.type}" field "${fieldName}": ${issue.message}`,
-									});
-								}
-							}
-						}
-					}
-				}
-			}) as typeof docSchema;
-		}
-
-		// Nullability
-		if (!config.required && config.nullable !== false) {
-			return docSchema.nullish() as z.ZodType<
-				BlocksDocument | null | undefined
-			>;
-		}
-
-		return docSchema as z.ZodType<BlocksDocument>;
-	},
-
-	getOperators<TApp>() {
-		return getBlocksOperators();
-	},
-
-	getMetadata(config: BlocksFieldConfig): FieldMetadataBase & {
-		allowedBlocks?: string[];
-		minBlocks?: number;
-		maxBlocks?: number;
-		allowNesting: boolean;
-		maxDepth: number;
-		placeholder?: string;
-	} {
-		return {
-			type: "blocks",
-			label: config.label,
-			description: config.description,
-			required: config.required ?? false,
-			localized: config.localized ?? false,
-			readOnly: config.input === false,
-			writeOnly: config.output === false,
-			meta: config.meta,
-			// Blocks specific
-			allowedBlocks: config.allowedBlocks,
-			minBlocks: config.minBlocks,
-			maxBlocks: config.maxBlocks,
-			allowNesting: config.allowNesting ?? true,
-			maxDepth: config.maxDepth ?? 3,
-			placeholder: config.placeholder,
-		};
-	},
-});
+/**
+ * Create a blocks field.
+ *
+ * @example
+ * ```ts
+ * sections: f.blocks().required()
+ * ```
+ */
+export function blocks(): Field<BlocksFieldState> {
+	return field<BlocksFieldState>({
+		type: "blocks",
+		columnFactory: (name) => jsonb(name) as any,
+		schemaFactory: () => {
+			const blockNodeSchema: z.ZodType<BlockNode> = z.lazy(() =>
+				z.object({
+					id: z.string(),
+					type: z.string(),
+					children: z.array(blockNodeSchema).default([]),
+				}),
+			);
+			return z.object({
+				_tree: z.array(blockNodeSchema),
+				_values: z.record(z.string(), z.record(z.string(), z.any())),
+			});
+		},
+		operatorSet: {
+			jsonbCast: null,
+			column: getBlocksOperators().column,
+		} as any,
+		metadataFactory: (state) => ({
+			type: "blocks" as const,
+			label: state.label,
+			description: state.description,
+			required: state.notNull ?? false,
+			localized: state.localized ?? false,
+			readOnly: state.input === false ? true : undefined,
+			writeOnly: state.output === false ? true : undefined,
+			meta: state.admin as any,
+		}),
+		notNull: false,
+		hasDefault: false,
+		localized: false,
+		virtual: false,
+		input: true,
+		output: true,
+		isArray: false,
+	});
+}

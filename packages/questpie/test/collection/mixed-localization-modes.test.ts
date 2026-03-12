@@ -1,6 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
-import { defaultFields } from "../../src/server/fields/builtin/defaults.js";
-import { questpie } from "../../src/server/index.js";
+import { collection } from "../../src/server/index.js";
 import { buildMockApp } from "../utils/mocks/mock-app-builder";
 import { createTestContext } from "../utils/test-context";
 import { runTestDbMigrations } from "../utils/test-db";
@@ -28,36 +27,27 @@ type TipTapContent = {
 	}>;
 };
 
-const q = questpie({ name: "mixed-modes-test" }).fields(defaultFields);
-
-const products = q
-	.collection("products")
-	.fields((f) => ({
-		name: f.text({ required: true, maxLength: 255, localized: true }), // flat localized
-		description: f.json({ localized: true }), // whole-mode JSONB
+const products = collection("products")
+	.fields(({ f }) => ({
+		name: f.text(255).required().localized(), // flat localized
+		description: f.json().localized(), // whole-mode JSONB
 		// nested-mode JSONB - uses object field with localized nested fields
 		metadata: f.object({
-			fields: {
-				sku: f.text(), // static
-				category: f.text({ localized: true }), // localized
-				slogan: f.text({ localized: true }), // localized
-				brand: f.text(), // static
-			},
+			sku: f.text(), // static
+			category: f.text().localized(), // localized
+			slogan: f.text().localized(), // localized
+			brand: f.text(), // static
 		}),
 	}))
 	.options({
 		timestamps: true,
 	});
 
-const testModule = q.collections({
-	products,
-});
-
 describe("mixed localization modes", () => {
-	let setup: Awaited<ReturnType<typeof buildMockApp<typeof testModule>>>;
+	let setup: Awaited<ReturnType<typeof buildMockApp>>;
 
 	beforeEach(async () => {
-		setup = await buildMockApp(testModule);
+		setup = await buildMockApp({ collections: { products } });
 		await runTestDbMigrations(setup.app);
 	});
 

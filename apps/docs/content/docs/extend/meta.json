@@ -1,0 +1,12 @@
+{
+	"title": "Extend the Platform",
+	"pages": [
+		"index",
+		"custom-fields",
+		"custom-views",
+		"custom-adapters",
+		"registries",
+		"building-a-plugin",
+		"building-a-module"
+	]
+}

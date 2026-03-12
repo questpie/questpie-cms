@@ -10,7 +10,7 @@
  */
 
 import type * as React from "react";
-import type { FieldDefinition } from "../../builder/field/field";
+import type { FieldInstance } from "../../builder/field/field";
 import type {
 	TableWidgetColumn,
 	TableWidgetColumnConfig,
@@ -60,7 +60,7 @@ function normalizeColumn(column: TableWidgetColumn): TableWidgetColumnConfig {
  */
 function getColumnLabel(
 	column: TableWidgetColumnConfig,
-	fieldDef: FieldDefinition | undefined,
+	fieldDef: FieldInstance | undefined,
 ): I18nText | string {
 	// Use override if provided
 	if (column.label) {
@@ -81,17 +81,17 @@ function getColumnLabel(
  * Resolve cell component from field definition
  */
 function resolveCellComponent(
-	fieldDef: FieldDefinition | undefined,
+	fieldDef: FieldInstance | undefined,
 ): React.ComponentType<{
 	value: unknown;
 	row?: unknown;
-	fieldDef?: FieldDefinition;
+	fieldDef?: FieldInstance;
 }> {
-	if (fieldDef?.cell?.component) {
-		return fieldDef.cell.component as React.ComponentType<{
+	if (fieldDef?.cell) {
+		return fieldDef.cell as React.ComponentType<{
 			value: unknown;
 			row?: unknown;
-			fieldDef?: FieldDefinition;
+			fieldDef?: FieldInstance;
 		}>;
 	}
 	return DefaultCell;
@@ -107,7 +107,7 @@ function TableCellRenderer({
 }: {
 	item: any;
 	column: TableWidgetColumnConfig;
-	fields: Record<string, FieldDefinition> | undefined;
+	fields: Record<string, FieldInstance> | undefined;
 }): React.ReactNode {
 	const value = item[column.key];
 
@@ -158,7 +158,7 @@ export default function TableWidget({
 	const columns = rawColumns.map(normalizeColumn);
 
 	// Field definitions are not available from server config (schema-driven)
-	const fields = undefined as Record<string, FieldDefinition> | undefined;
+	const fields = undefined as Record<string, FieldInstance> | undefined;
 
 	// Build query options
 	const queryOptions: any = { limit };
@@ -203,7 +203,7 @@ export default function TableWidget({
 		) : (
 			<div className="-mx-5 -mb-1">
 				{/* Header */}
-				<div className="flex items-center gap-2 px-5 py-2 border-b border-border/30 text-[10px] font-medium uppercase tracking-wider text-muted-foreground bg-muted/20 backdrop-blur-sm">
+				<div className="flex items-center gap-2 px-5 py-2 border-b border-border text-[10px] font-medium uppercase tracking-wider text-muted-foreground bg-muted ">
 					{columns.map((column) => {
 						const fieldDef = fields?.[column.key];
 						const label = getColumnLabel(column, fieldDef);
@@ -233,7 +233,7 @@ export default function TableWidget({
 						<button
 							key={item.id}
 							type="button"
-							className="flex w-full items-center gap-2 px-5 py-2.5 border-b border-border/20 last:border-0 transition-all cursor-pointer hover:bg-muted/30 hover:backdrop-blur-sm text-left"
+							className="flex w-full items-center gap-2 px-5 py-2.5 border-b border-border last:border-0 transition-all cursor-pointer hover:bg-muted text-left"
 							onClick={() => handleRowClick(item)}
 						>
 							{columns.map((column) => (
@@ -261,7 +261,7 @@ export default function TableWidget({
 					) : (
 						<div
 							key={item.id}
-							className="flex items-center gap-2 px-5 py-2.5 border-b border-border/20 last:border-0"
+							className="flex items-center gap-2 px-5 py-2.5 border-b border-border last:border-0"
 						>
 							{columns.map((column) => (
 								<div

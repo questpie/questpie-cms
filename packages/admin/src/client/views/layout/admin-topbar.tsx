@@ -40,13 +40,20 @@ export const AdminTopbar = React.memo(function AdminTopbar({
 	const shouldShowThemeToggle = setTheme && showThemeToggle !== false;
 
 	return (
-		<header className="relative sticky top-0 z-30 flex h-16 w-full items-center justify-between border-b border-border/60 bg-background/60 px-4 md:px-6 backdrop-blur-xl after:absolute after:inset-x-0 after:bottom-0 after:h-px after:bg-gradient-to-r after:from-transparent after:via-primary/15 after:to-transparent">
+		<header className="relative sticky top-0 z-30 flex h-14 w-full items-center justify-between border-b border-border bg-background px-4 md:px-6">
 			<div className="flex items-center gap-2">
 				{/* Sidebar toggle - works for both mobile (opens sheet) and desktop (collapses) */}
 				<SidebarTrigger />
 
+				{/* Mobile: show current page title */}
+				{resolvedBreadcrumbs.length > 0 && (
+					<span className="md:hidden font-mono text-xs text-foreground font-medium truncate max-w-[140px]">
+						{resolveText(resolvedBreadcrumbs[resolvedBreadcrumbs.length - 1].label)}
+					</span>
+				)}
+
 				{/* Breadcrumbs */}
-				<nav className="hidden md:flex items-center gap-1.5 text-sm text-muted-foreground">
+				<nav className="hidden md:flex items-center gap-1.5 font-mono text-xs text-muted-foreground">
 					{resolvedBreadcrumbs.map((crumb) => {
 						const CrumbIcon = crumb.icon;
 						const crumbLabel = resolveText(crumb.label);
@@ -131,11 +138,12 @@ export const AdminTopbar = React.memo(function AdminTopbar({
 				<Button
 					variant="outline"
 					onClick={onSearchOpen}
-					className="gap-2 w-auto md:w-64 justify-between text-muted-foreground"
+					size="icon-sm"
+					className="md:size-auto md:h-9 md:w-64 md:justify-between md:px-3 gap-2 text-muted-foreground"
 				>
 					<span className="flex items-center gap-2">
 						<Icon icon="ph:magnifying-glass" />
-						<span className="hidden sm:inline">Search...</span>
+						<span className="hidden md:inline">Search...</span>
 					</span>
 					<Kbd className="hidden md:inline-flex">
 						<span className="text-xs">⌘</span>K

@@ -1,14 +1,11 @@
 /**
  * CTA Block Renderer
- *
- * Call to action section for city council pages.
  */
 
-import type { BlockComponentProps } from "@questpie/admin/client";
-import type { App } from "@/questpie/server/app";
+import type { BlockProps } from "../.generated/client";
 
-export function CTARenderer({ values }: BlockComponentProps<App, "cta">) {
-	const variantStyles = {
+export function CTARenderer({ values }: BlockProps<"cta">) {
+	const variantMap: Record<string, { section: string; button: string }> = {
 		highlight: {
 			section: "bg-primary text-primary-foreground",
 			button: "bg-white text-primary hover:bg-gray-100",
@@ -21,7 +18,10 @@ export function CTARenderer({ values }: BlockComponentProps<App, "cta">) {
 			section: "bg-gray-100 text-gray-900",
 			button: "bg-primary text-primary-foreground hover:bg-primary/90",
 		},
-	}[values.variant || "highlight"];
+	};
+
+	const variantStyles =
+		variantMap[values.variant || "highlight"] || variantMap.highlight;
 
 	return (
 		<section className={`px-6 py-20 ${variantStyles.section}`}>

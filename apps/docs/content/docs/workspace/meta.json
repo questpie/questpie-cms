@@ -1,0 +1,14 @@
+{
+	"title": "Build Your Workspace",
+	"pages": [
+		"index",
+		"setup",
+		"views",
+		"blocks",
+		"actions",
+		"branding",
+		"filters",
+		"media",
+		"visibility"
+	]
+}

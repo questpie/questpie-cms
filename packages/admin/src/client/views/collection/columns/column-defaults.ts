@@ -5,7 +5,7 @@
  * Extracted from build-columns.tsx
  */
 
-import type { FieldDefinition } from "../../../builder/field/field";
+import type { FieldInstance } from "../../../builder/field/field";
 import { formatFieldLabel } from "../cells/shared/cell-helpers";
 import type { ColumnField, ComputeDefaultColumnsOptions } from "./types";
 
@@ -64,7 +64,7 @@ const MAX_DEFAULT_CONTENT_FIELDS = 4;
  * @returns Array of field names for default visible columns
  */
 export function computeDefaultColumns(
-	fields?: Record<string, FieldDefinition>,
+	fields?: Record<string, FieldInstance>,
 	options?: ComputeDefaultColumnsOptions,
 ): string[] {
 	// Determine the title column to use
@@ -139,7 +139,7 @@ export function computeDefaultColumns(
  * @returns Array of available field info for the column picker
  */
 export function getAllAvailableFields(
-	fields?: Record<string, FieldDefinition>,
+	fields?: Record<string, FieldInstance>,
 	options?: ComputeDefaultColumnsOptions,
 ): ColumnField[] {
 	const availableFields: ColumnField[] = [];
@@ -155,7 +155,7 @@ export function getAllAvailableFields(
 		// For virtual titles, show the virtual field's label instead of generic "Title"
 		if (titleType === "virtual" && titleFieldName && fields?.[titleFieldName]) {
 			const titleFieldDef = fields[titleFieldName];
-			const titleFieldOptions = titleFieldDef?.["~options"] ?? {};
+			const titleFieldOptions = (titleFieldDef?.["~options"] ?? {}) as Record<string, any>;
 			const titleLabel =
 				titleFieldOptions.label ?? formatFieldLabel(titleFieldName);
 			availableFields.push({
@@ -185,7 +185,7 @@ export function getAllAvailableFields(
 		if (titleType === "virtual" && key === titleFieldName) continue;
 
 		const fieldType = fieldDef?.name ?? "text";
-		const fieldOptions = fieldDef?.["~options"] ?? {};
+		const fieldOptions = (fieldDef?.["~options"] ?? {}) as Record<string, any>;
 		const label = fieldOptions.label ?? formatFieldLabel(key);
 		const isSystem = SYSTEM_FIELDS.has(key);
 

@@ -1,0 +1,113 @@
+---
+title: Building a Module
+description: Create a reusable module — collections, jobs, sidebar items, and more.
+---
+
+# Building a Module
+
+A module is a reusable package that contributes entities to any QuestPie project. Modules are static objects — they describe what exists.
+
+## Module Structure
+
+```ts
+import { module, collection, job } from "questpie";
+
+const notificationsCollection = collection("notifications")
+  .fields(({ f }) => ({
+    title: f.text().required(),
+    body: f.textarea(),
+    read: f.boolean().default(false),
+    userId: f.relation("user").required(),
+  }))
+  .admin(({ c }) => ({
+    label: { en: "Notifications" },
+    icon: c.icon("ph:bell"),
+  }));
+
+const sendPushNotification = job({
+  name: "sendPushNotification",
+  schema: z.object({
+    userId: z.string(),
+    title: z.string(),
+    body: z.string(),
+  }),
+  handler: async ({ payload }) => {
+    // Send push notification
+  },
+});
+
+export const notificationsModule = module({
+  name: "notifications",
+
+  collections: {
+    notifications: notificationsCollection,
+  },
+
+  jobs: {
+    sendPushNotification,
+  },
+
+  sidebar: {
+    items: [{
+      sectionId: "operations",
+      type: "collection",
+      collection: "notifications",
+    }],
+  },
+
+  messages: {
+    en: {
+      "notifications.title": "Notifications",
+      "notifications.markRead": "Mark as read",
+    },
+  },
+});
+```
+
+## Using the Module
+
+```ts title="modules.ts"
+import { adminModule } from "@questpie/admin/server";
+import { notificationsModule } from "my-notifications-package";
+
+export default [adminModule, notificationsModule] as const;
+```
+
+## Module Options
+
+| Property | Type | Description |
+|---|---|---|
+| `name` | `string` | Module identifier |
+| `modules` | `Module[]` | Module dependencies |
+| `collections` | `Record` | Collection contributions |
+| `globals` | `Record` | Global contributions |
+| `jobs` | `Record` | Job contributions |
+| `functions` | `Record` | Function contributions |
+| `services` | `Record` | Service contributions |
+| `routes` | `Record` | Route contributions |
+| `fields` | `Record` | Custom field types |
+| `sidebar` | `object` | Sidebar items |
+| `dashboard` | `object` | Dashboard widgets |
+| `migrations` | `Migration[]` | Database migrations |
+| `seeds` | `Seed[]` | Seed data |
+| `messages` | `Record` | i18n translations |
+
+## Publishing
+
+Package your module as an npm package. Users install it and add to `modules.ts`:
+
+```json title="package.json"
+{
+  "name": "questpie-notifications",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "peerDependencies": {
+    "questpie": "^2.0.0"
+  }
+}
+```
+
+## Related Pages
+
+- [Modules](/docs/backend/architecture/modules) — Module architecture
+- [Building a Plugin](/docs/extend/building-a-plugin) — Plugins (declarations)

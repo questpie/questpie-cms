@@ -1,14 +1,14 @@
 import { CodeWindow } from "./CodeWindow";
 
-const serverCode = `// server/collections/posts.ts
-import { q, text, boolean } from 'questpie'
+const serverCode = `// collections/posts.ts
+import { collection } from '#questpie'
 
-export const posts = q.collection('posts')
-  .fields({
-    title: text('title').notNull(),
-    content: text('content'),
-    published: boolean('published').default(false),
-  })
+export default collection('posts')
+  .fields(({ f }) => ({
+    title: f.text({ label: 'Title', required: true }),
+    content: f.richText({ label: 'Content' }),
+    published: f.boolean({ label: 'Published', default: false }),
+  }))
   .admin(({ c }) => ({
     label: 'Posts',
     icon: c.icon('ph:article'),
@@ -21,12 +21,11 @@ export const posts = q.collection('posts')
   }))`;
 
 const clientCode = `// admin/admin.ts
-import { qa, adminModule } from '@questpie/admin/client'
-import type { App } from "../server/app"
+// Re-export the auto-generated admin config
+export { default as admin } from "./.generated/client"
 
-// That's it. The client just renders.
-export const admin = qa<App>()
-  .use(adminModule)`;
+// That's it. Codegen wires everything.
+// Fields, views, components — all from your server config.`;
 
 export function Philosophy() {
 	return (
@@ -56,13 +55,13 @@ export function Philosophy() {
 					<div className="space-y-3">
 						<div className="flex items-center gap-2">
 							<span className="font-mono text-xs text-primary font-medium">
-								Server — q() builder
+								Server — collection() builder
 							</span>
 							<span className="text-sm text-muted-foreground">
 								— Schema + Admin + Access
 							</span>
 						</div>
-						<CodeWindow title="server/collections/posts.ts">
+						<CodeWindow title="collections/posts.ts">
 							{serverCode}
 						</CodeWindow>
 					</div>
@@ -70,10 +69,10 @@ export function Philosophy() {
 					<div className="space-y-3">
 						<div className="flex items-center gap-2">
 							<span className="font-mono text-xs text-primary font-medium">
-								Client — qa() builder
+								Client — auto-generated
 							</span>
 							<span className="text-sm text-muted-foreground">
-								— Registry wiring
+								— Codegen output
 							</span>
 						</div>
 						<CodeWindow title="admin/admin.ts">{clientCode}</CodeWindow>
@@ -89,7 +88,7 @@ export function Philosophy() {
 						},
 						{
 							title: "Composable modules",
-							desc: "Auth, storage, jobs — each is a .use() plugin. Add what you need, skip what you don't.",
+							desc: "Auth, storage, jobs — each is a module. Add what you need, skip what you don't.",
 						},
 						{
 							title: "Headless by default",

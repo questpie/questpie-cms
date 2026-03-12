@@ -4,27 +4,15 @@
  * Official notices and announcements with validity periods.
  */
 
-import { qb } from "@/questpie/server/builder";
+import { collection } from "#questpie/factories";
 
-export const announcements = qb
-	.collection("announcements")
-	.fields((f) => ({
-		city: f.relation({
-			label: "City",
-			to: "cities",
-			required: true,
-		}),
-		title: f.text({
-			label: "Title",
-			required: true,
-			maxLength: 255,
-		}),
-		content: f.richText({
-			label: "Content",
-		}),
-		category: f.select({
-			label: "Category",
-			options: [
+export default collection("announcements")
+	.fields(({ f }) => ({
+		city: f.relation("cities").label("City").required(),
+		title: f.text(255).label("Title").required(),
+		content: f.richText().label("Content"),
+		category: f
+			.select([
 				{ value: "notice", label: "Public Notice" },
 				{ value: "planning", label: "Planning Application" },
 				{ value: "consultation", label: "Public Consultation" },
@@ -32,34 +20,29 @@ export const announcements = qb
 				{ value: "job", label: "Job Vacancy" },
 				{ value: "event", label: "Event" },
 				{ value: "emergency", label: "Emergency Notice" },
-			],
-			required: true,
-			default: "notice",
-		}),
-		validFrom: f.date({
-			label: "Valid From",
-			required: true,
-		}),
-		validTo: f.date({
-			label: "Valid Until",
-			required: true,
-			description: "Announcement will be hidden after this date",
-		}),
-		isPinned: f.boolean({
-			label: "Pinned",
-			default: false,
-			description: "Show at the top of the list",
-		}),
-		attachments: f.upload({
-			label: "Attachments",
-			accept: ["application/pdf", "image/*"],
-			multiple: true,
-		}),
-		referenceNumber: f.text({
-			label: "Reference Number",
-			maxLength: 100,
-			description: "Official reference number",
-		}),
+			])
+			.label("Category")
+			.required()
+			.default("notice"),
+		validFrom: f.date().label("Valid From").required(),
+		validTo: f
+			.date()
+			.label("Valid Until")
+			.required()
+			.description("Announcement will be hidden after this date"),
+		isPinned: f
+			.boolean()
+			.label("Pinned")
+			.default(false)
+			.description("Show at the top of the list"),
+		attachments: f
+			.upload({ mimeTypes: ["application/pdf", "image/*"] })
+			.label("Attachments")
+			.multiple(),
+		referenceNumber: f
+			.text(100)
+			.label("Reference Number")
+			.description("Official reference number"),
 	}))
 	.title(({ f }) => f.title)
 	.admin(({ c }) => ({

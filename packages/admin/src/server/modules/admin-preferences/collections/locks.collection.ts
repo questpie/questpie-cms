@@ -1,4 +1,4 @@
-import { q } from "questpie";
+import { collection } from "questpie";
 
 /**
  * Admin Locks Collection
@@ -35,52 +35,31 @@ import { q } from "questpie";
  * await app.api.collections.adminLocks.delete({ id: lockId });
  * ```
  */
-export const locksCollection = q
-	.collection("admin_locks")
-	.fields((f) => ({
+export const locksCollection = collection("admin_locks")
+	.fields(({ f }) => ({
 		// Resource type: "collection" or "global"
-		resourceType: f.select({
-			required: true,
-			options: [
+		resourceType: f
+			.select([
 				{ value: "collection", label: "Collection" },
 				{ value: "global", label: "Global" },
-			],
-			label: "Resource Type",
-		}),
+			])
+			.required()
+			.label("Resource Type"),
 
 		// Resource name (collection slug or global slug)
-		resource: f.text({
-			required: true,
-			maxLength: 255,
-			label: "Resource",
-		}),
+		resource: f.text(255).required().label("Resource"),
 
 		// Document ID being locked
-		resourceId: f.text({
-			required: true,
-			maxLength: 255,
-			label: "Resource ID",
-		}),
+		resourceId: f.text(255).required().label("Resource ID"),
 
 		// User who holds the lock (relation to user collection)
-		user: f.relation({
-			to: "user",
-			required: true,
-			label: "User",
-		}),
+		user: f.relation("user").required().label("User"),
 
 		// Browser session ID (unique per tab, allows same user to edit in multiple tabs)
-		sessionId: f.text({
-			required: true,
-			maxLength: 64,
-			label: "Session ID",
-		}),
+		sessionId: f.text(64).required().label("Session ID"),
 
 		// Lock expiration time (refreshed by heartbeat)
-		expiresAt: f.date({
-			required: true,
-			label: "Expires At",
-		}),
+		expiresAt: f.date().required().label("Expires At"),
 	}))
 	.options({
 		timestamps: true,

@@ -11,7 +11,7 @@
  * ```ts
  * import { createPgVectorSearchAdapter, createOpenAIEmbeddingProvider } from "questpie/server";
  *
- * questpie({
+ * config({
  *   search: createPgVectorSearchAdapter({
  *     embeddingProvider: createOpenAIEmbeddingProvider({
  *       apiKey: process.env.OPENAI_API_KEY,
@@ -21,6 +21,8 @@
  *     lexicalWeight: 0.4,
  *     semanticWeight: 0.6,
  *   }),
+ *   db: { url: process.env.DATABASE_URL! },
+ *   app: { url: process.env.APP_URL! },
  * })
  * ```
  *
@@ -277,12 +279,14 @@ export class PgVectorSearchAdapter implements SearchAdapter {
  *
  * @example
  * ```ts
- * questpie({
+ * config({
  *   search: createPgVectorSearchAdapter({
  *     embeddingProvider: createOpenAIEmbeddingProvider({
  *       apiKey: process.env.OPENAI_API_KEY,
  *     }),
  *   }),
+ *   db: { url: process.env.DATABASE_URL! },
+ *   app: { url: process.env.APP_URL! },
  * })
  * ```
  */

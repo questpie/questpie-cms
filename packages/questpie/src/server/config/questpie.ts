@@ -27,6 +27,7 @@ import type {
 	AccessMode,
 	DrizzleClientFromQuestpieConfig,
 	Locale,
+	TablesFromConfig,
 } from "#questpie/server/config/types.js";
 import {
 	type Global,
@@ -57,6 +58,7 @@ import type {
 	AnyGlobal,
 	AnyGlobalBuilder,
 } from "#questpie/shared/type-utils.js";
+import type { FunctionsTree } from "../functions/types.js";
 import type { GlobalHooksState } from "./global-hooks-types.js";
 import type { GetMessageKeys, QuestpieConfig } from "./types.js";
 
@@ -67,6 +69,7 @@ export class Questpie<TConfig extends QuestpieConfig = QuestpieConfig> {
 
 	private _collections: Record<string, Collection<AnyCollectionState>> = {};
 	private _globals: Record<string, AnyGlobal> = {};
+	private _singletonServices: Record<string, any> = {};
 	public readonly config: TConfig;
 	private resolvedLocales: Locale[] | null = null;
 	private pgConnectionString?: string;
@@ -94,13 +97,14 @@ export class Questpie<TConfig extends QuestpieConfig = QuestpieConfig> {
 	 *
 	 * When using .messages() on the builder, the keys are type-safe:
 	 * ```ts
-	 * const app = questpie({ name: "app" })
-	 *   .use(starterModule) // Includes core messages
-	 *   .messages({ en: { "custom.key": "Value" } } as const)
-	 *   .build({ ... });
+	 * const app = runtimeConfig({
+	 *   modules: [starterModule], // Includes core messages
+	 *   messages: { en: { "custom.key": "Value" } } as const,
+	 *   db: { url: '...' },
+	 * });
 	 *
 	 * app.t("error.notFound"); // Type-safe from starterModule
-	 * app.t("custom.key");     // Type-safe from .messages()
+	 * app.t("custom.key");     // Type-safe from messages
 	 * ```
 	 *
 	 * @example
@@ -132,6 +136,10 @@ export class Questpie<TConfig extends QuestpieConfig = QuestpieConfig> {
 	public logger: LoggerService;
 	public search: SearchService;
 	public realtime: RealtimeService;
+	public functions!: FunctionsTree;
+
+	/** Extension state for plugin-contributed configurations (admin layout, blocks, sidebar, etc.) */
+	public state?: Record<string, unknown>;
 
 	public migrations: QuestpieMigrationsAPI<TConfig>;
 	public seeds: QuestpieSeedsAPI<TConfig>;
@@ -146,6 +154,7 @@ export class Questpie<TConfig extends QuestpieConfig = QuestpieConfig> {
 		this.config = config;
 		this.defaultAccess = config.defaultAccess;
 		this.globalHooks = config.globalHooks ?? { collections: [], globals: [] };
+		this.functions = config.functions ?? {};
 
 		// Initialize translator
 		this.t = createTranslator(config.translations);
@@ -258,7 +267,7 @@ export class Questpie<TConfig extends QuestpieConfig = QuestpieConfig> {
 				),
 				urlBuilder: {
 					// TODO: is this correct?
-					generateSignedURL(key, _filePath, _optionss) {
+					generateSignedURL(key, _filePath, _options) {
 						return Promise.resolve(`http://fake-storage.local/${key}`);
 					},
 					generateURL(key, _filePath) {
@@ -283,6 +292,9 @@ export class Questpie<TConfig extends QuestpieConfig = QuestpieConfig> {
 		this.migrations = new QuestpieMigrationsAPI(this);
 		this.seeds = new QuestpieSeedsAPI(this);
 		this.api = new QuestpieAPI(this) as QuestpieApi<TConfig>;
+
+		// Initialize singleton services
+		this._initSingletonServices();
 
 		// Auto-init if configured (autoMigrate / autoSeed)
 		if (config.autoMigrate || config.autoSeed) {
@@ -340,6 +352,22 @@ export class Questpie<TConfig extends QuestpieConfig = QuestpieConfig> {
 	 * ```
 	 */
 	async destroy(): Promise<void> {
+		// Dispose singleton services
+		const serviceDefs = this.config.services;
+		if (serviceDefs) {
+			const disposals: Promise<void>[] = [];
+			for (const [name, def] of Object.entries(serviceDefs)) {
+				if (def.dispose && this._singletonServices[name] !== undefined) {
+					const result = def.dispose(this._singletonServices[name]);
+					if (result instanceof Promise) disposals.push(result);
+				}
+			}
+			if (disposals.length > 0) {
+				await Promise.allSettled(disposals);
+			}
+		}
+		this._singletonServices = {};
+
 		await Promise.allSettled([
 			this._sqlClient?.close({ timeout: 5 }),
 			this.realtime?.destroy(),
@@ -360,6 +388,80 @@ export class Questpie<TConfig extends QuestpieConfig = QuestpieConfig> {
 			this.logger.error("[QuestPie] Auto-initialization failed:", err);
 			throw err;
 		}
+	}
+
+	/**
+	 * Initialize all singleton-lifecycle services.
+	 * Creates service instances and stores them for injection.
+	 */
+	private _initSingletonServices(): void {
+		const serviceDefs = this.config.services;
+		if (!serviceDefs) return;
+
+		// Build a deps bag with infrastructure services
+		const infraDeps: Record<string, any> = {
+			db: this.db,
+			email: this.email,
+			queue: this.queue,
+			storage: this.storage,
+			kv: this.kv,
+			logger: this.logger,
+			search: this.search,
+			realtime: this.realtime,
+			auth: this.auth,
+		};
+
+		for (const [name, def] of Object.entries(serviceDefs)) {
+			if (def.lifecycle === "request") continue;
+
+			// Resolve deps
+			const deps: Record<string, any> = {};
+			if (def.deps) {
+				for (const depName of def.deps) {
+					// Check infra first, then already-created singleton services
+					deps[depName] = infraDeps[depName] ?? this._singletonServices[depName];
+				}
+			}
+
+			this._singletonServices[name] = def.create(deps);
+		}
+	}
+
+	/**
+	 * Resolve a service by name (singleton or create request-scoped).
+	 * @internal Used by context creation for flat service injection.
+	 */
+	resolveService(name: string, requestDeps?: Record<string, any>): any {
+		// Check singleton cache first
+		if (this._singletonServices[name] !== undefined) {
+			return this._singletonServices[name];
+		}
+
+		// Create request-scoped service
+		const def = this.config.services?.[name];
+		if (!def) return undefined;
+
+		const deps: Record<string, any> = {};
+		if (def.deps) {
+			const infraDeps: Record<string, any> = {
+				db: this.db,
+				email: this.email,
+				queue: this.queue,
+				storage: this.storage,
+				kv: this.kv,
+				logger: this.logger,
+				search: this.search,
+				realtime: this.realtime,
+				auth: this.auth,
+				...this._singletonServices,
+				...requestDeps,
+			};
+			for (const depName of def.deps) {
+				deps[depName] = infraDeps[depName];
+			}
+		}
+
+		return def.create(deps);
 	}
 
 	private registerCollections(
@@ -464,7 +566,7 @@ export class Questpie<TConfig extends QuestpieConfig = QuestpieConfig> {
 								try {
 									await globalFn({ ...ctx, collection: name });
 								} catch (err) {
-									console.error(
+									this.logger.error(
 										`[QuestPie] Global collection hook "${hookName}" error for "${name}":`,
 										err,
 									);
@@ -491,7 +593,7 @@ export class Questpie<TConfig extends QuestpieConfig = QuestpieConfig> {
 								try {
 									await globalFn({ ...ctx, collection: name });
 								} catch (err) {
-									console.error(
+									this.logger.error(
 										`[QuestPie] Global collection hook "${hookName}" error for "${name}":`,
 										err,
 									);
@@ -526,7 +628,7 @@ export class Questpie<TConfig extends QuestpieConfig = QuestpieConfig> {
 								try {
 									await globalFn({ ...ctx, global: name });
 								} catch (err) {
-									console.error(
+									this.logger.error(
 										`[QuestPie] Global global hook "${hookName}" error for "${name}":`,
 										err,
 									);
@@ -553,7 +655,7 @@ export class Questpie<TConfig extends QuestpieConfig = QuestpieConfig> {
 								try {
 									await globalFn({ ...ctx, global: name });
 								} catch (err) {
-									console.error(
+									this.logger.error(
 										`[QuestPie] Global global hook "${hookName}" error for "${name}":`,
 										err,
 									);
@@ -787,6 +889,10 @@ export class Questpie<TConfig extends QuestpieConfig = QuestpieConfig> {
 			}
 		}
 		return tables;
+	}
+
+	public get tables(): TablesFromConfig<TConfig> {
+		return this.getTables() as TablesFromConfig<TConfig>;
 	}
 
 	public getSchema(): Record<string, unknown> {

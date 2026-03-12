@@ -1,19 +1,14 @@
 import type { SQL } from "drizzle-orm";
 import type { RelationConfig } from "#questpie/server/collection/builder/types.js";
 import {
-	createFieldBuilder,
-	type FieldBuilderProxy,
+	createFieldsCallbackContext,
+	type FieldsCallbackContext,
 } from "#questpie/server/fields/builder.js";
 import {
 	type BuiltinFields,
 	builtinFields,
 } from "#questpie/server/fields/builtin/defaults.js";
-import type {
-	FieldDefinition,
-	FieldDefinitionState,
-	RelationFieldMetadata,
-} from "#questpie/server/fields/types.js";
-import type { GlobalBuilderExtensions } from "#questpie/server/global/builder/extensions.js";
+import type { RelationFieldMetadata } from "#questpie/server/fields/types.js";
 import { Global } from "#questpie/server/global/builder/global.js";
 import type {
 	EmptyGlobalState,
@@ -22,19 +17,12 @@ import type {
 	GlobalHooks,
 	GlobalOptions,
 } from "#questpie/server/global/builder/types.js";
-import type {
-	Prettify,
-	SetProperty,
-	TypeMerge,
-	UnsetProperty,
-} from "#questpie/shared/type-utils.js";
+import type { Override, Prettify } from "#questpie/shared/type-utils.js";
 
 /**
  * Extract Drizzle column types from field definitions.
  */
-type ExtractColumnsFromFieldDefinitions<
-	TFields extends Record<string, FieldDefinition<FieldDefinitionState>>,
-> = {
+type ExtractColumnsFromFieldDefinitions<TFields extends Record<string, any>> = {
 	[K in keyof TFields]: TFields[K]["$types"]["column"] extends null
 		? never
 		: TFields[K]["$types"]["column"];
@@ -42,10 +30,9 @@ type ExtractColumnsFromFieldDefinitions<
 
 /**
  * Extract field types from GlobalBuilderState.
- * Falls back to DefaultFieldTypeMap if not available.
+ * Falls back to BuiltinFields if not available.
  *
- * Uses ~fieldTypes phantom property which is set by EmptyGlobalState
- * based on the QuestpieBuilder's state.fields.
+ * Uses ~fieldTypes phantom property which is set by EmptyGlobalState.
  */
 type ExtractFieldTypes<TState extends GlobalBuilderState> =
 	TState["~fieldTypes"] extends infer TFields
@@ -53,16 +40,6 @@ type ExtractFieldTypes<TState extends GlobalBuilderState> =
 			? TFields
 			: {} // No fields registered — f will be empty
 		: {};
-
-type InferAppFromBuilder<TBuilder> = TBuilder extends {
-	build: (...args: any[]) => infer TApp;
-}
-	? TApp
-	: any;
-
-type GlobalAppOf<TState extends GlobalBuilderState> = InferAppFromBuilder<
-	TState["~questpieApp"]
->;
 
 /**
  * Main global builder class
@@ -77,34 +54,22 @@ export class GlobalBuilder<TState extends GlobalBuilderState> {
 	}
 
 	/**
-	 * Define fields using Field Builder (recommended)
-	 *
-	 * When using `q.global()`, field types are inferred from `q.fields()`.
-	 * When using standalone `global()`, falls back to DefaultFieldTypeMap.
+	 * Define fields using Field Builder.
 	 *
 	 * @example
 	 * ```ts
-	 * // With q.global() - field types from q.fields(defaultFields)
-	 * q.global("settings").fields((f) => ({
-	 *   siteName: f.text({ required: true }),  // ✅ autocomplete
-	 * }))
-	 *
-	 * // Standalone - uses default registry
-	 * global("settings").fields((f) => ({
+	 * global("settings").fields(({ f }) => ({
 	 *   siteName: f.text({ required: true }),
 	 * }))
 	 * ```
 	 */
-	fields<
-		const TNewFields extends Record<
-			string,
-			FieldDefinition<FieldDefinitionState>
-		>,
-	>(
-		factory: (f: FieldBuilderProxy<ExtractFieldTypes<TState>>) => TNewFields,
+	fields<const TNewFields extends Record<string, any>>(
+		factory: (
+			ctx: FieldsCallbackContext<ExtractFieldTypes<TState>>,
+		) => TNewFields,
 	): GlobalBuilder<
-		TypeMerge<
-			UnsetProperty<TState, "fields" | "localized" | "fieldDefinitions">,
+		Override<
+			TState,
 			{
 				fields: ExtractColumnsFromFieldDefinitions<TNewFields>;
 				localized: [];
@@ -114,14 +79,14 @@ export class GlobalBuilder<TState extends GlobalBuilderState> {
 	>;
 
 	/**
-	 * Define fields using Drizzle column definitions (backward compatible)
+	 * Define fields using raw Drizzle column definitions.
 	 */
 	fields<TNewFields extends Record<string, any>>(
 		// Exclude functions from this overload
 		fields: TNewFields extends (...args: any[]) => any ? never : TNewFields,
 	): GlobalBuilder<
-		TypeMerge<
-			UnsetProperty<TState, "fields" | "localized" | "fieldDefinitions">,
+		Override<
+			TState,
 			{
 				fields: TNewFields;
 				localized: [];
@@ -132,13 +97,13 @@ export class GlobalBuilder<TState extends GlobalBuilderState> {
 
 	// Implementation
 	fields<TNewFields extends Record<string, any>>(
-		fieldsOrFactory: TNewFields | ((f: FieldBuilderProxy<any>) => TNewFields),
+		fieldsOrFactory:
+			| TNewFields
+			| ((ctx: FieldsCallbackContext<any>) => TNewFields),
 	): GlobalBuilder<any> {
 		let columns: Record<string, any>;
 		let virtuals: Record<string, SQL> = {};
-		let fieldDefinitions:
-			| Record<string, FieldDefinition<FieldDefinitionState>>
-			| undefined;
+		let fieldDefinitions: Record<string, any> | undefined;
 		const pendingRelations: Array<{
 			name: string;
 			metadata: RelationFieldMetadata;
@@ -146,25 +111,23 @@ export class GlobalBuilder<TState extends GlobalBuilderState> {
 		const localizedFields: string[] = [];
 
 		if (typeof fieldsOrFactory === "function") {
-			// Field Builder pattern - use field defs from ~questpieApp, or fall back to builtinFields
-			const questpieFields =
-				(this.state as any)["~questpieApp"]?.state?.fields ?? builtinFields;
-			const builderProxy = createFieldBuilder(questpieFields);
+			const contextProxy = createFieldsCallbackContext(
+				builtinFields,
+			) as unknown as FieldsCallbackContext<ExtractFieldTypes<TState>>;
 
-			const fieldDefs = fieldsOrFactory(builderProxy);
+			const fieldDefs = fieldsOrFactory(contextProxy);
 			fieldDefinitions = fieldDefs;
 
 			// Extract Drizzle columns from field definitions
 			columns = {};
 			for (const [name, fieldDef] of Object.entries(fieldDefs)) {
 				// Check if field is localized (location === "i18n")
-				if (fieldDef.state?.location === "i18n") {
+				if (fieldDef.getLocation?.() === "i18n") {
 					localizedFields.push(name);
 				}
 
-				if (fieldDef.state?.location === "virtual") {
-					const virtualValue = (fieldDef.state.config as { virtual?: unknown })
-						?.virtual;
+				if (fieldDef.getLocation?.() === "virtual") {
+					const virtualValue = fieldDef._state?.virtual;
 					if (virtualValue && virtualValue !== true) {
 						virtuals[name] = virtualValue as SQL;
 					}
@@ -200,7 +163,7 @@ export class GlobalBuilder<TState extends GlobalBuilderState> {
 				...virtuals,
 			};
 		} else {
-			// Raw Drizzle columns (backward compatible)
+			// Raw Drizzle columns
 			columns = fieldsOrFactory;
 			virtuals = this.state.virtuals || {};
 			fieldDefinitions = undefined;
@@ -224,7 +187,7 @@ export class GlobalBuilder<TState extends GlobalBuilderState> {
 	 */
 	options<TNewOptions extends GlobalOptions>(
 		options: TNewOptions,
-	): GlobalBuilder<SetProperty<TState, "options", TNewOptions>> {
+	): GlobalBuilder<Override<TState, { options: TNewOptions }>> {
 		const newState = {
 			...this.state,
 			options,
@@ -239,7 +202,7 @@ export class GlobalBuilder<TState extends GlobalBuilderState> {
 	 */
 	hooks<TNewHooks extends GlobalHooks<any>>(
 		hooks: TNewHooks,
-	): GlobalBuilder<SetProperty<TState, "hooks", TNewHooks>> {
+	): GlobalBuilder<Override<TState, { hooks: TNewHooks }>> {
 		const newState = {
 			...this.state,
 			hooks,
@@ -254,7 +217,7 @@ export class GlobalBuilder<TState extends GlobalBuilderState> {
 	 */
 	access<TNewAccess extends GlobalAccess<any>>(
 		access: TNewAccess,
-	): GlobalBuilder<SetProperty<TState, "access", TNewAccess>> {
+	): GlobalBuilder<Override<TState, { access: TNewAccess }>> {
 		const newState = {
 			...this.state,
 			access,
@@ -370,6 +333,18 @@ export class GlobalBuilder<TState extends GlobalBuilderState> {
 	}
 
 	/**
+	 * Generic extension point for plugins.
+	 * Stores an arbitrary key-value pair in the builder state.
+	 */
+	set<TKey extends string, V>(
+		key: TKey,
+		value: V,
+	): GlobalBuilder<TState & Record<TKey, V>> {
+		const newState = { ...this.state, [key]: value } as any;
+		return new GlobalBuilder(newState);
+	}
+
+	/**
 	 * Build the final global
 	 */
 	build(): Global<Prettify<TState>> {
@@ -409,19 +384,6 @@ export class GlobalBuilder<TState extends GlobalBuilderState> {
 	}
 }
 
-// =============================================================================
-// Declaration Merging for Extensions
-// =============================================================================
-
-/**
- * Declaration merging: GlobalBuilder implements GlobalBuilderExtensions.
- *
- * This allows packages to augment GlobalBuilderExtensions and have those
- * methods appear on GlobalBuilder instances.
- */
-export interface GlobalBuilder<TState extends GlobalBuilderState>
-	extends GlobalBuilderExtensions {}
-
 /**
  * Factory function to create a new global builder.
  *
@@ -457,6 +419,5 @@ export function global<TName extends string>(
 		hooks: {},
 		access: {},
 		fieldDefinitions: {},
-		"~questpieApp": undefined,
 	}) as any;
 }

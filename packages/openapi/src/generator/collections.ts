@@ -435,14 +435,13 @@ function buildSchemaFromFieldDefinitions(fieldDefinitions: unknown): {
 	for (const [fieldName, fieldDefinition] of Object.entries(
 		fieldDefinitions as Record<string, unknown>,
 	)) {
-		const toZodSchema = (fieldDefinition as { toZodSchema?: () => unknown })
-			.toZodSchema;
-		if (typeof toZodSchema !== "function") {
+		const fd = fieldDefinition as { toZodSchema?: () => unknown };
+		if (typeof fd.toZodSchema !== "function") {
 			continue;
 		}
 
 		try {
-			const schema = toZodSchema();
+			const schema = fd.toZodSchema();
 			if (schema && typeof schema === "object" && "_def" in schema) {
 				shape[fieldName] = schema as z.ZodTypeAny;
 			}

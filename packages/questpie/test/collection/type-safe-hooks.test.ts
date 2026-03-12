@@ -1,16 +1,12 @@
 import { describe, expect, test } from "bun:test";
-import { defaultFields } from "../../src/server/fields/builtin/defaults.js";
-import { questpie } from "../../src/server/index.js";
-
-const q = questpie({ name: "test-module" }).fields(defaultFields);
+import { collection } from "../../src/server/index.js";
 
 describe("Type-Safe Hooks", () => {
 	test("hooks should have proper type inference", () => {
-		const users = q
-			.collection("users")
-			.fields((f) => ({
-				name: f.textarea({ required: true }),
-				email: f.text({ required: true, maxLength: 255 }),
+		const users = collection("users")
+			.fields(({ f }) => ({
+				name: f.textarea().required(),
+				email: f.text(255).required(),
 				bio: f.textarea(),
 			}))
 			.hooks({
@@ -83,11 +79,10 @@ describe("Type-Safe Hooks", () => {
 	});
 
 	test("original field availability across all hooks", () => {
-		const users = q
-			.collection("users")
-			.fields((f) => ({
-				name: f.textarea({ required: true }),
-				email: f.text({ required: true, maxLength: 255 }),
+		const users = collection("users")
+			.fields(({ f }) => ({
+				name: f.textarea().required(),
+				email: f.text(255).required(),
 				bio: f.textarea(),
 			}))
 			.hooks({
@@ -204,10 +199,9 @@ describe("Type-Safe Hooks", () => {
 	});
 
 	test("beforeOperation hook has correct types", () => {
-		const posts = q
-			.collection("posts")
-			.fields((f) => ({
-				title: f.textarea({ required: true }),
+		const posts = collection("posts")
+			.fields(({ f }) => ({
+				title: f.textarea().required(),
 			}))
 			.hooks({
 				beforeOperation: async ({ data, operation, original }) => {
@@ -244,12 +238,11 @@ describe("Type-Safe Hooks", () => {
 	});
 
 	test("hooks with localized fields", () => {
-		const posts = q
-			.collection("posts")
-			.fields((f) => ({
-				title: f.text({ required: true, localized: true }),
-				slug: f.text({ required: true }),
-				description: f.textarea({ localized: true }),
+		const posts = collection("posts")
+			.fields(({ f }) => ({
+				title: f.text().required().localized(),
+				slug: f.text().required(),
+				description: f.textarea().localized(),
 			}))
 			.hooks({
 				beforeChange: async ({ data, operation }) => {
@@ -285,12 +278,11 @@ describe("Type-Safe Hooks", () => {
 	});
 
 	test("hooks with localized fields maintain correct types across lifecycle", () => {
-		const articles = q
-			.collection("articles")
-			.fields((f) => ({
-				title: f.textarea({ required: true, localized: true }),
-				body: f.textarea({ localized: true }),
-				category: f.text({ required: true }),
+		const articles = collection("articles")
+			.fields(({ f }) => ({
+				title: f.textarea().required().localized(),
+				body: f.textarea().localized(),
+				category: f.text().required(),
 			}))
 			.hooks({
 				beforeValidate: async ({ data, operation }) => {
@@ -345,10 +337,9 @@ describe("Type-Safe Hooks", () => {
 	});
 
 	test("hooks should not allow return values", () => {
-		const articles = q
-			.collection("articles")
-			.fields((f) => ({
-				title: f.textarea({ required: true }),
+		const articles = collection("articles")
+			.fields(({ f }) => ({
+				title: f.textarea().required(),
 			}))
 			.hooks({
 				beforeChange: async ({ data }) => {

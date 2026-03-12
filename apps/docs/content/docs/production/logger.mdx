@@ -1,0 +1,47 @@
+---
+title: Logger
+description: Structured logging with Pino.
+---
+
+# Logger
+
+QuestPie uses [Pino](https://getpino.io) for structured, high-performance logging.
+
+## Usage
+
+Access through the `logger` context:
+
+```ts
+handler: async ({ logger }) => {
+  logger.info("Processing booking");
+  logger.error({ err: error }, "Booking failed");
+  logger.debug({ barberId, serviceId }, "Checking availability");
+}
+```
+
+## Log Levels
+
+| Level | Usage |
+|---|---|
+| `trace` | Detailed debugging |
+| `debug` | Development debugging |
+| `info` | Normal operations |
+| `warn` | Potential issues |
+| `error` | Errors |
+| `fatal` | Critical failures |
+
+## Structured Logging
+
+Pass objects as the first argument for structured data:
+
+```ts
+logger.info({
+  appointmentId: "abc",
+  action: "created",
+  barberId: "def",
+}, "Appointment created");
+```
+
+## Related Pages
+
+- [Deployment](/docs/production/deployment) — Production setup

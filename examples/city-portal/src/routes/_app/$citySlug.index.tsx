@@ -12,7 +12,7 @@ import {
 } from "@questpie/admin/client";
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { getHomepage } from "@/lib/server-functions";
-import renderers from "@/questpie/admin/blocks";
+import admin from "@/questpie/admin/.generated/client";
 
 export const Route = createFileRoute("/_app/$citySlug/")({
 	loader: async ({ params }) => {
@@ -68,7 +68,7 @@ function HomepageWithPreview({ page }: { page: any }) {
 				{data.content && (
 					<BlockRenderer
 						content={data.content as BlockContent}
-						renderers={renderers}
+						renderers={admin.blocks}
 						data={data.content._data}
 						selectedBlockId={selectedBlockId}
 						onBlockClick={isPreviewMode ? handleBlockClick : undefined}

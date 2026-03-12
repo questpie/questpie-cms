@@ -1,0 +1,50 @@
+---
+title: Hono Adapter
+description: Serve QuestPie APIs with Hono.
+---
+
+# Hono Adapter
+
+The Hono adapter connects QuestPie to the [Hono](https://hono.dev) web framework.
+
+## Install
+
+```bash
+bun add @questpie/hono hono
+```
+
+## Setup
+
+```ts title="src/index.ts"
+import { Hono } from "hono";
+import { createFetchHandler } from "questpie/adapters/hono";
+import { app } from "@/questpie/server/.generated";
+
+const server = new Hono();
+
+const handler = createFetchHandler(app, { basePath: "/api" });
+
+server.all("/api/*", (c) => handler(c.req.raw));
+
+export default server;
+```
+
+## With OpenAPI
+
+```ts
+import { withOpenApi } from "questpie/openapi";
+
+const handler = withOpenApi(
+  createFetchHandler(app, { basePath: "/api" }),
+  { basePath: "/api" },
+);
+
+// OpenAPI spec at /api/openapi.json
+// Scalar UI at /api/docs
+```
+
+## Related Pages
+
+- [Elysia Adapter](/docs/frontend/adapters/elysia)
+- [Next.js Adapter](/docs/frontend/adapters/nextjs)
+- [Installation](/docs/start-here/installation) — Getting started

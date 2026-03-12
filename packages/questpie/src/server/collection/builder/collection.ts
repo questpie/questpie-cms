@@ -66,7 +66,9 @@ type NonLocalizedFields<
 	TFields extends Record<string, any>,
 	TLocalized extends ReadonlyArray<keyof TFields>,
 > = {
-	[K in keyof TFields as K extends TLocalized[number] ? never : K]: TFields[K];
+	[FK in keyof TFields as FK extends TLocalized[number]
+		? never
+		: FK]: TFields[FK];
 };
 
 /**
@@ -76,7 +78,9 @@ type LocalizedFields<
 	TFields extends Record<string, any>,
 	TLocalized extends ReadonlyArray<keyof TFields>,
 > = {
-	[K in keyof TFields as K extends TLocalized[number] ? K : never]: TFields[K];
+	[FK in keyof TFields as FK extends TLocalized[number]
+		? FK
+		: never]: TFields[FK];
 };
 
 // ============================================================================
@@ -87,34 +91,26 @@ import type {
 	ExtractI18nFields,
 	ExtractMainFields,
 	ExtractVirtualFields,
-	FieldDefinition,
-	FieldDefinitionState,
 } from "#questpie/server/fields/types.js";
 
 /**
  * Extract input types from field definitions.
  * Maps each field to its input type from $types.input.
  */
-type ExtractInputTypes<
-	TFieldDefs extends Record<string, FieldDefinition<FieldDefinitionState>>,
-> = {
-	[K in keyof TFieldDefs]: TFieldDefs[K] extends FieldDefinition<infer TState>
-		? TState extends FieldDefinitionState
-			? TState["input"]
-			: never
-		: never;
+type ExtractInputTypes<TFieldDefs extends Record<string, any>> = {
+	[K in keyof TFieldDefs]: FieldInput<TFieldDefs[K]>;
 };
 
 type FieldInput<T> =
-	T extends FieldDefinition<infer TState>
-		? TState extends FieldDefinitionState
-			? TState["input"]
-			: never
+	// V2: Field<TState> — extract input from accumulated state
+	T extends {
+		readonly _: infer TState extends
+			import("#questpie/server/fields/field-class-types.js").FieldState;
+	}
+		? import("#questpie/server/fields/field-class-types.js").ExtractInputType<TState>
 		: never;
 
-type RequiredInputKeys<
-	TFieldDefs extends Record<string, FieldDefinition<FieldDefinitionState>>,
-> = {
+type RequiredInputKeys<TFieldDefs extends Record<string, any>> = {
 	[K in keyof TFieldDefs]: FieldInput<TFieldDefs[K]> extends never
 		? never
 		: undefined extends FieldInput<TFieldDefs[K]>
@@ -122,9 +118,7 @@ type RequiredInputKeys<
 			: K;
 }[keyof TFieldDefs];
 
-type OptionalInputKeys<
-	TFieldDefs extends Record<string, FieldDefinition<FieldDefinitionState>>,
-> = {
+type OptionalInputKeys<TFieldDefs extends Record<string, any>> = {
 	[K in keyof TFieldDefs]: FieldInput<TFieldDefs[K]> extends never
 		? never
 		: undefined extends FieldInput<TFieldDefs[K]>
@@ -136,9 +130,7 @@ type OptionalInputKeys<
  * Extract input object type from field definitions, using optional properties
  * when the field input type includes `undefined`.
  */
-type ExtractInputObject<
-	TFieldDefs extends Record<string, FieldDefinition<FieldDefinitionState>>,
-> = Prettify<
+type ExtractInputObject<TFieldDefs extends Record<string, any>> = Prettify<
 	{
 		[K in RequiredInputKeys<TFieldDefs>]: FieldInput<TFieldDefs[K]>;
 	} & {
@@ -156,16 +148,8 @@ type ExtractInputObject<
  * Relation fields especially need FieldSelect because their TValue is a broad union (string | string[] | { type, id } | null)
  * but FieldSelect narrows based on actual config (belongsTo -> string, multiple -> string[], etc.)
  */
-type ExtractOutputTypes<
-	TFieldDefs extends Record<string, FieldDefinition<FieldDefinitionState>>,
-> = {
-	[K in keyof TFieldDefs]: TFieldDefs[K] extends FieldDefinition<infer TState>
-		? TState extends FieldDefinitionState
-			? TState["type"] extends "object" | "array" | "upload" | "relation"
-				? FieldSelect<TFieldDefs[K]>
-				: TState["output"]
-			: never
-		: never;
+type ExtractOutputTypes<TFieldDefs extends Record<string, any>> = {
+	[K in keyof TFieldDefs]: FieldSelect<TFieldDefs[K]>;
 };
 
 /**
@@ -174,10 +158,10 @@ type ExtractOutputTypes<
  */
 type InferCollectionSelect<
 	TMainTable extends PgTable,
-	TFieldDefs extends Record<string, FieldDefinition<FieldDefinitionState>>,
+	TFieldDefs extends Record<string, any>,
 	TTitle extends TitleExpression | undefined,
 > = Prettify<
-	InferSelectModel<TMainTable> &
+	Omit<InferSelectModel<TMainTable>, keyof ExtractMainFields<TFieldDefs>> &
 		ExtractOutputTypes<ExtractMainFields<TFieldDefs>> &
 		ExtractOutputTypes<ExtractVirtualFields<TFieldDefs>> &
 		ExtractOutputTypes<ExtractI18nFields<TFieldDefs>> & {
@@ -191,7 +175,7 @@ type InferCollectionSelect<
  */
 type InferCollectionInsert<
 	TMainTable extends PgTable,
-	TFieldDefs extends Record<string, FieldDefinition<FieldDefinitionState>>,
+	TFieldDefs extends Record<string, any>,
 > = Prettify<
 	Omit<InferInsertModel<TMainTable>, keyof ExtractMainFields<TFieldDefs>> &
 		ExtractInputObject<ExtractMainFields<TFieldDefs>> &
@@ -204,7 +188,7 @@ type InferCollectionInsert<
  */
 type InferCollectionUpdate<
 	TMainTable extends PgTable,
-	TFieldDefs extends Record<string, FieldDefinition<FieldDefinitionState>>,
+	TFieldDefs extends Record<string, any>,
 > = Prettify<Partial<InferCollectionInsert<TMainTable, TFieldDefs>>>;
 
 /**
@@ -257,7 +241,7 @@ type OutputExtensions<TState extends CollectionBuilderState> =
 export type CollectionSelect<TState extends CollectionBuilderState> =
 	TState["fieldDefinitions"] extends Record<
 		string,
-		FieldDefinition<FieldDefinitionState>
+		{ $types: any; toColumn: any }
 	>
 		? Prettify<
 				InferCollectionSelect<
@@ -291,7 +275,7 @@ export type CollectionSelect<TState extends CollectionBuilderState> =
 export type CollectionInsert<TState extends CollectionBuilderState> =
 	TState["fieldDefinitions"] extends Record<
 		string,
-		FieldDefinition<FieldDefinitionState>
+		{ $types: any; toColumn: any }
 	>
 		? InferCollectionInsert<
 				InferMainTableWithColumns<
@@ -319,7 +303,7 @@ export type CollectionInsert<TState extends CollectionBuilderState> =
 export type CollectionUpdate<TState extends CollectionBuilderState> =
 	TState["fieldDefinitions"] extends Record<
 		string,
-		FieldDefinition<FieldDefinitionState>
+		{ $types: any; toColumn: any }
 	>
 		? InferCollectionUpdate<
 				InferMainTableWithColumns<
@@ -549,7 +533,7 @@ export class Collection<TState extends CollectionBuilderState> {
 	public readonly name: TState["name"];
 	public readonly table: TState["fieldDefinitions"] extends Record<
 		string,
-		FieldDefinition<FieldDefinitionState>
+		{ $types: any; toColumn: any }
 	>
 		? InferMainTableWithColumns<
 				TState["name"],

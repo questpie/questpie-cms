@@ -1,23 +1,20 @@
 /**
- * Test Helpers for Admin Builder Tests
+ * Test Helpers for Admin Tests
  *
  * Provides mock components, field definitions, and view definitions
- * for testing builder functionality.
+ * for testing plain object factory functionality.
  */
 
 import type * as React from "react";
 import { field } from "#questpie/admin/client/builder/field/field";
 import { page } from "#questpie/admin/client/builder/page/page";
-import { editView, listView } from "#questpie/admin/client/builder/view/view";
+import { view } from "#questpie/admin/client/builder/view/view";
 import { widget } from "#questpie/admin/client/builder/widget/widget";
 
 // ============================================================================
 // Mock Components
 // ============================================================================
 
-/**
- * Mock field component for testing
- */
 export const MockTextField: React.FC<{
 	name: string;
 	value?: string;
@@ -25,9 +22,6 @@ export const MockTextField: React.FC<{
 	maxLength?: number;
 }> = () => null;
 
-/**
- * Mock field component with more options
- */
 export const MockTextareaField: React.FC<{
 	name: string;
 	value?: string;
@@ -36,18 +30,12 @@ export const MockTextareaField: React.FC<{
 	maxLength?: number;
 }> = () => null;
 
-/**
- * Mock email field component
- */
 export const MockEmailField: React.FC<{
 	name: string;
 	value?: string;
 	onChange?: (value: string) => void;
 }> = () => null;
 
-/**
- * Mock number field component
- */
 export const MockNumberField: React.FC<{
 	name: string;
 	value?: number;
@@ -56,9 +44,6 @@ export const MockNumberField: React.FC<{
 	max?: number;
 }> = () => null;
 
-/**
- * Mock select field component
- */
 export const MockSelectField: React.FC<{
 	name: string;
 	value?: string;
@@ -66,9 +51,6 @@ export const MockSelectField: React.FC<{
 	options: { label: string; value: string }[];
 }> = () => null;
 
-/**
- * Mock relation field component
- */
 export const MockRelationField: React.FC<{
 	name: string;
 	value?: string | string[];
@@ -77,64 +59,30 @@ export const MockRelationField: React.FC<{
 	multiple?: boolean;
 }> = () => null;
 
-/**
- * Mock cell component for table views
- */
 export const MockTextCell: React.FC<{ value: string }> = () => null;
-
-/**
- * Mock list view component
- */
 export const MockTableView: React.FC<{ columns: string[] }> = () => null;
-
-/**
- * Mock edit view component
- */
 export const MockFormView: React.FC<{ sections: any[] }> = () => null;
-
-/**
- * Mock widget component
- */
 export const MockStatsWidget: React.FC<{ title: string }> = () => null;
-
-/**
- * Mock page component
- */
 export const MockDashboardPage: React.FC = () => null;
-
-/**
- * Mock icon component
- */
 export const MockIcon: React.FC = () => null;
 
 // ============================================================================
-// Test Field Definitions
+// Test Field Definitions (plain frozen objects)
 // ============================================================================
 
-/**
- * Create test text field definition
- */
 export function createTextField() {
 	return field("text", {
 		component: MockTextField,
 		cell: MockTextCell,
-		config: {} as { maxLength?: number },
 	});
 }
 
-/**
- * Create test textarea field definition
- */
 export function createTextareaField() {
 	return field("textarea", {
 		component: MockTextareaField,
-		config: {} as { rows?: number; maxLength?: number },
 	});
 }
 
-/**
- * Create test email field definition
- */
 export function createEmailField() {
 	return field("email", {
 		component: MockEmailField,
@@ -142,54 +90,38 @@ export function createEmailField() {
 	});
 }
 
-/**
- * Create test number field definition
- */
 export function createNumberField() {
 	return field("number", {
 		component: MockNumberField,
-		config: {} as { min?: number; max?: number },
 	});
 }
 
-/**
- * Create test select field definition
- */
 export function createSelectField() {
 	return field("select", {
 		component: MockSelectField,
-		config: {} as { options: { label: string; value: string }[] },
 	});
 }
 
-/**
- * Create test relation field definition
- */
 export function createRelationField() {
 	return field("relation", {
 		component: MockRelationField,
-		config: {} as { targetCollection: string; multiple?: boolean },
 	});
 }
 
 // ============================================================================
-// Test View Definitions
+// Test View Definitions (plain frozen objects)
 // ============================================================================
 
-/**
- * Create test table view (list view)
- */
 export function createTableView() {
-	return listView("table", {
+	return view("table", {
+		kind: "list",
 		component: MockTableView,
 	});
 }
 
-/**
- * Create test form view (edit view)
- */
 export function createFormView() {
-	return editView("form", {
+	return view("form", {
+		kind: "form",
 		component: MockFormView,
 	});
 }
@@ -198,9 +130,6 @@ export function createFormView() {
 // Test Widget Definitions
 // ============================================================================
 
-/**
- * Create test stats widget
- */
 export function createStatsWidget() {
 	return widget("stats", {
 		component: MockStatsWidget,
@@ -211,22 +140,17 @@ export function createStatsWidget() {
 // Test Page Definitions
 // ============================================================================
 
-/**
- * Create test dashboard page
- */
 export function createDashboardPage() {
 	return page("dashboard", {
 		component: MockDashboardPage,
+		path: "/",
 	});
 }
 
 // ============================================================================
-// Pre-built Test Modules
+// Pre-built Test Registries
 // ============================================================================
 
-/**
- * Create a test field registry with common fields
- */
 export function createTestFieldRegistry() {
 	return {
 		text: createTextField(),
@@ -238,9 +162,6 @@ export function createTestFieldRegistry() {
 	};
 }
 
-/**
- * Create a test view registry with common views
- */
 export function createTestViewRegistry() {
 	return {
 		table: createTableView(),
@@ -248,16 +169,12 @@ export function createTestViewRegistry() {
 	};
 }
 
-/**
- * Create a complete test admin module state
- */
 export function createTestModuleState() {
 	return {
+		"~app": undefined as any,
 		fields: createTestFieldRegistry(),
-		listViews: {
+		views: {
 			table: createTableView(),
-		},
-		editViews: {
 			form: createFormView(),
 		},
 		widgets: {
@@ -266,12 +183,9 @@ export function createTestModuleState() {
 		pages: {
 			dashboard: createDashboardPage(),
 		},
-		collections: {},
-		globals: {},
-		dashboard: { layout: "grid" as const, widgets: [] },
-		sidebar: { sections: [] },
-		branding: {},
+		components: {},
+		blocks: {} as Record<string, never>,
+		translations: {},
 		locale: { default: "en", supported: ["en"] },
-		defaultViews: {},
 	};
 }

@@ -2,24 +2,21 @@
  * Video Block Renderer
  */
 
-import type { BlockComponentProps } from "@questpie/admin/client";
-import type { App } from "@/questpie/server/app";
+import type { BlockProps } from "../.generated/client";
 
 function getEmbedUrl(url: string): string | null {
-	// YouTube
 	const ytMatch = url.match(
 		/(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]+)/,
 	);
 	if (ytMatch) return `https://www.youtube.com/embed/${ytMatch[1]}`;
 
-	// Vimeo
 	const vimeoMatch = url.match(/vimeo\.com\/(\d+)/);
 	if (vimeoMatch) return `https://player.vimeo.com/video/${vimeoMatch[1]}`;
 
 	return null;
 }
 
-export function VideoRenderer({ values }: BlockComponentProps<App, "video">) {
+export function VideoRenderer({ values }: BlockProps<"video">) {
 	const embedUrl = values.url ? getEmbedUrl(values.url) : null;
 
 	return (

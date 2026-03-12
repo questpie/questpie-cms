@@ -1,0 +1,30 @@
+---
+title: Branding
+description: Customize the admin panel name, logo, and appearance.
+---
+
+# Branding
+
+Configure the admin panel's branding with `branding.ts`.
+
+## Basic Setup
+
+```ts title="branding.ts"
+import { branding } from "#questpie";
+
+export default branding({
+  name: { en: "Barbershop Control", sk: "Riadenie barbershopu" },
+});
+```
+
+## Options
+
+| Option | Type | Description |
+|---|---|---|
+| `name` | `string \| i18n` | App name shown in sidebar header |
+| `logo` | `string` | Logo URL or path |
+
+## Related Pages
+
+- [Sidebar](/docs/workspace/views/sidebar) — Navigation
+- [Setup](/docs/workspace/setup) — Admin setup

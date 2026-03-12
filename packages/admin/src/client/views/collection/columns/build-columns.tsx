@@ -7,7 +7,7 @@
 
 import type { ColumnDef } from "@tanstack/react-table";
 import type * as React from "react";
-import type { FieldDefinition } from "../../../builder/field/field";
+import type { FieldInstance } from "../../../builder/field/field";
 import {
 	type ColumnConfig,
 	normalizeColumnConfig,
@@ -124,9 +124,9 @@ export function buildColumns<TData extends Record<string, unknown>>(
 
 	const isLocalizedField = (
 		field: string,
-		definition?: FieldDefinition,
+		definition?: FieldInstance,
 	): boolean => {
-		const fieldOptions = definition?.["~options"] ?? {};
+		const fieldOptions = (definition?.["~options"] ?? {}) as Record<string, any>;
 		return fieldOptions.localized !== undefined
 			? !!fieldOptions.localized
 			: (meta?.localizedFields?.includes(field) ?? false);
@@ -184,7 +184,7 @@ export function buildColumns<TData extends Record<string, unknown>>(
 			if (titleType === "virtual" && titleFieldName && fields[titleFieldName]) {
 				const virtualFieldDef = fields[titleFieldName];
 				const virtualFieldOptions = virtualFieldDef?.["~options"] ?? {};
-				titleLabel = virtualFieldOptions.label;
+				titleLabel = virtualFieldOptions.label as I18nText;
 				titleFallback = formatHeader(titleFieldName);
 			}
 
@@ -203,7 +203,7 @@ export function buildColumns<TData extends Record<string, unknown>>(
 		}
 
 		const fieldType = fieldDef?.name ?? "text";
-		const fieldOptions = fieldDef?.["~options"] ?? {};
+		const fieldOptions = (fieldDef?.["~options"] ?? {}) as Record<string, any>;
 		const isLocalized = isLocalizedField(fieldName, fieldDef);
 
 		// ========== SIMPLIFIED CELL RESOLUTION ==========
@@ -211,7 +211,7 @@ export function buildColumns<TData extends Record<string, unknown>>(
 		let CellComponent: React.ComponentType<{
 			value: unknown;
 			row?: unknown;
-			fieldDef?: FieldDefinition;
+			fieldDef?: FieldInstance;
 		}>;
 
 		if (normalized.cell) {
@@ -219,14 +219,14 @@ export function buildColumns<TData extends Record<string, unknown>>(
 			CellComponent = normalized.cell as React.ComponentType<{
 				value: unknown;
 				row?: unknown;
-				fieldDef?: FieldDefinition;
+				fieldDef?: FieldInstance;
 			}>;
-		} else if (fieldDef?.cell?.component) {
+		} else if (fieldDef?.cell) {
 			// 2. Cell from field registry (most common)
-			CellComponent = fieldDef.cell.component as React.ComponentType<{
+			CellComponent = fieldDef.cell as React.ComponentType<{
 				value: unknown;
 				row?: unknown;
-				fieldDef?: FieldDefinition;
+				fieldDef?: FieldInstance;
 			}>;
 		} else {
 			// 3. Ultra-simple DefaultCell fallback

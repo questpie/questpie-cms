@@ -1,5 +1,10 @@
 import { index } from "drizzle-orm/pg-core";
-import { adminCoreBuilder as q } from "../../../core-builder.js";
+import { collection } from "questpie";
+import type {
+	AdminCollectionConfig,
+	FormViewConfig,
+	ListViewConfig,
+} from "../../../augmentation.js";
 
 /**
  * Audit Log Collection
@@ -12,45 +17,40 @@ import { adminCoreBuilder as q } from "../../../core-builder.js";
  * - update: disallowed
  * - read: allowed (for admin UI display)
  */
-export const auditLogCollection = q
-	.collection("admin_audit_log")
-	.fields((f) => ({
+export const auditLogCollection = collection("admin_audit_log")
+	.fields(({ f }) => ({
 		/** Action performed: create, update, delete, transition, custom */
-		action: f.text({ required: true, maxLength: 50, label: "Action" }),
+		action: f.text(50).required().label("Action"),
 
 		/** Resource type: collection, global, auth, system, custom */
-		resourceType: f.text({
-			required: true,
-			maxLength: 50,
-			label: "Resource Type",
-		}),
+		resourceType: f.text(50).required().label("Resource Type"),
 
 		/** Resource slug (collection/global name) */
-		resource: f.text({ required: true, maxLength: 255, label: "Resource" }),
+		resource: f.text(255).required().label("Resource"),
 
 		/** ID of the specific record (null for globals) */
-		resourceId: f.text({ maxLength: 255, label: "Resource ID" }),
+		resourceId: f.text(255).label("Resource ID"),
 
 		/** Denormalized display label for the affected record */
-		resourceLabel: f.text({ maxLength: 500, label: "Resource Label" }),
+		resourceLabel: f.text(500).label("Resource Label"),
 
 		/** User who performed the action */
-		userId: f.text({ maxLength: 255, label: "User ID" }),
+		userId: f.text(255).label("User ID"),
 
 		/** Denormalized user display name */
-		userName: f.text({ maxLength: 255, label: "User Name" }),
+		userName: f.text(255).label("User Name"),
 
 		/** Locale context of the operation */
-		locale: f.text({ maxLength: 10, label: "Locale" }),
+		locale: f.text(10).label("Locale"),
 
 		/** Field-level diffs: { field: { from, to } } or null */
-		changes: f.json({ label: "Changes" }),
+		changes: f.json().label("Changes"),
 
 		/** Extra context metadata */
-		metadata: f.json({ label: "Metadata" }),
+		metadata: f.json().label("Metadata"),
 
 		/** Human-readable title: "User Action ResourceType 'ResourceLabel'" */
-		title: f.text({ maxLength: 1000, label: "Title" }),
+		title: f.text(1000).label("Title"),
 	}))
 	.options({
 		timestamps: true,
@@ -74,56 +74,54 @@ export const auditLogCollection = q
 		delete: false,
 		read: true,
 	})
-	.admin(({ c }) => ({
+	.set("admin", {
 		label: { key: "audit.collection.label" },
-		icon: c.icon("ph:clock-counter-clockwise"),
+		icon: { type: "icon", props: { name: "ph:clock-counter-clockwise" } },
 		description: { key: "audit.collection.description" },
 		group: "administration",
 		audit: false,
-	}))
+	} satisfies AdminCollectionConfig)
 	.title(({ f }) => f.title)
-	.list(({ v, f }) =>
-		v.table({
-			columns: [f.title, f.userName, "createdAt"],
-			searchable: [f.title, f.userName],
-			defaultSort: { field: "createdAt", direction: "desc" },
-			actions: {
-				header: { primary: [], secondary: [] },
-				row: [],
-				bulk: [],
+	.set("adminList", {
+		view: "table",
+		columns: ["title", "userName", "createdAt"],
+		searchable: ["title", "userName"],
+		defaultSort: { field: "createdAt", direction: "desc" },
+		actions: {
+			header: { primary: [], secondary: [] },
+			row: [],
+			bulk: [],
+		},
+	} satisfies ListViewConfig)
+	.set("adminForm", {
+		view: "form",
+		fields: [
+			{
+				type: "section",
+				label: { key: "audit.sections.event" },
+				layout: "grid",
+				columns: 2,
+				fields: [
+					{ field: "title" },
+					{ field: "action" },
+					{ field: "resourceType" },
+					{ field: "resource" },
+					{ field: "resourceId" },
+					{ field: "resourceLabel" },
+					{ field: "locale" },
+				],
 			},
-		}),
-	)
-	.form(({ v, f }) =>
-		v.form({
-			fields: [
-				{
-					type: "section",
-					label: { key: "audit.sections.event" },
-					layout: "grid",
-					columns: 2,
-					fields: [
-						{ field: f.title },
-						{ field: f.action },
-						{ field: f.resourceType },
-						{ field: f.resource },
-						{ field: f.resourceId },
-						{ field: f.resourceLabel },
-						{ field: f.locale },
-					],
-				},
-				{
-					type: "section",
-					label: { key: "audit.sections.user" },
-					layout: "grid",
-					columns: 2,
-					fields: [{ field: f.userId }, { field: f.userName }],
-				},
-				{
-					type: "section",
-					label: { key: "audit.sections.changes" },
-					fields: [{ field: f.changes }, { field: f.metadata }],
-				},
-			],
-		}),
-	);
+			{
+				type: "section",
+				label: { key: "audit.sections.user" },
+				layout: "grid",
+				columns: 2,
+				fields: [{ field: "userId" }, { field: "userName" }],
+			},
+			{
+				type: "section",
+				label: { key: "audit.sections.changes" },
+				fields: [{ field: "changes" }, { field: "metadata" }],
+			},
+		],
+	} satisfies FormViewConfig);

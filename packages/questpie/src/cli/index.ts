@@ -1,6 +1,8 @@
 #!/usr/bin/env bun
 
 import { Command } from "commander";
+import { addCommand } from "./commands/add.js";
+import { devCommand, generateCommand } from "./commands/codegen.js";
 import { generateMigrationCommand } from "./commands/generate.js";
 import { pushCommand } from "./commands/push.js";
 import { runMigrationCommand } from "./commands/run.js";
@@ -10,6 +12,52 @@ import { generateSeedCommand } from "./commands/seed-generate.js";
 const program = new Command();
 
 program.name("questpie").description("QUESTPIE CLI").version("1.0.0");
+
+// Codegen: generate .generated/index.ts from file convention
+program
+	.command("generate")
+	.description("Generate .generated/index.ts from file convention")
+	.option(
+		"-c, --config <path>",
+		"Path to questpie.config.ts",
+		"questpie.config.ts",
+	)
+	.option("--dry-run", "Show generated code without writing files")
+	.option("--verbose", "Show verbose output")
+	.action(async (options) => {
+		try {
+			await generateCommand({
+				configPath: options.config,
+				dryRun: options.dryRun,
+				verbose: options.verbose,
+			});
+		} catch (error) {
+			console.error("Failed to generate:", error);
+			process.exit(1);
+		}
+	});
+
+// Dev mode: watch and regenerate on file add/remove
+program
+	.command("dev")
+	.description("Watch mode — regenerate .generated/index.ts on file changes")
+	.option(
+		"-c, --config <path>",
+		"Path to questpie.config.ts",
+		"questpie.config.ts",
+	)
+	.option("--verbose", "Show verbose output")
+	.action(async (options) => {
+		try {
+			await devCommand({
+				configPath: options.config,
+				verbose: options.verbose,
+			});
+		} catch (error) {
+			console.error("Dev mode error:", error);
+			process.exit(1);
+		}
+	});
 
 // Generate migration command
 program
@@ -312,6 +360,36 @@ program
 			});
 		} catch (error) {
 			console.error("❌ Failed to reset seed tracking:", error);
+			process.exit(1);
+		}
+	});
+
+// Scaffold entity files
+program
+	.command("add [type] [name]")
+	.description(
+		"Scaffold new entity files (run with --list to see available types)",
+	)
+	.option(
+		"-c, --config <path>",
+		"Path to questpie.config.ts",
+		"questpie.config.ts",
+	)
+	.option("--dry-run", "Show what would be created without writing files")
+	.option("--list", "List all available scaffold types")
+	.option("--target <target>", "Restrict scaffold to a specific codegen target")
+	.action(async (type, name, options) => {
+		try {
+			await addCommand({
+				type,
+				name,
+				configPath: options.config,
+				dryRun: options.dryRun,
+				list: options.list,
+				target: options.target,
+			});
+		} catch (error) {
+			console.error("❌ Failed to add entity:", error);
 			process.exit(1);
 		}
 	});

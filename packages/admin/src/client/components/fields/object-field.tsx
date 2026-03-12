@@ -8,8 +8,8 @@
 import { Icon } from "@iconify/react";
 import * as React from "react";
 
-import type { FieldDefinition } from "../../builder/field/field";
-import { createFieldRegistryProxy } from "../../builder/proxies";
+import type { FieldInstance } from "../../builder/field/field";
+import { configureField } from "../../builder/field/field";
 import { useResolveText } from "../../i18n/hooks";
 import { cn } from "../../lib/utils";
 import { selectAdmin, useAdminStore } from "../../runtime";
@@ -37,7 +37,7 @@ interface ObjectFieldProps
 
 interface NestedFieldRendererProps {
 	fieldName: string;
-	fieldDef: FieldDefinition;
+	fieldDef: FieldInstance;
 	parentName: string;
 	disabled?: boolean;
 }
@@ -50,11 +50,11 @@ function NestedFieldRenderer({
 }: NestedFieldRendererProps) {
 	const resolveText = useResolveText();
 	const fullName = `${parentName}.${fieldName}`;
-	const options = fieldDef["~options"] || {};
+	const options = (fieldDef["~options"] || {}) as Record<string, any>;
 
 	// Get the component from the field definition (registry-based)
 	// Cast to ComponentType since MaybeLazyComponent includes lazy variants
-	const Component = fieldDef.field?.component as
+	const Component = fieldDef.component as
 		| React.ComponentType<any>
 		| undefined;
 
@@ -128,7 +128,10 @@ export function ObjectField({
 		// If it's a callback, evaluate it with field registry
 		if (typeof fieldsProp === "function") {
 			const registeredFields = admin.getFields();
-			const r = createFieldRegistryProxy(registeredFields as any);
+			const r: Record<string, (opts?: Record<string, unknown>) => FieldInstance> = {};
+			for (const key in registeredFields) {
+				r[key] = (opts) => configureField(registeredFields[key], opts ?? {});
+			}
 			return fieldsProp({ r });
 		}
 
@@ -147,14 +150,14 @@ export function ObjectField({
 		return (
 			<div
 				className={cn(
-					"rounded-lg border border-border/60 bg-card/30 backdrop-blur-sm",
+					"rounded-lg border border-border bg-card ",
 					className,
 				)}
 			>
 				<button
 					type="button"
 					onClick={() => setIsCollapsed(!isCollapsed)}
-					className="flex w-full items-center justify-between p-3 text-left hover:bg-muted/50"
+					className="flex w-full items-center justify-between p-3 text-left hover:bg-muted"
 					disabled={disabled}
 				>
 					<div className="flex items-center gap-2">
@@ -249,7 +252,7 @@ function NestedFieldsLayout({
 		<NestedFieldRenderer
 			key={fieldName}
 			fieldName={fieldName}
-			fieldDef={fieldDef as FieldDefinition}
+			fieldDef={fieldDef as FieldInstance}
 			parentName={name}
 			disabled={disabled}
 		/>

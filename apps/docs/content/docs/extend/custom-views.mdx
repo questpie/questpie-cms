@@ -1,0 +1,63 @@
+---
+title: Custom Views
+description: Create custom list and form view types.
+---
+
+# Custom Views
+
+Create custom view types beyond the built-in table and form views — kanban boards, calendars, galleries, or domain-specific layouts.
+
+## View Registration
+
+Custom views are registered through modules and the admin client:
+
+```ts
+// Server: declare the view type
+const myModule = module({
+  name: "custom-views",
+  views: {
+    kanban: kanbanViewDefinition,
+    calendar: calendarViewDefinition,
+  },
+});
+```
+
+## Using Custom Views
+
+Once registered, use them in your collection's `.list()` or `.form()`:
+
+```ts
+.list(({ v }) => v.kanban({
+  columns: "status",
+  cardTitle: "title",
+}))
+```
+
+## Client Rendering
+
+Register the React component that renders the view:
+
+```tsx
+function KanbanView({ data, columns, onDrop }) {
+  return (
+    <div className="flex gap-4">
+      {columns.map((col) => (
+        <div key={col.id} className="flex-1">
+          <h3>{col.label}</h3>
+          {data
+            .filter((item) => item.status === col.id)
+            .map((item) => (
+              <div key={item.id} className="card">{item.title}</div>
+            ))}
+        </div>
+      ))}
+    </div>
+  );
+}
+```
+
+## Related Pages
+
+- [List Views](/docs/workspace/views/list-views) — Built-in list views
+- [Form Views](/docs/workspace/views/form-views) — Built-in form views
+- [Registries](/docs/extend/registries) — Registry deep dive

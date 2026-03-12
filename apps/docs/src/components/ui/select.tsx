@@ -1,5 +1,5 @@
 import { Select as SelectPrimitive } from "@base-ui/react/select";
-import { CaretDownIcon, CaretUpIcon, CheckIcon } from "@phosphor-icons/react";
+import { Icon } from "@iconify/react";
 import type * as React from "react";
 import { cn } from "@/lib/utils";
 
@@ -46,7 +46,7 @@ function SelectTrigger({
 			{children}
 			<SelectPrimitive.Icon
 				render={
-					<CaretDownIcon className="text-muted-foreground size-3.5 pointer-events-none" />
+					<Icon icon="ph:caret-down" className="text-muted-foreground size-3.5 pointer-events-none" />
 				}
 			/>
 		</SelectPrimitive.Trigger>
@@ -129,7 +129,7 @@ function SelectItem({
 					<span className="pointer-events-none absolute right-2 flex items-center justify-center" />
 				}
 			>
-				<CheckIcon className="pointer-events-none" />
+				<Icon icon="ph:check" className="pointer-events-none" />
 			</SelectPrimitive.ItemIndicator>
 		</SelectPrimitive.Item>
 	);
@@ -164,7 +164,7 @@ function SelectScrollUpButton({
 			)}
 			{...props}
 		>
-			<CaretUpIcon />
+			<Icon icon="ph:caret-up" />
 		</SelectPrimitive.ScrollUpArrow>
 	);
 }
@@ -182,7 +182,7 @@ function SelectScrollDownButton({
 			)}
 			{...props}
 		>
-			<CaretDownIcon />
+			<Icon icon="ph:caret-down" />
 		</SelectPrimitive.ScrollDownArrow>
 	);
 }

@@ -4,6 +4,7 @@
  * Remote procedure call route handlers.
  */
 
+import { extractAppServices } from "../../config/app-context.js";
 import type { Questpie } from "../../config/questpie.js";
 import type { QuestpieConfig } from "../../config/types.js";
 import { ApiError } from "../../errors/index.js";
@@ -12,8 +13,8 @@ import type {
 	FunctionAccess,
 	FunctionAccessRule,
 	FunctionDefinition,
+	FunctionsTree,
 } from "../../functions/types.js";
-import type { RpcRouterTree } from "../../rpc/types.js";
 import type { AdapterConfig, AdapterContext } from "../types.js";
 import { resolveContext } from "../utils/context.js";
 import { parseRpcBody } from "../utils/request.js";
@@ -44,13 +45,7 @@ const extractAccessRule = (
 
 const evaluateFunctionAccess = async (
 	definition: FunctionDefinition,
-	ctx: {
-		app: unknown;
-		session?: unknown | null;
-		db: unknown;
-		locale?: string;
-		request: Request;
-	},
+	ctx: Record<string, unknown>,
 ): Promise<boolean> => {
 	const rule = extractAccessRule(definition.access);
 
@@ -70,7 +65,7 @@ const evaluateFunctionAccess = async (
 };
 
 const resolveRpcProcedure = (
-	router: RpcRouterTree,
+	router: FunctionsTree,
 	path: string[],
 ): FunctionDefinition | undefined => {
 	let current: unknown = router;
@@ -107,10 +102,13 @@ const executeFunction = async <TConfig extends QuestpieConfig = QuestpieConfig>(
 
 	const resolved = await resolveContext(app, request, config, context);
 
-	const hasAccess = await evaluateFunctionAccess(definition, {
-		app: app,
-		session: resolved.appContext.session,
+	const services = extractAppServices(app, {
 		db: resolved.appContext.db ?? app.db,
+		session: resolved.appContext.session,
+	});
+
+	const hasAccess = await evaluateFunctionAccess(definition, {
+		...services,
 		locale: resolved.appContext.locale,
 		request,
 	});
@@ -130,12 +128,10 @@ const executeFunction = async <TConfig extends QuestpieConfig = QuestpieConfig>(
 	if (definition.mode === "raw") {
 		try {
 			return await definition.handler({
+				...services,
 				request,
-				app: app as any,
-				session: resolved.appContext.session,
 				locale: resolved.appContext.locale,
-				db: resolved.appContext.db ?? app.db,
-			});
+			} as any);
 		} catch (error) {
 			return errorResponse(error, request, resolved.appContext.locale);
 		}
@@ -180,11 +176,13 @@ export const createRpcRoutes = <
 			params: { path: string[] },
 			context?: AdapterContext,
 		): Promise<Response> => {
-			if (!config.rpc) {
+			// Functions are always on app.functions (RFC §7.5)
+			const rpcTree = (app as any).functions;
+			if (!rpcTree || Object.keys(rpcTree).length === 0) {
 				return errorResponse(ApiError.notFound("RPC router"), request);
 			}
 
-			const definition = resolveRpcProcedure(config.rpc, params.path);
+			const definition = resolveRpcProcedure(rpcTree, params.path);
 			if (!definition) {
 				return errorResponse(
 					ApiError.notFound("RPC procedure", params.path.join(".")),

@@ -28,11 +28,13 @@ export {
  *
  * Usage:
  * ```ts
- * questpie({
+ * config({
  *   search: createElasticSearchAdapter({
  *     node: "http://localhost:9200",
  *     index: "questpie_search",
  *   }),
+ *   db: { url: process.env.DATABASE_URL! },
+ *   app: { url: process.env.APP_URL! },
  * })
  * ```
  *
@@ -50,11 +52,13 @@ export {
  *
  * Usage:
  * ```ts
- * questpie({
+ * config({
  *   search: createMeilisearchAdapter({
  *     host: "http://localhost:7700",
  *     apiKey: "masterKey",
  *   }),
+ *   db: { url: process.env.DATABASE_URL! },
+ *   app: { url: process.env.APP_URL! },
  * })
  * ```
  */

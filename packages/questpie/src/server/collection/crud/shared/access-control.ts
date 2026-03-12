@@ -11,10 +11,11 @@ import type {
 	CollectionAccess,
 } from "#questpie/server/collection/builder/types.js";
 import type { CRUDContext } from "#questpie/server/collection/crud/types.js";
+import { extractAppServices } from "#questpie/server/config/app-context.js";
 import type { Questpie } from "#questpie/server/config/questpie.js";
 import type {
+	FieldAccess,
 	FieldAccessContext,
-	FieldDefinitionAccess,
 } from "#questpie/server/fields/types.js";
 import { getDb, normalizeContext } from "./context.js";
 
@@ -70,14 +71,16 @@ export async function executeAccessRule(
 
 	// Function rule
 	if (typeof rule === "function") {
-		const result = await rule({
-			app: context.app as any,
+		const services = extractAppServices(context.app, {
+			db: context.db,
 			session: context.session,
+		});
+		const result = await rule({
+			...services,
 			data: context.row,
 			input: context.input,
-			db: context.db,
 			locale: context.locale,
-		});
+		} as AccessContext);
 
 		return result;
 	}
@@ -136,7 +139,7 @@ export async function matchesAccessConditions(
 export interface FilterFieldsForReadOptions {
 	app?: Questpie<any>;
 	db: any;
-	fieldAccess?: Record<string, FieldDefinitionAccess>;
+	fieldAccess?: Record<string, FieldAccess>;
 }
 
 function createFieldAccessContext(params: {
@@ -144,26 +147,27 @@ function createFieldAccessContext(params: {
 	operation: "create" | "read" | "update" | "delete";
 	doc?: Record<string, unknown>;
 }): FieldAccessContext {
+	// CRUDContext uses an open index signature ([key: string]: unknown),
+	// so req/request may be present at runtime when set by the HTTP adapter.
+	const ctx = params.context as Record<string, unknown>;
 	const request =
-		(params.context as any).req ??
-		(params.context as any).request ??
+		(ctx.req as Request | undefined) ??
+		(ctx.request as Request | undefined) ??
 		(typeof Request !== "undefined"
 			? new Request("http://questpie.local")
 			: ({} as Request));
 
 	return {
 		req: request,
-		user: (params.context.session as any)?.user,
+		// session is typed as { user: User; session: Session } | null | undefined
+		user: params.context.session?.user,
 		doc: params.doc,
 		operation: params.operation,
 	};
 }
 
 async function evaluateFieldAccess(
-	rule:
-		| FieldDefinitionAccess["read"]
-		| FieldDefinitionAccess["create"]
-		| FieldDefinitionAccess["update"],
+	rule: FieldAccess["read"] | FieldAccess["create"] | FieldAccess["update"],
 	context: FieldAccessContext,
 ): Promise<boolean> {
 	if (rule === undefined || rule === true) return true;
@@ -246,7 +250,7 @@ export async function getRestrictedReadFields(
  */
 export async function checkFieldWriteAccess(
 	fieldName: string,
-	fieldAccess: Record<string, FieldDefinitionAccess> | undefined,
+	fieldAccess: Record<string, FieldAccess> | undefined,
 	context: CRUDContext,
 	options: { app?: Questpie<any>; db: any },
 	operation: "create" | "update",
@@ -289,7 +293,7 @@ export async function checkFieldWriteAccess(
  */
 export async function validateFieldsWriteAccess(
 	data: Record<string, any>,
-	fieldAccess: Record<string, FieldDefinitionAccess> | undefined,
+	fieldAccess: Record<string, FieldAccess> | undefined,
 	context: CRUDContext,
 	options: { app?: Questpie<any>; db: any },
 	collectionName: string,

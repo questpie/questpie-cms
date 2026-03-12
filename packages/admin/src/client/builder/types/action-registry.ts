@@ -5,7 +5,7 @@
  * for type-safe action configuration in collection builders.
  */
 
-import type { ComponentReference } from "#questpie/admin/server";
+import type { ComponentReference } from "#questpie/admin/server/augmentation.js";
 import { buildPrefillUrl } from "../../hooks/use-prefill-params";
 import type {
 	ActionContext,

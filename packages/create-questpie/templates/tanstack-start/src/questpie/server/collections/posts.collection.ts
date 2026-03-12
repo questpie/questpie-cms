@@ -1,59 +1,45 @@
-import { qb } from "@/questpie/server/builder.js";
+import { collection } from "#questpie/factories";
 
-export const posts = qb
-	.collection("posts")
-	.fields((f) => ({
-		title: f.text({
-			label: "Title",
-			required: true,
-			maxLength: 255,
-		}),
-		slug: f.text({
-			label: "Slug",
-			required: true,
-			maxLength: 255,
-			input: "optional",
-			meta: {
-				admin: {
-					compute: {
-						handler: ({
-							data,
-							prev,
-						}: {
-							data: Record<string, unknown>;
-							prev: { data: Record<string, unknown> };
-						}) => {
-							const title = data.title;
-							const currentSlug = data.slug;
-							const prevTitle = prev.data.title;
+export const posts = collection("posts")
+	.fields(({ f }) => ({
+		title: f.text(255).label("Title").required(),
+		slug: f
+			.text(255)
+			.label("Slug")
+			.required()
+			.inputOptional()
+			.admin({
+				compute: {
+					handler: ({
+						data,
+						prev,
+					}: {
+						data: Record<string, unknown>;
+						prev: { data: Record<string, unknown> };
+					}) => {
+						const title = data.title;
+						const currentSlug = data.slug;
+						const prevTitle = prev.data.title;
 
-							if (currentSlug && prevTitle === title) return undefined;
+						if (currentSlug && prevTitle === title) return undefined;
 
-							if (title && typeof title === "string") {
-								return title
-									.toLowerCase()
-									.replace(/[^a-z0-9]+/g, "-")
-									.replace(/^-|-$/g, "");
-							}
-							return undefined;
-						},
-						deps: ({ data }: { data: Record<string, unknown> }) => [
-							data.title,
-							data.slug,
-						],
-						debounce: 300,
+						if (title && typeof title === "string") {
+							return title
+								.toLowerCase()
+								.replace(/[^a-z0-9]+/g, "-")
+								.replace(/^-|-$/g, "");
+						}
+						return undefined;
 					},
+					deps: ({ data }: { data: Record<string, unknown> }) => [
+						data.title,
+						data.slug,
+					],
+					debounce: 300,
 				},
-			},
-		}),
-		content: f.richText({
-			label: "Content",
-		}),
-		published: f.boolean({
-			label: "Published",
-			default: false,
-			required: true,
-		}),
+			}),
+		content: f.richText().label("Content"),
+		published: f.boolean().label("Published").default(false).required(),
 	}))
 	.title(({ f }) => f.title)
 	.admin(({ c }) => ({

@@ -1,6 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
-import { defaultFields } from "../../src/server/fields/builtin/defaults.js";
-import { questpie } from "../../src/server/index.js";
+import { collection } from "../../src/server/index.js";
 import { buildMockApp } from "../utils/mocks/mock-app-builder";
 import { createTestContext } from "../utils/test-context";
 import { runTestDbMigrations } from "../utils/test-db";
@@ -19,15 +18,12 @@ import { runTestDbMigrations } from "../utils/test-db";
 // In real usage, the type would be properly defined but tests focus on runtime behavior
 type PageContent = any;
 
-const q = questpie({ name: "nested-i18n-test" }).fields(defaultFields);
-
-const pages = q
-	.collection("pages")
-	.fields((f) => ({
-		slug: f.text({ required: true, maxLength: 100 }),
+const pages = collection("pages")
+	.fields(({ f }) => ({
+		slug: f.text(100).required(),
 		// A localized field is needed to create the i18n table with _localized column
 		// for storing nested $i18n marker values
-		title: f.text({ localized: true }),
+		title: f.text().localized(),
 		// JSON field - $i18n markers in the content will be auto-detected and handled
 		// by the localization system. The _localized column in i18n table stores the extracted values.
 		content: f.json(),
@@ -36,15 +32,11 @@ const pages = q
 		timestamps: true,
 	});
 
-const testModule = q.collections({
-	pages,
-});
-
 describe("nested localized JSONB", () => {
-	let setup: Awaited<ReturnType<typeof buildMockApp<typeof testModule>>>;
+	let setup: Awaited<ReturnType<typeof buildMockApp>>;
 
 	beforeEach(async () => {
-		setup = await buildMockApp(testModule);
+		setup = await buildMockApp({ collections: { pages } });
 		await runTestDbMigrations(setup.app);
 	});
 

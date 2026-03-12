@@ -1,0 +1,220 @@
+---
+title: TanStack Barbershop
+description: End-to-end tour of the barbershop booking app — collections, functions, jobs, admin, and frontend.
+---
+
+# TanStack Barbershop
+
+The barbershop example is a complete booking app built with TanStack Start and QuestPie. It demonstrates every major feature of the framework.
+
+**Source:** `examples/tanstack-barbershop/`
+
+## Project Structure
+
+```text
+examples/tanstack-barbershop/
+├── questpie.config.ts                        # CLI config (re-exports)
+├── src/
+│   ├── questpie/
+│   │   ├── server/
+│   │   │   ├── questpie.config.ts            # Runtime config
+│   │   │   ├── modules.ts                    # adminModule + auditModule
+│   │   │   ├── auth.ts                       # Better Auth config
+│   │   │   ├── locale.ts                     # en + sk locales
+│   │   │   ├── admin-locale.ts               # Admin UI locales
+│   │   │   ├── sidebar.ts                    # 6 sidebar sections
+│   │   │   ├── dashboard.ts                  # Stats, charts, timeline
+│   │   │   ├── branding.ts                   # "Barbershop Control"
+│   │   │   ├── collections/
+│   │   │   │   ├── barbers.ts                # Complex: working hours, social links, M2M
+│   │   │   │   ├── services.ts               # Localized, relations
+│   │   │   │   ├── appointments.ts           # Hooks, virtual fields, visibility
+│   │   │   │   ├── barber-services.ts        # Junction table
+│   │   │   │   ├── reviews.ts                # Conditional fields
+│   │   │   │   ├── blog-posts.ts             # Service injection in hooks
+│   │   │   │   └── pages.ts                  # Blocks, preview
+│   │   │   ├── globals/
+│   │   │   │   └── site-settings.ts          # Nested config, versioning
+│   │   │   ├── functions/
+│   │   │   │   ├── create-booking.ts          # Business logic
+│   │   │   │   ├── get-available-time-slots.ts
+│   │   │   │   ├── get-active-barbers.ts
+│   │   │   │   └── get-revenue-stats.ts
+│   │   │   ├── jobs/
+│   │   │   │   ├── send-appointment-confirmation.ts
+│   │   │   │   ├── send-appointment-cancellation.ts
+│   │   │   │   └── notify-blog-subscribers.ts
+│   │   │   ├── services/
+│   │   │   │   └── blog.ts                    # Singleton service
+│   │   │   ├── blocks/                        # Content blocks
+│   │   │   ├── emails/                        # Email templates
+│   │   │   └── .generated/                    # Codegen output
+│   │   └── admin/
+│   │       ├── admin.ts                       # Re-exports generated admin config
+│   │       ├── hooks.ts                       # Typed React hooks
+│   │       ├── .generated/                    # Codegen output
+│   │       │   └── client.ts                  # Admin client config
+│   │       └── blocks/                        # Block renderers
+│   ├── lib/
+│   │   ├── client.ts                          # Client SDK setup
+│   │   └── server-helpers.ts                  # Server context helpers
+│   └── routes/
+│       ├── api/$.ts                           # API catch-all
+│       └── _app/
+│           ├── index.tsx                      # Homepage (page blocks)
+│           └── booking.tsx                    # Multi-step booking wizard
+```
+
+## Key Patterns
+
+### Runtime Config
+
+```ts title="questpie.config.ts"
+import { adminPlugin } from "@questpie/admin/server";
+import { pgBossAdapter, runtimeConfig, SmtpAdapter } from "questpie";
+
+export default runtimeConfig({
+  plugins: [adminPlugin()],
+  app: { url: process.env.APP_URL || "http://localhost:3000" },
+  db: { url: process.env.DATABASE_URL || "postgres://localhost/barbershop" },
+  storage: { basePath: "/api" },
+  secret: process.env.BETTER_AUTH_SECRET || "demo-secret",
+  queue: { adapter: pgBossAdapter({ connectionString: DATABASE_URL }) },
+});
+```
+
+### Collection with Hooks
+
+```ts title="collections/appointments.ts"
+export const appointments = collection("appointments")
+  .fields(({ f }) => ({
+    customer: f.relation("user").required(),
+    barber: f.relation("barbers").required(),
+    service: f.relation("services").required(),
+    scheduledAt: f.datetime().required(),
+    status: f.select([
+        { value: "pending", label: { en: "Pending" } },
+        { value: "confirmed", label: { en: "Confirmed" } },
+        { value: "completed", label: { en: "Completed" } },
+        { value: "cancelled", label: { en: "Cancelled" } },
+      ]).required().default("pending"),
+    cancellationReason: f.textarea(),
+    displayTitle: f.text().virtual(sql`(SELECT name FROM "user" WHERE id = appointments.customer)
+      || ' - ' || TO_CHAR(appointments."scheduledAt", 'YYYY-MM-DD HH24:MI')`),
+  }))
+  .form(({ v, f }) =>
+    v.form({
+      fields: [{
+        type: "section",
+        fields: [
+          f.cancelledAt,
+          {
+            field: f.cancellationReason,
+            hidden: ({ data }) => data.status !== "cancelled",
+          },
+        ],
+      }],
+    }),
+  )
+  .hooks({
+    afterChange: async ({ data, operation, queue }) => {
+      if (operation === "create") {
+        await queue.sendAppointmentConfirmation.publish({
+          appointmentId: data.id,
+          customerId: data.customer,
+        });
+      }
+    },
+  });
+```
+
+### Service Injection
+
+```ts title="services/blog.ts"
+import { service } from "questpie";
+
+export default service({
+  lifecycle: "singleton",
+  create: () => ({
+    computeReadingTime(content: string): number { /* ... */ },
+    generateSlug(title: string): string { /* ... */ },
+    extractExcerpt(content: string): string { /* ... */ },
+  }),
+});
+```
+
+Used in hooks via `services` — no imports:
+
+```ts
+.hooks({
+  beforeChange: async ({ data, services }) => {
+    data.slug = services.blog.generateSlug(data.title);
+    data.readingTime = services.blog.computeReadingTime(data.content);
+  },
+})
+```
+
+### Client Setup
+
+```ts title="lib/client.ts"
+import { createClient } from "questpie/client";
+import type { AppConfig } from "@/questpie/server/.generated";
+
+export const client = createClient<AppConfig>({
+  baseURL: typeof window !== "undefined"
+    ? window.location.origin
+    : process.env.APP_URL,
+  basePath: "/api",
+});
+```
+
+### Frontend Booking
+
+```tsx title="routes/_app/booking.tsx"
+import { client } from "@/lib/client";
+import { useMutation, useQuery } from "@tanstack/react-query";
+
+function BookingWizard() {
+  const { data: barbers } = useQuery({
+    queryKey: ["barbers"],
+    queryFn: () => client.rpc.getActiveBarbers({}),
+  });
+
+  const booking = useMutation({
+    mutationFn: (data) => client.rpc.createBooking(data),
+    onSuccess: (result) => {
+      // Navigate to confirmation
+    },
+  });
+
+  // Multi-step wizard UI...
+}
+```
+
+## What This Example Demonstrates
+
+| Feature | Where |
+|---|---|
+| Complex fields (objects, arrays, select) | `collections/barbers.ts` |
+| Many-to-many relations | `barbers ↔ barberServices ↔ services` |
+| Virtual SQL fields | `appointments.ts` → `displayTitle` |
+| Lifecycle hooks | `appointments.ts` → `afterChange` |
+| Service injection | `blog.ts` → used in `blog-posts.ts` hooks |
+| Background jobs | `jobs/send-appointment-confirmation.ts` |
+| Email templates | `emails/appointment-confirmation.ts` |
+| Server functions (RPC) | `functions/create-booking.ts` |
+| Admin dashboard | `dashboard.ts` — stats, charts, timeline |
+| Admin sidebar | `sidebar.ts` — 6 sections, mixed items |
+| Content blocks | `blocks/hero.ts`, `pages.ts` with `f.blocks()` |
+| Conditional visibility | `appointments.ts` form → `hidden` |
+| Computed form fields | `barbers.ts` form → slug from name |
+| Multi-language (i18n) | Labels, content, admin UI |
+| Access control | `site-settings.ts` → admin-only update |
+| Live preview | `barbers.ts`, `pages.ts` → preview URL |
+
+## Related Pages
+
+- [First App](/docs/start-here/first-app) — Minimal getting started
+- [Collections](/docs/backend/data-modeling/collections) — Collection API
+- [Functions](/docs/backend/business-logic/functions) — Server functions
+- [Dashboard](/docs/workspace/views/dashboard) — Dashboard widgets

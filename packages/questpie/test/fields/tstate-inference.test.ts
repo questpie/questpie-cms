@@ -11,43 +11,34 @@ import type {
 	CollectionInsert,
 	CollectionSelect,
 } from "#questpie/server/collection/builder/collection.js";
-import { questpie } from "#questpie/server/config/builder.js";
-import { defaultFields } from "#questpie/server/fields/builtin/defaults.js";
-
-const q = questpie({ name: "test-module" }).fields(defaultFields);
+import { collection } from "#questpie/server/collection/builder/index.js";
 
 describe("TState Field Type Inference", () => {
 	test("basic field types are inferred correctly", () => {
 		// Test all field type combinations
-		const posts = q.collection("posts").fields((f) => ({
+		const posts = collection("posts").fields(({ f }) => ({
 			// Standard field - required
-			title: f.text({ required: true, maxLength: 255 }),
+			title: f.text(255).required(),
 
 			// Standard field - optional with default
-			status: f.select({
-				options: [{ value: "draft", label: "Draft" }],
-				default: "draft",
-			}),
+			status: f.select([{ value: "draft", label: "Draft" }]).default("draft"),
 
 			// Localized field
-			content: f.text({ localized: true }),
+			content: f.text().localized(),
 
 			// Virtual field (computed)
-			excerpt: f.text({ virtual: true }),
+			excerpt: f.text().virtual(),
 
 			// Virtual field with SQL
-			commentCount: f.number({
-				virtual: sql<number>`(SELECT COUNT(*) FROM comments)`,
-			}),
+			commentCount: f
+				.number()
+				.virtual(sql<number>`(SELECT COUNT(*) FROM comments)`),
 
 			// Write-only field (output: false)
-			password: f.text({ output: false }),
+			password: f.text().outputFalse(),
 
 			// System field (input: false)
-			createdAt: f.datetime({
-				autoNow: true,
-				input: false,
-			}),
+			createdAt: f.datetime().autoNow().inputFalse(),
 		}));
 
 		// Get the field definitions from the collection state
@@ -61,57 +52,51 @@ describe("TState Field Type Inference", () => {
 	});
 
 	test("input types are correctly inferred", () => {
-		const posts = q.collection("posts").fields((f) => ({
+		const posts = collection("posts").fields(({ f }) => ({
 			// required: true → input: string
-			title: f.text({ required: true }),
+			title: f.text().required(),
 
 			// default value → input: string | undefined
-			slug: f.text({ default: "untitled" }),
+			slug: f.text().default("untitled"),
 
 			// no required, no default → input: string | null | undefined
-			optional: f.text({}),
+			optional: f.text(),
 
 			// input: false → input: never
-			readonly: f.text({ input: false }),
+			readonly: f.text().inputFalse(),
 
 			// input: "optional" → input: string | undefined
-			maybe: f.text({ input: "optional" }),
+			maybe: f.text().inputOptional(),
 
 			// virtual: true → input: never
-			computed: f.text({ virtual: true }),
+			computed: f.text().virtual(),
 
 			// virtual: true + input: true → input: string | undefined
-			computedWithInput: f.text({ virtual: true, input: true }),
+			computedWithInput: f.text().virtual().inputTrue(),
 		}));
 
 		const fieldDefs = posts.state.fieldDefinitions;
 		expect(fieldDefs).toBeDefined();
 
-		// Check each field's state
+		// Check each field's runtime state
 		if (fieldDefs) {
-			// title: required → input should be string (not null/undefined)
-			// Note: 'required' is in config, not state.required
-			expect((fieldDefs.title as any).state?.config?.required ?? true).toBe(
-				true,
-			);
-
-			// content: localized → location should be "i18n"
-			// Note: content not in this test, but we check the pattern
+			// title: required → notNull should be true
+			expect(fieldDefs.title._state.notNull).toBe(true);
 		}
 	});
 
 	test("output types are correctly inferred", () => {
-		const posts = q.collection("posts").fields((f) => ({
+		const posts = collection("posts").fields(({ f }) => ({
 			// default → output: string
-			title: f.text({}),
+			title: f.text(),
 
 			// output: false → output: never
-			password: f.text({ output: false }),
+			password: f.text().outputFalse(),
 
 			// access.read function → output: string | undefined
-			secret: f.text({
-				access: { read: (ctx: any) => (ctx.user as any)?.role === "admin" },
-			}),
+			secret: f
+				.text()
+				.access({ read: (ctx: any) => (ctx.user as any)?.role === "admin" }),
 		}));
 
 		const fieldDefs = posts.state.fieldDefinitions;
@@ -119,38 +104,36 @@ describe("TState Field Type Inference", () => {
 	});
 
 	test("virtual fields have correct location", () => {
-		const posts = q.collection("posts").fields((f) => ({
+		const posts = collection("posts").fields(({ f }) => ({
 			// Standard field
-			title: f.text({}),
+			title: f.text(),
 
 			// Localized field
-			content: f.text({ localized: true }),
+			content: f.text().localized(),
 
 			// Virtual field (hooks-based)
-			excerpt: f.text({ virtual: true }),
+			excerpt: f.text().virtual(),
 
 			// Virtual field (SQL-based)
-			count: f.number({
-				virtual: sql<number>`(SELECT COUNT(*))`,
-			}),
+			count: f.number().virtual(sql<number>`(SELECT COUNT(*))`),
 		}));
 
 		const fieldDefs = posts.state.fieldDefinitions;
 		expect(fieldDefs).toBeDefined();
 
 		if (fieldDefs) {
-			// Check locations - use any cast to avoid type literal narrowing issues
-			expect((fieldDefs.title.state as any).location).toBe("main");
-			expect((fieldDefs.content.state as any).location).toBe("i18n");
-			expect((fieldDefs.excerpt.state as any).location).toBe("virtual");
-			expect((fieldDefs.count.state as any).location).toBe("virtual");
+			// Check locations via getLocation()
+			expect(fieldDefs.title.getLocation()).toBe("main");
+			expect(fieldDefs.content.getLocation()).toBe("i18n");
+			expect(fieldDefs.excerpt.getLocation()).toBe("virtual");
+			expect(fieldDefs.count.getLocation()).toBe("virtual");
 		}
 	});
 
 	test("columns are null for virtual fields", () => {
-		const posts = q.collection("posts").fields((f) => ({
-			title: f.text({}),
-			excerpt: f.text({ virtual: true }),
+		const posts = collection("posts").fields(({ f }) => ({
+			title: f.text(),
+			excerpt: f.text().virtual(),
 		}));
 
 		const fieldDefs = posts.state.fieldDefinitions;
@@ -170,10 +153,10 @@ describe("TState Field Type Inference", () => {
 
 describe("Collection Type Inference", () => {
 	test("CollectionSelect type works with field definitions", () => {
-		const posts = q.collection("posts").fields((f) => ({
-			title: f.text({ required: true }),
-			content: f.text({ localized: true }),
-			excerpt: f.text({ virtual: true }),
+		const posts = collection("posts").fields(({ f }) => ({
+			title: f.text().required(),
+			content: f.text().localized(),
+			excerpt: f.text().virtual(),
 		}));
 
 		// Test that we can use the types

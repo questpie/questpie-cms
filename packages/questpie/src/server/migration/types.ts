@@ -48,13 +48,12 @@ export type MigrationContext = {
 /**
  * Migration configuration in app config (runtime)
  *
- * Migrations are passed via .build({ migrations: [...] })
- * The directory option is deprecated - use CLI config instead.
+ * Migrations are passed via config({ migrations: [...] }).
  *
  * @example
  * ```ts
- * const app = questpie({ name: 'my-app' })
- *   .build({ ..., migrations }) // Import from ./src/migrations
+ * // questpie.config.ts
+ * export default config({ db: { url }, app: { url }, migrations })
  * ```
  */
 export type MigrationsConfig = {

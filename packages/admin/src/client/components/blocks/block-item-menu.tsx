@@ -309,7 +309,7 @@ export function BlockItemDropdownMenu({
 // Helpers
 // ============================================================================
 
-import type { BlockSchema } from "#questpie/admin/server";
+import type { BlockSchema } from "#questpie/admin/server/block/index.js";
 
 function getBlockLabel(blockDef: BlockSchema): string {
 	const label = blockDef.admin?.label;

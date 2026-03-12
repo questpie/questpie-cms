@@ -1,8 +1,11 @@
 import type { Treaty } from "@elysiajs/eden";
 import { treaty } from "@elysiajs/eden";
 import type Elysia from "elysia";
-import type { Questpie } from "questpie";
-import { createClient, type QuestpieClient } from "questpie/client";
+import {
+	createClient,
+	type QuestpieApp,
+	type QuestpieClient,
+} from "questpie/client";
 
 /**
  * Elysia client configuration
@@ -55,7 +58,7 @@ export type ElysiaClientConfig = {
  */
 export function createClientFromEden<
 	TApp extends Elysia<any, any, any, any, any, any, any> = any,
-	TQP extends Questpie<any> = any,
+	TQP extends QuestpieApp = any,
 >(config: ElysiaClientConfig): QuestpieClient<TQP> & Treaty.Create<TApp> {
 	// Determine baseURL with protocol for app client
 	const baseURL = config.server.startsWith("http")

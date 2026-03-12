@@ -648,20 +648,23 @@ export type AdapterCapabilities = {
  * @example
  * ```ts
  * // Basic Postgres adapter (FTS + trigram)
- * questpie({
+ * config({
  *   search: createPostgresSearchAdapter(),
+ *   db: { url }, app: { url },
  * })
  *
  * // Postgres with embeddings
- * questpie({
+ * config({
  *   search: createPgVectorSearchAdapter({
  *     embeddingProvider: createOpenAIEmbeddingProvider({ apiKey }),
  *   }),
+ *   db: { url }, app: { url },
  * })
  *
  * // External search service
- * questpie({
+ * config({
  *   search: createElasticSearchAdapter({ node: "http://localhost:9200" }),
+ *   db: { url }, app: { url },
  * })
  * ```
  */

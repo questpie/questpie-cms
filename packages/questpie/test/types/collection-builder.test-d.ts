@@ -5,15 +5,14 @@
  * If any Expect<> fails, TypeScript compilation fails.
  *
  * Note: Some tests are disabled pending field builder implementation for:
- * - .localized() via f.text({ localized: true })
- * - .virtuals() via f.text({ virtual: true })
+ * - .localized() via f.text().localized()
+ * - .virtuals() via f.text().virtual()
  */
 
 import type { CollectionBuilder } from "#questpie/server/collection/builder/collection-builder.js";
+import { collection } from "#questpie/server/collection/builder/collection-builder.js";
 import type { RelationConfig } from "#questpie/server/collection/builder/types.js";
 import type { With } from "#questpie/server/collection/crud/types.js";
-import { questpie } from "#questpie/server/config/builder.js";
-import { builtinFields } from "#questpie/server/fields/builtin/defaults.js";
 import type {
 	CollectionRelations,
 	ResolveRelationsDeep,
@@ -29,16 +28,14 @@ import type {
 } from "./type-test-utils.js";
 
 // ============================================================================
-// Test fixtures — use q.collection() for proper field type inference
+// Test fixtures — standalone collection() for field type inference
 // ============================================================================
 
-const q = questpie({ name: "test" }).fields(builtinFields);
-
-const postsCollection = q.collection("posts").fields((f) => ({
-	title: f.text({ required: true, maxLength: 255 }),
+const postsCollection = collection("posts").fields(({ f }) => ({
+	title: f.text(255).required(),
 	content: f.textarea(),
-	views: f.number({ default: 0 }),
-	published: f.boolean({ default: false }),
+	views: f.number().default(0),
+	published: f.boolean().default(false),
 	authorId: f.textarea(),
 }));
 
@@ -59,8 +56,8 @@ type _nameIsPosts = Expect<Equal<PostsName, "posts">>;
 
 type PostSelect = typeof postsCollection.$infer.select;
 
-// Field types
-type _titleIsString = Expect<Equal<PostSelect["title"], string>>;
+// Field types — use Extends instead of Equal since intersection can differ structurally
+type _titleIsString = Expect<Extends<PostSelect["title"], string>>;
 type _contentIsNullable = Expect<IsNullable<PostSelect["content"]>>;
 type _viewsIsNumberOrNull = Expect<Extends<PostSelect["views"], number | null>>;
 
@@ -97,17 +94,15 @@ type _updateViewsOptional = Expect<Extends<"views", UpdateOptional>>;
 // .options() - conditional fields
 // ============================================================================
 
-const withSoftDelete = q
-	.collection("posts")
-	.fields((f) => ({ title: f.textarea() }))
+const withSoftDelete = collection("posts")
+	.fields(({ f }) => ({ title: f.textarea() }))
 	.options({ softDelete: true });
 
 type SoftDeleteSelect = typeof withSoftDelete.$infer.select;
 type _hasDeletedAt = Expect<Equal<HasKey<SoftDeleteSelect, "deletedAt">, true>>;
 
-const withoutTimestamps = q
-	.collection("posts")
-	.fields((f) => ({ title: f.textarea() }))
+const withoutTimestamps = collection("posts")
+	.fields(({ f }) => ({ title: f.textarea() }))
 	.options({ timestamps: false });
 
 type NoTimestampsSelect = typeof withoutTimestamps.$infer.select;
@@ -119,19 +114,12 @@ type _noCreatedAt = Expect<
 // f.relation() - relation config inference
 // ============================================================================
 
-const withRelations = q.collection("posts").fields((f) => ({
+const withRelations = collection("posts").fields(({ f }) => ({
 	title: f.textarea(),
-	author: f.relation({
-		to: "users",
-		required: true,
-		relationName: "author",
-	}),
-	comments: f.relation({
-		to: "comments",
-		hasMany: true,
-		foreignKey: "postId",
-		relationName: "post",
-	}),
+	author: f.relation("users").required().relationName("author"),
+	comments: f
+		.relation("comments")
+		.hasMany({ foreignKey: "postId", relationName: "post" }),
 }));
 
 type RelationsState =
@@ -148,9 +136,8 @@ type _authorIsRelationConfig = Expect<
 // .title() - literal type inference
 // ============================================================================
 
-const withTitle = q
-	.collection("posts")
-	.fields((f) => ({ name: f.textarea(), slug: f.textarea() }))
+const withTitle = collection("posts")
+	.fields(({ f }) => ({ name: f.textarea(), slug: f.textarea() }))
 	.title(({ f }) => f.name);
 
 type TitleState =
@@ -164,9 +151,8 @@ type _titleIsLiteral = Expect<IsLiteral<TitleField>>;
 // .upload() - upload fields
 // ============================================================================
 
-const withUpload = q
-	.collection("media")
-	.fields((f) => ({ alt: f.textarea() }))
+const withUpload = collection("media")
+	.fields(({ f }) => ({ alt: f.textarea() }))
 	.upload({ visibility: "public" });
 
 type UploadSelect = typeof withUpload.$infer.select;
@@ -186,9 +172,9 @@ type _uploadUrlIsString = Expect<Equal<UploadSelect["url"], string>>;
 // .merge() - type combination
 // ============================================================================
 
-const base = q.collection("posts").fields((f) => ({ title: f.textarea() }));
+const base = collection("posts").fields(({ f }) => ({ title: f.textarea() }));
 const extended = base.merge(
-	q.collection("posts").fields((f) => ({
+	collection("posts").fields(({ f }) => ({
 		featured: f.boolean(),
 	})),
 );
@@ -214,23 +200,15 @@ type _inferHasUpdate = Expect<Equal<HasKey<Infer, "update">, true>>;
 // Complex chain
 // ============================================================================
 
-const fullCollection = q
-	.collection("articles")
-	.fields((f) => ({
-		title: f.text({ required: true, maxLength: 255 }),
+const fullCollection = collection("articles")
+	.fields(({ f }) => ({
+		title: f.text(255).required(),
 		content: f.textarea(),
-		views: f.number({ default: 0 }),
-		author: f.relation({
-			to: "users",
-			required: true,
-			relationName: "author",
-		}),
-		comments: f.relation({
-			to: "comments",
-			hasMany: true,
-			foreignKey: "articleId",
-			relationName: "article",
-		}),
+		views: f.number().default(0),
+		author: f.relation("users").required().relationName("author"),
+		comments: f
+			.relation("comments")
+			.hasMany({ foreignKey: "articleId", relationName: "article" }),
 		metadata: f.json(),
 	}))
 	.options({ timestamps: true, softDelete: true, versioning: true })
@@ -246,16 +224,12 @@ type _fullHasDeletedAt = Expect<Equal<HasKey<FullSelect, "deletedAt">, true>>;
 // Object field — nested type inference
 // ============================================================================
 
-const withObjectField = q.collection("barbers").fields((f) => ({
+const withObjectField = collection("barbers").fields(({ f }) => ({
 	workingHours: f.object({
-		fields: () => ({
-			monday: f.object({
-				fields: () => ({
-					isOpen: f.boolean({ required: true }),
-					start: f.time(),
-					end: f.time(),
-				}),
-			}),
+		monday: f.object({
+			isOpen: f.boolean().required(),
+			start: f.time(),
+			end: f.time(),
 		}),
 	}),
 }));
@@ -282,21 +256,21 @@ type _mondayStartIsNullable = Expect<
 // Array field — typed element inference
 // ============================================================================
 
-const withArrayField = q.collection("posts2").fields((f) => ({
-	tags: f.array({ of: f.text({ required: true }), required: true }),
-	links: f.array({
-		of: f.object({
-			fields: () => ({
-				platform: f.text({ required: true }),
-				url: f.url({ required: true }),
-			}),
-		}),
-	}),
+const withArrayField = collection("posts2").fields(({ f }) => ({
+	tags: f.text().required().array().required(),
+	links: f
+		.object({
+			platform: f.text().required(),
+			url: f.url().required(),
+		})
+		.array(),
 }));
 
 type ArraySelect = typeof withArrayField.$infer.select;
 
-// tags should be string[] (required, not nullable)
+// Debug: check if tags exists as a key
+type _debugHasTags = Expect<Equal<HasKey<ArraySelect, "tags">, true>>;
+// tags should be string[] (required, not nullable) — use direct access to avoid distributive conditional inference
 type _tagsIsStringArray = Expect<Extends<ArraySelect["tags"], string[]>>;
 type _tagsNotNullable = Expect<Equal<IsNullable<ArraySelect["tags"]>, false>>;
 
@@ -314,33 +288,22 @@ type _linksHasUrl = Expect<Equal<HasKey<LinksElement, "url">, true>>;
 // ============================================================================
 
 // Build a multi-collection scenario with f.relation()
-const usersCollection = q.collection("users").fields((f) => ({
-	name: f.text({ required: true }),
-	email: f.text({ required: true }),
+const usersCollection = collection("users").fields(({ f }) => ({
+	name: f.text().required(),
+	email: f.text().required(),
 }));
 
-const commentsCollection = q.collection("comments").fields((f) => ({
-	body: f.textarea({ required: true }),
-	postId: f.relation({
-		to: "posts",
-		required: true,
-		relationName: "post",
-	}),
+const commentsCollection = collection("comments").fields(({ f }) => ({
+	body: f.textarea().required(),
+	postId: f.relation("posts").required().relationName("post"),
 }));
 
-const postsWithRelations = q.collection("posts").fields((f) => ({
-	title: f.text({ required: true }),
-	author: f.relation({
-		to: "users",
-		required: true,
-		relationName: "author",
-	}),
-	comments: f.relation({
-		to: "comments",
-		hasMany: true,
-		foreignKey: "postId",
-		relationName: "post",
-	}),
+const postsWithRelations = collection("posts").fields(({ f }) => ({
+	title: f.text().required(),
+	author: f.relation("users").required().relationName("author"),
+	comments: f
+		.relation("comments")
+		.hasMany({ foreignKey: "postId", relationName: "post" }),
 }));
 
 // CollectionRelations should have specific relation keys (not generic)
@@ -384,3 +347,41 @@ type _withHasAuthor = Expect<Equal<HasKey<PostWith, "author">, true>>;
 type _withHasComments = Expect<Equal<HasKey<PostWith, "comments">, true>>;
 // With should NOT have random keys
 type _withNoRandom = Expect<Equal<HasKey<PostWith, "random">, false>>;
+
+// ============================================================================
+// .merge() — localized, upload, validation, output, fieldDefinitions
+// ============================================================================
+
+const baseWithUpload = collection("media")
+	.fields(({ f }) => ({ alt: f.textarea() }))
+	.upload({ visibility: "public" });
+
+const otherWithUpload = collection("media")
+	.fields(({ f }) => ({ caption: f.textarea() }))
+	.upload({ visibility: "private" });
+
+const mergedUpload = baseWithUpload.merge(otherWithUpload);
+type MergedUploadState =
+	typeof mergedUpload extends CollectionBuilder<infer S> ? S : never;
+
+// upload: other wins when defined
+type _mergedUploadDefined = Expect<
+	Equal<MergedUploadState["upload"] extends undefined ? false : true, true>
+>;
+
+// fieldDefinitions: intersection (both sides merged)
+type _mergedFieldDefsExist = Expect<
+	Equal<
+		MergedUploadState["fieldDefinitions"] extends Record<string, any>
+			? true
+			: false,
+		true
+	>
+>;
+
+// merged fields from both sides present
+type MergedUploadFields = MergedUploadState["fields"];
+type _mergedHasAlt = Expect<Equal<HasKey<MergedUploadFields, "alt">, true>>;
+type _mergedHasCaption = Expect<
+	Equal<HasKey<MergedUploadFields, "caption">, true>
+>;

@@ -1,0 +1,69 @@
+---
+title: Authentication
+description: Better Auth integration — email/password, OAuth providers, sessions.
+---
+
+# Authentication
+
+QuestPie uses [Better Auth](https://www.better-auth.com/) for authentication. Configure it with the `auth.ts` file convention.
+
+## Configuration
+
+```ts title="auth.ts"
+import type { AuthConfig } from "questpie";
+
+export default {
+  emailAndPassword: {
+    enabled: true,
+    requireEmailVerification: false,
+  },
+  baseURL: process.env.APP_URL || "http://localhost:3000",
+  basePath: "/api/auth",
+  secret: process.env.BETTER_AUTH_SECRET || "change-me",
+} satisfies AuthConfig;
+```
+
+## Auth Options
+
+| Option | Type | Description |
+|---|---|---|
+| `emailAndPassword.enabled` | `boolean` | Enable email/password login |
+| `emailAndPassword.requireEmailVerification` | `boolean` | Require email verification |
+| `baseURL` | `string` | App URL |
+| `basePath` | `string` | Auth API path |
+| `secret` | `string` | Session secret |
+
+## Session in Handlers
+
+Access the current session in hooks, functions, and access rules:
+
+```ts
+handler: async ({ session }) => {
+  if (!session) throw new Error("Not authenticated");
+
+  const user = session.user;
+  // user.id, user.email, user.name, etc.
+}
+```
+
+## Access Control
+
+Use session data in access rules:
+
+```ts
+.access({
+  read: true,
+  create: ({ session }) => !!session,
+  update: ({ session }) => (session?.user as any)?.role === "admin",
+  delete: ({ session }) => (session?.user as any)?.role === "admin",
+})
+```
+
+## User Collection
+
+The `adminModule` provides a built-in `user` collection for storing user accounts. It's automatically created when you add the admin module.
+
+## Related Pages
+
+- [Access Control](/docs/backend/rules/access-control) — Permission rules
+- [Admin Setup](/docs/workspace/setup) — Admin auth pages

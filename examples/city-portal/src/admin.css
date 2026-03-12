@@ -1,0 +1,5 @@
+@import "tailwindcss";
+@import "@questpie/admin/client/styles/index.css";
+
+/* Scan admin package for Tailwind classes */
+@source "../node_modules/@questpie/admin/";

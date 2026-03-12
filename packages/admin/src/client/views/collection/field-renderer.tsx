@@ -8,7 +8,7 @@
 import * as React from "react";
 import { useFormContext, useWatch } from "react-hook-form";
 import type { ComponentRegistry } from "../../builder";
-import type { FieldDefinition } from "../../builder/field/field";
+import type { FieldInstance } from "../../builder/field/field";
 import { useAdminConfig } from "../../hooks/use-admin-config";
 import { useFieldHooks } from "../../hooks/use-field-hooks";
 import { useResolveText } from "../../i18n/hooks";
@@ -31,7 +31,7 @@ import {
 
 interface FieldRendererProps {
 	fieldName: string;
-	fieldDef?: FieldDefinition;
+	fieldDef?: FieldInstance;
 	collection: string;
 	/** Entity type used for contextual behavior */
 	mode?: "collection" | "global";

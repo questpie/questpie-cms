@@ -9,10 +9,10 @@
  */
 
 import * as React from "react";
-import type { BlockSchema } from "#questpie/admin/server";
+import type { BlockSchema } from "#questpie/admin/server/block/index.js";
 import type { BlockContent, BlockNode } from "../../../blocks/types";
 import { isBlockContent } from "../../../blocks/types";
-import type { FieldDefinition } from "../../../builder/field/field";
+import type { FieldInstance } from "../../../builder/field/field";
 import { Badge } from "../../../components/ui/badge";
 import {
 	Tooltip,
@@ -65,7 +65,7 @@ export function ObjectCell({
 }: {
 	value: unknown;
 	row?: unknown;
-	fieldDef?: FieldDefinition;
+	fieldDef?: FieldInstance;
 }) {
 	const resolveText = useResolveText();
 	if (value === null || value === undefined) {
@@ -84,7 +84,10 @@ export function ObjectCell({
 	}
 
 	// Get nested field definitions for labels
-	const nestedFieldsOption = fieldDef?.["~options"]?.fields;
+	const nestedFieldsOption = fieldDef?.["~options"]?.fields as
+		| Record<string, any>
+		| ((...args: any[]) => any)
+		| undefined;
 	const nestedFields =
 		typeof nestedFieldsOption === "function" ? undefined : nestedFieldsOption;
 
@@ -130,7 +133,7 @@ export function ObjectCell({
 										<span className="size-1 rounded-full bg-foreground/60" />
 										{label}
 									</div>
-									<div className="ml-2.5 pl-2 border-l border-border/50 mt-0.5 space-y-0.5">
+									<div className="ml-2.5 pl-2 border-l border-border mt-0.5 space-y-0.5">
 										{nestedEntries.map(([k, v]) => (
 											<div
 												key={k}
@@ -185,7 +188,7 @@ export function ObjectCell({
 					})}
 				</div>
 				{entries.length > 12 && (
-					<div className="text-[11px] text-muted-foreground text-center py-1.5 border-t border-border/50">
+					<div className="text-[11px] text-muted-foreground text-center py-1.5 border-t border-border">
 						+{entries.length - 12} more
 					</div>
 				)}
@@ -207,7 +210,7 @@ export function ArrayCell({
 }: {
 	value: unknown;
 	row?: unknown;
-	fieldDef?: FieldDefinition;
+	fieldDef?: FieldInstance;
 }) {
 	const resolveText = useResolveText();
 	if (value === null || value === undefined) {
@@ -222,11 +225,14 @@ export function ArrayCell({
 		return <span className="text-muted-foreground">-</span>;
 	}
 
-	const fieldOptions = fieldDef?.["~options"] ?? {};
+	const fieldOptions = (fieldDef?.["~options"] ?? {}) as Record<string, any>;
 	const itemLabelFn = fieldOptions.itemLabel as
 		| ((item: unknown) => string)
 		| undefined;
-	const itemFieldsOption = fieldOptions.item;
+	const itemFieldsOption = fieldOptions.item as
+		| Record<string, any>
+		| ((...args: any[]) => any)
+		| undefined;
 	const itemFields =
 		typeof itemFieldsOption === "function" ? undefined : itemFieldsOption;
 
@@ -262,7 +268,7 @@ export function ArrayCell({
 			<TooltipContent
 				side="bottom"
 				align="start"
-				className="p-0 w-64 max-w-[90vw] bg-popover/95 backdrop-blur-xl border-border"
+				className="p-0 w-64 max-w-[90vw] bg-popover border-border"
 			>
 				<div className="max-h-[280px] overflow-y-auto p-2 space-y-0.5">
 					{value.slice(0, 10).map((item, idx) => {
@@ -297,7 +303,7 @@ export function ArrayCell({
 										{label}
 									</div>
 									{details.length > 0 && (
-										<div className="ml-2.5 pl-2 border-l border-border/50 mt-0.5 space-y-0.5">
+										<div className="ml-2.5 pl-2 border-l border-border mt-0.5 space-y-0.5">
 											{details.map(([k, v]) => {
 												const itemFieldDef = itemFields?.[k];
 												return (
@@ -332,7 +338,7 @@ export function ArrayCell({
 					})}
 				</div>
 				{value.length > 10 && (
-					<div className="text-[11px] text-muted-foreground text-center py-1.5 border-t border-border/50">
+					<div className="text-[11px] text-muted-foreground text-center py-1.5 border-t border-border">
 						+{value.length - 10} more
 					</div>
 				)}
@@ -476,9 +482,9 @@ export function BlocksCell({ value }: { value: unknown }) {
 			<TooltipContent
 				side="bottom"
 				align="start"
-				className="p-0 w-64 max-w-[90vw] bg-popover/95 backdrop-blur-xl border-border"
+				className="p-0 w-64 max-w-[90vw] bg-popover border-border"
 			>
-				<div className="flex items-center justify-between px-2 py-1.5 text-[11px] text-muted-foreground border-b border-border/50">
+				<div className="flex items-center justify-between px-2 py-1.5 text-[11px] text-muted-foreground border-b border-border">
 					<span>Blocks</span>
 					<Badge variant="secondary" className="h-4 px-1 text-[10px]">
 						{total}
@@ -498,7 +504,7 @@ export function BlocksCell({ value }: { value: unknown }) {
 					))}
 				</div>
 				{entries.length > 10 && (
-					<div className="text-[11px] text-muted-foreground text-center py-1.5 border-t border-border/50">
+					<div className="text-[11px] text-muted-foreground text-center py-1.5 border-t border-border">
 						+{entries.length - 10} more
 					</div>
 				)}

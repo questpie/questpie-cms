@@ -4,7 +4,7 @@
  * Displays shop location, contact info, and business hours.
  */
 
-import { Envelope, MapPin, Phone } from "@phosphor-icons/react";
+import { Icon } from "@iconify/react";
 import { createFileRoute } from "@tanstack/react-router";
 import {
 	getSiteSettings,
@@ -66,7 +66,7 @@ function ContactPage() {
 
 							<div className="flex gap-6 items-start">
 								<div className="size-12 bg-muted flex items-center justify-center border border-border shrink-0">
-									<MapPin weight="fill" className="size-6 text-highlight" />
+									<Icon icon="ph:map-pin-fill" className="size-6 text-highlight" />
 								</div>
 								<div>
 									<h3 className="font-bold text-lg mb-1">
@@ -84,7 +84,7 @@ function ContactPage() {
 
 							<div className="flex gap-6 items-start">
 								<div className="size-12 bg-muted flex items-center justify-center border border-border shrink-0">
-									<Phone weight="fill" className="size-6 text-highlight" />
+									<Icon icon="ph:phone-fill" className="size-6 text-highlight" />
 								</div>
 								<div>
 									<h3 className="font-bold text-lg mb-1">
@@ -100,7 +100,7 @@ function ContactPage() {
 
 							<div className="flex gap-6 items-start">
 								<div className="size-12 bg-muted flex items-center justify-center border border-border shrink-0">
-									<Envelope weight="fill" className="size-6 text-highlight" />
+									<Icon icon="ph:envelope-fill" className="size-6 text-highlight" />
 								</div>
 								<div>
 									<h3 className="font-bold text-lg mb-1">

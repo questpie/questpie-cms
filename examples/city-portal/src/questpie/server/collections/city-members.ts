@@ -5,33 +5,24 @@
  */
 
 import { uniqueIndex } from "drizzle-orm/pg-core";
-import { qb } from "@/questpie/server/builder";
+import { collection } from "#questpie/factories";
 
-export const cityMembers = qb
-	.collection("cityMembers")
-	.fields((f) => ({
-		user: f.relation({
-			label: "User",
-			to: "user",
-			required: true,
-		}),
-		city: f.relation({
-			label: "City",
-			to: "cities",
-			required: true,
-		}),
-		role: f.select({
-			label: "Role",
-			options: [
+export default collection("cityMembers")
+	.fields(({ f }) => ({
+		user: f.relation("user").label("User").required(),
+		city: f.relation("cities").label("City").required(),
+		role: f
+			.select([
 				{ value: "admin", label: "Admin" },
 				{ value: "editor", label: "Editor" },
 				{ value: "viewer", label: "Viewer" },
-			],
-			default: "editor",
-			required: true,
-			description:
+			])
+			.label("Role")
+			.default("editor")
+			.required()
+			.description(
 				"Admin: full access, Editor: can edit content, Viewer: read only",
-		}),
+			),
 	}))
 	.indexes(({ table }) => [
 		uniqueIndex("city_members_unique").on(table.user as any, table.city as any),

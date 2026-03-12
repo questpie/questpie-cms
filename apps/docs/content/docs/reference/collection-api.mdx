@@ -1,0 +1,73 @@
+---
+title: Collection API
+description: Collection builder methods reference.
+---
+
+# Collection API
+
+## `collection(name)`
+
+```ts
+import { collection } from "#questpie";
+
+collection(name: string)
+```
+
+### Builder Methods
+
+| Method | Signature | Description |
+|---|---|---|
+| `.fields()` | `(({ f }) => Record<string, Field>)` | Define data fields |
+| `.title()` | `(({ f }) => FieldRef)` | Record display title |
+| `.admin()` | `(({ c }) => AdminConfig)` | Admin UI metadata |
+| `.indexes()` | `(({ table }) => Index[])` | Database indexes |
+| `.list()` | `(({ v, f }) => ListView)` | List view config |
+| `.form()` | `(({ v, f }) => FormView)` | Form view config |
+| `.hooks()` | `(HooksConfig)` | Lifecycle hooks |
+| `.access()` | `(AccessConfig)` | Access control |
+| `.preview()` | `(PreviewConfig)` | Live preview |
+| `.options()` | `(OptionsConfig)` | Timestamps, versioning |
+| `.search()` | `(SearchConfig)` | Search indexing |
+| `.searchable()` | `(string[])` | Searchable fields |
+
+### `.admin()` Options
+
+```ts
+.admin(({ c }) => ({
+  label: string | Record<string, string>,
+  icon: c.icon("ph:icon-name"),
+  hidden?: boolean,
+}))
+```
+
+### `.preview()` Options
+
+```ts
+.preview({
+  enabled: boolean,
+  position?: "right" | "bottom",
+  defaultWidth?: number,
+  url: ({ record }) => string,
+})
+```
+
+### `.options()` Options
+
+```ts
+.options({
+  timestamps?: boolean,    // createdAt, updatedAt
+  versioning?: boolean,    // Content versioning
+  softDelete?: boolean,    // Soft delete
+})
+```
+
+### `.access()` Options
+
+```ts
+.access({
+  read?: boolean | ((ctx) => boolean),
+  create?: boolean | ((ctx) => boolean),
+  update?: boolean | ((ctx) => boolean),
+  delete?: boolean | ((ctx) => boolean),
+})
+```

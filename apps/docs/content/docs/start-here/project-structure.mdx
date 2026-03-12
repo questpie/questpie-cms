@@ -1,0 +1,200 @@
+---
+title: Project Structure
+description: File convention layout, discovery rules, and generated output.
+---
+
+# Project Structure
+
+QuestPie uses a **file convention** — your project structure determines what gets discovered and wired into the runtime. No manual registration required.
+
+## Standard Layout
+
+```text
+my-app/
+├── questpie.config.ts                    # CLI config (re-exports server config)
+├── src/
+│   ├── questpie/
+│   │   ├── server/
+│   │   │   ├── questpie.config.ts        # Runtime config (DB, plugins, adapters)
+│   │   │   ├── modules.ts                # Module dependencies
+│   │   │   ├── auth.ts                   # Authentication config
+│   │   │   ├── locale.ts                 # Content locale config
+│   │   │   │
+│   │   │   ├── collections/              # One file per collection
+│   │   │   │   ├── posts.ts
+│   │   │   │   ├── categories.ts
+│   │   │   │   └── comments.ts
+│   │   │   │
+│   │   │   ├── globals/                  # One file per global
+│   │   │   │   └── site-settings.ts
+│   │   │   │
+│   │   │   ├── functions/                # Server functions (RPC)
+│   │   │   │   ├── create-booking.ts
+│   │   │   │   └── get-stats.ts
+│   │   │   │
+│   │   │   ├── jobs/                     # Background tasks
+│   │   │   │   └── send-email.ts
+│   │   │   │
+│   │   │   ├── services/                 # Singleton services
+│   │   │   │   └── blog.ts
+│   │   │   │
+│   │   │   ├── routes/                   # Raw HTTP routes
+│   │   │   │   └── webhook.ts
+│   │   │   │
+│   │   │   ├── blocks/                   # Content blocks (admin plugin)
+│   │   │   │   ├── hero.ts
+│   │   │   │   └── gallery.ts
+│   │   │   │
+│   │   │   ├── emails/                   # Email templates
+│   │   │   │   └── appointment-confirmation.ts
+│   │   │   │
+│   │   │   ├── sidebar.ts                # Admin sidebar config
+│   │   │   ├── dashboard.ts              # Admin dashboard config
+│   │   │   ├── branding.ts               # Admin branding
+│   │   │   ├── admin-locale.ts           # Admin UI locale
+│   │   │   │
+│   │   │   └── .generated/               # Codegen output (never edit)
+│   │   │       ├── index.ts              # App instance + types
+│   │   │       └── module.ts             # Merged module
+│   │   │
+│   │   └── admin/                        # Admin client customizations
+│   │       ├── admin.ts                  # Re-exports generated admin config
+│   │       ├── hooks.ts                  # Typed React hooks
+│   │       ├── .generated/               # Codegen output (never edit)
+│   │       │   └── client.ts             # Admin client config
+│   │       └── blocks/                   # Block renderers (React)
+│   │           ├── hero.tsx
+│   │           └── gallery.tsx
+│   │
+│   ├── lib/
+│   │   └── client.ts                     # Client SDK setup
+│   │
+│   └── routes/                           # App routes (framework-specific)
+│       └── api/
+│           └── $.ts                      # API catch-all handler
+```
+
+## Discovery Rules
+
+Codegen discovers files based on **directory name** and **export pattern**:
+
+| Directory | Export | Key derivation | Example |
+|---|---|---|---|
+| `collections/` | Default or named | Filename → camelCase | `blog-posts.ts` → `blogPosts` |
+| `globals/` | Default or named | Filename → camelCase | `site-settings.ts` → `siteSettings` |
+| `functions/` | Default | Filename → camelCase | `create-booking.ts` → `createBooking` |
+| `jobs/` | Default | Filename → camelCase | `send-email.ts` → `sendEmail` |
+| `routes/` | Default | Filename → path | `webhook.ts` → `/webhook` |
+| `services/` | Default | Filename → camelCase | `blog.ts` → `blog` |
+| `blocks/` | Named exports | Export name | `export const hero` → `hero` |
+| `emails/` | Default | Filename → camelCase | `appointment-confirmation.ts` → `appointmentConfirmation` |
+
+### Single-file conventions
+
+Some configs are single files instead of directories:
+
+| File | Purpose |
+|---|---|
+| `questpie.config.ts` | Runtime config (DB, plugins, adapters) |
+| `modules.ts` | Module dependencies array |
+| `auth.ts` | Authentication config |
+| `locale.ts` | Content locale config |
+| `sidebar.ts` | Admin sidebar sections |
+| `dashboard.ts` | Admin dashboard widgets |
+| `branding.ts` | Admin branding (name, logo) |
+| `admin-locale.ts` | Admin UI locale |
+
+### Nested functions/routes
+
+Functions and routes support nested directories for namespacing:
+
+```text
+functions/
+├── booking/
+│   ├── create.ts          → rpc.booking.create
+│   └── cancel.ts          → rpc.booking.cancel
+├── get-stats.ts           → rpc.getStats
+```
+
+## The `.generated/` Directory
+
+Running `bunx questpie generate` creates `.generated/` with:
+
+### `index.ts` — App instance and types
+
+```ts
+// Auto-generated — do not edit
+import type { AppCollections, AppGlobals, AppFunctions, AppRoutes, AppJobs } from "./module";
+
+export type AppConfig = {
+  collections: AppCollections;
+  globals: AppGlobals;
+  functions: AppFunctions;
+  routes: AppRoutes;
+  // ... auth, locales
+};
+
+export { app, createContext } from "./app";
+export type { AppConfig, AppCollections, AppGlobals, AppFunctions, AppRoutes, AppJobs };
+```
+
+### Module augmentation
+
+The generated code augments `AppContext` so every handler gets typed DI:
+
+```ts
+declare module "questpie" {
+  interface AppContext {
+    db: Database;
+    email: MailerService<AppEmailTemplates>;
+    queue: QueueClient<AppJobs>;
+    collections: AppCollections;
+    globals: AppGlobals;
+    session: Session | null;
+    // ... custom services
+  }
+}
+```
+
+This is why `collections`, `queue`, `email` are available and typed in every handler — codegen generates the augmentation from your file structure.
+
+## The `#questpie` Import
+
+Collection and global files use `#questpie` as the import specifier:
+
+```ts
+import { collection } from "#questpie";
+```
+
+This is a TypeScript path alias that resolves to the generated app instance. It ensures your builders have access to the correct types for field autocompletion and relation targets.
+
+## By-Feature Layout
+
+For larger projects, you can organize by feature instead of by type:
+
+```text
+src/questpie/server/
+├── features/
+│   ├── blog/
+│   │   ├── collections/
+│   │   │   └── posts.ts
+│   │   ├── functions/
+│   │   │   └── publish.ts
+│   │   └── jobs/
+│   │       └── notify-subscribers.ts
+│   └── booking/
+│       ├── collections/
+│       │   └── appointments.ts
+│       └── functions/
+│           └── create-booking.ts
+├── questpie.config.ts
+└── modules.ts
+```
+
+Both layouts can coexist. Codegen scans all configured paths.
+
+## What's Next
+
+- [Collections](/docs/backend/data-modeling/collections) — Define your data models
+- [Fields](/docs/backend/data-modeling/fields) — Field types and options
+- [File Convention](/docs/backend/architecture/file-convention) — Deep dive into discovery mechanics

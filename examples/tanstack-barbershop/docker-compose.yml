@@ -17,5 +17,42 @@ services:
       timeout: 5s
       retries: 5
 
+  # Web server (TanStack Start SSR + QUESTPIE API)
+  # Uncomment to run with Docker instead of local dev
+  # web:
+  #   build:
+  #     context: .
+  #     target: web
+  #   container_name: barbershop-web
+  #   ports:
+  #     - "3000:3000"
+  #   environment:
+  #     DATABASE_URL: postgresql://barbershop:barbershop_dev_password@postgres:5432/barbershop
+  #     APP_URL: http://localhost:3000
+  #     PORT: "3000"
+  #     BETTER_AUTH_SECRET: change-me-in-production
+  #     MAIL_ADAPTER: console
+  #   depends_on:
+  #     postgres:
+  #       condition: service_healthy
+  #   restart: unless-stopped
+
+  # Background job worker
+  # Uncomment to run with Docker instead of local dev
+  # worker:
+  #   build:
+  #     context: .
+  #     target: worker
+  #   container_name: barbershop-worker
+  #   environment:
+  #     DATABASE_URL: postgresql://barbershop:barbershop_dev_password@postgres:5432/barbershop
+  #     APP_URL: http://web:3000
+  #     BETTER_AUTH_SECRET: change-me-in-production
+  #     MAIL_ADAPTER: console
+  #   depends_on:
+  #     postgres:
+  #       condition: service_healthy
+  #   restart: unless-stopped
+
 volumes:
   postgres_data:

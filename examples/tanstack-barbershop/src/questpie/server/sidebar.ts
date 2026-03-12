@@ -1,63 +1,73 @@
-import { qb } from "@/questpie/server/builder";
+/**
+ * Sidebar — project-level sidebar contribution.
+ * Merged with module contributions (admin adds "administration" section,
+ * audit adds audit log item to "administration").
+ */
+import { sidebar } from "#questpie/factories";
 
-export const sidebar = qb.sidebar(({ s, c }) =>
-	s.sidebar({
-		sections: [
-			s.section({
-				id: "overview",
-				title: { en: "Overview", sk: "Prehľad" },
-				items: [
-					{
-						type: "link",
-						label: { en: "Dashboard", sk: "Dashboard" },
-						href: "/admin",
-						icon: c.icon("ph:house"),
-					},
-					{ type: "global", global: "siteSettings" },
-				],
-			}),
-			s.section({
-				id: "operations",
-				title: { en: "Operations", sk: "Prevádzka" },
-				items: [
-					{ type: "collection", collection: "appointments" },
-					{ type: "collection", collection: "reviews" },
-				],
-			}),
-			s.section({
-				id: "content",
-				title: { en: "Content", sk: "Obsah" },
-				items: [
-					{ type: "collection", collection: "pages" },
-					{ type: "collection", collection: "services" },
-				],
-			}),
-			s.section({
-				id: "team",
-				title: { en: "Team", sk: "Tím" },
-				items: [{ type: "collection", collection: "barbers" }],
-			}),
-			s.section({
-				id: "external",
-				title: { en: "External", sk: "Externé" },
-				items: [
-					{
-						type: "link",
-						label: { en: "Open Website", sk: "Otvoriť web" },
-						href: "/",
-						external: true,
-						icon: c.icon("ph:arrow-square-out"),
-					},
-				],
-			}),
-			s.section({
-				id: "administration",
-				title: { en: "Administration", sk: "Administrácia" },
-				items: [
-					{ type: "collection", collection: "user" },
-					{ type: "collection", collection: "adminAuditLog" },
-				],
-			}),
-		],
-	}),
-);
+export default sidebar({
+	sections: [
+		{ id: "overview", title: { en: "Overview", sk: "Prehľad" } },
+		{ id: "operations", title: { en: "Operations", sk: "Prevádzka" } },
+		{ id: "content", title: { en: "Content", sk: "Obsah" } },
+		{ id: "team", title: { en: "Team", sk: "Tím" } },
+		{ id: "external", title: { en: "External", sk: "Externé" } },
+		// Override admin module's "administration" section title for this project
+		{
+			id: "administration",
+			title: { en: "Administration", sk: "Administrácia" },
+		},
+	],
+	items: [
+		// Overview
+		{
+			sectionId: "overview",
+			type: "link",
+			label: { en: "Dashboard", sk: "Dashboard" },
+			href: "/admin",
+			icon: { type: "icon", props: { name: "ph:house" } },
+		},
+		{
+			sectionId: "overview",
+			type: "global",
+			global: "siteSettings",
+		},
+		// Operations
+		{
+			sectionId: "operations",
+			type: "collection",
+			collection: "appointments",
+		},
+		{
+			sectionId: "operations",
+			type: "collection",
+			collection: "reviews",
+		},
+		// Content
+		{
+			sectionId: "content",
+			type: "collection",
+			collection: "pages",
+		},
+		{
+			sectionId: "content",
+			type: "collection",
+			collection: "services",
+		},
+		// Team
+		{
+			sectionId: "team",
+			type: "collection",
+			collection: "barbers",
+		},
+		// External
+		{
+			sectionId: "external",
+			type: "link",
+			label: { en: "Open Website", sk: "Otvoriť web" },
+			href: "/",
+			external: true,
+			icon: { type: "icon", props: { name: "ph:arrow-square-out" } },
+		},
+	],
+});

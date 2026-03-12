@@ -1,19 +1,13 @@
+import type { Collection } from "#questpie/server/collection/builder/collection.js";
+import type { CollectionBuilder } from "#questpie/server/collection/builder/collection-builder.js";
 import type {
 	CollectionAccess,
 	ExtractFieldsByLocation,
 	InferTableWithColumns,
 } from "#questpie/server/collection/builder/types.js";
-import type {
-	FieldDefinition,
-	FieldDefinitionState,
-} from "#questpie/server/fields/types.js";
+import type { Global } from "#questpie/server/global/builder/global.js";
+import type { GlobalBuilder } from "#questpie/server/global/builder/global-builder.js";
 import type { TranslationsConfig } from "#questpie/server/i18n/types.js";
-import type {
-	Collection,
-	CollectionBuilder,
-	Global,
-	GlobalBuilder,
-} from "#questpie/server/index.js";
 import type {
 	AnyCollectionOrBuilder,
 	AnyGlobal,
@@ -23,21 +17,55 @@ import type {
 	GetGlobal,
 } from "#questpie/shared/type-utils.js";
 
-// Local type definitions using new TState approach
-// These types maintain backward compatibility while using the new field definition system
+// Field extraction by location — dispatches via Field<TState> phantom type
 type NonLocalizedFields<
 	TFields extends Record<string, any>,
 	TLocalized extends ReadonlyArray<keyof TFields>,
-> = TFields extends Record<string, FieldDefinition<FieldDefinitionState>>
+> = TFields extends Record<string, { $types: any; toColumn: any }>
 	? ExtractFieldsByLocation<TFields, "main">
 	: Omit<TFields, TLocalized[number]>;
 
 type LocalizedFields<
 	TFields extends Record<string, any>,
 	TLocalized extends ReadonlyArray<keyof TFields>,
-> = TFields extends Record<string, FieldDefinition<FieldDefinitionState>>
+> = TFields extends Record<string, { $types: any; toColumn: any }>
 	? ExtractFieldsByLocation<TFields, "i18n">
 	: Pick<TFields, TLocalized[number]>;
+
+/**
+ * Resolve which fields property to use for schema inference.
+ * When fieldDefinitions has keys, use it — it carries Field<TState> types
+ * that NonLocalizedFields/LocalizedFields can dispatch on.
+ * Otherwise fall back to raw Drizzle columns in `fields`.
+ */
+type SchemaFields<
+	TState extends {
+		fields: Record<string, any>;
+		fieldDefinitions: Record<string, any>;
+	},
+> = [keyof TState["fieldDefinitions"]] extends [never]
+	? TState["fields"]
+	: TState["fieldDefinitions"];
+
+/**
+ * Check if a collection state has i18n fields.
+ * New builder pattern: check ExtractFieldsByLocation for "i18n" keys.
+ * Legacy pattern: check localized tuple.
+ */
+type HasI18nFields<
+	TState extends {
+		fieldDefinitions: Record<string, any>;
+		localized: readonly any[];
+	},
+> = [keyof TState["fieldDefinitions"]] extends [never]
+	? TState["localized"][number] extends string
+		? true
+		: false
+	: [
+				keyof ExtractFieldsByLocation<TState["fieldDefinitions"], "i18n">,
+			] extends [never]
+		? false
+		: true;
 
 // Re-export for convenience (many files import from here)
 export type {
@@ -54,6 +82,7 @@ import type { BetterAuthOptions } from "better-auth";
 import type { drizzle as drizzleBun } from "drizzle-orm/bun-sql";
 import type { drizzle as drizzlePgLite } from "drizzle-orm/pglite";
 import type { DriverContract } from "flydrive/types";
+import type { FunctionsTree } from "../functions/types.js";
 import type { MailerConfig } from "../integrated/mailer/index.js";
 import type { QueueConfig as BaseQueueConfig } from "../integrated/queue/types.js";
 import type { RealtimeConfig } from "../integrated/realtime/index.js";
@@ -74,41 +103,41 @@ export type DrizzleSchemaFromCollections<
 			: never]: TCollections[K] extends Collection<infer TState>
 		? InferTableWithColumns<
 				TState["name"],
-				NonLocalizedFields<TState["fields"], TState["localized"]>,
+				NonLocalizedFields<SchemaFields<TState>, TState["localized"]>,
 				TState["title"],
 				TState["options"]
 			>
 		: TCollections[K] extends CollectionBuilder<infer TState>
 			? InferTableWithColumns<
 					TState["name"],
-					NonLocalizedFields<TState["fields"], TState["localized"]>,
+					NonLocalizedFields<SchemaFields<TState>, TState["localized"]>,
 					TState["title"],
 					TState["options"]
 				>
 			: never;
 } & {
 	[K in keyof TCollections as TCollections[K] extends Collection<infer TState>
-		? TState["localized"][number] extends string
+		? HasI18nFields<TState> extends true
 			? `${TState["name"]}_i18n`
 			: never
 		: TCollections[K] extends CollectionBuilder<infer TState>
-			? TState["localized"][number] extends string
+			? HasI18nFields<TState> extends true
 				? `${TState["name"]}_i18n`
 				: never
 			: never]: TCollections[K] extends Collection<infer TState>
-		? TState["localized"][number] extends string
+		? HasI18nFields<TState> extends true
 			? InferTableWithColumns<
 					TState["name"],
-					LocalizedFields<TState["fields"], TState["localized"]>,
+					LocalizedFields<SchemaFields<TState>, TState["localized"]>,
 					TState["title"],
 					TState["options"]
 				>
 			: never
 		: TCollections[K] extends CollectionBuilder<infer TState>
-			? TState["localized"][number] extends string
+			? HasI18nFields<TState> extends true
 				? InferTableWithColumns<
 						TState["name"],
-						LocalizedFields<TState["fields"], TState["localized"]>,
+						LocalizedFields<SchemaFields<TState>, TState["localized"]>,
 						TState["title"],
 						TState["options"]
 					>
@@ -167,6 +196,12 @@ export type DrizzleSchemaFromGlobals<
 				: never
 			: never;
 };
+
+export type TablesFromConfig<TConfig extends QuestpieConfig> =
+	DrizzleSchemaFromCollections<TConfig["collections"]> &
+		(TConfig["globals"] extends Record<string, AnyGlobalOrBuilder>
+			? DrizzleSchemaFromGlobals<TConfig["globals"]>
+			: {});
 
 export type Locale = {
 	/** Locale code (e.g. "en", "sk", "en-US") */
@@ -364,6 +399,23 @@ export interface QuestpieConfig {
 	queue?: BaseQueueConfig;
 
 	/**
+	 * Functions registered on the app instance.
+	 * Automatically routed by `createFetchHandler` at `/api/rpc/*`.
+	 */
+	functions?: FunctionsTree;
+
+	/**
+	 * Raw HTTP route handlers registered on the app instance.
+	 * Automatically routed by `createFetchHandler` at `/api/routes/*`.
+	 *
+	 * @see RFC-MODULE-ARCHITECTURE §5 (Routes — Raw HTTP Handlers)
+	 */
+	routes?: Record<
+		string,
+		import("#questpie/server/routes/types.js").RouteDefinition
+	>;
+
+	/**
 	 * Search adapter for full-text search
 	 *
 	 * Pass a SearchAdapter instance to enable search functionality.
@@ -373,8 +425,10 @@ export interface QuestpieConfig {
 	 * ```ts
 	 * import { createPostgresSearchAdapter } from "questpie/server";
 	 *
-	 * questpie({
+	 * config({
 	 *   search: createPostgresSearchAdapter(),
+	 *   db: { url: process.env.DATABASE_URL! },
+	 *   app: { url: process.env.APP_URL! },
 	 * })
 	 * ```
 	 */
@@ -449,7 +503,7 @@ export interface QuestpieConfig {
 	 * Default access control for all collections and globals.
 	 * Applied when a collection/global doesn't define its own `.access()` rules.
 	 *
-	 * Set via `.defaultAccess()` on the builder (chainable, composable via `.use()`).
+	 * Set via `.defaultAccess()` on the builder (chainable, composable via modules).
 	 * The `starterModule` sets this to require an authenticated session for all operations.
 	 *
 	 * **Resolution order for each CRUD operation:**
@@ -483,6 +537,18 @@ export interface QuestpieConfig {
 	 * Registered via `.hooks()` on the builder.
 	 */
 	globalHooks?: import("./global-hooks-types.js").GlobalHooksState;
+
+	/**
+	 * Service definitions (from services/*.ts and module services).
+	 * Keyed by service name. Resolved at runtime into service instances.
+	 */
+	services?: Record<
+		string,
+		import("#questpie/server/services/define-service.js").ServiceDefinition<
+			any,
+			any
+		>
+	>;
 
 	/**
 	 * Phantom type for tracking message keys.
@@ -526,16 +592,19 @@ export interface ContextExtensions {
  *
  * @example
  * ```ts
- * // In your app's types file
- * declare module 'questpie' {
- *   interface QuestpieContextExtension {
- *     tenantId: string | null
- *     propertyId: string | null
+ * declare global {
+ *   namespace Questpie {
+ *     interface QuestpieContextExtension {
+ *       tenantId: string | null
+ *       propertyId: string | null
+ *     }
  *   }
  * }
  * ```
  */
-export type QuestpieContextExtension = {};
+// biome-ignore lint/suspicious/noEmptyInterface: Designed to be augmented
+export interface QuestpieContextExtension
+	extends Questpie.QuestpieContextExtension {}
 
 /**
  * Parameters passed to the context resolver function.

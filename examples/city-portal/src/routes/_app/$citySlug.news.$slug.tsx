@@ -16,9 +16,13 @@ export const Route = createFileRoute("/_app/$citySlug/news/$slug")({
 	},
 
 	head: ({ loaderData }) => {
-		const article = loaderData?.article;
+		if (!loaderData) return { meta: [] };
+		const data = loaderData as { article: any };
+		const article = data.article;
 		return {
-			title: article ? `${article.title} - News` : "Article Not Found",
+			meta: [
+				{ title: article ? `${article.title} - News` : "Article Not Found" },
+			],
 		};
 	},
 
@@ -33,7 +37,9 @@ function NewsDetail() {
 		<article className="container mx-auto px-4 py-12">
 			{/* Back Link */}
 			<Link
-				to={`/${citySlug}/news`}
+				to="/$citySlug/news"
+				params={{ citySlug }}
+				search={{ category: "all" }}
 				className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-primary transition-colors mb-8"
 			>
 				<svg

@@ -5,7 +5,7 @@
  * Called by the client when a widget has `hasLoader: true`.
  */
 
-import { fn, type Questpie } from "questpie";
+import { ApiError, fn, tryGetContext } from "questpie";
 import { z } from "zod";
 import type { ServerDashboardItem } from "../../../augmentation.js";
 
@@ -63,45 +63,45 @@ export const fetchWidgetData = fn({
 	schema: fetchWidgetDataSchema,
 	outputSchema: z.unknown(),
 	handler: async (ctx) => {
-		const app = ctx.app as Questpie<any>;
-		const state = (app as any).state || {};
-		const dashboard = state.dashboard;
+		// Access dashboard config from the app's internal state
+		const stored = tryGetContext();
+		const appState = (stored?.app as any)?.state || {};
+		const dashboard = appState.dashboard;
 
 		if (!dashboard?.items) {
-			throw new Error("No dashboard configured");
+			throw ApiError.internal("No dashboard configured");
 		}
 
 		const widget = findWidgetById(dashboard.items, ctx.input.widgetId);
 		if (!widget) {
-			throw new Error(`Widget "${ctx.input.widgetId}" not found`);
+			throw ApiError.notFound("Widget", ctx.input.widgetId);
 		}
 		if (!widget.loader) {
-			throw new Error(`Widget "${ctx.input.widgetId}" has no loader`);
+			throw ApiError.badRequest(`Widget "${ctx.input.widgetId}" has no loader`);
 		}
+
+		// ctx (FunctionHandlerArgs) extends AppContext which is the same
+		// base that WidgetFetchContext extends — pass it directly.
+		const widgetCtx =
+			ctx as unknown as import("../../../augmentation.js").WidgetFetchContext;
 
 		// Evaluate per-widget access (if defined)
 		if (widget.access !== undefined) {
 			const accessResult =
 				typeof widget.access === "function"
-					? await widget.access({
-							app: app,
-							db: (ctx as any).db,
-							session: (ctx as any).session,
-							locale: (ctx as any).locale,
-						})
+					? await widget.access(widgetCtx)
 					: widget.access;
 			if (accessResult === false) {
-				throw new Error("Access denied");
+				throw ApiError.forbidden({
+					operation: "read",
+					resource: "widget",
+					reason: "Access denied",
+				});
 			}
 		}
 
 		// Execute loader with server context
-		return widget.loader({
-			app: app,
-			db: (ctx as any).db,
-			session: (ctx as any).session,
-			locale: (ctx as any).locale,
-		});
+		return widget.loader(widgetCtx);
 	},
 });
 

@@ -23,7 +23,7 @@
  *       icon: c.icon("ph:layout"),
  *     },
  *   }))
- *   .fields((f) => ({
+ *   .fields(({ f }) => ({
  *     title: f.text({ required: true }),
  *     subtitle: f.text(),
  *     backgroundImage: f.upload({ accept: "image/*" }),
@@ -33,12 +33,21 @@
  */
 
 import type {
+	AppContext,
+	BuiltinFields,
+	Field,
 	FieldBuilderProxy,
-	FieldDefinition,
-	FieldDefinitionState,
 	FieldSchema,
+	FieldState,
 } from "questpie";
 import type { AdminBlockConfig, AdminConfigContext } from "../augmentation.js";
+import type { adminFields } from "../fields/index.js";
+
+/**
+ * Combined field types available in block field definitions.
+ * Includes all built-in questpie fields plus admin-specific fields (richText, blocks).
+ */
+type AdminBlockFields = BuiltinFields & typeof adminFields;
 
 // ============================================================================
 // Block Types
@@ -59,17 +68,21 @@ import type { AdminBlockConfig, AdminConfigContext } from "../augmentation.js";
  * })
  * ```
  */
-export interface BlockPrefetchContext {
+export interface BlockPrefetchContext extends AppContext {
+	/** App instance — populated at runtime by extractAppServices */
+	app: unknown;
+	/** Database handle — populated at runtime by extractAppServices */
+	db: unknown;
+	/** Collection APIs — populated at runtime by extractAppServices */
+	collections: Record<string, any>;
+	/** Global APIs — populated at runtime by extractAppServices */
+	globals: Record<string, any>;
 	/** Block instance ID */
 	blockId: string;
 	/** Block type name */
 	blockType: string;
-	/** app instance — use `typedApp<App>(ctx.app)` for typed access */
-	app: Questpie<any>;
 	/** Current locale */
 	locale?: string;
-	/** Database client */
-	db: unknown;
 }
 
 /**
@@ -138,10 +151,10 @@ export type ExpandWithResult<TWith> = {
  */
 export interface BlockBuilderState<
 	TName extends string = string,
-	TFields extends Record<
+	TFields extends Record<string, Field<FieldState>> = Record<
 		string,
-		FieldDefinition<FieldDefinitionState>
-	> = Record<string, FieldDefinition<FieldDefinitionState>>,
+		Field<FieldState>
+	>,
 > {
 	/** Block type name */
 	name: TName;
@@ -283,7 +296,7 @@ function createComponentProxy(
  */
 export class BlockBuilder<
 	TState extends BlockBuilderState = BlockBuilderState,
-	TFieldMap extends Record<string, any> = Record<string, any>,
+	TFieldMap extends Record<string, any> = AdminBlockFields,
 	TData = Record<string, unknown>,
 > {
 	private _state: TState;
@@ -340,19 +353,21 @@ export class BlockBuilder<
 	 * Define fields for the block.
 	 * Uses the same field builder as collections.
 	 *
+	 * Uses destructured context object syntax: `({ f }) =>` (not positional `(f) =>`).
+	 * This is consistent with collection/global `.fields()` and allows future
+	 * extension of the context without breaking changes.
+	 *
 	 * @example
 	 * ```ts
-	 * block("hero").fields((f) => ({
+	 * block("hero").fields(({ f }) => ({
 	 *   title: f.text({ required: true }),
 	 *   subtitle: f.text(),
 	 *   image: f.upload({ accept: "image/*" }),
 	 * }))
 	 * ```
 	 */
-	fields<
-		TNewFields extends Record<string, FieldDefinition<FieldDefinitionState>>,
-	>(
-		factory: (f: FieldBuilderProxy<TFieldMap>) => TNewFields,
+	fields<TNewFields extends Record<string, Field<FieldState>>>(
+		factory: (ctx: { f: FieldBuilderProxy<TFieldMap> }) => TNewFields,
 	): BlockBuilder<
 		Omit<TState, "fields"> & { fields: TNewFields },
 		TFieldMap,
@@ -531,15 +546,15 @@ export class BlockBuilder<
  *       label: { en: "Layout" },
  *     },
  *   }))
- *   .fields((f) => ({
+ *   .fields(({ f }) => ({
  *     title: f.text({ required: true }),
  *     subtitle: f.text(),
  *   }));
  *
  * // Register blocks on QuestPie
- * const app = q({ name: "my-app" })
- *   .use(adminModule)
- *   .blocks({ hero: heroBlock })
+ * const app = runtimeConfig({
+ *   modules: [adminModule],
+ *   blocks: { hero: heroBlock },
  *   .build({ ... });
  * ```
  */
@@ -559,12 +574,12 @@ export function block<TName extends string>(
  * (e.g., { title: string, count: number, showPrices: boolean }).
  */
 export type InferBlockValues<TState extends BlockBuilderState> =
-	TState["fields"] extends Record<string, FieldDefinition<FieldDefinitionState>>
+	TState["fields"] extends Record<string, any>
 		? {
-				[K in keyof TState["fields"]]: TState["fields"][K] extends FieldDefinition<
-					infer TFieldState
-				>
-					? TFieldState["value"]
+				[K in keyof TState["fields"]]: TState["fields"][K] extends {
+					readonly _: infer TS extends FieldState;
+				}
+					? TS["data"]
 					: unknown;
 			}
 		: Record<string, unknown>;

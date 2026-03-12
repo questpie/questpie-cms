@@ -1,32 +1,28 @@
 /**
  * Hero Block Renderer
- *
- * Full-width banner with background image, title, subtitle, and CTA.
- * Designed for city council landing pages.
  */
 
-import type { BlockComponentProps } from "@questpie/admin/client";
-import type { App } from "@/questpie/server/app";
+import type { BlockProps } from "../.generated/client";
 
-export function HeroRenderer({
-	values,
-	data,
-	children,
-}: BlockComponentProps<App, "hero">) {
-	const bgImageUrl = data?.backgroundImage?.url || values.backgroundImage;
+export function HeroRenderer({ values, data, children }: BlockProps<"hero">) {
+	const bgImageUrl =
+		(data?.backgroundImage as any)?.url || values.backgroundImage;
 
-	const heightClass = {
+	const heightClasses: Record<string, string> = {
 		small: "min-h-[40vh]",
 		medium: "min-h-[60vh]",
 		large: "min-h-[80vh]",
 		full: "min-h-screen",
-	}[values.height || "medium"];
+	};
 
-	const alignClass = {
+	const alignClasses: Record<string, string> = {
 		left: "text-left items-start",
 		center: "text-center items-center",
 		right: "text-right items-end",
-	}[values.alignment || "center"];
+	};
+
+	const heightClass = heightClasses[values.height || "medium"];
+	const alignClass = alignClasses[values.alignment || "center"];
 
 	return (
 		<section
@@ -36,13 +32,11 @@ export function HeroRenderer({
 				backgroundColor: bgImageUrl ? undefined : "var(--primary, #1e40af)",
 			}}
 		>
-			{/* Overlay */}
 			<div
 				className="absolute inset-0 bg-gradient-to-b from-black/50 via-black/30 to-black/60"
 				style={{ opacity: (values.overlayOpacity ?? 60) / 100 }}
 			/>
 
-			{/* Content */}
 			<div
 				className={`relative z-10 container mx-auto px-6 py-20 flex flex-col gap-6 ${alignClass}`}
 			>

@@ -55,11 +55,9 @@
 
 import type { QueryClient } from "@tanstack/react-query";
 import { QueryClientProvider } from "@tanstack/react-query";
-import type { Questpie } from "questpie";
 import type { QuestpieClient } from "questpie/client";
 import type * as React from "react";
 import { Admin, type AdminInput } from "../../builder/admin";
-import type { AdminBuilder } from "../../builder/admin-builder";
 import { AuthGuard } from "../../components/auth";
 import { AdminProvider } from "../../runtime/provider";
 import { AdminLayout, type AdminLayoutSharedProps } from "./admin-layout";
@@ -68,11 +66,9 @@ import { AdminLayout, type AdminLayoutSharedProps } from "./admin-layout";
 // Types
 // ============================================================================
 
-interface AdminLayoutProviderProps<TApp extends Questpie<any> = Questpie<any>>
-	extends AdminLayoutSharedProps {
+interface AdminLayoutProviderProps extends AdminLayoutSharedProps {
 	/**
-	 * Admin configuration - pass your AdminBuilder directly.
-	 * Can also accept an Admin instance for backward compatibility.
+	 * Admin configuration - pass plain AdminState or Admin instance.
 	 *
 	 * @example
 	 * ```tsx
@@ -88,7 +84,7 @@ interface AdminLayoutProviderProps<TApp extends Questpie<any> = Questpie<any>>
 	/**
 	 * API client for data fetching
 	 */
-	client: QuestpieClient<TApp>;
+	client: QuestpieClient<any>;
 
 	/**
 	 * Auth client for authentication (created via createAdminAuthClient)
@@ -141,18 +137,18 @@ interface AdminLayoutProviderProps<TApp extends Questpie<any> = Questpie<any>>
 	/**
 	 * Use server-side translations (fetched via getAdminTranslations RPC).
 	 * When true, translations are fetched from the server configured via
-	 * .adminLocale() and .messages() on QuestpieBuilder.
+	 * .adminLocale() and config translations.
 	 *
 	 * @default false (for backwards compatibility)
 	 *
 	 * @example
 	 * ```tsx
 	 * // Server configures locales and messages
-	 * const app = q()
-	 *   .use(adminModule)
-	 *   .adminLocale({ locales: ["en", "sk"], defaultLocale: "en" })
-	 *   .messages({ sk: { "common.save": "Ulozit" } })
-	 *   .build();
+	 * const app = runtimeConfig({
+	 *   modules: [adminModule],
+	 *   adminLocale: { locales: ["en", "sk"], defaultLocale: "en" },
+	 *   messages: { sk: { "common.save": "Ulozit" } },
+	 * });
 	 *
 	 * // Client fetches from server
 	 * <AdminLayoutProvider
@@ -255,7 +251,7 @@ function isPublicPath(
  * Universal wrapper for admin layout that works with any router.
  * Handles all the provider setup and renders children inside the layout.
  */
-export function AdminLayoutProvider<TApp extends Questpie<any>>({
+export function AdminLayoutProvider({
 	admin: adminInput,
 	client,
 	authClient,
@@ -284,10 +280,10 @@ export function AdminLayoutProvider<TApp extends Questpie<any>>({
 	initialUiLocale,
 	// Children
 	children,
-}: AdminLayoutProviderProps<TApp>): React.ReactElement {
+}: AdminLayoutProviderProps): React.ReactElement {
 	const qc = queryClient ?? getDefaultQueryClient();
 
-	// Normalize admin input - accepts both AdminBuilder and Admin instance
+	// Normalize admin input - accepts plain state or Admin instance
 	const admin = Admin.normalize(adminInput);
 
 	// Determine if auth guard should be enabled

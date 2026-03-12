@@ -1,24 +1,19 @@
 import { describe, expect, it } from "bun:test";
 import { generateOpenApiSpec } from "../../../openapi/src/generator/index.js";
-import { defaultFields } from "../../src/server/fields/builtin/defaults.js";
-import { questpie } from "../../src/server/index.js";
+import { collection, global } from "../../src/server/index.js";
 
 describe("OpenAPI schema generation", () => {
 	describe("collection schemas", () => {
 		it("generates proper JSON schema for collection fields", () => {
-			const q = questpie({ name: "test-openapi" }).fields(defaultFields);
-
-			const posts = q.collection("posts").fields((f) => ({
-				title: f.text({ required: true, maxLength: 255 }),
+			const posts = collection("posts").fields(({ f }) => ({
+				title: f.text(255).required(),
 				content: f.textarea(),
-				viewCount: f.number({ default: 0 }),
-				isPublished: f.boolean({ default: false }),
-				tags: f.array({ of: f.text() }),
+				viewCount: f.number().default(0),
+				isPublished: f.boolean().default(false),
+				tags: f.text().array(),
 				metadata: f.object({
-					fields: () => ({
-						author: f.text(),
-						category: f.text(),
-					}),
+					author: f.text(),
+					category: f.text(),
 				}),
 			}));
 
@@ -57,10 +52,8 @@ describe("OpenAPI schema generation", () => {
 		});
 
 		it("generates document schema with id and timestamps", () => {
-			const q = questpie({ name: "test-openapi-doc" }).fields(defaultFields);
-
-			const posts = q.collection("posts").fields((f) => ({
-				title: f.text({ required: true }),
+			const posts = collection("posts").fields(({ f }) => ({
+				title: f.text().required(),
 			}));
 
 			const mockCms = {
@@ -88,17 +81,13 @@ describe("OpenAPI schema generation", () => {
 		});
 
 		it("handles relation fields", () => {
-			const q = questpie({ name: "test-openapi-relations" }).fields(
-				defaultFields,
-			);
-
-			const authors = q.collection("authors").fields((f) => ({
-				name: f.text({ required: true }),
+			const authors = collection("authors").fields(({ f }) => ({
+				name: f.text().required(),
 			}));
 
-			const posts = q.collection("posts").fields((f) => ({
-				title: f.text({ required: true }),
-				author: f.relation({ to: "authors" }),
+			const posts = collection("posts").fields(({ f }) => ({
+				title: f.text().required(),
+				author: f.relation("authors"),
 			}));
 
 			const mockCms = {
@@ -119,12 +108,8 @@ describe("OpenAPI schema generation", () => {
 		});
 
 		it("does not generate empty schemas", () => {
-			const q = questpie({ name: "test-openapi-nonempty" }).fields(
-				defaultFields,
-			);
-
-			const posts = q.collection("posts").fields((f) => ({
-				title: f.text({ required: true, maxLength: 100 }),
+			const posts = collection("posts").fields(({ f }) => ({
+				title: f.text(100).required(),
 				content: f.textarea(),
 				views: f.number(),
 			}));
@@ -153,14 +138,9 @@ describe("OpenAPI schema generation", () => {
 		});
 
 		it("generates collection versioning paths", () => {
-			const q = questpie({ name: "test-openapi-collection-versions" }).fields(
-				defaultFields,
-			);
-
-			const posts = q
-				.collection("posts")
-				.fields((f) => ({
-					title: f.text({ required: true }),
+			const posts = collection("posts")
+				.fields(({ f }) => ({
+					title: f.text().required(),
 				}))
 				.options({ versioning: true });
 
@@ -179,14 +159,9 @@ describe("OpenAPI schema generation", () => {
 		});
 
 		it("generates transition path for workflow-enabled collections", () => {
-			const q = questpie({ name: "test-openapi-collection-transition" }).fields(
-				defaultFields,
-			);
-
-			const posts = q
-				.collection("posts")
-				.fields((f) => ({
-					title: f.text({ required: true }),
+			const posts = collection("posts")
+				.fields(({ f }) => ({
+					title: f.text().required(),
 				}))
 				.options({
 					versioning: {
@@ -197,8 +172,8 @@ describe("OpenAPI schema generation", () => {
 					},
 				});
 
-			const pages = q.collection("pages").fields((f) => ({
-				title: f.text({ required: true }),
+			const pages = collection("pages").fields(({ f }) => ({
+				title: f.text().required(),
 			}));
 
 			const mockCms = {
@@ -223,14 +198,10 @@ describe("OpenAPI schema generation", () => {
 
 	describe("global schemas", () => {
 		it("generates proper JSON schema for global fields", () => {
-			const q = questpie({ name: "test-openapi-globals" }).fields(
-				defaultFields,
-			);
-
-			const settings = q.global("settings").fields((f) => ({
-				siteName: f.text({ required: true, maxLength: 100 }),
+			const settings = global("settings").fields(({ f }) => ({
+				siteName: f.text(100).required(),
 				siteDescription: f.textarea(),
-				maintenanceMode: f.boolean({ default: false }),
+				maintenanceMode: f.boolean().default(false),
 			}));
 
 			const mockCms = {
@@ -252,14 +223,9 @@ describe("OpenAPI schema generation", () => {
 		});
 
 		it("generates global versioning paths", () => {
-			const q = questpie({ name: "test-openapi-global-versions" }).fields(
-				defaultFields,
-			);
-
-			const settings = q
-				.global("settings")
-				.fields((f) => ({
-					siteName: f.text({ required: true }),
+			const settings = global("settings")
+				.fields(({ f }) => ({
+					siteName: f.text().required(),
 				}))
 				.options({ versioning: true });
 
@@ -278,14 +244,9 @@ describe("OpenAPI schema generation", () => {
 		});
 
 		it("generates transition path for workflow-enabled globals", () => {
-			const q = questpie({ name: "test-openapi-global-transition" }).fields(
-				defaultFields,
-			);
-
-			const settings = q
-				.global("settings")
-				.fields((f) => ({
-					siteName: f.text({ required: true }),
+			const settings = global("settings")
+				.fields(({ f }) => ({
+					siteName: f.text().required(),
 				}))
 				.options({
 					versioning: {
@@ -296,8 +257,8 @@ describe("OpenAPI schema generation", () => {
 					},
 				});
 
-			const nav = q.global("nav").fields((f) => ({
-				items: f.array({ of: f.text() }),
+			const nav = global("nav").fields(({ f }) => ({
+				items: f.text().array(),
 			}));
 
 			const mockCms = {

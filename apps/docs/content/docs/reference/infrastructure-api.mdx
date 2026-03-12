@@ -1,235 +1,86 @@
 ---
 title: Infrastructure API
-description: Method signatures for queue, email, storage, search, KV, and realtime services
+description: Service APIs — email, queue, storage, KV, realtime, logger.
 ---
 
 # Infrastructure API
 
-Reference for all infrastructure service methods available on the app instance.
+All services are available through handler context (functions, hooks, jobs).
 
-## Queue — `app.queue`
-
-Queue methods are job-scoped. If you register `.jobs({ sendConfirmation })`, you call `app.queue.sendConfirmation.*`.
-
-### `app.queue.<job>.publish(payload, options?)`
+## Email
 
 ```ts
-await app.queue.sendConfirmation.publish({
-  appointmentId: "...",
-  customerEmail: "...",
-});
-```
-
-### `app.queue.<job>.schedule(payload, cron, options?)`
-
-```ts
-await app.queue.dailyReport.schedule({}, "0 9 * * *");
-```
-
-### `app.queue.<job>.unschedule()`
-
-```ts
-await app.queue.dailyReport.unschedule();
-```
-
-### `listen(options?)`
-
-Start long-running worker to process jobs.
-
-### `runOnce(options?)`
-
-Process one batch of jobs (for serverless).
-
-### `registerSchedules(options?)`
-
-Registers cron schedules declared in job definitions.
-
-```ts
-await app.queue.registerSchedules();
-```
-
-### `stop()`
-
-Stops running consumers and the queue adapter.
-
-### Typed Queue Context
-
-```ts
-import { getContext } from "questpie";
-import type { App } from '../app';
-
-afterChange: async (ctx) => {
-  const { app } = getContext<App>(ctx);
-  await app.queue.sendConfirmation.publish({ appointmentId: ctx.data.id });
-}
-```
-
-## Email — `app.email`
-
-### `sendTemplate(options)`
-
-```ts
-await app.email.sendTemplate({
-  template: "appointmentConfirmation",
-  to: "customer@example.com",
-  context: { customerName: "Jane", date: "March 15" },
-});
-```
-
-### `send(options)`
-
-```ts
-await app.email.send({
+// Send template
+await email.sendTemplate({
+  template: "templateName",
+  input: { ... },
   to: "user@example.com",
-  subject: "Hello",
-  html: "<h1>Hello World</h1>",
 });
 ```
 
-## Storage — `app.storage`
-
-### `disk(name?)`
-
-Get a storage disk instance. Omit `name` for the default disk.
+## Queue
 
 ```ts
-const disk = app.storage.disk();
-const disk = app.storage.disk("private");
-```
-
-### `disk().put(key, content, options?)`
-
-```ts
-await disk.put("uploads/photo.jpg", fileBuffer, {
-  contentType: "image/jpeg",
+// Publish job
+await queue.jobName.publish({
+  // typed payload
 });
 ```
 
-### `disk().get(key)`
+## Storage
 
 ```ts
-const content = await disk.get("uploads/photo.jpg");
+// Upload
+const asset = await storage.upload(file);
+
+// Get URL
+const url = storage.getUrl(asset.path);
 ```
 
-### `disk().delete(key)`
+## KV Store
 
 ```ts
-await disk.delete("uploads/photo.jpg");
-```
+// Set with TTL
+await kv.set("key", "value", { ttl: 3600 });
 
-### `disk().getSignedUrl(key, options?)`
+// Get
+const value = await kv.get("key");
 
-```ts
-const url = await disk.getSignedUrl("private/document.pdf", {
-  expiresIn: 3600,
-});
-```
-
-### `disk().getUrl(key)`
-
-```ts
-const url = await disk.getUrl("uploads/photo.jpg");
-```
-
-## Search — `app.search`
-
-### `search(options)`
-
-```ts
-const results = await app.search.search({
-  query: "haircut",
-  collections: ["posts", "services"],
-  limit: 10,
-  mode: "hybrid",
-  highlights: true,
-  facets: [{ field: "category" }],
-  filters: { category: "services" },
-});
-```
-
-**Response:**
-
-```ts
-{
-  hits: SearchResult[];
-  facets: Record<string, FacetValue[]>;
-  total: number;
-}
-```
-
-### `reindex(collection)`
-
-```ts
-await app.search.reindex("posts");
-```
-
-### `initialize()`
-
-Called automatically on app start. Initializes the search adapter.
-
-## KV — `app.kv`
-
-### `get<T>(key)`
-
-```ts
-const value = await app.kv.get<UserProfile>("user:123");
-```
-
-### `set(key, value, ttl?)`
-
-```ts
-await app.kv.set("cache:key", { data: "..." }, 300);
-```
-
-### `delete(key)`
-
-```ts
-await app.kv.delete("cache:key");
-```
-
-### `has(key)`
-
-```ts
-const exists = await app.kv.has("cache:key");
-```
-
-### `clear()`
-
-```ts
-await app.kv.clear();
-```
-
-## Logger — `app.logger`
-
-### `debug(msg, ...args)`
-### `info(msg, ...args)`
-### `warn(msg, ...args)`
-### `error(msg, ...args)`
-
-```ts
-app.logger.info("Record created", { id: "...", collection: "posts" });
-```
-
-### `child(bindings)`
-
-```ts
-const moduleLogger = app.logger.child({ module: "queue" });
+// Delete
+await kv.delete("key");
 ```
 
 ## Realtime
 
-Realtime events are published automatically by CRUD operations. The SSE endpoints are handled by the adapter.
+```ts
+// Broadcast
+await realtime.broadcast("channel", { type: "event", data: { ... } });
+```
 
-### Manual Broadcast
+## Logger
 
-Realtime events are automatically published when data changes. There is no manual broadcast API — the outbox table and adapter handle delivery.
+```ts
+logger.info("message");
+logger.error({ err: error }, "Error message");
+logger.debug({ key: "value" }, "Debug info");
+```
 
-## Related Pages
+## Database
 
-- [Queue & Jobs](/docs/infrastructure/queue-and-jobs) — Job definition and configuration
-- [Email](/docs/infrastructure/email) — Template definition and setup
-- [Storage](/docs/infrastructure/storage) — Storage adapter configuration
-- [Search](/docs/infrastructure/search) — Search configuration
-- [KV Store](/docs/infrastructure/kv-store) — KV adapter configuration
-- [Logger](/docs/infrastructure/logger) — Logger configuration
-- [Type-Safe Contexts](/docs/server/type-safe-contexts) — Typed access pattern for infrastructure services
+```ts
+// Raw SQL
+const result = await db.execute(sql`SELECT 1`);
+
+// Drizzle query builder
+const rows = await db.select().from(table).where(eq(table.id, id));
+```
+
+## App Instance
+
+```ts
+// Create context (for scripts)
+const ctx = await app.createContext({ accessMode: "system", locale: "en" });
+
+// Collection API via app
+const posts = await app.api.collections.posts.find({}, ctx);
+```

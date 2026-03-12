@@ -1,95 +1,67 @@
 ---
-title: QUESTPIE Documentation
-description: v2 — Runtime-first TypeScript backend framework with optional admin UI
+title: Documentation
+description: One schema. Every output. Backend-first TypeScript framework with schema-driven codegen.
 ---
 
-# QUESTPIE Documentation
+# One Schema. Every Output.
+
+QuestPie is a **backend-first TypeScript framework** where you define your data schema once, and codegen + introspection project it into typed runtimes, APIs, and frontends.
+
+```text
+Schema → Codegen → Typed Runtime → Projection → Any Frontend
+```
+
+Define collections, functions, jobs, and hooks as plain files. Codegen wires them into a type-safe runtime. The admin panel, client SDK, and OpenAPI spec are all **projections** of the same schema — not separate definitions.
 
 <Callout type="warn">
-**Active Development** — QUESTPIE is a bootstrapped, community-driven framework under active development. The API may still change between releases, but we follow semantic versioning to communicate breaking changes clearly. We do not recommend it for mission-critical production workloads yet. Full API stability is targeted for **v3**.
+**Active Development** — QuestPie follows semantic versioning. The API may change between releases. Full stability is targeted for **v3**.
 </Callout>
 
-**v2** — QUESTPIE is a runtime-first TypeScript backend framework. Start with `questpie` to define schema, access rules, hooks, RPC, jobs, and HTTP endpoints. That runtime is fully usable on its own.
+## How It Works
 
-`@questpie/admin` is an optional module that reads your server schema via introspection and generates an admin panel. You can add it when you need an internal interface, or skip it and ship API-only services.
+```ts title="collections/posts.ts"
+import { collection } from "#questpie";
 
-## Runtime First
+export default collection("posts").fields(({ f }) => ({
+  title: f.text(255).required(),
+  body: f.textarea().localized(),
+  cover: f.upload({ to: "assets", mimeTypes: ["image/*"] }),
+  author: f.relation("users"),
+  status: f.select(["draft", "published"]),
+  publishedAt: f.date(),
+}));
+```
+
+This single file defines:
+- **Database schema** — Drizzle table with correct column types
+- **API validation** — Zod schemas for create/update
+- **Query operators** — Type-safe `where`, `orderBy`, `with`
+- **Client types** — End-to-end TypeScript from server to frontend
+- **Admin UI** — Form fields, list columns, filters (when `@questpie/admin` is installed)
+
+## Package Architecture
 
 ```text
 Required
-questpie            — backend runtime (collections, fields, hooks, access, RPC)
-@questpie/<adapter> — HTTP adapter (Hono, Elysia, or Next.js)
+questpie              — core runtime (collections, fields, hooks, functions, codegen)
+@questpie/<adapter>   — HTTP adapter (hono, elysia, or nextjs)
 
 Optional
-@questpie/admin     — generated admin interface via introspection
-@questpie/tanstack-query, @questpie/openapi, other client tooling
+@questpie/admin       — admin interface via schema introspection
+@questpie/tanstack-query — TanStack Query hooks
 ```
 
-The runtime contract comes first. Admin, SDKs, and OpenAPI all consume the same server definitions instead of redefining schema in multiple places.
+## Documentation Sections
 
-## Field Definitions
+- **[Start Here](/docs/start-here)** — What is QuestPie, installation, first app, project structure
+- **[Build Your Backend](/docs/backend)** — Data modeling, rules, business logic, architecture
+- **[Build Your Workspace](/docs/workspace)** — Admin panel setup, views, blocks, actions
+- **[Integrate Frontend](/docs/frontend)** — Client SDK, TanStack Query, realtime, adapters
+- **[Operate in Production](/docs/production)** — Database, auth, storage, email, queue, deployment
+- **[Extend the Platform](/docs/extend)** — Custom fields, views, plugins, modules
+- **[Examples](/docs/examples)** — TanStack Barbershop end-to-end walkthrough
+- **[Reference](/docs/reference)** — Complete API reference
 
-Fields are defined on the runtime using the `f` field builder. Each field maps to database behavior, API validation, and query typing. If admin is installed, those same fields also drive form rendering.
+## Canonical Example
 
-```ts
-q.collection("posts").fields((f) => ({
-  title: f.text({ required: true, maxLength: 255 }),
-  body: f.richText({ localized: true }),
-  cover: f.upload({ to: "assets", mimeTypes: ["image/*"] }),
-  author: f.relation({ to: "users" }),
-  status: f.select({ options: ["draft", "published"] }),
-  publishedAt: f.date(),
-  tags: f.array({ of: f.text() }),
-  metadata: f.object({
-    fields: () => ({
-      seoTitle: f.text(),
-      seoDescription: f.textarea(),
-    }),
-  }),
-}))
-```
-
-## Start Here
-
-- [Installation](/docs/getting-started/installation) — Runtime baseline and optional modules
-- [Quickstart](/docs/getting-started/quickstart) — Build a working runtime in 5 minutes
-- [Server](/docs/server) — Collections, globals, fields, hooks, access, RPC
-- [Admin UI](/docs/admin) — Optional generated interface layer
-- [Client SDK](/docs/client) — Typed API consumption and adapters
-
-## Architecture at a Glance
-
-```text
-Runtime (questpie + one adapter)
-  ├── collections / globals / fields   — schema + persistence contract
-  ├── hooks + access + validation      — behavior + business rules
-  ├── RPC + jobs                       — custom endpoints + background tasks
-  ├── REST + realtime endpoints        — integration surface
-  └── introspection contract           — consumed by optional tooling
-
-Optional Interface Layer (@questpie/admin)
-  ├── server module                    — .admin() .list() .form() .sidebar() .dashboard()
-  └── client module                    — field/view/component registries
-```
-
-## Sections
-
-- [Getting Started](/docs/getting-started) — Install, quickstart, project structure
-- [Mentality](/docs/mentality) — Architecture philosophy and design principles
-- [Server](/docs/server) — Collections, globals, fields, hooks, access, RPC
-- [Infrastructure](/docs/infrastructure) — Auth, storage, email, queue, search, realtime, KV
-- [Admin UI](/docs/admin) — Builder, registries, views, dashboard, blocks
-- [Client SDK](/docs/client) — TanStack Query, adapters, OpenAPI, type inference
-- [Guides](/docs/guides) — End-to-end practical tutorials
-- [Examples](/docs/examples) — TanStack Barbershop deep dives
-- [Reference](/docs/reference) — API-focused documentation
-- [Migration](/docs/migration) — Upgrade from old architecture
-
-## Canonical Reference Project
-
-The TanStack Barbershop example is the source of truth for real patterns throughout these docs:
-
-- `examples/tanstack-barbershop/src/questpie/server/app.ts` — full server config
-- `examples/tanstack-barbershop/src/questpie/server/collections/` — 6 real collections
-- `examples/tanstack-barbershop/src/questpie/server/globals/` — site settings
-- `examples/tanstack-barbershop/src/questpie/admin/builder.ts` — admin client config
+All code examples in these docs come from the [TanStack Barbershop](https://github.com/nicepie/questpie-cms/tree/main/examples/tanstack-barbershop) — a real booking app with 7 collections, server functions, background jobs, email templates, and a full admin dashboard.

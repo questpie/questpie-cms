@@ -4,14 +4,7 @@
  * A multi-step flow for scheduling an appointment.
  */
 
-import {
-	ArrowLeft,
-	ArrowRight,
-	Calendar as CalendarIcon,
-	CheckCircle,
-	Clock,
-	User,
-} from "@phosphor-icons/react";
+import { Icon } from "@iconify/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { format } from "date-fns";
@@ -119,7 +112,8 @@ function BookingPage() {
 		if (isSlotsError) {
 			toast.error(t("booking.error.loadSlots"), {
 				description:
-					(slotsError as any)?.message || t("booking.error.loadSlotsDesc"),
+					(slotsError as Error | undefined)?.message ||
+					t("booking.error.loadSlotsDesc"),
 			});
 		}
 	}, [isSlotsError, slotsError, t]);
@@ -198,7 +192,10 @@ function BookingPage() {
 				<div className="max-w-md w-full text-center space-y-8 animate-fade-in-up">
 					<div className="flex justify-center">
 						<div className="size-24 bg-highlight/10 rounded-full flex items-center justify-center">
-							<CheckCircle weight="fill" className="size-16 text-highlight" />
+							<Icon
+								icon="ph:check-circle-fill"
+								className="size-16 text-highlight"
+							/>
 						</div>
 					</div>
 					<div className="space-y-4">
@@ -252,7 +249,8 @@ function BookingPage() {
 							onClick={handleBack}
 							className="gap-2 font-bold uppercase tracking-widest text-xs"
 						>
-							<ArrowLeft className="size-4" /> {t("booking.back")}
+							<Icon icon="ph:arrow-left" className="size-4" />{" "}
+							{t("booking.back")}
 						</Button>
 					)}
 				</div>
@@ -328,7 +326,10 @@ function BookingPage() {
 													/>
 												) : (
 													<div className="w-full h-full flex items-center justify-center">
-														<User className="size-10 text-muted-foreground/30" />
+														<Icon
+															icon="ph:user"
+															className="size-10 text-muted-foreground/30"
+														/>
 													</div>
 												)}
 											</div>
@@ -412,7 +413,8 @@ function BookingPage() {
 										onClick={handleNext}
 										className="bg-highlight hover:bg-highlight/90 text-highlight-foreground font-bold uppercase tracking-widest h-14 px-12"
 									>
-										{t("booking.next")} <ArrowRight className="ml-2" />
+										{t("booking.next")}{" "}
+										<Icon icon="ph:arrow-right" className="ml-2" />
 									</Button>
 								</div>
 							</div>
@@ -542,8 +544,8 @@ function BookingPage() {
 									{selectedService && (
 										<div className="flex gap-4">
 											<div className="size-10 bg-muted flex items-center justify-center shrink-0">
-												<Clock
-													weight="bold"
+												<Icon
+													icon="ph:clock-bold"
 													className="size-5 text-muted-foreground"
 												/>
 											</div>
@@ -569,8 +571,8 @@ function BookingPage() {
 														alt=""
 													/>
 												) : (
-													<User
-														weight="bold"
+													<Icon
+														icon="ph:user-bold"
 														className="size-5 text-muted-foreground"
 													/>
 												)}
@@ -587,8 +589,8 @@ function BookingPage() {
 									{selectedDate && selectedTime && (
 										<div className="flex gap-4">
 											<div className="size-10 bg-muted flex items-center justify-center shrink-0">
-												<CalendarIcon
-													weight="bold"
+												<Icon
+													icon="ph:calendar-bold"
 													className="size-5 text-muted-foreground"
 												/>
 											</div>

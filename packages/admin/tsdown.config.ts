@@ -63,6 +63,7 @@ export default defineConfig({
 					"./client": "./dist/client.d.mts",
 					"./server": "./dist/server.d.mts",
 					"./shared": "./dist/shared.d.mts",
+					"./client-module": "./dist/client-module.d.mts",
 				};
 
 				for (const [entry, typesPath] of Object.entries(typedEntries)) {

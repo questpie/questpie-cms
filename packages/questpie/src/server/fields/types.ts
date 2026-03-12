@@ -2,7 +2,7 @@
  * Core Field Definition Types
  *
  * This module defines the core interfaces for the Field Builder system.
- * Each field type implements FieldDefinition to provide:
+ * Each field type provides:
  * - Column generation for Drizzle
  * - Validation schema (Zod v4)
  * - Query operators (context-aware for column vs JSONB)
@@ -10,182 +10,35 @@
  */
 
 import type { SQL } from "drizzle-orm";
-import type { AnyPgColumn, PgColumn } from "drizzle-orm/pg-core";
+import type { AnyPgColumn } from "drizzle-orm/pg-core";
 import type { ZodType } from "zod";
 import type { I18nText } from "#questpie/shared/i18n/types.js";
 
 // ============================================================================
-// Core Field Definition Interface
+// Field Type Registry — Plugin-Extensible
 // ============================================================================
 
-/**
- * Core field definition interface using TState pattern.
- * Each field type implements this to provide:
- * - Column generation for Drizzle
- * - Validation schema (Zod v4 - JSON Schema derived via z.toJSONSchema())
- * - Query operators (context-aware for column vs JSONB)
- * - Admin metadata
- * - Field location (main, i18n, virtual, relation)
- *
- * Type parameter:
- * - TState: FieldDefinitionState containing all type information
- */
-export interface FieldDefinition<TState extends FieldDefinitionState> {
-	/** Field state - contains all type and configuration information */
-	readonly state: TState;
-
-	/** Phantom types for inference - used by collection $infer */
-	readonly $types: {
-		value: TState["value"];
-		input: TState["input"];
-		output: TState["output"];
-		select: TState["select"];
-		column: TState["column"];
-		location: TState["location"];
-	};
-
-	/**
-	 * Generate Drizzle column(s) for this field.
-	 * May return single column, multiple (e.g., polymorphic), or null (e.g., virtual, relation).
-	 */
-	toColumn(name: string): TState["column"] | TState["column"][] | null;
-
-	/**
-	 * Generate Zod schema for input validation.
-	 * JSON Schema is derived automatically via Zod v4's z.toJSONSchema().
-	 * Supports async refinements for server-side validation.
-	 *
-	 * NOTE: toJsonSchema() is NOT needed on fields!
-	 * Zod v4 provides z.toJSONSchema(schema) to convert any Zod schema.
-	 * This is used at collection level to generate client validation schemas.
-	 */
-	toZodSchema(): ZodType<TState["input"]>;
-
-	/**
-	 * Get operators for query builder.
-	 * Returns context-aware operators for both column and JSONB access.
-	 * System automatically selects appropriate variant based on field context.
-	 */
-	getOperators(): TState["operators"];
-
-	/**
-	 * Get metadata for admin introspection.
-	 * Includes labels, descriptions, options, etc.
-	 * Returns the appropriate FieldMetadata subtype based on field type.
-	 */
-	getMetadata(): FieldMetadata;
-
-	/**
-	 * Optional: Get nested fields (for object/array types).
-	 */
-	getNestedFields?(): Record<string, FieldDefinition<FieldDefinitionState>>;
-
-	/**
-	 * Optional: Modify select query (for relations, computed fields).
-	 */
-	getSelectModifier?(): SelectModifier;
-
-	/**
-	 * Optional: Build joins for relation fields.
-	 */
-	getJoinBuilder?(): JoinBuilder;
-
-	/**
-	 * Optional: Transform value after reading from DB.
-	 */
-	fromDb?(dbValue: unknown): TState["value"];
-
-	/**
-	 * Optional: Transform value before writing to DB.
-	 */
-	toDb?(value: TState["input"]): unknown;
+declare global {
+	namespace Questpie {
+		// biome-ignore lint/complexity/noBannedTypes: Empty interface for declaration merging augmentation
+		interface FieldTypeRegistry {}
+	}
 }
 
-// ============================================================================
-// Base Field Configuration
-// ============================================================================
+/**
+ * Open augmentation point for field type names.
+ * Augment via `declare global { namespace Questpie { interface FieldTypeRegistry { ... } } }`
+ */
+// biome-ignore lint/complexity/noBannedTypes: Extends global augmentable interface
+export interface FieldTypeRegistry extends Questpie.FieldTypeRegistry {}
 
 /**
- * Common configuration options for all field types.
- *
- * NOTE: NO admin/UI config here! BE fields are purely data-focused.
- * Admin package handles all UI concerns via its own override system.
+ * Union of all registered field type names.
+ * Falls back to `string` when no types are registered (empty FieldTypeRegistry).
  */
-export interface BaseFieldConfig {
-	/** Display label (i18n supported) - used for validation messages, API docs */
-	label?: I18nText;
-
-	/** Help text / description - used for API docs, validation messages */
-	description?: I18nText;
-
-	/** Field is required (not null in DB, required in input) */
-	required?: boolean;
-
-	/** Field can be null (default: !required) */
-	nullable?: boolean;
-
-	/** Default value or factory function */
-	default?: unknown | (() => unknown);
-
-	/**
-	 * Input behavior for create/update operations.
-	 *
-	 * - `true` (default): Included in input, follows `required` for validation
-	 * - `false`: Excluded from input entirely (TInput = never)
-	 * - `'optional'`: Included but always optional (TInput = T | undefined)
-	 *
-	 * Use `'optional'` for fields that are:
-	 * - Required at DB level (NOT NULL)
-	 * - But can be omitted in input (computed via hooks if not provided)
-	 *
-	 * Example: slug field - user can provide, but auto-generated if missing
-	 */
-	input?: boolean | "optional";
-
-	/**
-	 * Include field in select output.
-	 * Set to false for write-only fields (e.g., passwords, tokens).
-	 * @default true
-	 */
-	output?: boolean;
-
-	/** Field is localized (stored in i18n table) */
-	localized?: boolean;
-
-	// NOTE: unique, index, searchable REMOVED from field config!
-	// These are collection-level concerns, not field-level:
-	// - Use .indexes() on CollectionBuilder for unique/index constraints
-	// - Use .searchable() on CollectionBuilder for search indexing
-	// See: specifications/DECOUPLED_ARCHITECTURE.md
-
-	/**
-	 * Field-level access control.
-	 * If access has functions (not just `true`), output type becomes optional.
-	 */
-	access?: FieldDefinitionAccess;
-
-	/**
-	 * Virtual field - no DB column.
-	 * - `true`: Marker, use hooks.afterRead to compute value
-	 * - `SQL`: Computed column/subquery added to SELECT
-	 */
-	virtual?: true | SQL<unknown>;
-
-	/**
-	 * Field-level hooks (BE only).
-	 */
-	hooks?: FieldHooks;
-
-	// NOTE: `meta` is NOT defined here!
-	// Each field type defines its own `meta?: XFieldMeta` with field-specific options.
-	// External packages (like @questpie/admin) augment each field's meta interface
-	// to add their own configuration (e.g., admin UI options).
-	//
-	// Example in text field:
-	//   interface TextFieldMeta { /* base text options */ }
-	//   // Admin augments:
-	//   interface TextFieldMeta { admin?: { placeholder?: string } }
-}
+export type FieldType = [keyof FieldTypeRegistry] extends [never]
+	? string
+	: keyof FieldTypeRegistry;
 
 // ============================================================================
 // Field Access Control
@@ -219,7 +72,7 @@ export interface FieldAccessContext {
  * - `false` = never allowed (same as input: false / output: false)
  * - Function = runtime check, output becomes TOutput | undefined
  */
-export interface FieldDefinitionAccess {
+export interface FieldAccess {
 	/**
 	 * Can read this field?
 	 * If function returns false, field is omitted from response.
@@ -249,7 +102,7 @@ export interface FieldDefinitionAccess {
 /**
  * Context provided to field hooks.
  */
-export interface FieldHookContext<TConfig = BaseFieldConfig> {
+export interface FieldHookContext<TConfig = Record<string, unknown>> {
 	/** Field name */
 	field: string;
 
@@ -401,6 +254,30 @@ export interface ContextualOperators<
 	/** Operators for JSONB path access */
 	jsonb: TJsonbOps;
 }
+
+// ============================================================================
+// Collection Where Placeholder (branded type-level interpolation)
+// ============================================================================
+
+/**
+ * Branded placeholder for operator param types that need cross-collection
+ * resolution. Used as a type-level template variable:
+ *
+ *   operator<CollectionWherePlaceholder>(() => sql`TRUE`)
+ *
+ * When `FieldWhere` extracts operator param types, it passes this through.
+ * The CRUD composition layer detects it and interpolates using the field's
+ * config (which carries `to: "collection_name"`):
+ *
+ *   CollectionWherePlaceholder → Where<TargetCollection, TApp>
+ *
+ * This keeps the field as the single source of truth for what operators exist,
+ * while letting the CRUD layer (which has `Where` + `TApp`) resolve the types.
+ */
+declare const __collectionWhereBrand: unique symbol;
+export type CollectionWherePlaceholder = {
+	readonly [__collectionWhereBrand]: true;
+};
 
 // ============================================================================
 // Common Operator Sets
@@ -619,56 +496,7 @@ export interface JoinBuilder {
 }
 
 // ============================================================================
-// Type Inference Helpers
-// ============================================================================
-
-/**
- * Infer input type from field config.
- * Handles required, nullable, virtual, input options.
- */
-export type InferInputType<
-	TConfig extends BaseFieldConfig,
-	TValue,
-> = TConfig extends { virtual: true | SQL<unknown> }
-	? TConfig extends { input: true }
-		? TValue | undefined // Explicitly enabled input for virtual
-		: never // Default: no input for virtual
-	: TConfig extends { input: false }
-		? never
-		: TConfig extends { input: "optional" }
-			? TValue | undefined
-			: TConfig extends { required: true }
-				? TValue
-				: TValue | null | undefined;
-
-/**
- * Infer output type from field config.
- * Handles output: false and access.read functions.
- */
-export type InferOutputType<
-	TConfig extends BaseFieldConfig,
-	TValue,
-> = TConfig extends { output: false }
-	? never
-	: TConfig extends { access: { read: (...args: unknown[]) => unknown } }
-		? TValue | undefined // Runtime check = might be filtered
-		: TValue;
-
-/**
- * Infer column type from field config.
- * Virtual fields have null columns.
- */
-export type InferColumnType<
-	TConfig extends BaseFieldConfig,
-	TColumn,
-> = TConfig extends { virtual: true | SQL<unknown> } ? null : TColumn;
-
-// ============================================================================
-// Field Definition Generic Type
-// ============================================================================
-
-// ============================================================================
-// Field Definition State (TState Pattern)
+// Field Location
 // ============================================================================
 
 /**
@@ -676,139 +504,68 @@ export type InferColumnType<
  */
 export type FieldLocation = "main" | "i18n" | "virtual" | "relation";
 
-/**
- * Core field definition state interface.
- * Uses TState pattern for better type composition and extensibility.
- *
- * Similar to CollectionBuilderState - accumulates field configuration
- * through the type system for precise inference.
- */
-export interface FieldDefinitionState {
-	/** Field type identifier (e.g., "text", "number", "relation") */
-	type: string;
-
-	/** Field configuration - any config extending BaseFieldConfig */
-	config: Record<string, any>;
-
-	/** Base runtime value type */
-	value: unknown;
-
-	/** Input type for create/update (affected by required, default, etc.) */
-	input: unknown;
-
-	/** Output type for select (affected by output, access, etc.) */
-	output: unknown;
-
-	/** Select type for CRUD (defaults to output when not overridden) */
-	select: unknown;
-
-	/** Drizzle column type (null for virtual/relation fields) */
-	column: AnyPgColumn | null;
-
-	/** Field location - determines which table the field belongs to */
-	location: FieldLocation;
-
-	/** Field operators for WHERE clause (column + jsonb variants) */
-	operators: ContextualOperators<any, any>;
-
-	/** Optional: Field metadata for introspection */
-	metadata?: FieldMetadata;
-}
+// ============================================================================
+// Field Extraction Type Helpers
+// ============================================================================
 
 /**
- * Empty field state for initialization
+ * Infer FieldLocation from FieldState properties.
+ * - localized: true → "i18n"
+ * - virtual: true + type: "relation" → "relation"
+ * - virtual: true → "virtual"
+ * - else → "main"
  */
-export type EmptyFieldState = {
-	type: string;
-	config: BaseFieldConfig;
-	value: unknown;
-	input: unknown;
-	output: unknown;
-	select: unknown;
-	column: AnyPgColumn | null;
-	location: "main";
-};
-
-// ============================================================================
-// Field Extraction Type Helpers (for unified .fields() API)
-// ============================================================================
+export type InferLocationFromFieldState<
+	TState extends import("./field-class-types.js").FieldState,
+> = TState extends { localized: true }
+	? "i18n"
+	: TState extends { virtual: true; type: "relation" }
+		? "relation"
+		: TState extends { virtual: true }
+			? "virtual"
+			: "main";
 
 /**
  * Extract fields by location from field definitions.
- * Used to separate main table fields, i18n fields, virtual fields, and relations.
  */
 export type ExtractFieldsByLocation<
-	TFields extends Record<string, FieldDefinition<FieldDefinitionState>>,
+	TFields extends Record<string, any>,
 	TLocation extends FieldLocation,
 > = {
-	[K in keyof TFields as TFields[K] extends FieldDefinition<infer TState>
-		? TState["location"] extends TLocation
-			? K
-			: never
-		: never]: TFields[K];
+	[K in keyof TFields as string extends K
+		? never
+		: number extends K
+			? never
+			: TFields[K] extends {
+						readonly _: infer TState extends
+							import("./field-class-types.js").FieldState;
+					}
+				? InferLocationFromFieldState<TState> extends TLocation
+					? K
+					: never
+				: never]: TFields[K];
 };
 
 /**
  * Extract main table fields (location: "main")
  */
-export type ExtractMainFields<
-	TFields extends Record<string, FieldDefinition<FieldDefinitionState>>,
-> = ExtractFieldsByLocation<TFields, "main">;
+export type ExtractMainFields<TFields extends Record<string, any>> =
+	ExtractFieldsByLocation<TFields, "main">;
 
 /**
  * Extract localized fields (location: "i18n")
  */
-export type ExtractI18nFields<
-	TFields extends Record<string, FieldDefinition<FieldDefinitionState>>,
-> = ExtractFieldsByLocation<TFields, "i18n">;
+export type ExtractI18nFields<TFields extends Record<string, any>> =
+	ExtractFieldsByLocation<TFields, "i18n">;
 
 /**
  * Extract virtual fields (location: "virtual")
  */
-export type ExtractVirtualFields<
-	TFields extends Record<string, FieldDefinition<FieldDefinitionState>>,
-> = ExtractFieldsByLocation<TFields, "virtual">;
+export type ExtractVirtualFields<TFields extends Record<string, any>> =
+	ExtractFieldsByLocation<TFields, "virtual">;
 
 /**
  * Extract relation fields (location: "relation")
  */
-export type ExtractRelationFields<
-	TFields extends Record<string, FieldDefinition<FieldDefinitionState>>,
-> = ExtractFieldsByLocation<TFields, "relation">;
-
-/**
- * Extract column types from field definitions.
- * Maps each field to its Drizzle column type.
- */
-export type ExtractColumnsFromFields<
-	TFields extends Record<string, FieldDefinition<FieldDefinitionState>>,
-> = {
-	[K in keyof TFields as TFields[K] extends FieldDefinition<infer TState>
-		? TState["column"] extends null
-			? never // Skip virtual/relation fields
-			: K
-		: never]: TFields[K] extends FieldDefinition<infer TState>
-		? TState["column"]
-		: never;
-};
-
-/**
- * Generic FieldDefinition type for use when the specific field type is unknown.
- * Uses a default FieldDefinitionState with all unknown types.
- *
- * NOTE: `config` uses `Record<string, any>` (matching FieldDefinitionState)
- * to allow any field config to be assigned. This avoids requiring casts when
- * using specialized configs like ObjectFieldConfig or ArrayFieldConfig which
- * have required properties (`fields`, `of`) not present in BaseFieldConfig.
- */
-export type AnyFieldDefinition = FieldDefinition<{
-	type: string;
-	config: Record<string, any>;
-	value: unknown;
-	input: unknown;
-	output: unknown;
-	select: unknown;
-	column: AnyPgColumn | null;
-	location: FieldLocation;
-	operators: ContextualOperators<any, any>;
-}>;
+export type ExtractRelationFields<TFields extends Record<string, any>> =
+	ExtractFieldsByLocation<TFields, "relation">;

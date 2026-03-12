@@ -42,8 +42,10 @@
  * The best way to customize flag mapping is in your app locale config:
  *
  * ```ts
- * // questpie/server/app.ts
- * q().locale({
+ * // questpie/server/locale.ts (file convention)
+ * import { locale } from "#questpie/factories";
+ *
+ * export default locale({
  *   locales: [
  *     {
  *       code: "en",
@@ -53,7 +55,7 @@
  *     { code: "sk", label: "Slovenčina" },
  *   ],
  *   defaultLocale: "en",
- * })
+ * });
  * ```
  *
  * The `flagCountryCode` will be automatically used by `LocaleSwitcher` and other locale UI components.

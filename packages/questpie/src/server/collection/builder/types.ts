@@ -9,13 +9,10 @@ import type {
 import type { PgColumn, PgTableWithColumns } from "drizzle-orm/pg-core";
 import type { Collection } from "#questpie/server/collection/builder/collection.js";
 import type { ValidationSchemas } from "#questpie/server/collection/builder/validation-helpers.js";
-// Note: any types are intentional for composition flexibility.
-// Users should use typedApp<App>(), typedDb<App>(), and typedSession<App>() for type-safe access.
+import type { AppContext } from "#questpie/server/config/app-context.js";
 import type { AccessMode } from "#questpie/server/config/types.js";
 import type {
-	FieldDefinition,
-	FieldDefinitionAccess,
-	FieldDefinitionState,
+	FieldAccess as FieldDefinitionAccess,
 	FieldLocation,
 } from "#questpie/server/fields/types.js";
 import type { SearchableConfig } from "#questpie/server/integrated/search/index.js";
@@ -156,7 +153,10 @@ export type RelationType = "one" | "many" | "manyToMany";
 export interface RelationConfig {
 	type: RelationType;
 	collection: string;
+	/** Array of PgColumn references (new pattern) */
 	fields?: PgColumn[];
+	/** Singular string field name for FK lookup (legacy / f.relation pattern) */
+	field?: string;
 	references: string[];
 	relationName?: string; // For linking corresponding relations
 	onDelete?: "cascade" | "set null" | "restrict" | "no action";
@@ -200,24 +200,35 @@ type InferUploadTargetCollection<TConfig> = TConfig extends {
 	: "assets";
 
 export type InferRelationConfigsFromFields<
-	TFields extends Record<string, FieldDefinition<FieldDefinitionState>>,
+	TFields extends Record<string, any>,
 > = {
-	[K in keyof TFields as TFields[K] extends FieldDefinition<infer TState>
+	[K in keyof TFields as TFields[K] extends {
+		readonly _: infer TState extends
+			import("../../fields/field-class-types.js").FieldState;
+	}
 		? TState["type"] extends "relation" | "upload"
 			? K
 			: never
-		: never]: TFields[K] extends FieldDefinition<infer TState>
-		? TState["type"] extends "relation"
-			? RelationConfig & {
-					type: InferRelationTypeFromConfig<TState["config"]>;
-					collection: InferRelationTargetName<TState["config"]["to"]>;
+		: never]: TFields[K] extends {
+		readonly _: infer TState extends
+			import("../../fields/field-class-types.js").FieldState;
+	}
+		? TState["type"] extends "relation" | "upload"
+			? TState extends {
+					relationTo: infer TTo extends string;
+					relationKind: infer TKind;
 				}
-			: TState["type"] extends "upload"
 				? RelationConfig & {
-						type: InferUploadRelationType<TState["config"]>;
-						collection: InferUploadTargetCollection<TState["config"]>;
+						type: TKind extends "many" ? "many" : "one";
+						collection: TTo;
 					}
-				: never
+				: TState extends { relationTo: infer TTo extends string }
+					? RelationConfig & {
+							type: "one";
+							collection: TTo;
+						}
+					: RelationConfig
+			: never
 		: never;
 };
 
@@ -227,7 +238,7 @@ export type InferRelationConfigsFromFields<
  * For raw Drizzle columns, passes through as-is.
  */
 type FieldsForRelationsContext<TFields extends Record<string, any>> =
-	TFields extends Record<string, FieldDefinition<FieldDefinitionState>>
+	TFields extends Record<string, { $types: any; toColumn: any }>
 		? ExtractFieldsByLocation<TFields, "main">
 		: TFields;
 
@@ -341,22 +352,13 @@ export interface RelationVariant {
  * @template TData - The record data type (created/updated/deleted)
  * @template TOriginal - The original record type (for update/delete operations), use `never` if not available
  * @template TOperation - The operation type
- * @template TApp - The app app type (defaults to any)
  *
  * @example
  * ```ts
- * import { typedApp, typedDb, typedSession } from "questpie";
- * import type { App } from "./questpie";
- *
  * .hooks({
- *   afterChange: async ({ data, app, db, session }) => {
- *     const app = typedApp<App>(app);
- *     const database = typedDb<App>(db);
- *     const sess = typedSession<App>(session);
- *
- *     // ✅ Fully typed access
- *     await app.queue.notify.publish({ id: data.id });
- *     await database.insert(auditLog).values({ ... });
+ *   afterChange: async ({ data, db, session, queue }) => {
+ *     await queue.notify.publish({ id: data.id });
+ *     await db.insert(auditLog).values({ ... });
  *   }
  * })
  * ```
@@ -369,8 +371,7 @@ export interface HookContext<
 		| "update"
 		| "delete"
 		| "read",
-	TApp = any,
-> {
+> extends AppContext {
 	/**
 	 * The record data (created/updated record)
 	 */
@@ -380,34 +381,6 @@ export interface HookContext<
 	 * Original record (only available for update operations in afterChange/afterRead hooks)
 	 */
 	original: TOriginal extends never ? never : TOriginal | undefined;
-
-	/**
-	 * app instance - use typedApp<App>(app) for type-safe access.
-	 *
-	 * @example
-	 * ```ts
-	 * const app = typedApp<App>(app);
-	 * app.queue.jobName.publish(...);
-	 * app.email.send(...);
-	 * ```
-	 */
-	app: TApp;
-
-	/**
-	 * Auth session (user + session) from Better Auth.
-	 * - undefined = session not resolved
-	 * - null = explicitly unauthenticated
-	 * - object = authenticated
-	 *
-	 * Use typedSession<App>(session) for type-safe access.
-	 *
-	 * @example
-	 * ```ts
-	 * const sess = typedSession<App>(session);
-	 * if (sess?.user.role === 'admin') { ... }
-	 * ```
-	 */
-	session?: any | null;
 
 	/**
 	 * Current locale
@@ -423,56 +396,28 @@ export interface HookContext<
 	 * Operation type (specific to hook)
 	 */
 	operation: TOperation;
-
-	/**
-	 * Database client (may be transaction).
-	 * Use typedDb<App>(db) for type-safe Drizzle operations.
-	 *
-	 * @example
-	 * ```ts
-	 * const database = typedDb<App>(db);
-	 * await database.insert(table).values({ ... });
-	 * ```
-	 */
-	db: any;
 }
 
 /**
  * Access control context for collection operations.
  *
  * @template TData - The record data type
- * @template TApp - The app app type (defaults to any)
  *
  * @example
  * ```ts
- * import { typedSession } from "questpie";
- * import type { App } from "./questpie";
- *
  * .access({
  *   read: ({ session, data }) => {
- *     const sess = typedSession<App>(session);
- *     return data.userId === sess?.user.id || sess?.user.role === 'admin'
+ *     // session is typed via generated AppContext
+ *     return data.userId === session?.user.id || session?.user.role === 'admin'
  *   }
  * })
  * ```
  */
-export interface AccessContext<TData = any, TApp = any> {
-	/** app instance - use typedApp<App>(app) for type-safe access */
-	app: TApp;
-	/**
-	 * Auth session (user + session) from Better Auth.
-	 * Use typedSession<App>(session) for type-safe access.
-	 * - undefined = session not resolved
-	 * - null = explicitly unauthenticated
-	 * - object = authenticated
-	 */
-	session?: any | null;
+export interface AccessContext<TData = any> extends AppContext {
 	/** The record being accessed (for read/update/delete) */
 	data?: TData;
 	/** Input data (for create/update) */
-	input?: any;
-	/** Database client - use typedDb<App>(db) for type-safe access */
-	db: any;
+	input?: unknown;
 	/** Current locale */
 	locale?: string;
 }
@@ -484,7 +429,6 @@ export interface AccessContext<TData = any, TApp = any> {
  * @template TData - The record data type
  * @template TOriginal - The original record type (for update/delete operations)
  * @template TOperation - The operation type
- * @template TApp - The app app type
  */
 export type HookFunction<
 	TData = any,
@@ -494,10 +438,7 @@ export type HookFunction<
 		| "update"
 		| "delete"
 		| "read",
-	TApp = any,
-> = (
-	ctx: HookContext<TData, TOriginal, TOperation, TApp>,
-) => Promise<void> | void;
+> = (ctx: HookContext<TData, TOriginal, TOperation>) => Promise<void> | void;
 
 /**
  * BeforeOperation hook - runs before any operation
@@ -509,12 +450,10 @@ export type BeforeOperationHook<
 	TSelect = any,
 	TInsert = any,
 	TUpdate = any,
-	TApp = any,
 > = HookFunction<
 	TInsert | TUpdate | TSelect,
 	never,
-	"create" | "update" | "delete" | "read",
-	TApp
+	"create" | "update" | "delete" | "read"
 >;
 
 /**
@@ -528,8 +467,7 @@ export type BeforeValidateHook<
 	_TSelect = any,
 	TInsert = any,
 	TUpdate = any,
-	TApp = any,
-> = HookFunction<TInsert | TUpdate, never, "create" | "update", TApp>;
+> = HookFunction<TInsert | TUpdate, never, "create" | "update">;
 
 /**
  * BeforeChange hook - runs before create/update (after validation)
@@ -542,8 +480,7 @@ export type BeforeChangeHook<
 	_TSelect = any,
 	TInsert = any,
 	TUpdate = any,
-	TApp = any,
-> = HookFunction<TInsert | TUpdate, never, "create" | "update", TApp>;
+> = HookFunction<TInsert | TUpdate, never, "create" | "update">;
 
 /**
  * AfterChange hook - runs after create/update operations
@@ -552,11 +489,10 @@ export type BeforeChangeHook<
  * @property operation - "create" | "update"
  * @remarks Use this for notifications, webhooks, syncing to external services
  */
-export type AfterChangeHook<TSelect = any, TApp = any> = HookFunction<
+export type AfterChangeHook<TSelect = any> = HookFunction<
 	TSelect,
 	TSelect | undefined,
-	"create" | "update",
-	TApp
+	"create" | "update"
 >;
 
 /**
@@ -566,11 +502,10 @@ export type AfterChangeHook<TSelect = any, TApp = any> = HookFunction<
  * @property operation - "read"
  * @remarks Use this to modify query options or add filters
  */
-export type BeforeReadHook<TSelect = any, TApp = any> = HookFunction<
+export type BeforeReadHook<TSelect = any> = HookFunction<
 	TSelect,
 	never,
-	"read",
-	TApp
+	"read"
 >;
 
 /**
@@ -580,11 +515,10 @@ export type BeforeReadHook<TSelect = any, TApp = any> = HookFunction<
  * @property operation - "create" | "update" | "delete" | "read"
  * @remarks Use this to transform output, add computed fields, format data
  */
-export type AfterReadHook<TSelect = any, TApp = any> = HookFunction<
+export type AfterReadHook<TSelect = any> = HookFunction<
 	TSelect,
 	TSelect | undefined,
-	"create" | "update" | "delete" | "read",
-	TApp
+	"create" | "update" | "delete" | "read"
 >;
 
 /**
@@ -594,11 +528,10 @@ export type AfterReadHook<TSelect = any, TApp = any> = HookFunction<
  * @property operation - "delete"
  * @remarks Use this to prevent deletion, cascade deletes, create backups
  */
-export type BeforeDeleteHook<TSelect = any, TApp = any> = HookFunction<
+export type BeforeDeleteHook<TSelect = any> = HookFunction<
 	TSelect,
 	never,
-	"delete",
-	TApp
+	"delete"
 >;
 
 /**
@@ -608,40 +541,33 @@ export type BeforeDeleteHook<TSelect = any, TApp = any> = HookFunction<
  * @property operation - "delete"
  * @remarks Use this for cleanup, logging, notifying users
  */
-export type AfterDeleteHook<TSelect = any, TApp = any> = HookFunction<
+export type AfterDeleteHook<TSelect = any> = HookFunction<
 	TSelect,
 	never,
-	"delete",
-	TApp
+	"delete"
 >;
 
 /**
  * Context passed to workflow transition hooks.
  * Includes the stage transition info alongside standard hook fields.
  */
-export interface TransitionHookContext<TData = any, TApp = any> {
+export interface TransitionHookContext<TData = any> extends AppContext {
 	/** Record being transitioned */
 	data: TData;
 	/** Stage the record is transitioning from */
 	fromStage: string;
 	/** Stage the record is transitioning to */
 	toStage: string;
-	/** app instance - use typedApp<App>(app) for type-safe access */
-	app: TApp;
-	/** Auth session */
-	session?: any | null;
 	/** Current locale */
 	locale?: string;
-	/** Database client (may be transaction) */
-	db: any;
 }
 
 /**
  * Hook function for workflow stage transitions.
  * Throw to abort the transition in beforeTransition.
  */
-export type TransitionHook<TData = any, TApp = any> = (
-	ctx: TransitionHookContext<TData, TApp>,
+export type TransitionHook<TData = any> = (
+	ctx: TransitionHookContext<TData>,
 ) => Promise<void> | void;
 
 /**
@@ -657,14 +583,8 @@ export type TransitionHook<TData = any, TApp = any> = (
  * @template TSelect - The complete record type (after read)
  * @template TInsert - The insert data type
  * @template TUpdate - The update data type
- * @template TApp - The app app type
  */
-export interface CollectionHooks<
-	TSelect = any,
-	TInsert = any,
-	TUpdate = any,
-	TApp = any,
-> {
+export interface CollectionHooks<TSelect = any, TInsert = any, TUpdate = any> {
 	/**
 	 * Runs before any operation (create/update/delete/read)
 	 *
@@ -672,13 +592,12 @@ export interface CollectionHooks<
 	 * - `data`: Input data (type depends on operation)
 	 * - `original`: Not available
 	 * - `operation`: "create" | "update" | "delete" | "read"
-	 * - `app`: app instance
 	 *
 	 * **Use cases:** logging, rate limiting, early validation
 	 */
 	beforeOperation?:
-		| BeforeOperationHook<TSelect, TInsert, TUpdate, TApp>[]
-		| BeforeOperationHook<TSelect, TInsert, TUpdate, TApp>;
+		| BeforeOperationHook<TSelect, TInsert, TUpdate>[]
+		| BeforeOperationHook<TSelect, TInsert, TUpdate>;
 
 	/**
 	 * Runs before validation on create/update operations
@@ -687,7 +606,6 @@ export interface CollectionHooks<
 	 * - `data`: Mutable input data (TInsert on create, TUpdate on update)
 	 * - `original`: Not available
 	 * - `operation`: "create" | "update"
-	 * - `app`: app instance
 	 *
 	 * **Use cases:** transforming input, setting defaults, normalizing data
 	 *
@@ -701,8 +619,8 @@ export interface CollectionHooks<
 	 * ```
 	 */
 	beforeValidate?:
-		| BeforeValidateHook<TSelect, TInsert, TUpdate, TApp>[]
-		| BeforeValidateHook<TSelect, TInsert, TUpdate, TApp>;
+		| BeforeValidateHook<TSelect, TInsert, TUpdate>[]
+		| BeforeValidateHook<TSelect, TInsert, TUpdate>;
 
 	/**
 	 * Runs before create/update operations (after validation)
@@ -711,22 +629,21 @@ export interface CollectionHooks<
 	 * - `data`: Validated input data (TInsert on create, TUpdate on update)
 	 * - `original`: Not available
 	 * - `operation`: "create" | "update"
-	 * - `app`: app instance
 	 *
 	 * **Use cases:** business logic, complex validation, derived fields
 	 *
 	 * @example
 	 * ```ts
-	 * beforeChange: ({ data, operation, app }) => {
+	 * beforeChange: ({ data, operation, db }) => {
 	 *   if (operation === 'create') {
-	 *     data.createdBy = app.context.user?.id;
+	 *     data.createdBy = session?.user?.id;
 	 *   }
 	 * }
 	 * ```
 	 */
 	beforeChange?:
-		| BeforeChangeHook<TSelect, TInsert, TUpdate, TApp>[]
-		| BeforeChangeHook<TSelect, TInsert, TUpdate, TApp>;
+		| BeforeChangeHook<TSelect, TInsert, TUpdate>[]
+		| BeforeChangeHook<TSelect, TInsert, TUpdate>;
 
 	/**
 	 * Runs after create/update operations
@@ -735,24 +652,21 @@ export interface CollectionHooks<
 	 * - `data`: Complete record (TSelect)
 	 * - `original`: Original record (TSelect) - **only on update**
 	 * - `operation`: "create" | "update"
-	 * - `app`: app instance
 	 *
 	 * **Use cases:** notifications, webhooks, syncing to external services
 	 *
 	 * @example
 	 * ```ts
-	 * afterChange: async ({ data, original, operation, app }) => {
+	 * afterChange: async ({ data, original, operation, queue }) => {
 	 *   if (operation === 'update' && original) {
 	 *     if (data.status !== original.status) {
-	 *       await app.queue.statusChange.publish({ id: data.id });
+	 *       await queue.statusChange.publish({ id: data.id });
 	 *     }
 	 *   }
 	 * }
 	 * ```
 	 */
-	afterChange?:
-		| AfterChangeHook<TSelect, TApp>[]
-		| AfterChangeHook<TSelect, TApp>;
+	afterChange?: AfterChangeHook<TSelect>[] | AfterChangeHook<TSelect>;
 
 	/**
 	 * Runs before read operations
@@ -761,11 +675,10 @@ export interface CollectionHooks<
 	 * - `data`: Query context/options
 	 * - `original`: Not available
 	 * - `operation`: "read"
-	 * - `app`: app instance
 	 *
 	 * **Use cases:** modifying query options, adding filters
 	 */
-	beforeRead?: BeforeReadHook<TSelect, TApp>[] | BeforeReadHook<TSelect, TApp>;
+	beforeRead?: BeforeReadHook<TSelect>[] | BeforeReadHook<TSelect>;
 
 	/**
 	 * Runs after any operation that returns data
@@ -774,7 +687,6 @@ export interface CollectionHooks<
 	 * - `data`: Complete record (TSelect)
 	 * - `original`: Original record (TSelect) - **only on update**
 	 * - `operation`: "create" | "update" | "delete" | "read"
-	 * - `app`: app instance
 	 *
 	 * **Use cases:** transforming output, adding computed fields, formatting
 	 *
@@ -786,7 +698,7 @@ export interface CollectionHooks<
 	 * }
 	 * ```
 	 */
-	afterRead?: AfterReadHook<TSelect, TApp>[] | AfterReadHook<TSelect, TApp>;
+	afterRead?: AfterReadHook<TSelect>[] | AfterReadHook<TSelect>;
 
 	/**
 	 * Runs before delete operations
@@ -795,15 +707,14 @@ export interface CollectionHooks<
 	 * - `data`: Record to be deleted (TSelect)
 	 * - `original`: Not available
 	 * - `operation`: "delete"
-	 * - `app`: app instance
 	 *
 	 * **Use cases:** preventing deletion, cascading deletes, creating backups
 	 *
 	 * @example
 	 * ```ts
-	 * beforeDelete: async ({ data, app }) => {
+	 * beforeDelete: async ({ data, db }) => {
 	 *   // Prevent deletion if has active relations
-	 *   const hasOrders = await app.db.select().from(orders)
+	 *   const hasOrders = await db.select().from(orders)
 	 *     .where(eq(orders.userId, data.id));
 	 *   if (hasOrders.length > 0) {
 	 *     throw new Error('Cannot delete user with active orders');
@@ -811,9 +722,7 @@ export interface CollectionHooks<
 	 * }
 	 * ```
 	 */
-	beforeDelete?:
-		| BeforeDeleteHook<TSelect, TApp>[]
-		| BeforeDeleteHook<TSelect, TApp>;
+	beforeDelete?: BeforeDeleteHook<TSelect>[] | BeforeDeleteHook<TSelect>;
 
 	/**
 	 * Runs after delete operations
@@ -822,39 +731,32 @@ export interface CollectionHooks<
 	 * - `data`: Deleted record (TSelect)
 	 * - `original`: Not available
 	 * - `operation`: "delete"
-	 * - `app`: app instance
 	 *
 	 * **Use cases:** cleanup, logging, notifying users
 	 *
 	 * @example
 	 * ```ts
-	 * afterDelete: async ({ data, app }) => {
-	 *   await app.queue.userDeleted.publish({ userId: data.id });
+	 * afterDelete: async ({ data, queue }) => {
+	 *   await queue.userDeleted.publish({ userId: data.id });
 	 * }
 	 * ```
 	 */
-	afterDelete?:
-		| AfterDeleteHook<TSelect, TApp>[]
-		| AfterDeleteHook<TSelect, TApp>;
+	afterDelete?: AfterDeleteHook<TSelect>[] | AfterDeleteHook<TSelect>;
 
 	/**
 	 * Runs before a workflow stage transition (transitionStage).
 	 * Throw to abort the transition.
 	 *
-	 * **Context:** `data` (record), `fromStage`, `toStage`, `app`, `db`
+	 * **Context:** `data` (record), `fromStage`, `toStage`, `db`
 	 */
-	beforeTransition?:
-		| TransitionHook<TSelect, TApp>[]
-		| TransitionHook<TSelect, TApp>;
+	beforeTransition?: TransitionHook<TSelect>[] | TransitionHook<TSelect>;
 
 	/**
 	 * Runs after a workflow stage transition (transitionStage).
 	 *
-	 * **Context:** `data` (record), `fromStage`, `toStage`, `app`, `db`
+	 * **Context:** `data` (record), `fromStage`, `toStage`, `db`
 	 */
-	afterTransition?:
-		| TransitionHook<TSelect, TApp>[]
-		| TransitionHook<TSelect, TApp>;
+	afterTransition?: TransitionHook<TSelect>[] | TransitionHook<TSelect>;
 }
 
 /**
@@ -877,10 +779,10 @@ export type AccessWhere<TFields = any> =
  * - boolean: true (allow all) or false (deny all)
  * - AccessWhere: query conditions to filter results (TYPE-SAFE!)
  */
-export type AccessRule<TRow = any, TFields = any, TApp = any> =
+export type AccessRule<TRow = any, TFields = any> =
 	| boolean
 	| ((
-			ctx: AccessContext<TRow, TApp>,
+			ctx: AccessContext<TRow>,
 	  ) =>
 			| boolean
 			| AccessWhere<TFields>
@@ -889,27 +791,27 @@ export type AccessRule<TRow = any, TFields = any, TApp = any> =
 /**
  * Field-level access control
  */
-export interface FieldAccess<TRow = any, TApp = any> {
-	read?: AccessRule<TRow, any, TApp>;
-	create?: AccessRule<TRow, any, TApp>;
-	update?: AccessRule<TRow, any, TApp>;
+export interface FieldAccess<TRow = any> {
+	read?: AccessRule<TRow>;
+	create?: AccessRule<TRow>;
+	update?: AccessRule<TRow>;
 }
 
 /**
  * Collection access control configuration
  */
-export interface CollectionAccess<TRow = any, TApp = any> {
+export interface CollectionAccess<TRow = any> {
 	// Operation-level access
 	// Can return boolean OR where conditions to filter results
-	read?: AccessRule<TRow, any, TApp>;
-	create?: AccessRule<TRow, any, TApp>;
-	update?: AccessRule<TRow, any, TApp>;
-	delete?: AccessRule<TRow, any, TApp>;
+	read?: AccessRule<TRow>;
+	create?: AccessRule<TRow>;
+	update?: AccessRule<TRow>;
+	delete?: AccessRule<TRow>;
 	/**
 	 * Access rule for workflow stage transitions.
 	 * Falls back to `update` if not specified.
 	 */
-	transition?: AccessRule<TRow, any, TApp>;
+	transition?: AccessRule<TRow>;
 
 	/**
 	 * Field-scoped access rules.
@@ -917,7 +819,7 @@ export interface CollectionAccess<TRow = any, TApp = any> {
 	 * This is the source-of-truth for per-field authorization.
 	 * Field-level access in field config is deprecated and removed from runtime.
 	 */
-	fields?: Record<string, FieldDefinitionAccess | FieldAccess<TRow, TApp>>;
+	fields?: Record<string, FieldDefinitionAccess | FieldAccess<TRow>>;
 }
 
 // ============================================================================
@@ -1100,18 +1002,17 @@ export interface CollectionBuilderState {
 	upload: UploadOptions | undefined;
 	/**
 	 * Field definitions from Field Builder.
-	 * Stores the FieldDefinition objects for validation, introspection, and localization.
+	 * Stores the Field objects for validation, introspection, and localization.
 	 */
-	fieldDefinitions: Record<string, FieldDefinition<FieldDefinitionState>>;
+	fieldDefinitions: Record<
+		string,
+		import("../../fields/field-class.js").Field<
+			import("../../fields/field-class-types.js").FieldState
+		>
+	>;
 	/**
-	 * Phantom type for QuestpieBuilder reference.
-	 * Used to access field types registered via q.fields().
-	 */
-	"~questpieApp"?: any;
-	/**
-	 * Phantom type for field types available in .fields((f) => ...).
-	 * Extracted from ~questpieApp at compile time for type inference.
-	 * This is set directly rather than computed to avoid complex type inference.
+	 * Phantom type for field types available in .fields(({ f }) => ...).
+	 * Set directly via EmptyCollectionState generic parameter.
 	 */
 	"~fieldTypes"?: Record<string, any>;
 }
@@ -1143,12 +1044,11 @@ export type ExtractAccess<TState extends CollectionBuilderState> =
  * Default empty state for a new collection
  *
  * @param TName - Collection name
- * @param TQuestpieApp - Reference to QuestpieBuilder instance (for accessing app config)
- * @param TFieldTypes - Field types available in .fields((f) => ...), passed directly to avoid type extraction issues
+ * @param TFieldTypes - Field types available in .fields(({ f }) => ...)
  */
 export type EmptyCollectionState<
 	TName extends string,
-	TQuestpieApp = undefined,
+	_TDeprecated = undefined,
 	TFieldTypes extends Record<string, any> = Record<string, any>,
 > = CollectionBuilderState & {
 	name: TName;
@@ -1166,7 +1066,6 @@ export type EmptyCollectionState<
 	output: undefined;
 	upload: undefined;
 	fieldDefinitions: {};
-	"~questpieApp": TQuestpieApp;
 	"~fieldTypes": TFieldTypes;
 };
 
@@ -1177,24 +1076,26 @@ export type AnyCollectionState = CollectionBuilderState;
 
 /**
  * Extract fields by location from TState-based field definitions.
- * New approach using FieldDefinition state.location property.
+ * Uses V2 Field phantom property dispatch pattern.
  */
 export type ExtractFieldsByLocation<
-	TFields extends Record<string, FieldDefinition<FieldDefinitionState>>,
+	TFields extends Record<string, any>,
 	TLocation extends FieldLocation,
 > = {
-	[K in keyof TFields as TFields[K] extends FieldDefinition<infer TState>
-		? TState extends FieldDefinitionState
-			? TState["location"] extends TLocation
-				? K
-				: never
-			: never
-		: never]: TFields[K] extends FieldDefinition<infer TState>
-		? TState extends FieldDefinitionState
+	[K in keyof TFields as TFields[K] extends {
+		readonly _: infer TState extends
+			import("../../fields/field-class-types.js").FieldState;
+	}
+		? import("../../fields/types.js").InferLocationFromFieldState<TState> extends TLocation
 			? TState["column"] extends null
-				? never // Skip fields without columns (virtual, relations)
-				: TState["column"]
+				? never
+				: K
 			: never
+		: never]: TFields[K] extends {
+		readonly _: infer TState extends
+			import("../../fields/field-class-types.js").FieldState;
+	}
+		? TState["column"]
 		: never;
 };
 
@@ -1254,7 +1155,7 @@ export type InferI18nVersionColumnFromFields<
  * Extracts only fields with location: "main" and non-null columns.
  */
 export type InferMainColumnsFromFields<
-	TFields extends Record<string, FieldDefinition<FieldDefinitionState>>,
+	TFields extends Record<string, any>,
 	TOptions extends CollectionOptions,
 	TUpload extends UploadOptions | undefined = undefined,
 > = ("id" extends keyof ExtractFieldsByLocation<TFields, "main">
@@ -1275,17 +1176,16 @@ export type InferMainColumnsFromFields<
  * Infer i18n table columns from TState-based field definitions.
  * Extracts only fields with location: "i18n" and non-null columns.
  */
-export type InferI18nColumnsFromFields<
-	TFields extends Record<string, FieldDefinition<FieldDefinitionState>>,
-> = ReturnType<typeof Collection.i18nCols> &
-	ExtractFieldsByLocation<TFields, "i18n">;
+export type InferI18nColumnsFromFields<TFields extends Record<string, any>> =
+	ReturnType<typeof Collection.i18nCols> &
+		ExtractFieldsByLocation<TFields, "i18n">;
 
 /**
  * Infer main table type from TState-based field definitions.
  */
 export type InferMainTableWithColumns<
 	TName extends string,
-	TFields extends Record<string, FieldDefinition<FieldDefinitionState>>,
+	TFields extends Record<string, any>,
 	TOptions extends CollectionOptions,
 	TUpload extends UploadOptions | undefined = undefined,
 > = PgTableWithColumns<{
@@ -1304,7 +1204,7 @@ export type InferMainTableWithColumns<
  */
 export type InferI18nTableWithColumns<
 	TName extends string,
-	TFields extends Record<string, FieldDefinition<FieldDefinitionState>>,
+	TFields extends Record<string, any>,
 > = PgTableWithColumns<{
 	name: LocalizedTableName<TName>;
 	schema: undefined;

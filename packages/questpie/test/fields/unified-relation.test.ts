@@ -6,8 +6,8 @@
 
 import { describe, expect, test } from "bun:test";
 import { pgTable, varchar } from "drizzle-orm/pg-core";
-import { createFieldBuilderFromDefs } from "#questpie/server/fields/builder.js";
-import { defaultFields } from "#questpie/server/fields/builtin/index.js";
+import { createFieldBuilder } from "#questpie/server/fields/builder.js";
+import { builtinFields } from "#questpie/server/fields/builtin/index.js";
 import type { RelationFieldMetadata } from "#questpie/server/fields/types.js";
 
 // Mock tables for testing
@@ -36,13 +36,10 @@ const mockPostTags = { name: "postTags", table: postTagsTable };
 
 describe("Unified Relation Field", () => {
 	// Create a callable proxy from plain field defs
-	const fields = createFieldBuilderFromDefs(defaultFields);
+	const fields = createFieldBuilder(builtinFields);
 
 	test("belongsTo relation is created correctly", () => {
-		const relationField = fields.relation({
-			to: () => mockUsers as any,
-			required: true,
-		});
+		const relationField = fields.relation(() => mockUsers as any).required();
 
 		// Verify it's a field definition
 		expect(relationField).toBeDefined();
@@ -56,11 +53,9 @@ describe("Unified Relation Field", () => {
 	});
 
 	test("hasMany relation has no column", () => {
-		const relationField = fields.relation({
-			to: () => mockPosts as any,
-			hasMany: true,
-			foreignKey: "authorId",
-		});
+		const relationField = fields
+			.relation(() => mockPosts as any)
+			.hasMany({ foreignKey: "authorId" });
 
 		expect(relationField).toBeDefined();
 
@@ -70,13 +65,13 @@ describe("Unified Relation Field", () => {
 	});
 
 	test("manyToMany relation has no column", () => {
-		const relationField = fields.relation({
-			to: () => mockTags as any,
-			hasMany: true,
-			through: () => mockPostTags as any,
-			sourceField: "postId",
-			targetField: "tagId",
-		});
+		const relationField = fields
+			.relation(() => mockTags as any)
+			.manyToMany({
+				through: () => mockPostTags as any,
+				sourceField: "postId",
+				targetField: "tagId",
+			});
 
 		expect(relationField).toBeDefined();
 
@@ -86,10 +81,7 @@ describe("Unified Relation Field", () => {
 	});
 
 	test("multiple relation creates jsonb column", () => {
-		const relationField = fields.relation({
-			to: () => mockUsers as any,
-			multiple: true,
-		});
+		const relationField = fields.relation(() => mockUsers as any).multiple();
 
 		expect(relationField).toBeDefined();
 
@@ -99,11 +91,10 @@ describe("Unified Relation Field", () => {
 	});
 
 	test("relation field metadata is correct", () => {
-		const relationField = fields.relation({
-			to: () => mockUsers as any,
-			label: "Author",
-			required: true,
-		});
+		const relationField = fields
+			.relation(() => mockUsers as any)
+			.label("Author")
+			.required();
 
 		const metadata = relationField.getMetadata();
 		expect(metadata.type).toBe("relation");
@@ -128,38 +119,30 @@ describe("Unified Relation Field", () => {
 
 	test("relation generates correct Zod schema", () => {
 		// belongsTo: required
-		const requiredRelation = fields.relation({
-			to: () => mockUsers as any,
-			required: true,
-		});
+		const requiredRelation = fields.relation(() => mockUsers as any).required();
 		const requiredSchema = requiredRelation.toZodSchema();
 		expect(requiredSchema).toBeDefined();
 
 		// belongsTo: optional
-		const optionalRelation = fields.relation({
-			to: () => mockUsers as any,
-		});
+		const optionalRelation = fields.relation(() => mockUsers as any);
 		const optionalSchema = optionalRelation.toZodSchema();
 		expect(optionalSchema).toBeDefined();
 
 		// hasMany
-		const hasManyRelation = fields.relation({
-			to: () => mockPosts as any,
-			hasMany: true,
-			foreignKey: "authorId",
-		});
+		const hasManyRelation = fields
+			.relation(() => mockPosts as any)
+			.hasMany({ foreignKey: "authorId" });
 		const hasManySchema = hasManyRelation.toZodSchema();
 		expect(hasManySchema).toBeDefined();
 	});
 
 	test("morphTo (polymorphic) creates type and id columns", () => {
-		const relationField = fields.relation({
-			to: {
+		const relationField = fields
+			.relation({
 				users: () => mockUsers as any,
 				posts: () => mockPosts as any,
-			},
-			required: true,
-		});
+			})
+			.required();
 
 		expect(relationField).toBeDefined();
 
@@ -170,21 +153,19 @@ describe("Unified Relation Field", () => {
 	});
 
 	test("onDelete option is captured in metadata", () => {
-		const relationField = fields.relation({
-			to: () => mockUsers as any,
-			required: true,
-			onDelete: "cascade",
-		});
+		const relationField = fields
+			.relation(() => mockUsers as any)
+			.required()
+			.onDelete("cascade");
 
 		const metadata = relationField.getMetadata() as RelationFieldMetadata;
 		expect(metadata.onDelete).toBe("cascade");
 	});
 
 	test("relationName option is captured in metadata", () => {
-		const relationField = fields.relation({
-			to: () => mockUsers as any,
-			relationName: "authorRelation",
-		});
+		const relationField = fields
+			.relation(() => mockUsers as any)
+			.relationName("authorRelation");
 
 		const metadata = relationField.getMetadata() as RelationFieldMetadata;
 		expect(metadata.relationName).toBe("authorRelation");

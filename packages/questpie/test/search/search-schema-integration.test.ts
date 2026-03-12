@@ -1,6 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
-import { defaultFields } from "../../src/server/fields/builtin/defaults.js";
-import { questpie } from "../../src/server/index.js";
+import { collection } from "../../src/server/index.js";
 import {
 	createPgVectorSearchAdapter,
 	type PgVectorSearchAdapter,
@@ -109,38 +108,28 @@ describe("Search Schema Integration", () => {
 });
 
 // ============================================================================
-// Create questpie builder with default fields
-// ============================================================================
-
-const q = questpie({ name: "schema-test" }).fields(defaultFields);
-
-// ============================================================================
 // Integration Tests
 // ============================================================================
 
 describe("getSchema() Integration", () => {
 	// Test collection
-	const posts = q
-		.collection("posts")
-		.fields((f) => ({
-			title: f.text({ required: true, maxLength: 255 }),
+	const posts = collection("posts")
+		.fields(({ f }) => ({
+			title: f.text(255).required(),
 			content: f.textarea(),
 		}))
 		.title(({ f }) => f.title)
 		.options({ timestamps: true });
 
-	const testModule = q.collections({
-		posts,
-	});
-
 	describe("with PostgresSearchAdapter", () => {
-		let setup: Awaited<ReturnType<typeof buildMockApp<typeof testModule>>>;
+		let setup: Awaited<ReturnType<typeof buildMockApp>>;
 
 		beforeEach(async () => {
 			const adapter = createPostgresSearchAdapter();
-			setup = await buildMockApp(testModule, {
-				search: adapter,
-			});
+			setup = await buildMockApp(
+				{ collections: { posts } },
+				{ search: adapter },
+			);
 		});
 
 		afterEach(async () => {
@@ -176,11 +165,11 @@ describe("getSchema() Integration", () => {
 	});
 
 	describe("without explicit search adapter (uses default)", () => {
-		let setup: Awaited<ReturnType<typeof buildMockApp<typeof testModule>>>;
+		let setup: Awaited<ReturnType<typeof buildMockApp>>;
 
 		beforeEach(async () => {
 			// No search adapter explicitly configured - uses default PostgresSearchAdapter
-			setup = await buildMockApp(testModule, {});
+			setup = await buildMockApp({ collections: { posts } }, {});
 		});
 
 		afterEach(async () => {

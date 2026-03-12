@@ -1,234 +1,89 @@
 /**
- * View Builders (List & Edit)
+ * View Definition & Factory
  *
- * Defines reusable view components for collections.
+ * Defines reusable view components for collections and globals.
+ * The `view()` factory returns a plain frozen object.
+ *
+ * A view definition is just a registry entry: name + kind → component mapping.
+ * All view config flows from server introspection at runtime.
  */
 
-import type { SetProperty } from "questpie/shared";
 import type { MaybeLazyComponent } from "../types/common";
 
 // ============================================================================
-// Config Extraction Types
+// View Kind
 // ============================================================================
 
 /**
- * Extract viewConfig type from a view component's props.
+ * View kind discriminant — "list" for collection list pages, "form" for edit/create pages.
+ */
+export type ViewKind = "list" | "form";
+
+// ============================================================================
+// View Definition (plain frozen object)
+// ============================================================================
+
+/**
+ * View definition — a registry entry mapping a view name to its component.
  *
- * Looks for `viewConfig?: T` prop and extracts T.
- * Returns `unknown` if not found (will be refined by $config).
+ * Created by the `view()` factory. Has `kind` discriminant for list vs form views.
+ * All view config (columns, sections, etc.) flows from server introspection.
  */
-type ExtractViewConfigFromComponent<TComponent> =
-	TComponent extends React.ComponentType<infer P>
-		? P extends { viewConfig?: infer C }
-			? C
-			: unknown
-		: unknown;
-
-/**
- * Extract config from lazy component: () => Promise<{ default: Component }>
- */
-type ExtractViewConfigFromLazy<TComponent> = TComponent extends () => Promise<{
-	default: infer C;
-}>
-	? ExtractViewConfigFromComponent<C>
-	: ExtractViewConfigFromComponent<TComponent>;
+export interface ViewDefinition<
+	TName extends string = string,
+	TKind extends ViewKind = ViewKind,
+> {
+	readonly name: TName;
+	readonly kind: TKind;
+	readonly component: MaybeLazyComponent;
+}
 
 // ============================================================================
-// View Definitions
+// Kind-Specific Type Aliases
 // ============================================================================
 
 /**
  * List view definition
  */
-export interface ListViewDefinition<
-	TName extends string = string,
-	TConfig = unknown,
-> {
-	readonly name: TName;
-	readonly kind: "list";
-	readonly "~config": TConfig;
-	readonly component: MaybeLazyComponent;
-}
+export type ListViewDefinition<TName extends string = string> =
+	ViewDefinition<TName, "list">;
 
 /**
- * Edit view definition
+ * Form view definition
  */
-export interface EditViewDefinition<
-	TName extends string = string,
-	TConfig = unknown,
-> {
-	readonly name: TName;
-	readonly kind: "edit";
-	readonly "~config": TConfig;
-	readonly component: MaybeLazyComponent;
-}
+export type FormViewDefinition<TName extends string = string> =
+	ViewDefinition<TName, "form">;
 
 // ============================================================================
-// Builder State Types
-// ============================================================================
-
-export interface ListViewBuilderState<TConfig = unknown> {
-	readonly name: string;
-	readonly kind: "list";
-	readonly "~config": TConfig;
-	readonly component: MaybeLazyComponent;
-}
-
-export interface EditViewBuilderState<TConfig = unknown> {
-	readonly name: string;
-	readonly kind: "edit";
-	readonly "~config": TConfig;
-	readonly component: MaybeLazyComponent;
-}
-
-// ============================================================================
-// View Builders
+// Factory Function
 // ============================================================================
 
 /**
- * List view builder - implements ListViewDefinition for unified type handling
- */
-export class ListViewBuilder<TState extends ListViewBuilderState>
-	implements ListViewDefinition<TState["name"], TState["~config"]>
-{
-	constructor(public readonly state: TState) {}
-
-	get name(): TState["name"] {
-		return this.state.name;
-	}
-
-	get kind(): "list" {
-		return "list";
-	}
-
-	get "~config"(): TState["~config"] {
-		return this.state["~config"];
-	}
-
-	get component(): TState["component"] {
-		return this.state.component;
-	}
-
-	/**
-	 * Set or override config value and type.
-	 *
-	 * @param config - Optional config value (for runtime) or omit for type-only override
-	 */
-	$config<TNewConfig>(
-		config?: TNewConfig,
-	): ListViewBuilder<SetProperty<TState, "~config", TNewConfig>> {
-		return new ListViewBuilder({
-			...this.state,
-			"~config": config ?? this.state["~config"],
-		} as SetProperty<TState, "~config", TNewConfig>);
-	}
-}
-
-/**
- * Edit view builder - implements EditViewDefinition for unified type handling
- */
-export class EditViewBuilder<TState extends EditViewBuilderState>
-	implements EditViewDefinition<TState["name"], TState["~config"]>
-{
-	constructor(public readonly state: TState) {}
-
-	get name(): TState["name"] {
-		return this.state.name;
-	}
-
-	get kind(): "edit" {
-		return "edit";
-	}
-
-	get "~config"(): TState["~config"] {
-		return this.state["~config"];
-	}
-
-	get component(): TState["component"] {
-		return this.state.component;
-	}
-
-	/**
-	 * Set or override config value and type.
-	 *
-	 * @param config - Optional config value (for runtime) or omit for type-only override
-	 */
-	$config<TNewConfig>(
-		config?: TNewConfig,
-	): EditViewBuilder<SetProperty<TState, "~config", TNewConfig>> {
-		return new EditViewBuilder({
-			...this.state,
-			"~config": config ?? this.state["~config"],
-		} as SetProperty<TState, "~config", TNewConfig>);
-	}
-}
-
-// ============================================================================
-// Factory Functions
-// ============================================================================
-
-/**
- * Create a list view with automatic config type extraction.
- *
- * The config type is extracted from the component's `viewConfig` prop.
- * If extraction fails, use `.$config<MyConfigType>()` to set it manually.
+ * Create a view definition as a plain frozen object.
  *
  * @example
  * ```ts
- * // Auto-extraction from component props
- * const tableView = listView("table", { component: TableView });
- * // ^? ListViewBuilder<{ ~config: TableViewConfig }>
+ * export default view("collection-table", {
+ *   kind: "list",
+ *   component: () => import("./table-view.js"),
+ * });
  *
- * // Manual config type for lazy imports
- * const lazyTable = listView("table", { component: () => import('./TableView') })
- *   .$config<TableViewConfig>();
+ * export default view("collection-form", {
+ *   kind: "form",
+ *   component: () => import("./form-view.js"),
+ * });
  * ```
  */
-export function listView<
-	TName extends string,
-	TComponent extends MaybeLazyComponent,
->(
+export function view<TName extends string, TKind extends ViewKind>(
 	name: TName,
-	config: { component: TComponent },
-): ListViewBuilder<{
-	name: TName;
-	kind: "list";
-	"~config": ExtractViewConfigFromLazy<TComponent>;
-	component: TComponent;
-}> {
-	return new ListViewBuilder({
+	options: {
+		kind: TKind;
+		component: MaybeLazyComponent;
+	},
+): ViewDefinition<TName, TKind> {
+	return Object.freeze({
 		name,
-		kind: "list",
-		"~config": {} as ExtractViewConfigFromLazy<TComponent>,
-		component: config.component,
-	});
-}
-
-/**
- * Create an edit view with automatic config type extraction.
- *
- * @example
- * ```ts
- * const formView = editView("form", { component: FormView });
- * // ^? EditViewBuilder<{ ~config: FormViewRegistryConfig }>
- * ```
- */
-export function editView<
-	TName extends string,
-	TComponent extends MaybeLazyComponent,
->(
-	name: TName,
-	config: { component: TComponent },
-): EditViewBuilder<{
-	name: TName;
-	kind: "edit";
-	"~config": ExtractViewConfigFromLazy<TComponent>;
-	component: TComponent;
-}> {
-	return new EditViewBuilder({
-		name,
-		kind: "edit",
-		"~config": {} as ExtractViewConfigFromLazy<TComponent>,
-		component: config.component,
+		kind: options.kind,
+		component: options.component,
 	});
 }

@@ -15,6 +15,15 @@ import type {
 } from "#questpie/server/functions/types.js";
 import { job } from "#questpie/server/integrated/queue/job.js";
 import type { JobDefinition } from "#questpie/server/integrated/queue/types.js";
+
+// Augment AppContext for type tests — simulates what generated code does
+declare module "#questpie/server/config/app-context.js" {
+	interface AppContext {
+		session: { user: { id: string } } | null;
+		db: any;
+	}
+}
+
 import type {
 	Equal,
 	Expect,
@@ -81,7 +90,7 @@ type _validateHasOutputSchema = Expect<
 // Function with app and session context
 const protectedFn = fn({
 	schema: z.object({ action: z.string() }),
-	handler: async ({ input, app, session }) => {
+	handler: async ({ input, session }) => {
 		// session should be available
 		const userId = session?.user?.id;
 		return { success: true, userId };
@@ -188,8 +197,8 @@ const notifyJob = job({
 		userIds: z.array(z.string()),
 		message: z.string(),
 	}),
-	handler: async ({ payload, app }) => {
-		// app should be available for accessing other services
+	handler: async ({ payload, db }) => {
+		// db should be available for accessing database
 		const users = payload.userIds;
 		return { notified: users.length };
 	},

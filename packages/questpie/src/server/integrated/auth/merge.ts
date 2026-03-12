@@ -4,7 +4,7 @@
  */
 
 import type { BetterAuthOptions } from "better-auth";
-import { dedupeBy, deepMerge } from "#questpie/shared/index.js";
+import { dedupeBy, deepMerge } from "#questpie/shared/utils/data-utils.js";
 
 /**
  * Type-safe helper to define Better Auth options

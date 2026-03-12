@@ -124,7 +124,7 @@ async function flushPendingItems(app: Questpie<any>): Promise<void> {
 	try {
 		await (app.queue as any)["index-records"].publish({ items });
 	} catch (error) {
-		console.error("[Search] Failed to dispatch index-records job:", error);
+		app.logger.error("[Search] Failed to dispatch index-records job:", error);
 		// Items are lost - could implement retry logic here if needed
 	}
 }
@@ -149,7 +149,7 @@ function scheduleAsyncIndex(
 	flushTimeout = setTimeout(() => {
 		flushTimeout = null;
 		flushPendingItems(app).catch((err) => {
-			console.error("[Search] Error in debounced flush:", err);
+			app.logger.error("[Search] Error in debounced flush:", err);
 		});
 	}, DEBOUNCE_DELAY_MS);
 }
@@ -251,7 +251,7 @@ async function indexAllLocalesSync(
 
 			await indexRecordSync(localizedRecord, locale, state, app, defaultLocale);
 		} catch (error) {
-			console.warn(
+			app.logger.warn(
 				`[Search] Failed to index ${state.name}:${record.id} for locale ${locale}:`,
 				error,
 			);

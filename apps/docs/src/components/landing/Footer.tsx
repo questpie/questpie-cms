@@ -1,4 +1,4 @@
-import { GithubLogo } from "@phosphor-icons/react";
+import { Icon } from "@iconify/react";
 import { Link } from "@tanstack/react-router";
 
 export function Footer() {
@@ -31,10 +31,10 @@ export function Footer() {
 							<li>
 								<Link
 									to="/docs/$"
-									params={{ _splat: "guides" }}
+									params={{ _splat: "start-here" }}
 									className="transition-colors hover:text-primary"
 								>
-									Guides
+									Getting Started
 								</Link>
 							</li>
 							<li>
@@ -58,7 +58,7 @@ export function Footer() {
 							<li>
 								<Link
 									to="/docs/$"
-									params={{ _splat: "client/hono-adapter" }}
+									params={{ _splat: "frontend/adapters/hono" }}
 									className="transition-colors hover:text-primary"
 								>
 									Hono
@@ -67,7 +67,7 @@ export function Footer() {
 							<li>
 								<Link
 									to="/docs/$"
-									params={{ _splat: "client/elysia-adapter" }}
+									params={{ _splat: "frontend/adapters/elysia" }}
 									className="transition-colors hover:text-primary"
 								>
 									Elysia
@@ -76,7 +76,7 @@ export function Footer() {
 							<li>
 								<Link
 									to="/docs/$"
-									params={{ _splat: "client/nextjs-adapter" }}
+									params={{ _splat: "frontend/adapters/nextjs" }}
 									className="transition-colors hover:text-primary"
 								>
 									Next.js
@@ -85,7 +85,7 @@ export function Footer() {
 							<li>
 								<Link
 									to="/docs/$"
-									params={{ _splat: "client/tanstack-query" }}
+									params={{ _splat: "frontend/tanstack-query" }}
 									className="transition-colors hover:text-primary"
 								>
 									TanStack
@@ -140,28 +140,28 @@ export function Footer() {
 							<li>
 								<Link
 									to="/docs/$"
-									params={{ _splat: "reference/q-builder-api" }}
+									params={{ _splat: "reference/collection-api" }}
 									className="transition-colors hover:text-primary"
 								>
-									q Builder API
+									Collection API
 								</Link>
 							</li>
 							<li>
 								<Link
 									to="/docs/$"
-									params={{ _splat: "reference/qa-builder-api" }}
+									params={{ _splat: "reference/admin-api" }}
 									className="transition-colors hover:text-primary"
 								>
-									qa Builder API
+									Admin API
 								</Link>
 							</li>
 							<li>
 								<Link
 									to="/docs/$"
-									params={{ _splat: "reference/rpc-api" }}
+									params={{ _splat: "reference/functions-api" }}
 									className="transition-colors hover:text-primary"
 								>
-									RPC API
+									Functions API
 								</Link>
 							</li>
 						</ul>
@@ -180,7 +180,7 @@ export function Footer() {
 						aria-label="QUESTPIE on GitHub"
 						className="text-muted-foreground transition-colors hover:text-foreground"
 					>
-						<GithubLogo className="h-4 w-4" aria-hidden="true" />
+						<Icon icon="ph:github-logo" className="h-4 w-4" aria-hidden="true" />
 					</a>
 				</div>
 			</div>

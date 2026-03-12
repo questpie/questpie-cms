@@ -20,7 +20,8 @@ import {
 	useState,
 } from "react";
 import { createStore, useStore } from "zustand";
-import type { adminModule } from "#questpie/admin/server/index.js";
+// The admin client uses QuestpieClient<any> since the concrete App type
+// is project-specific and comes from .generated/index.ts at the app level.
 import { Admin, type AdminInput } from "../builder/admin";
 import { I18nProvider } from "../i18n/hooks";
 import { adminMessages } from "../i18n/messages";
@@ -88,7 +89,7 @@ function setContentLocaleCookie(locale: string): void {
 export interface AdminState {
 	// Core values (from props)
 	admin: Admin;
-	client: QuestpieClient<(typeof adminModule)["$inferApp"]>;
+	client: QuestpieClient<any>;
 	authClient: any | null;
 	basePath: string;
 	navigate: (path: string) => void;
@@ -172,8 +173,7 @@ const AdminStoreContext = createContext<AdminStore | null>(null);
 
 export interface AdminProviderProps {
 	/**
-	 * Admin configuration - pass your AdminBuilder directly.
-	 * Can also accept an Admin instance for backward compatibility.
+	 * Admin configuration - pass plain AdminState or Admin instance.
 	 */
 	admin: AdminInput<any>;
 
@@ -241,18 +241,18 @@ export interface AdminProviderProps {
 	/**
 	 * Use server-side translations (fetched via getAdminTranslations RPC).
 	 * When true, translations are fetched from the server configured via
-	 * .adminLocale() and .messages() on QuestpieBuilder.
+	 * .adminLocale() and config translations.
 	 *
 	 * @default false (for backwards compatibility)
 	 *
 	 * @example
 	 * ```tsx
 	 * // Server configures locales and messages
-	 * const app = q()
-	 *   .use(adminModule)
-	 *   .adminLocale({ locales: ["en", "sk"], defaultLocale: "en" })
-	 *   .messages({ sk: { "common.save": "Ulozit" } })
-	 *   .build();
+	 * const app = runtimeConfig({
+	 *   modules: [adminModule],
+	 *   adminLocale: { locales: ["en", "sk"], defaultLocale: "en" },
+	 *   messages: { sk: { "common.save": "Ulozit" } },
+	 * });
 	 *
 	 * // Client fetches from server
 	 * <AdminProvider admin={admin} client={client} useServerTranslations>
@@ -391,7 +391,7 @@ export function AdminProvider({
 	translationsFallback,
 	children,
 }: AdminProviderProps): ReactElement {
-	// Normalize admin input - accepts both AdminBuilder and Admin instance
+	// Normalize admin input - accepts plain state or Admin instance
 	const admin = useMemo(() => Admin.normalize(adminInput), [adminInput]);
 
 	// Default navigate function
@@ -610,7 +610,7 @@ function useAdminStoreRaw(): AdminStore | null {
 export const selectAdmin = (s: AdminState) => s.admin;
 
 /** Select client instance */
-export const selectClient = (s: AdminState) => s.client;
+export const selectClient = (s: AdminState): QuestpieClient<any> => s.client;
 
 /** Select auth client instance */
 export const selectAuthClient = (s: AdminState) => s.authClient;

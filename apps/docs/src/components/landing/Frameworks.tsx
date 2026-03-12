@@ -37,7 +37,10 @@ const frameworks = [
 
 export function Frameworks() {
 	return (
-		<section id="adapters" className="relative border-t border-border/40 py-20 overflow-hidden">
+		<section
+			id="adapters"
+			className="relative border-t border-border/40 py-20 overflow-hidden"
+		>
 			<div className="mx-auto w-full max-w-7xl px-4 relative z-10">
 				{/* L-R layout: heading LEFT, orbit visualization RIGHT */}
 				<div className="grid gap-12 lg:grid-cols-[1fr_1fr] items-center mb-12">
@@ -61,7 +64,7 @@ export function Frameworks() {
 						<div className="mt-6">
 							<Link
 								to="/docs/$"
-								params={{ _splat: "client/adapters-overview" }}
+								params={{ _splat: "frontend/adapters" }}
 								className="inline-flex items-center gap-2 font-mono text-xs text-primary transition-colors hover:text-primary/80"
 							>
 								Read the adapter docs →

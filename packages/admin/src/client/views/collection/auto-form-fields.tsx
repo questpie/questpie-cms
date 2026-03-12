@@ -2,13 +2,14 @@
  * AutoFormFields Component
  *
  * Automatically generates form fields from CollectionBuilderState:
- * - Reads field definitions (FieldDefinition) from config.fields
+ * - Reads field definitions (FieldInstance) from config.fields
  * - Reads form layout (FormViewConfig) from config.form
  * - Supports recursive tabs/sections nesting
  * - Auto-generates fields when no form config is defined
  */
 
-import type { CollectionSchema, Questpie } from "questpie";
+import type { CollectionSchema } from "questpie";
+import type { QuestpieApp } from "questpie/client";
 import * as React from "react";
 import { useFormContext, useWatch } from "react-hook-form";
 import type {
@@ -20,7 +21,7 @@ import type {
 	TabConfig,
 	TabsLayout,
 } from "../../builder";
-import type { FieldDefinition } from "../../builder/field/field";
+import type { FieldInstance } from "../../builder/field/field";
 import {
 	getFieldName,
 	isFieldReference,
@@ -62,7 +63,7 @@ import { FieldRenderer } from "./field-renderer";
  */
 interface CollectionConfig {
 	name?: string;
-	fields?: Record<string, FieldDefinition>;
+	fields?: Record<string, FieldInstance>;
 	form?: FormViewConfig;
 }
 
@@ -73,7 +74,7 @@ type AdminFormSchema = CollectionSchema["admin"] extends infer TAdmin
 	: undefined;
 
 interface AutoFormFieldsProps<
-	T extends Questpie<any> = Questpie<any>,
+	T extends QuestpieApp = QuestpieApp,
 	K extends string = string,
 > {
 	/**
@@ -109,7 +110,7 @@ interface AutoFormFieldsProps<
 	 */
 	fieldResolver?: (
 		fieldName: string,
-		fieldDef?: FieldDefinition,
+		fieldDef?: FieldInstance,
 	) => React.ReactNode;
 
 	/**
@@ -271,7 +272,7 @@ function mapFormSchemaToConfig(
 
 interface FieldLayoutRendererProps {
 	fieldItems: FieldLayoutItem[];
-	fields: Record<string, FieldDefinition>;
+	fields: Record<string, FieldInstance>;
 	collection: string;
 	mode?: "collection" | "global";
 	registry?: ComponentRegistry;
@@ -305,7 +306,7 @@ function renderFields({
 	className,
 }: {
 	fieldItems: FieldLayoutItem[];
-	fields: Record<string, FieldDefinition>;
+	fields: Record<string, FieldInstance>;
 	collection: string;
 	mode?: "collection" | "global";
 	registry?: ComponentRegistry;
@@ -556,7 +557,7 @@ function SectionLayoutRenderer({
 }: {
 	section: SectionLayout;
 	index: number;
-	fields: Record<string, FieldDefinition>;
+	fields: Record<string, FieldInstance>;
 	collection: string;
 	mode?: "collection" | "global";
 	registry?: ComponentRegistry;
@@ -743,7 +744,7 @@ function TabsLayoutRenderer({
 	resolveText,
 }: {
 	tabsLayout: TabsLayout;
-	fields: Record<string, FieldDefinition>;
+	fields: Record<string, FieldInstance>;
 	collection: string;
 	mode?: "collection" | "global";
 	registry?: ComponentRegistry;
@@ -813,7 +814,7 @@ function SidebarRenderer({
 	resolveText,
 }: {
 	sidebar: FormSidebarConfig;
-	fields: Record<string, FieldDefinition>;
+	fields: Record<string, FieldInstance>;
 	collection: string;
 	mode?: "collection" | "global";
 	registry?: ComponentRegistry;
@@ -894,7 +895,7 @@ function extractFieldNamesFromFieldItems(
  * Supports recursive tabs/sections nesting and auto-generates
  * field list when no form config is defined.
  */
-export function AutoFormFields<T extends Questpie<any>, K extends string>({
+export function AutoFormFields<T extends QuestpieApp, K extends string>({
 	app: _cms,
 	collection,
 	mode = "collection",
@@ -933,7 +934,7 @@ export function AutoFormFields<T extends Questpie<any>, K extends string>({
 	const resolveText = useResolveText();
 
 	// Get fields config
-	const fields = (resolvedFields || {}) as Record<string, FieldDefinition>;
+	const fields = (resolvedFields || {}) as Record<string, FieldInstance>;
 
 	// Extract form config from view builder (~config property)
 	const schemaFormConfig = mapFormSchemaToConfig(schema?.admin?.form);

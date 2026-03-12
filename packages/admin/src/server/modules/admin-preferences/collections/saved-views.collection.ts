@@ -1,4 +1,4 @@
-import { q } from "questpie";
+import { collection } from "questpie";
 
 // Re-export types from shared
 export type {
@@ -19,13 +19,13 @@ export type {
  *
  * @example
  * ```ts
+ * import { runtimeConfig } from "questpie";
  * import { adminModule } from "@questpie/admin/server";
  *
- * const app = q({ name: "my-app" })
- *   .use(starterModule)
- *   .use(adminModule)
- *   .collections({ ... })
- *   .build({ ... });
+ * export default runtimeConfig({
+ *   modules: [adminModule],
+ *   // ...
+ * });
  *
  * // Access saved views
  * const views = await app.api.collections.adminSavedViews.find({
@@ -33,30 +33,22 @@ export type {
  * });
  * ```
  */
-export const savedViewsCollection = q
-	.collection("admin_saved_views")
-	.fields((f) => ({
+export const savedViewsCollection = collection("admin_saved_views")
+	.fields(({ f }) => ({
 		// User who owns this saved view
-		userId: f.text({ required: true, maxLength: 255, label: "User ID" }),
+		userId: f.text(255).required().label("User ID"),
 
 		// Target collection for this view
-		collectionName: f.text({
-			required: true,
-			maxLength: 255,
-			label: "Collection Name",
-		}),
+		collectionName: f.text(255).required().label("Collection Name"),
 
 		// Display name for the view
-		name: f.text({ required: true, maxLength: 255, label: "Name" }),
+		name: f.text(255).required().label("Name"),
 
 		// View configuration (filters, sort, columns)
-		configuration: f.json({
-			required: true,
-			label: "Configuration",
-		}),
+		configuration: f.json().required().label("Configuration"),
 
 		// Whether this is the default view for the user/collection
-		isDefault: f.boolean({ default: false, label: "Is Default" }),
+		isDefault: f.boolean().default(false).label("Is Default"),
 	}))
 	.options({
 		timestamps: true,

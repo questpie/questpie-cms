@@ -2,32 +2,31 @@
  * Gallery Block Renderer
  */
 
-import type { BlockComponentProps } from "@questpie/admin/client";
-import type { App } from "@/questpie/server/app";
+import type { BlockProps } from "../.generated/client";
 
 type GalleryImage = {
 	id: string;
 	caption?: string;
 };
 
-export function GalleryRenderer({
-	values,
-	data,
-}: BlockComponentProps<App, "gallery">) {
+export function GalleryRenderer({ values, data }: BlockProps<"gallery">) {
 	const imageUrls = (data as Record<string, any>)?.imageUrls || {};
 	const images = (values.images as GalleryImage[] | null) || [];
 
-	const columnsClass = {
+	const columnsClasses: Record<string, string> = {
 		"2": "md:grid-cols-2",
 		"3": "md:grid-cols-2 lg:grid-cols-3",
 		"4": "md:grid-cols-2 lg:grid-cols-4",
-	}[values.columns || "3"];
+	};
 
-	const gapClass = {
+	const gapClasses: Record<string, string> = {
 		small: "gap-2",
 		medium: "gap-4",
 		large: "gap-8",
-	}[values.gap || "medium"];
+	};
+
+	const columnsClass = columnsClasses[values.columns || "3"];
+	const gapClass = gapClasses[values.gap || "medium"];
 
 	return (
 		<section className="py-16 px-6">

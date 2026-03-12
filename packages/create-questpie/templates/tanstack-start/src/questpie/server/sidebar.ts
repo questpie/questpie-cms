@@ -1,11 +1,10 @@
-import type { qb } from "./builder.js";
+/**
+ * Sidebar — admin panel sidebar configuration.
+ */
+import { sidebar } from "#questpie/factories";
 
-type SidebarBuilder = Parameters<
-	Parameters<ReturnType<typeof qb.collection>["sidebar"]>[0]
->[0];
-
-export function configureSidebar({ s, c }: any) {
-	return s.sidebar({
+export default sidebar(({ s, c }) =>
+	s.sidebar({
 		sections: [
 			s.section({
 				id: "main",
@@ -22,5 +21,4 @@ export function configureSidebar({ s, c }: any) {
 				],
 			}),
 		],
-	});
-}
+	}));

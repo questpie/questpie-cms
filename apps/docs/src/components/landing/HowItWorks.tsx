@@ -6,9 +6,9 @@ const steps = [
 		title: "Type-safe collections with relations",
 		description:
 			"Define collections with typed fields, relations, and validation. One definition generates the database schema, REST API, and admin forms.",
-		file: "server/collections/appointments.ts",
-		code: `const appointments = qb.collection("appointments")
-  .fields((f) => ({
+		file: "collections/appointments.ts",
+		code: `const appointments = collection("appointments")
+  .fields(({ f }) => ({
     customer: f.text({ required: true }),
     barber: f.relation({ to: "barbers" }),
     service: f.relation({ to: "services" }),
@@ -22,17 +22,19 @@ const steps = [
 	},
 	{
 		number: "02",
-		title: "Custom RPC with end-to-end types",
+		title: "Custom functions with end-to-end types",
 		description:
-			"Define typed procedures for business logic. Input validation, database access, and return types — all inferred.",
-		file: "server/rpc/scheduling.ts",
-		code: `const getAvailableSlots = r.fn({
+			"Define typed functions for business logic. Input validation, database access, and return types — all inferred.",
+		file: "functions/get-available-slots.ts",
+		code: `import { fn } from 'questpie'
+
+export default fn({
   schema: z.object({
     barberId: z.string(),
     date: z.string(),
   }),
-  handler: async ({ input, app }) => {
-    const booked = await app.api.collections.appointments.find({
+  handler: async ({ input, collections }) => {
+    const booked = await collections.appointments.find({
       where: {
         barber: input.barberId,
         date: input.date,
@@ -47,7 +49,7 @@ const steps = [
 		number: "03",
 		title: "Typed client SDK — full autocomplete",
 		description:
-			"Query collections and call RPC procedures with complete type safety. No codegen step required.",
+			"Query collections and call functions with complete type safety. No codegen step required.",
 		file: "app/dashboard.tsx",
 		code: `// Collections — fully typed filters, sort, relations
 const { docs: upcoming } = await client.collections.appointments.find({
@@ -56,11 +58,11 @@ const { docs: upcoming } = await client.collections.appointments.find({
     status: { in: ["pending", "confirmed"] },
   },
   with: { barber: true, service: true },
-  sort: { date: "asc" },
+  orderBy: { date: "asc" },
   limit: 10,
 });
 
-// RPC — fully typed input and output
+// Functions — fully typed input and output
 const slots = await client.rpc.getAvailableSlots({
   barberId: selectedBarber.id,
   date: "2025-03-15",

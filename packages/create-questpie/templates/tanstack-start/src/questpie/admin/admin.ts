@@ -1,5 +1,9 @@
-import { builder } from "./builder.js";
+/**
+ * Admin Configuration
+ *
+ * Re-exports the generated admin config.
+ * Import directly from "./.generated/client" in new code.
+ */
+export { default as admin } from "./.generated/client";
 
-export const admin = builder;
-
-export type AdminConfig = typeof admin;
+export type AdminConfig = typeof import("./.generated/client").default;

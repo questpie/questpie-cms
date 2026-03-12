@@ -1,12 +1,9 @@
 /**
- * City Portal Admin Dashboard
- *
- * Overview stats, quick actions, and recent activity for city content management.
+ * Dashboard — custom dashboard configuration for the admin panel.
  */
+import { dashboard } from "#questpie/factories";
 
-import { qb } from "@/questpie/server/builder";
-
-export const dashboard = qb.dashboard(({ d, c, a }) =>
+export default dashboard(({ d, c, a }) =>
 	d.dashboard({
 		title: "City Portal Dashboard",
 		description: "Content management overview for your city portal",
@@ -101,5 +98,4 @@ export const dashboard = qb.dashboard(({ d, c, a }) =>
 				],
 			},
 		],
-	}),
-);
+	}));

@@ -1,7 +1,8 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { SeedCategory } from "../../server/seed/types.js";
-import { getSeedDirectory, loadQuestpieConfig } from "../config.js";
+import { loadQuestpieConfig } from "../config.js";
+import { resolveEntityRoot } from "./codegen.js";
 
 export type GenerateSeedOptions = {
 	configPath: string;
@@ -31,12 +32,16 @@ export async function generateSeedCommand(
 	// Load config to get seeds directory
 	const resolvedConfigPath = join(process.cwd(), options.configPath);
 
+	// Get seed directory: explicit cli override or convention-based default (entity root)
+	const { rootDir } = await resolveEntityRoot(resolvedConfigPath);
 	let seedDir: string;
 	if (existsSync(resolvedConfigPath)) {
 		const cmsConfig = await loadQuestpieConfig(resolvedConfigPath);
-		seedDir = join(process.cwd(), getSeedDirectory(cmsConfig));
+		seedDir = cmsConfig.cli?.seeds?.directory
+			? join(process.cwd(), cmsConfig.cli.seeds.directory)
+			: join(rootDir, "seeds");
 	} else {
-		seedDir = join(process.cwd(), "./src/seeds");
+		seedDir = join(rootDir, "seeds");
 	}
 
 	const fileName = `${kebabName}.seed`;
@@ -69,13 +74,10 @@ export async function generateSeedCommand(
 	writeFileSync(filePath, seedContent);
 	console.log(`✅ Created seed file: ${filePath}`);
 
-	// Update seeds index
-	await updateSeedsIndex(seedDir, fileName, `${camelName}Seed`);
-
 	console.log("\n✅ Seed generated successfully!");
 	console.log("\nNext steps:");
 	console.log(`  1. Edit the seed file: ${filePath}`);
-	console.log("  2. Import seeds in your app config: .build({ seeds: [...] })");
+	console.log("  2. Run: bunx questpie generate (auto-discovers the new seed)");
 	console.log("  3. Run seeds: bun questpie seed");
 }
 
@@ -86,29 +88,34 @@ function generateSeedFileContent(
 	camelName: string,
 	category: SeedCategory,
 ): string {
-	return `import type { Seed } from "questpie"
+	return `import { seed } from "questpie"
 
-export const ${camelName}Seed: Seed = {
+export default seed({
 	id: "${camelName}",
 	description: "TODO: describe what this seed does",
 	category: "${category}",
-	async run({ app, ctx, log }) {
+	async run({ collections, globals, createContext, log }) {
 		// TODO: Add seed logic here
 		//
-		// Use API for data operations:
-		//   await app.api.collections.myCollection.create(ctx, { data: { ... } })
+		// Use flat typed context for data operations:
+		//   await collections.myCollection.create({ ... })
+		//   await globals.siteSettings.update({ ... })
+		//
+		// For locale-specific operations:
+		//   const ctxSk = await createContext({ locale: "sk" })
+		//   await globals.siteSettings.update({ tagline: "..." }, ctxSk)
 		//
 		// For idempotent seeds, check if data exists first:
-		//   const existing = await app.api.collections.myCollection.find(ctx, { where: { ... } })
-		//   if (existing.docs.length > 0) { log("Already seeded, skipping"); return }
+		//   const existing = await collections.myCollection.find({ where: { ... } })
+		//   if (existing.totalDocs > 0) { log("Already seeded, skipping"); return }
 
 		log("Seed completed")
 	},
 	// Uncomment to enable undo:
-	// async undo({ app, ctx, log }) {
+	// async undo({ collections, createContext, log }) {
 	// 	log("Undoing seed...")
 	// },
-}
+})
 `;
 }
 

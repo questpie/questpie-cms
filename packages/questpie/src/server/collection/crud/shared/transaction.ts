@@ -23,14 +23,15 @@
  *
  * @example
  * ```typescript
- * import { q, onAfterCommit } from "questpie";
+ * // collections/orders/index.ts
+ * import { collection, onAfterCommit } from "questpie";
  *
- * const orders = q.collection("orders")
- *   .fields({
- *     total: integer("total"),
- *     customerEmail: varchar("customer_email", { length: 255 }),
- *   })
- *   .hooks({
+ * export default collection("orders", {
+ *   fields: ({ f }) => ({
+ *     total: f.number({ required: true }),
+ *     customerEmail: f.email({ required: true }),
+ *   }),
+ *   hooks: {
  *     // afterChange runs inside the transaction
  *     afterChange: async ({ data, operation, context }) => {
  *       if (operation === "create") {
@@ -51,18 +52,17 @@
  *         });
  *       }
  *     },
- *   });
+ *   },
+ * });
  * ```
  *
  * ## Usage in Custom Functions
  *
  * @example
  * ```typescript
- * import { q, onAfterCommit, withTransaction } from "questpie";
+ * import { onAfterCommit, withTransaction } from "questpie";
  *
- * const checkout = q.fn({
- *   schema: z.object({ cartId: z.string() }),
- *   handler: async ({ input, context }) => {
+ * async function checkout(input: { cartId: string }, context: Context) {
  *     const { db, app } = context;
  *
  *     return withTransaction(db, async (tx) => {
@@ -88,8 +88,7 @@
  *
  *       return order;
  *     });
- *   },
- * });
+ * }
  * ```
  *
  * ## Nested Transactions

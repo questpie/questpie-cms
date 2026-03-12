@@ -1,12 +1,9 @@
 /**
- * City Portal Sidebar Configuration
- *
- * Defines the admin sidebar structure for managing city content.
+ * Sidebar — custom sidebar configuration for the admin panel.
  */
+import { sidebar } from "#questpie/factories";
 
-import { qb } from "@/questpie/server/builder";
-
-export const sidebar = qb.sidebar(({ s, c }) =>
+export default sidebar(({ s, c }) =>
 	s.sidebar({
 		sections: [
 			s.section({
@@ -66,5 +63,4 @@ export const sidebar = qb.sidebar(({ s, c }) =>
 				],
 			}),
 		],
-	}),
-);
+	}));

@@ -2,18 +2,11 @@
  * Image + Text Block Renderer
  */
 
-import {
-	type BlockComponentProps,
-	RichTextRenderer,
-} from "@questpie/admin/client";
-import type { App } from "@/questpie/server/app";
+import { RichTextRenderer } from "@questpie/admin/client";
+import type { BlockProps } from "../.generated/client";
 
-export function ImageTextRenderer({
-	values,
-	data,
-}: BlockComponentProps<App, "image-text">) {
-	const imageUrl = data?.image?.url || values.image;
-
+export function ImageTextRenderer({ values, data }: BlockProps<"imageText">) {
+	const imageUrl = (data?.image as any)?.url || values.image;
 	const isImageLeft = values.imagePosition !== "right";
 
 	return (
@@ -23,7 +16,6 @@ export function ImageTextRenderer({
 					!isImageLeft ? "direction-rtl" : ""
 				}`}
 			>
-				{/* Image */}
 				<div className={!isImageLeft ? "md:order-2" : ""}>
 					{imageUrl ? (
 						<img
@@ -38,7 +30,6 @@ export function ImageTextRenderer({
 					)}
 				</div>
 
-				{/* Content */}
 				<div className={!isImageLeft ? "md:order-1" : ""}>
 					{values.title && (
 						<h2 className="text-3xl font-bold tracking-tight mb-6">

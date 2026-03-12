@@ -1,55 +1,71 @@
 /**
  * Admin Runtime Tests
  *
- * Tests for Admin class - runtime wrapper around AdminBuilder state.
+ * Tests for Admin class — runtime wrapper around AdminState.
  */
 
 import { describe, expect, it } from "bun:test";
 import { Admin } from "#questpie/admin/client/builder/admin";
-import { AdminBuilder } from "#questpie/admin/client/builder/admin-builder";
-import { page } from "#questpie/admin/client/builder/page/page";
+import type { AdminState } from "#questpie/admin/client/builder/admin-types";
 import {
 	createDashboardPage,
 	createEmailField,
 	createFormView,
 	createStatsWidget,
 	createTableView,
+	createTestModuleState,
 	createTextField,
 } from "../utils/helpers";
 
+/**
+ * Create a minimal empty AdminState for testing.
+ */
+function createEmptyState(): AdminState {
+	return {
+		"~app": undefined as any,
+		fields: {},
+		components: {},
+		views: {},
+		pages: {},
+		widgets: {},
+		blocks: {} as Record<string, never>,
+		translations: {},
+		locale: { default: "en", supported: ["en"] },
+	};
+}
+
 describe("Admin.normalize()", () => {
-	it("should create Admin from AdminBuilder", () => {
-		const builder = AdminBuilder.empty();
-		const admin = Admin.normalize(builder);
+	it("should create Admin from plain state", () => {
+		const state = createEmptyState();
+		const admin = Admin.normalize(state);
 
 		expect(admin).toBeInstanceOf(Admin);
 	});
 
-	it("should extract state from builder", () => {
-		const builder = AdminBuilder.empty().fields({
-			text: createTextField(),
-		});
+	it("should wrap state directly", () => {
+		const state: AdminState = {
+			...createEmptyState(),
+			fields: { text: createTextField() },
+		};
 
-		const admin = Admin.normalize(builder);
+		const admin = Admin.normalize(state);
 
-		expect(admin.state).toBe(builder.state);
+		expect(admin.state).toBe(state);
+	});
+
+	it("should return Admin instance as-is", () => {
+		const original = new Admin(createEmptyState());
+		const result = Admin.normalize(original);
+
+		expect(result).toBe(original);
 	});
 });
 
 describe("Admin constructor", () => {
 	it("should accept state directly", () => {
-		const state = {
-			"~app": undefined,
+		const state: AdminState = {
+			...createEmptyState(),
 			fields: { text: createTextField() },
-			components: {},
-			listViews: {},
-			editViews: {},
-			widgets: {},
-			pages: {},
-			blocks: {},
-			locale: { default: "en", supported: ["en"] },
-			defaultViews: {},
-			translations: {},
 		};
 
 		const admin = new Admin(state);
@@ -60,85 +76,146 @@ describe("Admin constructor", () => {
 
 describe("Admin.getPages()", () => {
 	it("should return all page configurations", () => {
-		const builder = AdminBuilder.empty().pages({
-			dashboard: createDashboardPage(),
-			analytics: createDashboardPage(),
-		});
+		const state: AdminState = {
+			...createEmptyState(),
+			pages: {
+				dashboard: createDashboardPage(),
+				analytics: createDashboardPage(),
+			},
+		};
 
-		const admin = Admin.normalize(builder);
+		const admin = Admin.normalize(state);
 		const pages = admin.getPages();
 
 		expect(pages.dashboard).toBeDefined();
 		expect(pages.analytics).toBeDefined();
 	});
 
-	it("should extract state from page builders", () => {
-		const dashboardPage = page("dashboard", { component: () => null }).path(
-			"/dashboard",
-		);
+	it("should return page with path from factory", () => {
+		const state: AdminState = {
+			...createEmptyState(),
+			pages: {
+				dashboard: createDashboardPage(),
+			},
+		};
 
-		const builder = AdminBuilder.empty().pages({
-			dashboard: dashboardPage,
-		});
-
-		const admin = Admin.normalize(builder);
+		const admin = Admin.normalize(state);
 		const pages = admin.getPages();
 
 		expect(pages.dashboard.name).toBe("dashboard");
-		expect(pages.dashboard.path).toBe("/dashboard");
+		expect(pages.dashboard.path).toBe("/");
 	});
 });
 
 describe("Admin.getPageConfig()", () => {
 	it("should return specific page config", () => {
-		const dashboardPage = page("dashboard", { component: () => null });
+		const state: AdminState = {
+			...createEmptyState(),
+			pages: {
+				dashboard: createDashboardPage(),
+			},
+		};
 
-		const builder = AdminBuilder.empty().pages({
-			dashboard: dashboardPage,
-		});
-
-		const admin = Admin.normalize(builder);
+		const admin = Admin.normalize(state);
 		const config = admin.getPageConfig("dashboard");
 
 		expect(config?.name).toBe("dashboard");
 	});
 
 	it("should return undefined for non-existent page", () => {
-		const admin = Admin.normalize(AdminBuilder.empty());
+		const admin = Admin.normalize(createEmptyState());
 		const config = admin.getPageConfig("nonexistent");
 
 		expect(config).toBeUndefined();
 	});
 });
 
-describe("Admin.getDefaultViews()", () => {
-	it("should return default views config", () => {
-		const builder = AdminBuilder.empty().defaultViews({
-			list: "table",
-			edit: "form",
-		});
+describe("Admin.getViews()", () => {
+	it("should return all view definitions (flat map)", () => {
+		const state: AdminState = {
+			...createEmptyState(),
+			views: {
+				table: createTableView(),
+				form: createFormView(),
+			},
+		};
 
-		const admin = Admin.normalize(builder);
-		const defaultViews = admin.getDefaultViews();
+		const admin = Admin.normalize(state);
+		const views = admin.getViews();
 
-		expect(defaultViews).toEqual({
-			list: "table",
-			edit: "form",
-		});
+		expect(views.table).toBeDefined();
+		expect(views.form).toBeDefined();
 	});
 
-	it("should return empty object when not configured", () => {
-		const admin = Admin.normalize(AdminBuilder.empty());
-		const defaultViews = admin.getDefaultViews();
+	it("should return empty object when no views", () => {
+		const admin = Admin.normalize(createEmptyState());
+		const views = admin.getViews();
 
-		expect(defaultViews).toEqual({});
+		expect(views).toEqual({});
+	});
+});
+
+describe("Admin.getView()", () => {
+	it("should return specific view by name", () => {
+		const state: AdminState = {
+			...createEmptyState(),
+			views: {
+				table: createTableView(),
+			},
+		};
+
+		const admin = Admin.normalize(state);
+		const view = admin.getView("table");
+
+		expect(view).toBeDefined();
+		expect(view?.name).toBe("table");
+	});
+
+	it("should return undefined for non-existent view", () => {
+		const admin = Admin.normalize(createEmptyState());
+
+		expect(admin.getView("nonexistent")).toBeUndefined();
+	});
+});
+
+describe("Admin.getViewsByKind()", () => {
+	it("should filter list views", () => {
+		const state: AdminState = {
+			...createEmptyState(),
+			views: {
+				table: createTableView(),
+				form: createFormView(),
+			},
+		};
+
+		const admin = Admin.normalize(state);
+		const listViews = admin.getViewsByKind("list");
+
+		expect(listViews.table).toBeDefined();
+		expect(listViews.form).toBeUndefined();
+	});
+
+	it("should filter form views", () => {
+		const state: AdminState = {
+			...createEmptyState(),
+			views: {
+				table: createTableView(),
+				form: createFormView(),
+			},
+		};
+
+		const admin = Admin.normalize(state);
+		const formViews = admin.getViewsByKind("form");
+
+		expect(formViews.form).toBeDefined();
+		expect(formViews.table).toBeUndefined();
 	});
 });
 
 describe("Admin.getLocale()", () => {
 	it("should return locale config from state", () => {
 		const admin = new Admin({
-			...AdminBuilder.empty().state,
+			...createEmptyState(),
 			locale: {
 				default: "sk",
 				supported: ["en", "sk", "cs"],
@@ -151,7 +228,7 @@ describe("Admin.getLocale()", () => {
 	});
 
 	it("should return default locale when not configured", () => {
-		const admin = Admin.normalize(AdminBuilder.empty());
+		const admin = Admin.normalize(createEmptyState());
 		const locale = admin.getLocale();
 
 		expect(locale.default).toBe("en");
@@ -162,7 +239,7 @@ describe("Admin.getLocale()", () => {
 describe("Admin.getAvailableLocales()", () => {
 	it("should return supported locales array", () => {
 		const admin = new Admin({
-			...AdminBuilder.empty().state,
+			...createEmptyState(),
 			locale: {
 				default: "en",
 				supported: ["en", "sk", "cs", "de"],
@@ -173,7 +250,7 @@ describe("Admin.getAvailableLocales()", () => {
 	});
 
 	it("should return default ['en'] when not configured", () => {
-		const admin = Admin.normalize(AdminBuilder.empty());
+		const admin = Admin.normalize(createEmptyState());
 
 		expect(admin.getAvailableLocales()).toEqual(["en"]);
 	});
@@ -182,7 +259,7 @@ describe("Admin.getAvailableLocales()", () => {
 describe("Admin.getDefaultLocale()", () => {
 	it("should return default locale", () => {
 		const admin = new Admin({
-			...AdminBuilder.empty().state,
+			...createEmptyState(),
 			locale: {
 				default: "sk",
 				supported: ["en", "sk"],
@@ -193,7 +270,7 @@ describe("Admin.getDefaultLocale()", () => {
 	});
 
 	it("should return 'en' when not configured", () => {
-		const admin = Admin.normalize(AdminBuilder.empty());
+		const admin = Admin.normalize(createEmptyState());
 
 		expect(admin.getDefaultLocale()).toBe("en");
 	});
@@ -201,7 +278,7 @@ describe("Admin.getDefaultLocale()", () => {
 
 describe("Admin.getLocaleLabel()", () => {
 	it("should return human-readable label for known locales", () => {
-		const admin = Admin.normalize(AdminBuilder.empty());
+		const admin = Admin.normalize(createEmptyState());
 
 		expect(admin.getLocaleLabel("en")).toBe("English");
 		expect(admin.getLocaleLabel("sk")).toBe("Slovencina");
@@ -211,7 +288,7 @@ describe("Admin.getLocaleLabel()", () => {
 	});
 
 	it("should return uppercase code for unknown locales", () => {
-		const admin = Admin.normalize(AdminBuilder.empty());
+		const admin = Admin.normalize(createEmptyState());
 
 		expect(admin.getLocaleLabel("xyz")).toBe("XYZ");
 		expect(admin.getLocaleLabel("unknown")).toBe("UNKNOWN");
@@ -220,12 +297,15 @@ describe("Admin.getLocaleLabel()", () => {
 
 describe("Admin.getFields()", () => {
 	it("should return all field definitions", () => {
-		const builder = AdminBuilder.empty().fields({
-			text: createTextField(),
-			email: createEmailField(),
-		});
+		const state: AdminState = {
+			...createEmptyState(),
+			fields: {
+				text: createTextField(),
+				email: createEmailField(),
+			},
+		};
 
-		const admin = Admin.normalize(builder);
+		const admin = Admin.normalize(state);
 		const fields = admin.getFields();
 
 		expect(fields.text).toBeDefined();
@@ -233,7 +313,7 @@ describe("Admin.getFields()", () => {
 	});
 
 	it("should return empty object when no fields", () => {
-		const admin = Admin.normalize(AdminBuilder.empty());
+		const admin = Admin.normalize(createEmptyState());
 		const fields = admin.getFields();
 
 		expect(fields).toEqual({});
@@ -243,119 +323,59 @@ describe("Admin.getFields()", () => {
 describe("Admin.getField()", () => {
 	it("should return specific field definition", () => {
 		const textField = createTextField();
-		const builder = AdminBuilder.empty().fields({
-			text: textField,
-		});
+		const state: AdminState = {
+			...createEmptyState(),
+			fields: { text: textField },
+		};
 
-		const admin = Admin.normalize(builder);
+		const admin = Admin.normalize(state);
 		const field = admin.getField("text");
 
 		expect(field).toBe(textField);
 	});
 
 	it("should return undefined for non-existent field", () => {
-		const admin = Admin.normalize(AdminBuilder.empty());
+		const admin = Admin.normalize(createEmptyState());
 		const field = admin.getField("nonexistent");
 
 		expect(field).toBeUndefined();
 	});
 });
 
-describe("Admin.getListViews()", () => {
-	it("should return all list view definitions", () => {
-		const builder = AdminBuilder.empty().views({
-			table: createTableView(),
-			form: createFormView(), // This should NOT be in listViews
-		});
-
-		const admin = Admin.normalize(builder);
-		const listViews = admin.getListViews();
-
-		expect(listViews.table).toBeDefined();
-		expect((listViews as any).form).toBeUndefined();
-	});
-
-	it("should return empty object when no list views", () => {
-		const admin = Admin.normalize(AdminBuilder.empty());
-		const listViews = admin.getListViews();
-
-		expect(listViews).toEqual({});
-	});
-});
-
-describe("Admin.getEditViews()", () => {
-	it("should return all edit view definitions", () => {
-		const builder = AdminBuilder.empty().views({
-			table: createTableView(), // This should NOT be in editViews
-			form: createFormView(),
-		});
-
-		const admin = Admin.normalize(builder);
-		const editViews = admin.getEditViews();
-
-		expect(editViews.form).toBeDefined();
-		expect((editViews as any).table).toBeUndefined();
-	});
-
-	it("should return empty object when no edit views", () => {
-		const admin = Admin.normalize(AdminBuilder.empty());
-		const editViews = admin.getEditViews();
-
-		expect(editViews).toEqual({});
-	});
-});
-
 describe("Admin.getWidgets()", () => {
 	it("should return all widget definitions", () => {
-		const builder = AdminBuilder.empty().widgets({
-			stats: createStatsWidget(),
-		});
+		const state: AdminState = {
+			...createEmptyState(),
+			widgets: { stats: createStatsWidget() },
+		};
 
-		const admin = Admin.normalize(builder);
+		const admin = Admin.normalize(state);
 		const widgets = admin.getWidgets();
 
 		expect(widgets.stats).toBeDefined();
 	});
 
 	it("should return empty object when no widgets", () => {
-		const admin = Admin.normalize(AdminBuilder.empty());
+		const admin = Admin.normalize(createEmptyState());
 		const widgets = admin.getWidgets();
 
 		expect(widgets).toEqual({});
 	});
 });
 
-describe("Admin - Complete State Extraction", () => {
+describe("Admin - Complete State", () => {
 	it("should work with complete admin configuration", () => {
-		const builder = AdminBuilder.empty()
-			.fields({
-				text: createTextField(),
-				email: createEmailField(),
-			})
-			.views({
-				table: createTableView(),
-				form: createFormView(),
-			})
-			.widgets({
-				stats: createStatsWidget(),
-			})
-			.pages({
-				dashboard: createDashboardPage(),
-			})
-			.defaultViews({
-				list: "table",
-			});
+		const state = createTestModuleState();
 
-		const admin = Admin.normalize(builder);
+		const admin = Admin.normalize(state);
 
-		// Verify all getters work
-		expect(Object.keys(admin.getFields())).toHaveLength(2);
-		expect(Object.keys(admin.getListViews())).toHaveLength(1);
-		expect(Object.keys(admin.getEditViews())).toHaveLength(1);
+		expect(Object.keys(admin.getFields())).toHaveLength(6);
+		expect(Object.keys(admin.getViews())).toHaveLength(2);
+		expect(Object.keys(admin.getViewsByKind("list"))).toHaveLength(1);
+		expect(Object.keys(admin.getViewsByKind("form"))).toHaveLength(1);
 		expect(Object.keys(admin.getWidgets())).toHaveLength(1);
 		expect(Object.keys(admin.getPages())).toHaveLength(1);
 		expect(admin.getDefaultLocale()).toBe("en");
 		expect(admin.getAvailableLocales()).toEqual(["en"]);
-		expect(admin.getDefaultViews().list).toBe("table");
 	});
 });

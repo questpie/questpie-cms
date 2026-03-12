@@ -1,0 +1,63 @@
+---
+title: Config API
+description: runtimeConfig() — all configuration options.
+---
+
+# Config API
+
+## `runtimeConfig(options)`
+
+```ts
+import { runtimeConfig } from "questpie";
+
+export default runtimeConfig({
+  // Required
+  app: { url: string },
+  db: { url: string },
+  secret: string,
+
+  // Optional
+  plugins?: CodegenPlugin[],
+  storage?: {
+    basePath?: string,
+    driver?: "local" | "s3",
+    s3?: { bucket, region, accessKeyId, secretAccessKey },
+  },
+  email?: {
+    adapter: SmtpAdapter | ConsoleAdapter,
+  },
+  queue?: {
+    adapter: pgBossAdapter({ connectionString }),
+  },
+  realtime?: {
+    adapter: pgNotifyAdapter({ connectionString }) | redisStreamsAdapter({ url }),
+  },
+  kv?: {
+    adapter: "redis" | "memory",
+    url?: string,
+  },
+  translations?: {
+    messages: Record<string, Record<string, string>>,
+  },
+  cli?: {
+    migrations?: { directory: string },
+    seeds?: { directory: string },
+  },
+});
+```
+
+## Options
+
+| Option | Type | Required | Description |
+|---|---|---|---|
+| `app.url` | `string` | Yes | Public app URL |
+| `db.url` | `string` | Yes | PostgreSQL connection string |
+| `secret` | `string` | Yes | Session/auth secret |
+| `plugins` | `CodegenPlugin[]` | No | Codegen plugins |
+| `storage` | `object` | No | File storage config |
+| `email` | `object` | No | Email adapter |
+| `queue` | `object` | No | Job queue adapter |
+| `realtime` | `object` | No | Realtime adapter |
+| `kv` | `object` | No | Key-value store |
+| `translations` | `object` | No | i18n messages |
+| `cli` | `object` | No | CLI settings |

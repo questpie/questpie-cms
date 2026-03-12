@@ -272,7 +272,7 @@ export const createSearchRoutes = <
 						}
 					} catch (err) {
 						// Log but continue - don't fail entire search if one collection errors
-						console.error(
+						(resolved.appContext as any).logger?.error(
 							`[Search] Failed to populate ${collectionName}:`,
 							err,
 						);

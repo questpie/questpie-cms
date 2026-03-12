@@ -1,29 +1,27 @@
 /**
  * Text Block Renderer
- *
- * Rich text content with prose styling.
  */
 
-import {
-	type BlockComponentProps,
-	RichTextRenderer,
-} from "@questpie/admin/client";
-import type { App } from "@/questpie/server/app";
+import { RichTextRenderer } from "@questpie/admin/client";
+import type { BlockProps } from "../.generated/client";
 
-export function TextRenderer({ values }: BlockComponentProps<App, "text">) {
-	const maxWidthClass = {
+export function TextRenderer({ values }: BlockProps<"text">) {
+	const maxWidthClasses: Record<string, string> = {
 		narrow: "max-w-xl",
 		medium: "max-w-3xl",
 		wide: "max-w-5xl",
 		full: "max-w-none",
-	}[values.maxWidth || "medium"];
+	};
 
-	const paddingClass = {
+	const paddingClasses: Record<string, string> = {
 		none: "py-0",
 		small: "py-8",
 		medium: "py-16",
 		large: "py-24",
-	}[values.padding || "medium"];
+	};
+
+	const maxWidthClass = maxWidthClasses[values.maxWidth || "medium"];
+	const paddingClass = paddingClasses[values.padding || "medium"];
 
 	const richTextStyles = {
 		doc: `max-w-none ${maxWidthClass}`,

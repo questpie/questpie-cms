@@ -40,12 +40,11 @@ export const getBarber = createServerFn({ method: "GET" })
 				email: barber.email,
 				phone: barber.phone,
 				bio: barber.bio,
-				avatar: (barber.avatar as any)?.url ?? null,
+				avatar: barber.avatar?.url ?? null,
 				isActive: barber.isActive,
 				specialties: barber.specialties,
 				services: barber.services,
-				socialLinks:
-					(barber.socialLinks as Record<string, unknown>[] | null) ?? null,
+				socialLinks: barber.socialLinks ?? null,
 				workingHours: barber.workingHours,
 			},
 		};
@@ -70,7 +69,7 @@ export const getAllBarbers = createServerFn({ method: "GET" })
 				name: b.name,
 				slug: b.slug,
 				bio: b.bio,
-				avatar: (b.avatar as any)?.url ?? null,
+				avatar: b.avatar?.url ?? null,
 				specialties: b.specialties,
 			})),
 		};

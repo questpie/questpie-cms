@@ -5,7 +5,7 @@
  */
 
 import type { z } from "zod";
-import type { ComponentReference } from "#questpie/admin/server";
+import type { ComponentReference } from "#questpie/admin/server/augmentation.js";
 import type { I18nText } from "../../i18n/types.js";
 import type { ActionDefinition } from "./action-types";
 import type {

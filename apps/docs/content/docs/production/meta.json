@@ -1,0 +1,18 @@
+{
+	"title": "Operate in Production",
+	"pages": [
+		"index",
+		"database",
+		"migrations",
+		"authentication",
+		"storage",
+		"email",
+		"queue",
+		"search",
+		"realtime",
+		"kv",
+		"logger",
+		"multi-tenancy",
+		"deployment"
+	]
+}

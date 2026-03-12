@@ -104,7 +104,7 @@ export function Examples() {
 					<Link
 						to="/docs/$"
 						params={{
-							_splat: "examples/tanstack-barbershop-architecture-tour",
+							_splat: "examples/barbershop",
 						}}
 						className="inline-flex items-center gap-2 border border-border px-5 py-2.5 text-sm font-medium transition-colors hover:border-primary/40 hover:bg-card/60"
 					>

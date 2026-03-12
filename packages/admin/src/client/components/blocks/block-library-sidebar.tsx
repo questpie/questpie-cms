@@ -9,7 +9,8 @@
 
 import { Icon } from "@iconify/react";
 import * as React from "react";
-import type { BlockCategoryConfig, BlockSchema } from "#questpie/admin/server";
+import type { BlockCategoryConfig } from "#questpie/admin/server/augmentation.js";
+import type { BlockSchema } from "#questpie/admin/server/block/index.js";
 import { cn } from "../../lib/utils.js";
 import { Input } from "../ui/input.js";
 import {

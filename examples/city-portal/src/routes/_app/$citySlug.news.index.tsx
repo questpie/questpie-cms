@@ -55,8 +55,9 @@ function NewsListing() {
 				{CATEGORIES.map((cat) => (
 					<Link
 						key={cat.value}
-						to={`/${citySlug}/news`}
-						search={{ category: cat.value === "all" ? undefined : cat.value }}
+						to="/$citySlug/news"
+						params={{ citySlug }}
+						search={{ category: cat.value }}
 						className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${
 							(category || "all") === cat.value
 								? "bg-primary text-primary-foreground"
@@ -80,7 +81,8 @@ function NewsListing() {
 					{news.map((article: any) => (
 						<Link
 							key={article.id}
-							to={`/${citySlug}/news/${article.slug}`}
+							to="/$citySlug/news/$slug"
+							params={{ citySlug, slug: article.slug }}
 							className="group border rounded-lg overflow-hidden hover:shadow-md transition-shadow"
 						>
 							{article.image?.url && (

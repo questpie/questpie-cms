@@ -82,7 +82,8 @@ function CitiesLanding() {
 								{cities.map((city: any) => (
 									<Link
 										key={city.id}
-										to={`/${city.slug}`}
+										to="/$citySlug"
+										params={{ citySlug: city.slug }}
 										className="group block border rounded-lg p-6 hover:shadow-lg transition-all hover:border-primary/30"
 									>
 										<div className="flex items-center gap-4 mb-4">

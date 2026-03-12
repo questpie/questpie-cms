@@ -204,7 +204,9 @@ export async function executeAction(
 			data: data || {},
 			itemId,
 			itemIds,
-			app,
+			auth: (app as any).auth,
+			collections: (app as any).api?.collections,
+			globals: (app as any).api?.globals,
 			db: (app as any).db,
 			session,
 			locale,
@@ -562,8 +564,7 @@ function isFieldDefinition(
  */
 function isFieldRequired(field: ServerActionFormField): boolean {
 	if (isFieldDefinition(field)) {
-		// FieldDefinition stores config in state.config, not state directly
-		return !!(field.state as any)?.config?.required || !!field.state?.required;
+		return !!(field as any)._state?.notNull;
 	}
 	return !!field.required;
 }
@@ -636,7 +637,7 @@ export const executeActionFn = fn({
 	schema: executeActionRequestSchema,
 	outputSchema: executeActionResponseSchema,
 	handler: async (ctx) => {
-		const app = ctx.app as App;
+		const app = (ctx as any).app as App;
 		const session = (ctx as any).session;
 		return executeAction(app, ctx.input, session);
 	},
@@ -651,14 +652,14 @@ export const getActionsConfigFn = fn({
 	schema: getActionsConfigRequestSchema,
 	outputSchema: getActionsConfigResponseSchema,
 	handler: (ctx) => {
-		const app = ctx.app as App;
+		const app = (ctx as any).app as App;
 		return getActionsConfig(app, ctx.input.collection);
 	},
 });
 
 /**
  * QuestPie functions for action execution.
- * These are registered on the adminModule.
+ * These are registered on the `adminModule`.
  */
 export const actionFunctions = {
 	executeAction: executeActionFn,

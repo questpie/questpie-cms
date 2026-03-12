@@ -7,7 +7,7 @@
  */
 
 import * as React from "react";
-import type { FieldDefinition } from "../../../builder/field/field";
+import type { FieldInstance } from "../../../builder/field/field";
 import { ResourceSheet } from "../../../components/sheets";
 import { Badge } from "../../../components/ui/badge";
 import {
@@ -38,7 +38,7 @@ export function RelationCell({
 }: {
 	value: unknown;
 	row?: unknown;
-	fieldDef?: FieldDefinition;
+	fieldDef?: FieldInstance;
 }) {
 	const resolveText = useResolveText();
 	const fieldOptions =
@@ -210,7 +210,7 @@ function ReverseRelationCell({
 }: {
 	value: unknown;
 	row?: unknown;
-	fieldDef?: FieldDefinition;
+	fieldDef?: FieldInstance;
 }) {
 	const resolveText = useResolveText();
 	// Get source collection from fieldDef (the collection that has the relation pointing here)
@@ -335,7 +335,7 @@ function ReverseRelationCell({
 								);
 							})}
 							{value.length > 15 && (
-								<div className="text-[11px] text-muted-foreground text-center pt-1 border-t border-border/50 mt-1">
+								<div className="text-[11px] text-muted-foreground text-center pt-1 border-t border-border mt-1">
 									+{value.length - 15} more
 								</div>
 							)}

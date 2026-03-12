@@ -13,7 +13,7 @@ import {
 } from "@questpie/admin/client";
 import { useRouter } from "@tanstack/react-router";
 import type { PageLoaderData } from "@/lib/getPages.function";
-import renderers from "@/questpie/admin/blocks";
+import admin from "@/questpie/admin/.generated/client";
 
 interface PageRendererProps {
 	page: PageLoaderData["page"];
@@ -48,7 +48,7 @@ export function PageRenderer({ page, isHomepage = false }: PageRendererProps) {
 				{data.content && (
 					<BlockRenderer
 						content={data.content as BlockContent}
-						renderers={renderers}
+						renderers={admin.blocks}
 						data={data.content._data}
 						selectedBlockId={selectedBlockId}
 						onBlockClick={isPreviewMode ? handleBlockClick : undefined}

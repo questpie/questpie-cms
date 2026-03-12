@@ -1,4 +1,4 @@
-import { GithubLogo, List, X } from "@phosphor-icons/react";
+import { Icon } from "@iconify/react";
 import { Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -8,14 +8,14 @@ const navItems = [
 	{ label: "Docs", href: "/docs/$", type: "internal" as const },
 	{
 		label: "Examples",
-		href: "https://github.com/questpie/questpie/tree/main/examples",
-		type: "external" as const,
-	},
-	{
-		label: "Guides",
 		href: "/docs/$",
 		type: "internal" as const,
-		params: { _splat: "guides" },
+		params: { _splat: "examples" },
+	},
+	{
+		label: "GitHub",
+		href: "https://github.com/questpie/questpie",
+		type: "external" as const,
 	},
 ];
 
@@ -96,12 +96,12 @@ export function Navbar() {
 							aria-label="QUESTPIE on GitHub"
 							className="text-muted-foreground transition-colors hover:text-foreground"
 						>
-							<GithubLogo className="h-5 w-5" aria-hidden="true" />
+							<Icon icon="ph:github-logo" className="h-5 w-5" aria-hidden="true" />
 						</a>
 						<ThemeToggle />
 						<Link
 							to="/docs/$"
-							params={{ _splat: "getting-started/quickstart" }}
+							params={{ _splat: "start-here/first-app" }}
 							className="inline-flex h-9 items-center justify-center border border-primary/30 bg-primary/10 px-4 font-mono text-[11px] font-medium uppercase tracking-wider text-primary transition-all hover:bg-primary/20"
 						>
 							Build Platform
@@ -115,9 +115,9 @@ export function Navbar() {
 						aria-label="Toggle navigation"
 					>
 						{isMobileMenuOpen ? (
-							<X className="h-6 w-6" aria-hidden="true" />
+							<Icon icon="ph:x" className="h-6 w-6" aria-hidden="true" />
 						) : (
-							<List className="h-6 w-6" aria-hidden="true" />
+							<Icon icon="ph:list" className="h-6 w-6" aria-hidden="true" />
 						)}
 					</button>
 				</nav>
@@ -134,11 +134,11 @@ export function Navbar() {
 							</Link>
 							<Link
 								to="/docs/$"
-								params={{ _splat: "guides" }}
+								params={{ _splat: "examples" }}
 								className="py-1 text-sm font-medium text-muted-foreground"
 								onClick={() => setIsMobileMenuOpen(false)}
 							>
-								Guides
+								Examples
 							</Link>
 							<a
 								href="https://github.com/questpie/questpie/tree/main/examples"
@@ -159,13 +159,13 @@ export function Navbar() {
 										rel="noreferrer"
 										className="inline-flex items-center gap-2 text-sm text-muted-foreground"
 									>
-										<GithubLogo className="h-5 w-5" aria-hidden="true" />
+										<Icon icon="ph:github-logo" className="h-5 w-5" aria-hidden="true" />
 										GitHub
 									</a>
 								</div>
 								<Link
 									to="/docs/$"
-									params={{ _splat: "getting-started/quickstart" }}
+									params={{ _splat: "start-here/first-app" }}
 									className="inline-flex h-8 items-center justify-center border border-primary/30 bg-primary/10 px-3 font-mono text-[11px] uppercase tracking-wider text-primary"
 									onClick={() => setIsMobileMenuOpen(false)}
 								>

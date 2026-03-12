@@ -301,7 +301,7 @@ export async function processBlocksDocument(
 	);
 
 	// Step 3: Merge expanded + prefetched (prefetched overrides on conflict)
-	const mergedData: Record<string, Record<string, unknown>> = {};
+	const mergedData: Record<string, Record<string, {}>> = {};
 	const allBlockIds = new Set([
 		...Object.keys(expandedData),
 		...Object.keys(prefetchedData),
@@ -311,7 +311,7 @@ export async function processBlocksDocument(
 		mergedData[blockId] = {
 			...(expandedData[blockId] || {}),
 			...(prefetchedData[blockId] || {}),
-		};
+		} as Record<string, {}>;
 	}
 
 	return {
@@ -349,9 +349,8 @@ async function executePrefetchFunctions(
 		const prefetchCtx: BlockPrefetchContext = {
 			blockId: node.id,
 			blockType: node.type,
-			app: ctx.app,
-			db: ctx.db,
-			locale: ctx.locale,
+			...(ctx as any),
+			locale: (ctx as any).locale,
 		};
 
 		// Shape 3: with + loader
@@ -419,7 +418,10 @@ export async function processDocumentBlocksPrefetch<
 	T extends Record<string, unknown>,
 >(
 	doc: T,
-	fieldDefinitions: Record<string, { state: { config: { type?: string } } }>,
+	fieldDefinitions: Record<
+		string,
+		{ _state: { customType?: string; type: string } }
+	>,
 	blockDefinitions: Record<string, AnyBlockDefinition>,
 	ctx: BlocksPrefetchContext,
 ): Promise<T> {
@@ -431,7 +433,7 @@ export async function processDocumentBlocksPrefetch<
 
 	// Find all blocks fields and process them
 	for (const [fieldName, fieldDef] of Object.entries(fieldDefinitions)) {
-		const fieldType = fieldDef?.state?.config?.type;
+		const fieldType = fieldDef?._state?.customType ?? fieldDef?._state?.type;
 
 		if (fieldType === "blocks" && result[fieldName]) {
 			result[fieldName] = await processBlocksDocument(
@@ -451,16 +453,19 @@ export async function processDocumentBlocksPrefetch<
  *
  * @example
  * ```ts
+ * // collections/pages/index.ts
+ * import { collection } from "questpie";
  * import { createBlocksPrefetchHook } from "@questpie/admin/server";
  *
- * const pages = q.collection("pages")
- *   .fields((f) => ({
+ * export default collection("pages", {
+ *   fields: ({ f }) => ({
  *     title: f.text({ required: true }),
  *     content: f.blocks({ allowedBlocks: ["hero", "text"] }),
- *   }))
- *   .hooks({
+ *   }),
+ *   hooks: {
  *     afterRead: createBlocksPrefetchHook(),
- *   });
+ *   },
+ * });
  * ```
  */
 export function createBlocksPrefetchHook() {

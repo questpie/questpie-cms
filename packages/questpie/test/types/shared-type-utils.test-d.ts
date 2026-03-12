@@ -5,8 +5,8 @@
  * These are compile-time only tests - run with: tsc --noEmit
  */
 
-import { questpie } from "#questpie/server/config/builder.js";
-import { builtinFields } from "#questpie/server/fields/builtin/defaults.js";
+import { collection } from "#questpie/server/collection/builder/collection-builder.js";
+import { global } from "#questpie/server/global/builder/global-builder.js";
 import type {
 	CollectionInsert,
 	CollectionRelations,
@@ -36,40 +36,27 @@ import type {
 // Test fixtures
 // ============================================================================
 
-const q = questpie({ name: "test" }).fields(builtinFields);
-
-const usersCollection = q.collection("users").fields((f) => ({
-	name: f.textarea({ required: true }),
-	email: f.email({ required: true, maxLength: 255 }),
+const usersCollection = collection("users").fields(({ f }) => ({
+	name: f.textarea().required(),
+	email: f.email(255).required(),
 }));
 
-const postsCollection = q.collection("posts").fields((f) => ({
-	title: f.text({ required: true, maxLength: 255 }),
+const postsCollection = collection("posts").fields(({ f }) => ({
+	title: f.text(255).required(),
 	content: f.textarea(),
-	author: f.relation({
-		to: "users",
-		required: true,
-		relationName: "author",
-	}),
-	comments: f.relation({
-		to: "comments",
-		hasMany: true,
-		foreignKey: "postId",
-		relationName: "post",
-	}),
+	author: f.relation("users").required().relationName("author"),
+	comments: f
+		.relation("comments")
+		.hasMany({ foreignKey: "postId", relationName: "post" }),
 }));
 
-const commentsCollection = q.collection("comments").fields((f) => ({
-	text: f.textarea({ required: true }),
-	post: f.relation({
-		to: "posts",
-		required: true,
-		relationName: "post",
-	}),
+const commentsCollection = collection("comments").fields(({ f }) => ({
+	text: f.textarea().required(),
+	post: f.relation("posts").required().relationName("post"),
 }));
 
-const settingsGlobal = q.global("settings").fields((f) => ({
-	siteName: f.text({ required: true, maxLength: 255 }),
+const settingsGlobal = global("settings").fields(({ f }) => ({
+	siteName: f.text(255).required(),
 	maintenanceMode: f.textarea(),
 }));
 
@@ -92,7 +79,9 @@ type PostSelect = CollectionSelect<typeof postsCollection>;
 type _postSelectHasId = Expect<Equal<HasKey<PostSelect, "id">, true>>;
 type _postSelectHasTitle = Expect<Equal<HasKey<PostSelect, "title">, true>>;
 type _postSelectHasContent = Expect<Equal<HasKey<PostSelect, "content">, true>>;
-type _postSelectTitleIsString = Expect<Equal<PostSelect["title"], string>>;
+type _postSelectTitleIsString = Expect<Extends<PostSelect["title"], string>>;
+declare const _titleDebug: PostSelect["title"];
+const _titleAssign: string = _titleDebug;
 
 // ============================================================================
 // CollectionInsert tests

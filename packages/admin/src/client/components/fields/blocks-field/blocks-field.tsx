@@ -9,7 +9,7 @@
 
 import * as React from "react";
 import { useFormContext, useWatch } from "react-hook-form";
-import type { BlockSchema } from "#questpie/admin/server";
+import type { BlockSchema } from "#questpie/admin/server/block/index.js";
 import type { BlockContent } from "../../../blocks/types.js";
 import { EMPTY_BLOCK_CONTENT, isBlockContent } from "../../../blocks/types.js";
 import type { BaseFieldProps } from "../../../builder/types/common.js";
@@ -46,7 +46,7 @@ type BlocksFieldProps = BaseFieldProps & BlocksFieldConfig;
  *
  * Renders the visual block editor for editing block content.
  */
-function BlocksField({
+export function BlocksField({
 	name,
 	value,
 	onChange,

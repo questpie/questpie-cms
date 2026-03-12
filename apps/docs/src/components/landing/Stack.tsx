@@ -21,17 +21,15 @@ const presets: Preset[] = [
 		id: "renderers",
 		label: "Field renderer registry",
 		kicker: "Custom field UX",
-		file: "admin/field-registry.ts",
-		code: `export const admin = qa<App>()
-  .use(adminModule)
-  .fields({
-    point: PointFieldRenderer,
-    availability: TimeSlotsRenderer,
-  })
-  .components({
-    icon: AppIcon,
-    badge: AppBadge,
-  });`,
+		file: "admin/admin.ts",
+		code: `// Auto-generated admin config includes all field renderers
+import admin from "./.generated/client"
+
+// Extend with custom field renderers
+admin.fields({
+  point: PointFieldRenderer,
+  availability: TimeSlotsRenderer,
+})`,
 		points: [
 			"Register custom field renderers",
 			"Use domain-native controls (maps, slots, visual pickers)",
@@ -45,17 +43,15 @@ const presets: Preset[] = [
 		id: "views",
 		label: "List/edit view registry",
 		kicker: "Workflow views",
-		file: "admin/view-registry.ts",
-		code: `export const admin = qa<App>()
-  .use(adminModule)
-  .views({
-    kanban: listView("kanban", { component: AppointmentsKanban }),
-    splitForm: editView("split-form", { component: SplitEditor }),
-  })
-  .components({
-    icon: AppIcon,
-    badge: AppBadge,
-  });`,
+		file: "admin/admin.ts",
+		code: `// Auto-generated admin config includes all view types
+import admin from "./.generated/client"
+
+// Extend with custom view types
+admin.views({
+  kanban: listView("kanban", { component: AppointmentsKanban }),
+  splitForm: editView("split-form", { component: SplitEditor }),
+})`,
 		points: [
 			"Register custom list/edit views",
 			"Map business workflows to dedicated view types",
@@ -69,15 +65,17 @@ const presets: Preset[] = [
 		id: "components",
 		label: "Component references",
 		kicker: "Brand + tokens",
-		file: "admin/components.ts",
-		code: `export const admin = qa<App>()
-  .use(adminModule)
-  .components({
-    icon: AppIcon,
-    badge: AppBadge,
-    statusPill: StatusPill,
-    emptyState: EmptyStateCard,
-  });`,
+		file: "admin/admin.ts",
+		code: `// Auto-generated admin config includes defaults
+import admin from "./.generated/client"
+
+// Override with your design system components
+admin.components({
+  icon: AppIcon,
+  badge: AppBadge,
+  statusPill: StatusPill,
+  emptyState: EmptyStateCard,
+})`,
 		points: [
 			"Resolve component refs from registry",
 			"Keep UI composition in one place",
@@ -91,19 +89,20 @@ const presets: Preset[] = [
 		id: "realtime",
 		label: "Realtime operator mode",
 		kicker: "Live admin",
-		file: "admin/live-workflows.ts",
-		code: `export const admin = qa<App>()
-  .use(adminModule)
-  .views({
-    table: listView("table", {
-      component: LiveAppointmentsTable,
-      props: { highlightMode: "pulse" },
-    }),
-  })
-  .components({
-    activityFeed: LiveActivityFeed,
-    presenceAvatar: PresenceAvatar,
-  });`,
+		file: "admin/admin.ts",
+		code: `// Auto-generated admin config
+import admin from "./.generated/client"
+
+// Add realtime-aware views and components
+admin.views({
+  table: listView("table", {
+    component: LiveAppointmentsTable,
+    props: { highlightMode: "pulse" },
+  }),
+}).components({
+  activityFeed: LiveActivityFeed,
+  presenceAvatar: PresenceAvatar,
+})`,
 		points: [
 			"Live presence for operators working in parallel",
 			"Realtime highlights for changed rows/fields",

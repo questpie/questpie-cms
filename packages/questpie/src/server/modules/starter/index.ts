@@ -1,2 +1,3 @@
-export { type CoreMessageKey, coreBackendMessages } from "./messages.js";
-export { starterModule } from "./starter.module.js";
+export * from "./.generated/module.js";
+export { default as starterModule } from "./.generated/module.js";
+export { type CoreMessageKey, coreBackendMessages } from "./_messages.js";

@@ -12,7 +12,7 @@ Source-of-truth guidance for AI agents working in this monorepo.
 
 | Path                                                | Purpose                                                                                                                 |
 | --------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| `packages/questpie`                                 | Core engine — field builders, CRUD, RPC, introspection, CLI. Exports: `questpie`, `questpie/client`, `questpie/shared`. |
+| `packages/questpie`                                 | Core engine — field builders, CRUD, functions, introspection, CLI. Exports: `questpie`, `questpie/client`, `questpie/shared`. |
 | `packages/admin`                                    | Config-driven admin UI (React + Tailwind v4 + shadcn). Exports: `@questpie/admin/server`, `@questpie/admin/client`.     |
 | `packages/tanstack-query`                           | TanStack Query option builders, `streamedQuery`, batch helpers.                                                         |
 | `packages/openapi`                                  | OpenAPI spec generation + Scalar UI middleware (`withOpenApi`).                                                         |
@@ -27,7 +27,7 @@ Source-of-truth guidance for AI agents working in this monorepo.
 
 `packages/questpie/src/` is split into:
 
-- `server/` — Collections, globals, fields, RPC, adapters, integrated services (auth, storage, queue, mailer, realtime), migration.
+- `server/` — Collections, globals, fields, functions, adapters, integrated services (auth, storage, queue, mailer, realtime), migration.
 - `client/` — Client-side client, typed hooks.
 - `shared/` — Shared types and utilities used by both sides.
 - `exports/` — Public entry points (`index.ts`, `client.ts`, `shared.ts`, `cli.ts`).
@@ -41,26 +41,58 @@ All QUESTPIE projects follow this split:
 
 | Layer      | Directory          | Defines                                                               |
 | ---------- | ------------------ | --------------------------------------------------------------------- |
-| **Server** | `questpie/server/` | Schema, fields, access control, hooks, RPC, jobs — WHAT the data does |
+| **Server** | `questpie/server/` | Schema, fields, access control, hooks, functions, jobs — WHAT the data does |
 | **Admin**  | `questpie/admin/`  | Branding, custom renderers, client builder — HOW it renders           |
 | **Routes** | `routes/`          | HTTP mounting only — no business logic                                |
 
-### Callable Builder Pattern
+### Standalone Factories + File Convention
 
-The `q` builder is the entry point for all server-side config:
+New projects use **standalone factories** and **file convention** with codegen:
 
 ```ts
-// builder.ts
-import { q } from "questpie";
-import { adminModule } from "@questpie/admin/server";
-export const qb = q.use(adminModule);
+// collections/posts.collection.ts
+import { collection } from "questpie";
 
-// app.ts
-export const app = qb
-  .collections({ posts, pages })
-  .globals({ siteSettings })
-  .auth({ ... })
-  .build({ db: { url }, app: { url }, migrations });
+export default collection("posts")
+  .fields(({ f }) => ({
+    title: f.text({ label: "Title", required: true }),
+    content: f.richText({ label: "Content" }),
+  }));
+
+// functions/healthcheck.ts
+import { fn } from "questpie";
+
+export default fn({
+  handler: async ({ app }) => ({ status: "ok" }),
+});
+
+// questpie.config.ts
+import { config } from "questpie";
+import { admin } from "@questpie/admin/server";
+
+export default config({
+  modules: [admin()],
+  db: { url: process.env.DATABASE_URL! },
+  app: { url: process.env.APP_URL! },
+});
+```
+
+Codegen discovers files and generates `.generated/index.ts` with the `app` instance. Route handlers use:
+
+```ts
+import { app } from "~/questpie/.generated";
+import { createFetchHandler } from "questpie";
+
+const handler = createFetchHandler(app, { basePath: "/api" });
+```
+
+### Internal `q` Builder (Admin Module)
+
+The `q` builder still exists internally for `@questpie/admin` module construction. It is marked `@internal` and should not be used in new project code:
+
+```ts
+// @internal — used by admin module only
+import { q } from "questpie";
 ```
 
 ### Field Builder System
@@ -68,7 +100,7 @@ export const app = qb
 Fields are defined via a proxy-based `f` factory inside `.fields()`:
 
 ```ts
-const posts = qb.collection("posts").fields((f) => ({
+const posts = collection("posts").fields(({ f }) => ({
   title: f.text({ label: "Title", required: true }),
   content: f.richText({ label: "Content" }),
   published: f.boolean({ label: "Published", default: false }),
@@ -81,24 +113,24 @@ Built-in field types: `text`, `number`, `boolean`, `date`, `dateTime`, `select`,
 **Custom fields** via `field<TConfig, TValue>()` factory — see `packages/questpie/src/server/fields/field.ts`.
 **Custom operators** via `operator<TValue>()` — see `packages/questpie/src/server/fields/common-operators.ts`.
 
-### Standalone RPC
+### Standalone Functions
 
-End-to-end type-safe server functions, independent from the app instance:
+Type-safe server functions via file convention:
 
 ```ts
-// rpc.ts
-import { rpc } from "questpie";
-export const r = rpc();
+// functions/get-stats.ts
+import { fn } from "questpie";
 
-// functions/my-fn.ts
-export const myFn = r.fn({
-  schema: z.object({ id: z.string() }),
-  handler: async ({ input, app }) => { ... },
+export default fn({
+  schema: z.object({ period: z.enum(["day", "week", "month"]) }),
+  handler: async ({ input, app }) => {
+    const count = await app.api.collections.posts.count({});
+    return { posts: count };
+  },
 });
-
-// app.ts
-export const appRpc = r.router({ ...adminRpc, myFn });
 ```
+
+Functions are auto-discovered by codegen and available at `/api/fn/<name>`.
 
 ### Introspection & Component References
 
@@ -111,13 +143,60 @@ Server emits serializable references that the client resolves via registries:
 ## Registry-First Philosophy (Critical)
 
 - **Never** hardcode admin/view/component/type names in server runtime — always derive from builder state and registered maps.
-- **Fields**: resolve from `QuestpieBuilder.state.fields`.
+- **Fields**: resolve from builder state fields registry.
 - **Views**: resolve from `state.listViews` / `state.editViews`.
 - **Components**: resolve `c.*` from `state.components`.
 - **Entities**: collections/globals/jobs/queues flow from builder state, not literal names.
-- Defaults are provided by module registration (`q.use(adminModule)` / `qa.use(adminModule)`), not hardcoded.
+- Defaults are provided by module registration (`config({ modules: [admin()] })` on server / `qa.use(adminModule)` on client), not hardcoded.
 - Client resolves server-emitted `{ type, props }` references using its own registry — never assume server-only types.
 - When extending builders, prefer lazy type extraction (`FieldsOf<this>`, `QuestpieStateOf<this>`) over giant mapped types.
+
+## Plugin System (Codegen)
+
+The codegen pipeline is fully plugin-driven. Nothing is hardcoded in the CLI — all categories, discovery patterns, builder extensions, callback proxies, and type registries come from plugins.
+
+### Core Plugin (`coreCodegenPlugin()`)
+
+Lives in `packages/questpie/src/cli/codegen/index.ts`. Always auto-prepended by `runCodegen()`. Declares:
+- **10 category declarations**: collections, globals, jobs, functions, routes, messages, services, emails, migrations, seeds — each with full `CategoryDeclaration` metadata (dirs, prefix, emit strategy, type emission, registry key).
+- **4 singleton factories**: locale, hooks, access, context.
+- **1 callback param**: `f` (field ref proxy: `f.title` → `"title"`).
+
+### Admin Plugin (`adminPlugin()`)
+
+Lives in `packages/admin/src/server/plugin.ts`. User registers in `questpie.config.ts` via `plugins: [adminPlugin()]`. Declares:
+- **7 discover patterns**: views, components, blocks, sidebar, dashboard, branding, adminLocale.
+- **4 module registries**: views, listViews, editViews, components — with placeholder tokens for type extraction.
+- **5 collection extensions**: admin, list, form, preview, actions.
+- **2 global extensions**: admin, form.
+- **4 singleton factories**: branding, adminLocale, sidebar, dashboard.
+- **3 callback params**: `v` (view proxy), `c` (component proxy), `a` (action proxy).
+- **1 type registry**: `ComponentTypeRegistry` in `@questpie/admin/server`.
+
+### Plugin-Extensible Discriminants
+
+Three augmentation interfaces allow plugins to extend discriminant types:
+
+| Interface | Package | Purpose | Fallback |
+|---|---|---|---|
+| `FieldTypeRegistry` | `questpie` | Field type names (`"text"`, `"number"`, etc.) | `string` |
+| `ComponentTypeRegistry` | `@questpie/admin/server` | Component type names (`"icon"`, `"badge"`, etc.) | `string` |
+| `ViewKindRegistry` | `@questpie/admin/server` | View kind names (`"list"`, `"edit"`) | literal union |
+
+Codegen generates `declare module` augmentations that extend these interfaces with the actual keys extracted from modules. The companion type aliases (`FieldType`, `ComponentType`, `ViewKind`) use the `[keyof Registry] extends [never] ? string : keyof Registry` pattern to fall back to `string` when the registry is empty.
+
+### Key Codegen Types
+
+- **`CategoryDeclaration`** (`cli/codegen/types.ts`): Declares how a category is discovered and emitted (dirs, prefix, emit strategy, type generation, registry key, app state inclusion).
+- **`CodegenPlugin`** (`cli/codegen/types.ts`): Top-level plugin interface — categories, discover, transform, registries, callbackParams.
+- **`ModuleRegistryConfig`** (`cli/codegen/types.ts`): Module-level type registries with placeholder tokens, registry keys, and optional `typeRegistry` for interface augmentation.
+- **`CallbackParamDefinition`** (`cli/codegen/types.ts`): Inline JS proxy code for callback context parameters.
+
+### Runtime Merging (`create-app.ts`)
+
+- **`MERGE_FNS`**: `Map<string, MergeFn>` — per-key merge functions (e.g., `["auth", mergeAuthOptions]`). No string strategies, no switch statements.
+- **`CONFIG_CONSUMED_KEYS`**: Derived from `MERGE_FNS.keys()`. Keys NOT in this set flow to `instance.state` for plugins.
+- **`mergeRecord`, `mergeConcat`, `lastWins`**: Exported reusable merge helpers for plugins.
 
 ## Development Workflow
 
@@ -219,28 +298,25 @@ base-ui uses `render` prop, NOT `asChild`:
 
 ## Blocks & Circular Dependencies
 
-When blocks use functional `.prefetch()` that needs typed `ctx.app`, a circular dependency arises (`app.ts` → `blocks.ts` → `App` from `app.ts`). The workaround is the **BaseCMS pattern**:
+When blocks use functional `.prefetch()` that needs typed `ctx.app`, a circular dependency can arise. With codegen, blocks import the `App` type from `.generated/index.ts`:
 
 ```ts
-// app.ts
-export const baseApp = qb.collections({ ... }).globals({ ... }).auth({ ... });
-export type BaseCMS = (typeof baseApp)["$inferCms"]; // ← blocks import THIS
-export const app = baseApp.blocks(blocks).build({ ... });
-export type App = typeof app;
-```
-
-```ts
-// blocks.ts — uses type-only import of BaseCMS
+// blocks/hero.ts
+import { block } from "@questpie/admin";
 import { typedApp } from "questpie";
-import type { BaseCMS } from "./app";
+import type { App } from "~/questpie/.generated";
 
-.prefetch(async ({ values, ctx }) => {
-  const app = typedApp<BaseCMS>(ctx.app);
-  return { posts: (await app.api.collections.posts.find({ ... })).docs };
-});
+export default block("hero")
+  .fields(({ f }) => ({
+    heading: f.text({ label: "Heading" }),
+  }))
+  .prefetch(async ({ values, ctx }) => {
+    const app = typedApp<App>(ctx.app);
+    return { posts: (await app.api.collections.posts.find({})).docs };
+  });
 ```
 
-This is a known limitation — we're working on a more ergonomic solution. Blocks with only declarative prefetch (`{ with: { field: true } }`) don't need this pattern.
+Blocks with only declarative prefetch (`{ with: { field: true } }`) don't need this pattern.
 
 ## Reactive Field System
 

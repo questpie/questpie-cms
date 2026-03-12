@@ -28,7 +28,6 @@ import type {
 } from "../../builder/types/action-types";
 import { buildValidationSchema } from "../../builder/validation";
 import { useResolveText, useTranslation } from "../../i18n/hooks";
-import { selectAdmin, useAdminStore } from "../../runtime/provider";
 import { AutoFormFields } from "../../views/collection/auto-form-fields";
 import { Button } from "../ui/button";
 import {
@@ -63,9 +62,8 @@ interface ActionDialogProps<TItem = any> {
  */
 function createActionFormResolver(
 	fields: Record<string, FieldDefinition>,
-	registry: Record<string, FieldDefinition>,
 ): Resolver<Record<string, any>> {
-	const schema = buildValidationSchema(fields, registry);
+	const schema = buildValidationSchema(fields as any);
 
 	return async (values) => {
 		const result = schema.safeParse(values);
@@ -114,13 +112,11 @@ function FormDialogContent<TItem>({
 	const { config } = handler;
 	const resolveText = useResolveText();
 	const { t } = useTranslation();
-	const admin = useAdminStore(selectAdmin);
 
 	// Create resolver from field definitions
 	const resolver = React.useMemo(() => {
-		if (!admin) return undefined;
-		return createActionFormResolver(config.fields, admin.getFields());
-	}, [admin, config.fields]);
+		return createActionFormResolver(config.fields);
+	}, [config.fields]);
 
 	const form = useForm({
 		defaultValues: config.defaultValues || {},
@@ -155,7 +151,7 @@ function FormDialogContent<TItem>({
 	// Build collection config for AutoFormFields
 	const collectionConfig = React.useMemo(
 		() => ({
-			fields: config.fields,
+			fields: config.fields as any,
 		}),
 		[config.fields],
 	);

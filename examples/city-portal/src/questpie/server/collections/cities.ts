@@ -5,52 +5,36 @@
  */
 
 import { uniqueIndex } from "drizzle-orm/pg-core";
-import { qb } from "@/questpie/server/builder";
+import { collection } from "#questpie/factories";
 
-export const cities = qb
-	.collection("cities")
-	.fields((f) => ({
-		name: f.text({
-			label: "City Name",
-			required: true,
-			maxLength: 255,
-		}),
-		slug: f.text({
-			label: "Slug",
-			required: true,
-			maxLength: 100,
-			description: "URL-friendly identifier (e.g., 'london', 'manchester')",
-		}),
-		logo: f.upload({
-			label: "City Logo/Crest",
-			accept: ["image/*"],
-		}),
-		email: f.text({
-			label: "Contact Email",
-			maxLength: 255,
-		}),
-		phone: f.text({
-			label: "Contact Phone",
-			maxLength: 50,
-		}),
-		address: f.textarea({
-			label: "Address",
-			description: "Full postal address of the city council",
-		}),
-		website: f.text({
-			label: "External Website",
-			maxLength: 255,
-			description: "Link to the official city website (if different)",
-		}),
-		population: f.number({
-			label: "Population",
-			description: "Approximate population",
-		}),
-		isActive: f.boolean({
-			label: "Active",
-			default: true,
-			description: "Whether this city portal is publicly accessible",
-		}),
+export default collection("cities")
+	.fields(({ f }) => ({
+		name: f.text(255).label("City Name").required(),
+		slug: f
+			.text(100)
+			.label("Slug")
+			.required()
+			.description("URL-friendly identifier (e.g., 'london', 'manchester')"),
+		logo: f.upload({ mimeTypes: ["image/*"] }).label("City Logo/Crest"),
+		email: f.text(255).label("Contact Email"),
+		phone: f.text(50).label("Contact Phone"),
+		address: f
+			.textarea()
+			.label("Address")
+			.description("Full postal address of the city council"),
+		website: f
+			.text(255)
+			.label("External Website")
+			.description("Link to the official city website (if different)"),
+		population: f
+			.number()
+			.label("Population")
+			.description("Approximate population"),
+		isActive: f
+			.boolean()
+			.label("Active")
+			.default(true)
+			.description("Whether this city portal is publicly accessible"),
 	}))
 	.indexes(({ table }) => [
 		uniqueIndex("cities_slug_unique").on(table.slug as any),

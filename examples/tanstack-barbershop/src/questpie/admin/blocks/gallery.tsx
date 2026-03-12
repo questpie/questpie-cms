@@ -6,7 +6,7 @@
  */
 
 import { cn } from "../../../lib/utils";
-import type { BlockProps } from "./types";
+import type { BlockProps } from "../.generated/client";
 
 export function GalleryRenderer({ values, data }: BlockProps<"gallery">) {
 	const imageUrls =
@@ -34,7 +34,7 @@ export function GalleryRenderer({ values, data }: BlockProps<"gallery">) {
 				)}
 
 				<div className={cn("grid grid-cols-1", columnsClass, gapClass)}>
-					{values.images?.map((imageId) => {
+					{(values.images as unknown as string[])?.map((imageId) => {
 						const url = imageUrls[imageId];
 						return (
 							<figure

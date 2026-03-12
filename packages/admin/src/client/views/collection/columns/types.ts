@@ -4,7 +4,7 @@
  * Type definitions for column building system
  */
 
-import type { FieldDefinition } from "../../../builder/field/field";
+import type { FieldInstance } from "../../../builder/field/field";
 import type { ListViewConfig } from "../../../builder/types/collection-types";
 
 /**
@@ -15,7 +15,7 @@ export interface BuildColumnsOptions {
 	 * Collection config with fields and list view settings
 	 */
 	config?: {
-		fields?: Record<string, FieldDefinition>;
+		fields?: Record<string, FieldInstance>;
 		list?: ListViewConfig<string>;
 	};
 

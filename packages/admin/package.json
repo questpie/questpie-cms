@@ -25,6 +25,10 @@
 			"types": "./dist/client.d.mts",
 			"default": "./src/exports/client.ts"
 		},
+		"./client-module": {
+			"types": "./dist/client-module.d.mts",
+			"default": "./src/exports/client-module.ts"
+		},
 		"./server": {
 			"types": "./dist/server.d.mts",
 			"default": "./src/exports/server.ts"
@@ -48,7 +52,7 @@
 		"@dnd-kit/core": "^6.3.1",
 		"@dnd-kit/sortable": "^10.0.0",
 		"@dnd-kit/utilities": "^3.2.2",
-		"@fontsource-variable/dm-sans": "^5.2.8",
+		"@fontsource-variable/geist": "^5.2.8",
 		"@fontsource-variable/jetbrains-mono": "^5.2.8",
 		"@hookform/resolvers": "^5.1.0",
 		"@iconify/react": "^6.0.2",
@@ -83,7 +87,6 @@
 		"react-hook-form": "^7.54.0",
 		"react-resizable-panels": "^4.4.2",
 		"recharts": "2.15.4",
-		"shadcn": "^3.6.1",
 		"sonner": "^2.0.7",
 		"tailwind-merge": "^3.4.0",
 		"tailwindcss": "^4.0.6",
@@ -98,22 +101,25 @@
 		"@tanstack/react-query": "^5.x",
 		"@tanstack/react-table": "^8.x",
 		"@tanstack/db": "^0.x",
-		"better-auth": "^1.4.0",
+		"better-auth": "^1.4.9",
 		"drizzle-orm": "1.0.0-beta.6-4414a19",
 		"zod": "^4.2.1"
 	},
 	"peerDependenciesMeta": {
 		"drizzle-orm": {
 			"optional": true
+		},
+		"@tanstack/db": {
+			"optional": true
 		}
 	},
 	"devDependencies": {
 		"@rollup/plugin-babel": "^6.1.0",
 		"@tanstack/db": "^0.1.1",
+		"shadcn": "^3.6.1",
 		"@types/react": "^19.2.0",
 		"@types/react-dom": "^19.2.0",
 		"babel-plugin-react-compiler": "^1.0.0",
-		"drizzle-orm": "1.0.0-beta.6-4414a19",
 		"tinyglobby": "^0.2.15",
 		"tsdown": "^0.18.3",
 		"typescript": "^5.9.2"
@@ -128,6 +134,10 @@
 			"./client": {
 				"types": "./dist/client.d.mts",
 				"default": "./dist/client.mjs"
+			},
+			"./client-module": {
+				"types": "./dist/client-module.d.mts",
+				"default": "./dist/client-module.mjs"
 			},
 			"./server": {
 				"types": "./dist/server.d.mts",

@@ -11,7 +11,7 @@ import type {
 	ReactiveContext,
 	ReactiveServerContext,
 } from "questpie";
-import { fn, type Questpie } from "questpie";
+import { ApiError, fn, type Questpie } from "questpie";
 import { z } from "zod";
 
 // ============================================================================
@@ -21,7 +21,7 @@ import { z } from "zod";
 /**
  * Get typed app from context.
  */
-function getApp(ctx: { app: unknown }): Questpie<any> {
+function getApp(ctx: any): Questpie<any> {
 	return ctx.app as Questpie<any>;
 }
 
@@ -74,7 +74,7 @@ function getCollection(app: Questpie<any>, collectionName: string) {
 	const collections = app.getCollections();
 	const collection = collections[collectionName];
 	if (!collection) {
-		throw new Error(`Collection '${collectionName}' not found`);
+		throw ApiError.notFound("Collection", collectionName);
 	}
 
 	return collection;
@@ -87,7 +87,7 @@ function getGlobal(app: Questpie<any>, globalName: string) {
 	const globals = app.getGlobals();
 	const global = globals[globalName];
 	if (!global) {
-		throw new Error(`Global '${globalName}' not found`);
+		throw ApiError.notFound("Global", globalName);
 	}
 
 	return global;
@@ -139,22 +139,23 @@ function getFieldDefinition(
 			// Check for nested fields (object/array)
 			if (fieldDef.getNestedFields) {
 				currentDefs = fieldDef.getNestedFields();
-			} else if (fieldDef.state?.config?.of) {
+			} else if (fieldDef._state?.innerField) {
 				// Array field - get the "of" field's nested fields
-				const ofField = fieldDef.state.config.of;
+				const ofField = fieldDef._state.innerField;
 				if (ofField?.getNestedFields) {
 					currentDefs = ofField.getNestedFields();
 				}
 			}
 		} else {
-			throw new Error(`Field '${part}' not found in path '${fieldPath}'`);
+			throw ApiError.notFound("Field", `${part} in path '${fieldPath}'`);
 		}
 	}
 
 	if (!fieldDef) {
-		const entityType = type === "global" ? "global" : "collection";
-		throw new Error(
-			`Field '${fieldPath}' not found in ${entityType} '${entityName}'`,
+		const entityType = type === "global" ? "Global" : "Collection";
+		throw ApiError.notFound(
+			`${entityType} field`,
+			`${entityName}.${fieldPath}`,
 		);
 	}
 
@@ -390,8 +391,7 @@ function getReactiveHandler(
 function getOptionsHandler(
 	fieldDef: any,
 ): ((ctx: OptionsContext) => any) | null {
-	const config = fieldDef.state?.config;
-	const options = config?.options;
+	const options = fieldDef._state?.options;
 
 	if (!options) return null;
 
@@ -530,10 +530,10 @@ export const batchReactive = fn({
 
 		// Build server context (req is not available in function handlers)
 		const serverCtx: ReactiveServerContext = {
-			db: ctx.db,
-			user: ctx.session?.user ?? null,
+			db: (ctx as any).db,
+			user: (ctx as any).session?.user ?? null,
 			req: new Request("http://localhost"), // Placeholder - not used in handlers
-			locale: ctx.locale ?? "en",
+			locale: (ctx as any).locale ?? "en",
 		};
 
 		const results: z.infer<typeof reactiveResultSchema>[] = [];
@@ -622,10 +622,10 @@ export const fieldOptions = fn({
 
 		// Build server context (req is not available in function handlers)
 		const serverCtx: ReactiveServerContext = {
-			db: ctx.db,
-			user: ctx.session?.user ?? null,
+			db: (ctx as any).db,
+			user: (ctx as any).session?.user ?? null,
 			req: new Request("http://localhost"), // Placeholder - not used in handlers
-			locale: ctx.locale ?? "en",
+			locale: (ctx as any).locale ?? "en",
 		};
 
 		try {
@@ -637,10 +637,10 @@ export const fieldOptions = fn({
 
 			if (!handler) {
 				// No dynamic handler - check for static options
-				const config = fieldDef.state?.config;
-				if (Array.isArray(config?.options)) {
+				const fieldOptions = fieldDef._state?.options;
+				if (Array.isArray(fieldOptions)) {
 					// Static options - filter by search
-					let options = config.options as Array<{
+					let options = fieldOptions as Array<{
 						value: string | number;
 						label: string | Record<string, string>;
 					}>;

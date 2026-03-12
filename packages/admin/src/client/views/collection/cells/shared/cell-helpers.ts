@@ -3,7 +3,7 @@
  * Extracted from build-columns.tsx to reduce duplication
  */
 
-import type { FieldDefinition } from "../../../../builder/field/field";
+import type { FieldInstance } from "../../../../builder/field/field";
 import { formatLabel } from "../../../../lib/utils";
 
 function getNestedValue(item: unknown, path: string): unknown {
@@ -122,9 +122,9 @@ export const formatFieldLabel = formatLabel;
 /**
  * Get label for a field from field definition or format from key
  */
-export function getFieldLabel(key: string, fieldDef?: FieldDefinition): string {
+export function getFieldLabel(key: string, fieldDef?: FieldInstance): string {
 	if (fieldDef?.["~options"]?.label) {
-		return fieldDef["~options"].label;
+		return fieldDef["~options"].label as string;
 	}
 	return formatFieldLabel(key);
 }

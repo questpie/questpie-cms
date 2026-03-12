@@ -1,3 +1,4 @@
+import { tryGetContext } from "questpie";
 import type {
 	GlobalCollectionHookContext,
 	GlobalCollectionTransitionHookContext,
@@ -9,11 +10,14 @@ import type {
  * Check if a collection/global has `audit: false` in its `.admin()` config.
  */
 function isAuditDisabled(
-	app: any,
 	type: "collection" | "global",
 	name: string,
 ): boolean {
 	try {
+		const stored = tryGetContext();
+		const app = stored?.app as any;
+		if (!app) return false;
+
 		if (type === "collection") {
 			const config = app.getCollectionConfig?.(name);
 			return config?.state?.admin?.audit === false;
@@ -79,11 +83,14 @@ function extractLabel(
  * Falls back to the slug if no label is configured.
  */
 function getResourceTypeLabel(
-	app: any,
 	type: "collection" | "global",
 	name: string,
 ): string {
 	try {
+		const stored = tryGetContext();
+		const app = stored?.app as any;
+		if (!app) return name;
+
 		if (type === "collection") {
 			const config = app.getCollectionConfig?.(name);
 			const label = config?.state?.admin?.label;
@@ -109,7 +116,7 @@ function getResourceTypeLabel(
  */
 function generateTitle(
 	action: string,
-	resourceType: "collection" | "global",
+	_resourceType: "collection" | "global",
 	resourceTypeLabel: string,
 	resourceLabel: string | null,
 	userName: string | null,
@@ -132,15 +139,16 @@ function generateTitle(
 
 /**
  * Create global collection hooks for audit logging.
+ * @deprecated Use the default export instead (file convention).
  */
 export function createCollectionAuditHooks() {
 	return {
 		async afterChange(ctx: GlobalCollectionHookContext) {
 			try {
-				const app = ctx.app as any;
+				const { collections } = ctx as any;
 
 				// Skip collections with audit: false
-				if (isAuditDisabled(app, "collection", ctx.collection)) return;
+				if (isAuditDisabled("collection", ctx.collection)) return;
 
 				const action = ctx.operation === "create" ? "create" : "update";
 
@@ -156,12 +164,11 @@ export function createCollectionAuditHooks() {
 				const userName =
 					ctx.session?.user?.name || ctx.session?.user?.email || null;
 				const resourceTypeLabel = getResourceTypeLabel(
-					app,
 					"collection",
 					ctx.collection,
 				);
 
-				await app.api.collections.adminAuditLog.create(
+				await collections.adminAuditLog.create(
 					{
 						action,
 						resourceType: "collection",
@@ -196,21 +203,20 @@ export function createCollectionAuditHooks() {
 
 		async afterDelete(ctx: GlobalCollectionHookContext) {
 			try {
-				const app = ctx.app as any;
+				const { collections } = ctx as any;
 
 				// Skip collections with audit: false
-				if (isAuditDisabled(app, "collection", ctx.collection)) return;
+				if (isAuditDisabled("collection", ctx.collection)) return;
 
 				const resourceLabel = extractLabel(ctx.data);
 				const userName =
 					ctx.session?.user?.name || ctx.session?.user?.email || null;
 				const resourceTypeLabel = getResourceTypeLabel(
-					app,
 					"collection",
 					ctx.collection,
 				);
 
-				await app.api.collections.adminAuditLog.create(
+				await collections.adminAuditLog.create(
 					{
 						action: "delete",
 						resourceType: "collection",
@@ -250,21 +256,20 @@ export function createCollectionAuditHooks() {
 		 */
 		async afterTransition(ctx: GlobalCollectionTransitionHookContext) {
 			try {
-				const app = ctx.app as any;
+				const { collections } = ctx as any;
 
 				// Skip collections with audit: false
-				if (isAuditDisabled(app, "collection", ctx.collection)) return;
+				if (isAuditDisabled("collection", ctx.collection)) return;
 
 				const resourceLabel = extractLabel(ctx.data);
 				const userName =
 					ctx.session?.user?.name || ctx.session?.user?.email || null;
 				const resourceTypeLabel = getResourceTypeLabel(
-					app,
 					"collection",
 					ctx.collection,
 				);
 
-				await app.api.collections.adminAuditLog.create(
+				await collections.adminAuditLog.create(
 					{
 						action: "transition",
 						resourceType: "collection",
@@ -307,24 +312,27 @@ export function createCollectionAuditHooks() {
 /**
  * Create global global hooks for audit logging.
  */
+/**
+ * Create global global hooks for audit logging.
+ * @deprecated Use the default export instead (file convention).
+ */
 export function createGlobalAuditHooks() {
 	return {
 		async afterChange(ctx: GlobalGlobalHookContext) {
 			try {
-				const app = ctx.app as any;
+				const { collections } = ctx as any;
 
 				// Skip globals with audit: false
-				if (isAuditDisabled(app, "global", ctx.global)) return;
+				if (isAuditDisabled("global", ctx.global)) return;
 
 				const userName =
 					ctx.session?.user?.name || ctx.session?.user?.email || null;
 				const resourceTypeLabel = getResourceTypeLabel(
-					app,
 					"global",
 					ctx.global,
 				);
 
-				await app.api.collections.adminAuditLog.create(
+				await collections.adminAuditLog.create(
 					{
 						action: "update",
 						resourceType: "global",
@@ -363,20 +371,19 @@ export function createGlobalAuditHooks() {
 		 */
 		async afterTransition(ctx: GlobalGlobalTransitionHookContext) {
 			try {
-				const app = ctx.app as any;
+				const { collections } = ctx as any;
 
 				// Skip globals with audit: false
-				if (isAuditDisabled(app, "global", ctx.global)) return;
+				if (isAuditDisabled("global", ctx.global)) return;
 
 				const userName =
 					ctx.session?.user?.name || ctx.session?.user?.email || null;
 				const resourceTypeLabel = getResourceTypeLabel(
-					app,
 					"global",
 					ctx.global,
 				);
 
-				await app.api.collections.adminAuditLog.create(
+				await collections.adminAuditLog.create(
 					{
 						action: "transition",
 						resourceType: "global",
@@ -415,3 +422,30 @@ export function createGlobalAuditHooks() {
 		},
 	};
 }
+
+// ============================================================================
+// File convention — default export
+// ============================================================================
+
+const collectionHooks = createCollectionAuditHooks();
+const globalHooks = createGlobalAuditHooks();
+
+/**
+ * Audit hooks — file convention default export.
+ * Intercepts all collection and global mutations to create audit log entries.
+ */
+export default {
+	collections: [
+		{
+			afterChange: collectionHooks.afterChange,
+			afterDelete: collectionHooks.afterDelete,
+			afterTransition: collectionHooks.afterTransition,
+		},
+	],
+	globals: [
+		{
+			afterChange: globalHooks.afterChange,
+			afterTransition: globalHooks.afterTransition,
+		},
+	],
+};

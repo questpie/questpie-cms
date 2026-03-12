@@ -14,7 +14,7 @@
 import { Icon } from "@iconify/react";
 import * as React from "react";
 import { useCallback, useMemo, useRef, useState } from "react";
-import type { ComponentReference } from "#questpie/admin/server";
+import type { ComponentReference } from "#questpie/admin/server/augmentation.js";
 import { resolveIconElement } from "../../components/component-renderer";
 import { Kbd } from "../../components/ui/kbd";
 import {
@@ -150,7 +150,7 @@ const SearchGroup = React.memo(function SearchGroup({
 								"flex w-full items-center gap-3 px-3 py-2.5 text-sm outline-none transition-colors rounded-md",
 								isSelected
 									? "bg-accent text-accent-foreground"
-									: "hover:bg-accent/50 hover:text-accent-foreground",
+									: "hover:bg-accent hover:text-accent-foreground",
 							)}
 						>
 							{item.icon && (

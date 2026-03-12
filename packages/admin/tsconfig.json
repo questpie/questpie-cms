@@ -24,6 +24,11 @@
 			"#questpie/admin/*": ["./src/*"]
 		}
 	},
-	"include": ["src/**/*"],
+	"include": [
+		"src/**/*",
+		"src/server/modules/admin/.generated/*.ts",
+		"src/server/modules/admin/client/.generated/*.ts",
+		"src/server/modules/audit/.generated/*.ts"
+	],
 	"exclude": ["node_modules", "dist", "**/*.spec.ts", "**/*.test.ts"]
 }

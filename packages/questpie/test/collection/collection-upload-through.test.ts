@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
-import { collection, questpie } from "../../src/server/index.js";
+import { collection } from "../../src/server/index.js";
 import { buildMockApp } from "../utils/mocks/mock-app-builder";
 import { createTestContext } from "../utils/test-context";
 import { runTestDbMigrations } from "../utils/test-db";
@@ -11,8 +11,8 @@ import { runTestDbMigrations } from "../utils/test-db";
 // Assets collection with .upload() for URL generation testing
 const assets = collection("assets")
 	.options({ timestamps: true })
-	.fields((f) => ({
-		alt: f.text({ maxLength: 500 }),
+	.fields(({ f }) => ({
+		alt: f.text(500),
 		caption: f.textarea(),
 	}))
 	.upload({
@@ -20,21 +20,15 @@ const assets = collection("assets")
 	});
 
 // Junction collection for many-to-many uploads
-const postAssets = collection("post_assets").fields((f) => ({
-	post: f.relation({
-		to: "posts",
-		required: true,
-	}),
-	asset: f.relation({
-		to: "assets",
-		required: true,
-	}),
-	position: f.number({ default: 0 }),
+const postAssets = collection("post_assets").fields(({ f }) => ({
+	post: f.relation("posts").required(),
+	asset: f.relation("assets").required(),
+	position: f.number().default(0),
 }));
 
 // Posts collection with upload + through (gallery)
-const posts = collection("posts").fields((f) => ({
-	title: f.text({ required: true }),
+const posts = collection("posts").fields(({ f }) => ({
+	title: f.text().required(),
 	// Gallery via many-to-many upload
 	gallery: f.upload({
 		to: "assets",
@@ -44,22 +38,18 @@ const posts = collection("posts").fields((f) => ({
 	}),
 }));
 
-const testModule = questpie({ name: "upload-through-test" }).collections({
-	assets,
-	posts,
-	post_assets: postAssets,
-});
-
 // ==============================================================================
 // TESTS
 // ==============================================================================
 
 describe("upload + through (many-to-many)", () => {
-	let setup: Awaited<ReturnType<typeof buildMockApp<typeof testModule>>>;
-	let app: typeof testModule.$inferApp;
+	let setup: Awaited<ReturnType<typeof buildMockApp>>;
+	let app: (typeof setup)["app"];
 
 	beforeEach(async () => {
-		setup = await buildMockApp(testModule);
+		setup = await buildMockApp({
+			collections: { assets, posts, post_assets: postAssets },
+		});
 		app = setup.app;
 		await runTestDbMigrations(app);
 	});

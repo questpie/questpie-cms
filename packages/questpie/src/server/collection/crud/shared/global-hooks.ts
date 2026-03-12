@@ -54,7 +54,7 @@ export async function executeGlobalCollectionHooks(
 			try {
 				await hookFn(ctx);
 			} catch (err) {
-				console.error(
+				ctx.logger.error(
 					`[QuestPie] Global collection hook "${hookName}" error for "${collectionName}":`,
 					err,
 				);
@@ -89,7 +89,7 @@ export async function executeGlobalCollectionTransitionHooks(
 			try {
 				await hookFn(ctx);
 			} catch (err) {
-				console.error(
+				ctx.logger.error(
 					`[QuestPie] Global collection hook "${hookName}" error for "${collectionName}":`,
 					err,
 				);
@@ -128,7 +128,7 @@ export async function executeGlobalGlobalHooks(
 			try {
 				await hookFn(ctx);
 			} catch (err) {
-				console.error(
+				ctx.logger.error(
 					`[QuestPie] Global global hook "${hookName}" error for "${globalName}":`,
 					err,
 				);
@@ -163,7 +163,7 @@ export async function executeGlobalGlobalTransitionHooks(
 			try {
 				await hookFn(ctx);
 			} catch (err) {
-				console.error(
+				ctx.logger.error(
 					`[QuestPie] Global global hook "${hookName}" error for "${globalName}":`,
 					err,
 				);

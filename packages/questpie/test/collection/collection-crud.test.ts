@@ -1,19 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
-import { defaultFields } from "../../src/server/fields/builtin/defaults.js";
-import { questpie } from "../../src/server/index.js";
+import { collection } from "../../src/server/index.js";
 import { buildMockApp } from "../utils/mocks/mock-app-builder";
 import { createTestContext } from "../utils/test-context";
 import { runTestDbMigrations } from "../utils/test-db";
 
-// Create questpie builder with default fields
-const q = questpie({ name: "test-module" }).fields(defaultFields);
-
-const products = q
-	.collection("products")
-	.fields((f) => ({
-		sku: f.text({ required: true, maxLength: 50 }),
-		name: f.text({ required: true, localized: true }),
-		description: f.text({ localized: true }),
+const products = collection("products")
+	.fields(({ f }) => ({
+		sku: f.text(50).required(),
+		name: f.text().required().localized(),
+		description: f.text().localized(),
 	}))
 	.title(({ f }) => f.name)
 	.options({
@@ -23,21 +18,19 @@ const products = q
 	});
 
 // Collection without .title() - should fallback _title to id
-const simple_items = q
-	.collection("simple_items")
-	.fields((f) => ({
-		name: f.text({ required: true }),
+const simple_items = collection("simple_items")
+	.fields(({ f }) => ({
+		name: f.text().required(),
 		description: f.text(),
 	}))
 	.options({
 		timestamps: true,
 	});
 
-const locked_products = q
-	.collection("locked_products")
-	.fields((f) => ({
-		sku: f.text({ required: true, maxLength: 50 }),
-		name: f.text({ required: true, localized: true }),
+const locked_products = collection("locked_products")
+	.fields(({ f }) => ({
+		sku: f.text(50).required(),
+		name: f.text().required().localized(),
 	}))
 	.title(({ f }) => f.name)
 	.options({
@@ -49,10 +42,9 @@ const locked_products = q
 		create: () => false,
 	});
 
-const workflow_posts = q
-	.collection("workflow_posts")
-	.fields((f) => ({
-		title: f.text({ required: true }),
+const workflow_posts = collection("workflow_posts")
+	.fields(({ f }) => ({
+		title: f.text().required(),
 	}))
 	.options({
 		versioning: {
@@ -63,10 +55,9 @@ const workflow_posts = q
 		},
 	});
 
-const guarded_workflow_posts = q
-	.collection("guarded_workflow_posts")
-	.fields((f) => ({
-		title: f.text({ required: true }),
+const guarded_workflow_posts = collection("guarded_workflow_posts")
+	.fields(({ f }) => ({
+		title: f.text().required(),
 	}))
 	.options({
 		versioning: {
@@ -81,19 +72,19 @@ const guarded_workflow_posts = q
 		},
 	});
 
-const testModule = q.collections({
-	products,
-	simple_items,
-	locked_products,
-	workflow_posts,
-	guarded_workflow_posts,
-});
-
 describe("collection CRUD", () => {
-	let setup: Awaited<ReturnType<typeof buildMockApp<typeof testModule>>>;
+	let setup: Awaited<ReturnType<typeof buildMockApp>>;
 
 	beforeEach(async () => {
-		setup = await buildMockApp(testModule);
+		setup = await buildMockApp({
+			collections: {
+				products,
+				simple_items,
+				locked_products,
+				workflow_posts,
+				guarded_workflow_posts,
+			},
+		});
 		await runTestDbMigrations(setup.app);
 	});
 

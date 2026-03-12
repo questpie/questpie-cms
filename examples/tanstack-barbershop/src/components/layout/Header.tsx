@@ -10,7 +10,7 @@
  * - CTA button (from app)
  */
 
-import { Check, Globe, List, Moon, Scissors, Sun } from "@phosphor-icons/react";
+import { Icon } from "@iconify/react";
 import { useRouter } from "@tanstack/react-router";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -79,7 +79,7 @@ export function Header({
 					{logo ? (
 						<img src={logo} alt={shopName} className="h-8 w-auto" />
 					) : (
-						<Scissors className="size-6" weight="bold" />
+						<Icon icon="ph:scissors-bold" className="size-6" />
 					)}
 					<span className="hidden sm:inline">{shopName}</span>
 				</a>
@@ -111,9 +111,9 @@ export function Header({
 						aria-label={t("theme.toggle")}
 					>
 						{resolvedTheme === "dark" ? (
-							<Sun className="size-5" />
+							<Icon icon="ph:sun" className="size-5" />
 						) : (
-							<Moon className="size-5" />
+							<Icon icon="ph:moon" className="size-5" />
 						)}
 					</Button>
 
@@ -128,19 +128,19 @@ export function Header({
 								/>
 							}
 						>
-							<Globe className="size-5" />
+							<Icon icon="ph:globe" className="size-5" />
 						</DropdownMenuTrigger>
 						<DropdownMenuContent align="end">
 							<DropdownMenuItem onClick={() => handleLocaleChange("en")}>
 								<span className="flex items-center gap-2 w-full">
 									{t("language.en")}
-									{locale === "en" && <Check className="size-4 ml-auto" />}
+									{locale === "en" && <Icon icon="ph:check" className="size-4 ml-auto" />}
 								</span>
 							</DropdownMenuItem>
 							<DropdownMenuItem onClick={() => handleLocaleChange("sk")}>
 								<span className="flex items-center gap-2 w-full">
 									{t("language.sk")}
-									{locale === "sk" && <Check className="size-4 ml-auto" />}
+									{locale === "sk" && <Icon icon="ph:check" className="size-4 ml-auto" />}
 								</span>
 							</DropdownMenuItem>
 						</DropdownMenuContent>
@@ -162,7 +162,7 @@ export function Header({
 								<Button variant="ghost" size="icon" className="md:hidden" />
 							}
 						>
-							<List className="size-5" />
+							<Icon icon="ph:list" className="size-5" />
 							<span className="sr-only">{t("common.menu")}</span>
 						</SheetTrigger>
 
@@ -172,7 +172,7 @@ export function Header({
 									{logo ? (
 										<img src={logo} alt={shopName} className="h-6 w-auto" />
 									) : (
-										<Scissors className="size-5" weight="bold" />
+										<Icon icon="ph:scissors-bold" className="size-5" />
 									)}
 									{shopName}
 								</SheetTitle>
@@ -213,12 +213,12 @@ export function Header({
 									<Button variant="outline" size="sm" onClick={toggleTheme}>
 										{resolvedTheme === "dark" ? (
 											<>
-												<Sun className="size-4 mr-2" />
+												<Icon icon="ph:sun" className="size-4 mr-2" />
 												{t("theme.light")}
 											</>
 										) : (
 											<>
-												<Moon className="size-4 mr-2" />
+												<Icon icon="ph:moon" className="size-4 mr-2" />
 												{t("theme.dark")}
 											</>
 										)}
@@ -232,7 +232,7 @@ export function Header({
 										<DropdownMenuTrigger
 											render={<Button variant="outline" size="sm" />}
 										>
-											<Globe className="size-4 mr-2" />
+											<Icon icon="ph:globe" className="size-4 mr-2" />
 											{locale === "en" ? t("language.en") : t("language.sk")}
 										</DropdownMenuTrigger>
 										<DropdownMenuContent align="end">
@@ -242,7 +242,7 @@ export function Header({
 												<span className="flex items-center gap-2 w-full">
 													{t("language.en")}
 													{locale === "en" && (
-														<Check className="size-4 ml-auto" />
+														<Icon icon="ph:check" className="size-4 ml-auto" />
 													)}
 												</span>
 											</DropdownMenuItem>
@@ -252,7 +252,7 @@ export function Header({
 												<span className="flex items-center gap-2 w-full">
 													{t("language.sk")}
 													{locale === "sk" && (
-														<Check className="size-4 ml-auto" />
+														<Icon icon="ph:check" className="size-4 ml-auto" />
 													)}
 												</span>
 											</DropdownMenuItem>

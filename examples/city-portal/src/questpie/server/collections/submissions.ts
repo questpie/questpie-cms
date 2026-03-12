@@ -4,42 +4,18 @@
  * Contact form submissions from the public website.
  */
 
-import { qb } from "@/questpie/server/builder";
+import { collection } from "#questpie/factories";
 
-export const submissions = qb
-	.collection("submissions")
-	.fields((f) => ({
-		city: f.relation({
-			label: "City",
-			to: "cities",
-			required: true,
-		}),
-		name: f.text({
-			label: "Name",
-			required: true,
-			maxLength: 255,
-		}),
-		email: f.text({
-			label: "Email",
-			required: true,
-			maxLength: 255,
-		}),
-		phone: f.text({
-			label: "Phone",
-			maxLength: 50,
-		}),
-		subject: f.text({
-			label: "Subject",
-			required: true,
-			maxLength: 255,
-		}),
-		message: f.textarea({
-			label: "Message",
-			required: true,
-		}),
-		department: f.select({
-			label: "Department",
-			options: [
+export default collection("submissions")
+	.fields(({ f }) => ({
+		city: f.relation("cities").label("City").required(),
+		name: f.text(255).label("Name").required(),
+		email: f.text(255).label("Email").required(),
+		phone: f.text(50).label("Phone"),
+		subject: f.text(255).label("Subject").required(),
+		message: f.textarea().label("Message").required(),
+		department: f
+			.select([
 				{ value: "general", label: "General Enquiry" },
 				{ value: "planning", label: "Planning" },
 				{ value: "housing", label: "Housing" },
@@ -49,24 +25,23 @@ export const submissions = qb
 				{ value: "parking", label: "Parking" },
 				{ value: "waste", label: "Waste & Recycling" },
 				{ value: "other", label: "Other" },
-			],
-			default: "general",
-		}),
-		status: f.select({
-			label: "Status",
-			options: [
+			])
+			.label("Department")
+			.default("general"),
+		status: f
+			.select([
 				{ value: "new", label: "New" },
 				{ value: "in-progress", label: "In Progress" },
 				{ value: "resolved", label: "Resolved" },
 				{ value: "closed", label: "Closed" },
-			],
-			default: "new",
-			required: true,
-		}),
-		notes: f.textarea({
-			label: "Internal Notes",
-			description: "Notes for internal use only",
-		}),
+			])
+			.label("Status")
+			.default("new")
+			.required(),
+		notes: f
+			.textarea()
+			.label("Internal Notes")
+			.description("Notes for internal use only"),
 	}))
 	.title(({ f }) => f.subject)
 	.admin(({ c }) => ({

@@ -10,8 +10,10 @@ export interface QuestpieCliConfig {
 	 */
 	migrations?: {
 		/**
-		 * Directory where generated migrations should be saved
-		 * @default "./src/migrations"
+		 * Directory where generated migrations should be saved.
+		 * When omitted, defaults to the `migrations/` dir inside the entity root
+		 * (same directory codegen discovers from).
+		 * If set, resolved relative to CWD.
 		 */
 		directory?: string;
 	};
@@ -21,8 +23,10 @@ export interface QuestpieCliConfig {
 	 */
 	seeds?: {
 		/**
-		 * Directory where generated seeds should be saved
-		 * @default "./src/seeds"
+		 * Directory where generated seeds should be saved.
+		 * When omitted, defaults to the `seeds/` dir inside the entity root
+		 * (same directory codegen discovers from).
+		 * If set, resolved relative to CWD.
 		 */
 		directory?: string;
 	};
@@ -52,8 +56,8 @@ export interface QuestpieCliConfig {
  * 2. Import migration in your app:
  *    ```ts
  *    import { migrations } from "./src/migrations.js"
- *    const app = questpie({ name: 'app' })
- *      .build({ ..., migrations })
+ *    // in questpie.config.ts
+ *    export default config({ db: { url }, app: { url }, migrations })
  *    ```
  *
  * 3. Run migrations: `bun questpie migrate:up`
@@ -118,7 +122,14 @@ export function config<TApp extends Questpie<any>>(
 }
 
 /**
- * Load and validate config file
+ * Load and validate config file.
+ *
+ * Supports multiple config formats:
+ * 1. **New format (AppConfig)**: `export default config({ app: { url }, db: { url }, modules: [...] })`
+ *    → Auto-resolves .generated/index.ts for the Questpie instance
+ * 2. **CLI format**: `export default { app: questpieInstance, cli: { ... } }`
+ * 3. **Legacy format**: `export default { qcms: questpieInstance }` (deprecated)
+ * 4. **Direct instance**: `export default questpieInstance`
  */
 export async function loadQuestpieConfig(
 	configPath: string,
@@ -126,7 +137,38 @@ export async function loadQuestpieConfig(
 	const configModule = await import(/* @vite-ignore */ configPath);
 	const config = configModule.config || configModule.default || configModule;
 
-	// Support both old format (direct app export) and new format (config object)
+	// Check if this is the new AppConfig format (has app.url but app is not a Questpie instance)
+	if (
+		config.app &&
+		typeof config.app === "object" &&
+		"url" in config.app &&
+		typeof config.app.url === "string" &&
+		!("api" in config.app)
+	) {
+		// New AppConfig format — try to load .generated/index.ts
+		const { dirname, join } = await import("node:path");
+		const generatedPath = join(dirname(configPath), ".generated", "index.ts");
+		try {
+			const generatedModule = await import(/* @vite-ignore */ generatedPath);
+			if (generatedModule.app) {
+				return {
+					app: generatedModule.app,
+					cli: config.cli ?? {
+						migrations: config.cli?.migrations,
+						seeds: config.cli?.seeds,
+					},
+				};
+			}
+		} catch {
+			throw new Error(
+				`Config at ${configPath} uses the new AppConfig format.\n` +
+					`Run \`questpie generate\` first to create .generated/index.ts,\n` +
+					`or point --config to a file that exports { app: QuestpieInstance }.`,
+			);
+		}
+	}
+
+	// Standard format: { app: QuestpieInstance, cli?: { ... } }
 	if (config.app) {
 		return config as QuestpieConfigFile;
 	}
@@ -147,6 +189,96 @@ export async function loadQuestpieConfig(
 
 	throw new Error(
 		"Config must export a QuestpieConfigFile object with 'app' property, or a Questpie instance directly",
+	);
+}
+
+// ============================================================================
+// Package Config — for npm packages that contain modules
+// ============================================================================
+
+/**
+ * Configuration for packages that contain questpie modules.
+ *
+ * Used by `questpie generate` in package mode to discover and generate
+ * `.generated/module.ts` for each module in the package.
+ *
+ * This config is dev-only — it is NOT distributed with the npm package.
+ * Only the generated `.generated/module.ts` files are published.
+ *
+ * @example
+ * ```ts
+ * // packages/admin/questpie.config.ts
+ * import { packageConfig } from "questpie/cli";
+ * import { adminPlugin } from "./src/server/plugin.js";
+ *
+ * export default packageConfig({
+ *   modulesDir: "src/server/modules",
+ *   modulePrefix: "questpie",
+ *   plugins: [adminPlugin()],
+ * });
+ * ```
+ */
+export interface PackageConfig {
+	/**
+	 * Marker property to identify this as a package config.
+	 * @internal Set automatically by `packageConfig()`.
+	 */
+	readonly __type: "package";
+
+	/**
+	 * Directory containing module subdirectories, relative to config file location.
+	 * Each subdirectory is treated as a separate module.
+	 *
+	 * @example "src/server/modules" → scans src/server/modules/admin/, src/server/modules/starter/, etc.
+	 */
+	modulesDir: string;
+
+	/**
+	 * Prefix for generated module names.
+	 * Module name = `${modulePrefix}-${directoryName}`.
+	 *
+	 * @default derived from package.json name
+	 * @example "questpie" → directory "admin" becomes module "questpie-admin"
+	 */
+	modulePrefix?: string;
+
+	/**
+	 * Codegen plugins shared across all modules in this package.
+	 * Plugins add discovery patterns (views, components, blocks, etc.).
+	 */
+	plugins?: import("./codegen/types.js").CodegenPlugin[];
+}
+
+/**
+ * Define a package-level codegen config for packages containing modules.
+ *
+ * @example
+ * ```ts
+ * import { packageConfig } from "questpie/cli";
+ * import { adminPlugin } from "./src/server/plugin.js";
+ *
+ * export default packageConfig({
+ *   modulesDir: "src/server/modules",
+ *   modulePrefix: "questpie",
+ *   plugins: [adminPlugin()],
+ * });
+ * ```
+ */
+export function packageConfig(
+	config: Omit<PackageConfig, "__type">,
+): PackageConfig {
+	return { ...config, __type: "package" as const };
+}
+
+/**
+ * Check if a config object is a PackageConfig.
+ */
+export function isPackageConfig(config: unknown): config is PackageConfig {
+	return (
+		typeof config === "object" &&
+		config !== null &&
+		"__type" in config &&
+		(config as any).__type === "package"
 	);
 }
 

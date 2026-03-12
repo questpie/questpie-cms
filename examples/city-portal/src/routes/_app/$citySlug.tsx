@@ -17,6 +17,11 @@ import { Footer } from "@/components/layout/Footer";
 import { Header } from "@/components/layout/Header";
 import { queryClient } from "@/lib/query-client";
 import { getCityBySlug, getSiteSettings } from "@/lib/server-functions";
+import type {
+	FooterLink,
+	NavItem,
+	SocialLink,
+} from "@/questpie/server/globals";
 import stylesCss from "@/styles.css?url";
 
 export const Route = createFileRoute("/_app/$citySlug")({
@@ -36,9 +41,11 @@ export const Route = createFileRoute("/_app/$citySlug")({
 	},
 
 	head: ({ loaderData }) => {
-		const settings = loaderData?.settings;
+		const data = loaderData as { city: any; settings: any } | undefined;
+		const settings = data?.settings;
 		return {
-			title: settings?.metaTitle || `${loaderData?.city.name} - City Council`,
+			title:
+				settings?.metaTitle || `${data?.city?.name ?? "City"} - City Council`,
 			meta: settings?.metaDescription
 				? [{ name: "description", content: settings.metaDescription }]
 				: [],
@@ -70,11 +77,14 @@ function CityLayout() {
 						<Header
 							cityName={city.name}
 							citySlug={city.slug}
-							logo={settings?.logo || undefined}
-							navigation={settings?.navigation ?? []}
-							alertEnabled={settings?.alertEnabled}
-							alertMessage={settings?.alertMessage}
-							alertType={settings?.alertType}
+							logo={settings?.logo?.url ?? undefined}
+							navigation={(settings?.navigation ?? []) as NavItem[]}
+							alertEnabled={settings?.alertEnabled ?? undefined}
+							alertMessage={settings?.alertMessage ?? undefined}
+							alertType={
+								(settings?.alertType as "info" | "warning" | "emergency") ??
+								undefined
+							}
 						/>
 
 						<main className="flex-1">
@@ -83,13 +93,13 @@ function CityLayout() {
 
 						<Footer
 							cityName={city.name}
-							footerText={settings?.footerText}
-							footerLinks={settings?.footerLinks ?? []}
-							contactEmail={settings?.contactEmail}
-							contactPhone={settings?.contactPhone}
-							address={settings?.address}
-							socialLinks={settings?.socialLinks ?? []}
-							copyrightText={settings?.copyrightText}
+							footerText={settings?.footerText ?? undefined}
+							footerLinks={(settings?.footerLinks ?? []) as FooterLink[]}
+							contactEmail={settings?.contactEmail ?? undefined}
+							contactPhone={settings?.contactPhone ?? undefined}
+							address={settings?.address ?? undefined}
+							socialLinks={(settings?.socialLinks ?? []) as SocialLink[]}
+							copyrightText={settings?.copyrightText ?? undefined}
 						/>
 					</div>
 				</QueryClientProvider>

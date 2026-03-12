@@ -4,7 +4,7 @@
  * Displays all active barbers with their specialties and bio snippets.
  */
 
-import { ArrowRight, User } from "@phosphor-icons/react";
+import { Icon } from "@iconify/react";
 import { RichTextRenderer, type TipTapDoc } from "@questpie/admin/client";
 import { createFileRoute } from "@tanstack/react-router";
 import { getAllBarbers } from "@/lib/getBarbers.function";
@@ -51,14 +51,14 @@ function BarbersPage() {
 									/>
 								) : (
 									<div className="w-full h-full flex items-center justify-center bg-muted">
-										<User className="size-32 text-muted-foreground/20" />
+										<Icon icon="ph:user" className="size-32 text-muted-foreground/20" />
 									</div>
 								)}
 								<div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors duration-500" />
 
 								<div className="absolute bottom-0 left-0 right-0 p-6 translate-y-full group-hover:translate-y-0 transition-transform duration-500 bg-gradient-to-t from-black/80 to-transparent">
 									<span className="text-white font-bold inline-flex items-center gap-2">
-										{t("barbers.viewProfile")} <ArrowRight className="size-4" />
+										{t("barbers.viewProfile")} <Icon icon="ph:arrow-right" className="size-4" />
 									</span>
 								</div>
 							</div>

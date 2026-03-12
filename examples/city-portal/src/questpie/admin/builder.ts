@@ -1,10 +1,7 @@
 /**
- * City Portal Admin Builder
+ * @deprecated Import from "~/questpie/admin/.generated/client" instead.
  *
- * Centralized admin builder with type-safe access to backend app collections.
+ * This file is kept for backward compatibility only.
+ * New code should import the generated admin config directly.
  */
-
-import { adminModule, qa } from "@questpie/admin/client";
-import type { App } from "@/questpie/server/app";
-
-export const builder = qa<App>().use(adminModule);
+export { default as builder } from "./.generated/client";

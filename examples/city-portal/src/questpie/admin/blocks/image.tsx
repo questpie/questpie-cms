@@ -2,27 +2,26 @@
  * Image Block Renderer
  */
 
-import type { BlockComponentProps } from "@questpie/admin/client";
-import type { App } from "@/questpie/server/app";
+import type { BlockProps } from "../.generated/client";
 
-export function ImageRenderer({
-	values,
-	data,
-}: BlockComponentProps<App, "image">) {
-	const imageUrl = data?.image?.url || values.image;
+export function ImageRenderer({ values, data }: BlockProps<"image">) {
+	const imageUrl = (data?.image as any)?.url || values.image;
 
-	const widthClass = {
+	const widthClasses: Record<string, string> = {
 		full: "max-w-none",
 		medium: "max-w-3xl",
 		small: "max-w-xl",
-	}[values.width || "full"];
+	};
 
-	const aspectClass = {
+	const aspectClasses: Record<string, string> = {
 		original: "",
 		square: "aspect-square",
 		video: "aspect-video",
 		portrait: "aspect-[3/4]",
-	}[values.aspectRatio || "original"];
+	};
+
+	const widthClass = widthClasses[values.width || "full"];
+	const aspectClass = aspectClasses[values.aspectRatio || "original"];
 
 	return (
 		<figure className={`mx-auto px-6 py-8 ${widthClass}`}>

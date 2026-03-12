@@ -1,0 +1,42 @@
+---
+title: Filters & Saved Views
+description: Filter collection records and save filter presets.
+---
+
+# Filters & Saved Views
+
+The admin panel generates filters automatically from your field definitions. Each field type maps to appropriate filter operators.
+
+## Auto-Generated Filters
+
+| Field Type | Filter Operators |
+|---|---|
+| `text` | Contains, equals, starts with, ends with |
+| `number` | Equals, greater than, less than, between |
+| `boolean` | Is true, is false |
+| `select` | Is, is not, in |
+| `date` / `datetime` | Before, after, between |
+| `relation` | Is (picker) |
+
+## Custom Filter Display
+
+Control which fields appear as filters in the list view toolbar. By default, all filterable fields are available.
+
+## Saved Views
+
+Users can save filter combinations as named views for quick access:
+
+1. Apply filters to the list view
+2. Click "Save View"
+3. Name the view
+4. Access it from the views dropdown
+
+Saved views persist per-user and include:
+- Active filters
+- Sort order
+- Visible columns
+
+## Related Pages
+
+- [List Views](/docs/workspace/views/list-views) — Table configuration
+- [Fields](/docs/backend/data-modeling/fields) — Field types

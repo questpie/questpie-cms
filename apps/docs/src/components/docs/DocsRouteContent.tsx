@@ -36,7 +36,7 @@ const clientLoader = browserCollections.docs.createClientLoader({
 				<DocsTitle>{frontmatter.title}</DocsTitle>
 				<DocsDescription>{frontmatter.description}</DocsDescription>
 				<LLMActions />
-				<DocsBody className="animate-in fade-in slide-in-from-bottom-8 duration-700">
+				<DocsBody>
 					<MDX components={components} />
 				</DocsBody>
 			</DocsPage>

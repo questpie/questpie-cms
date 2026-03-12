@@ -20,7 +20,6 @@ export const getPage = createServerFn({ method: "GET" })
 			accessMode: "system",
 			locale,
 		});
-
 		const page = await app.api.collections.pages.findOne(
 			{
 				where: isDraft

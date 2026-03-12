@@ -44,12 +44,13 @@ import type {
 	With,
 } from "#questpie/server/collection/crud/types.js";
 import { createVersionRecord } from "#questpie/server/collection/crud/versioning/index.js";
+import { extractAppServices } from "#questpie/server/config/app-context.js";
 import { ApiError } from "#questpie/server/errors/index.js";
 import {
 	applyFieldInputHooks,
 	applyFieldOutputHooks,
 } from "#questpie/server/fields/runtime.js";
-import type { FieldDefinitionAccess } from "#questpie/server/fields/types.js";
+import type { FieldAccess } from "#questpie/server/fields/types.js";
 import type {
 	GlobalAccessContext,
 	GlobalBuilderState,
@@ -212,12 +213,10 @@ export class GlobalCRUDGenerator<TState extends GlobalBuilderState> {
 		return rows[0]?.stage ?? this.workflowConfig.initialStage;
 	}
 
-	private getFieldAccessRules():
-		| Record<string, FieldDefinitionAccess>
-		| undefined {
+	private getFieldAccessRules(): Record<string, FieldAccess> | undefined {
 		// Source field access from global-level .access({ fields: {...} })
 		const globalAccess = this.state.access as
-			| { fields?: Record<string, FieldDefinitionAccess> }
+			| { fields?: Record<string, FieldAccess> }
 			| undefined;
 		return globalAccess?.fields;
 	}
@@ -1274,15 +1273,17 @@ export class GlobalCRUDGenerator<TState extends GlobalBuilderState> {
 			this.assertTransitionAllowed(fromStage, toStage);
 
 			// Build transition hook context
+			const transitionServices = extractAppServices(this.app, {
+				db,
+				session: normalized.session,
+			});
 			const transitionCtx: GlobalTransitionHookContext = {
+				...transitionServices,
 				data: existing,
 				fromStage,
 				toStage,
-				app: this.app,
-				session: normalized.session,
 				locale: normalized.locale,
-				db,
-			};
+			} as GlobalTransitionHookContext;
 
 			// Execute beforeTransition hooks (throw to abort)
 			await this.executeTransitionHooks(
@@ -1543,15 +1544,17 @@ export class GlobalCRUDGenerator<TState extends GlobalBuilderState> {
 		db: any;
 	}): GlobalHookContext {
 		const normalized = this.normalizeContext(params.context);
+		const services = extractAppServices(this.app, {
+			db: params.db,
+			session: normalized.session,
+		});
 		return {
+			...services,
 			data: params.data,
 			input: params.input,
-			app: this.app as any,
-			session: normalized.session,
 			locale: normalized.locale,
 			accessMode: normalized.accessMode,
-			db: params.db,
-		};
+		} as GlobalHookContext;
 	}
 
 	private async executeHooks(

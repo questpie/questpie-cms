@@ -1,0 +1,91 @@
+---
+title: Block Renderers
+description: Client-side React components that render block content.
+---
+
+# Block Renderers
+
+Block renderers are React components that receive block data and return JSX. Register them on the admin client to render blocks in the admin preview and on the frontend.
+
+## Defining a Renderer
+
+```tsx title="admin/blocks/hero.tsx"
+import type { BlockProps } from "@questpie/admin/client";
+
+export function HeroRenderer({ values, data }: BlockProps<"hero">) {
+  return (
+    <section
+      className="relative flex items-center justify-center"
+      style={{ minHeight: "60vh" }}
+    >
+      {data?.backgroundImage?.url && (
+        <img
+          src={data.backgroundImage.url}
+          alt=""
+          className="absolute inset-0 w-full h-full object-cover"
+        />
+      )}
+      <div className="relative text-center">
+        <h1 className="text-5xl font-bold">{values.title}</h1>
+        {values.subtitle && <p className="text-xl mt-4">{values.subtitle}</p>}
+        {values.ctaText && (
+          <a href={values.ctaLink} className="mt-6 inline-block btn">
+            {values.ctaText}
+          </a>
+        )}
+      </div>
+    </section>
+  );
+}
+```
+
+## BlockProps
+
+| Property | Type | Description |
+|---|---|---|
+| `values` | `object` | Block field values (title, subtitle, etc.) |
+| `data` | `object` | Prefetched relation data (images, related records) |
+| `children` | `ReactNode` | Nested block content |
+
+## Registering Renderers
+
+Export renderers from an index file:
+
+```tsx title="admin/blocks/index.tsx"
+import { HeroRenderer } from "./hero";
+import { GalleryRenderer } from "./gallery";
+import { CTARenderer } from "./cta";
+
+export const renderers = {
+  hero: HeroRenderer,
+  gallery: GalleryRenderer,
+  cta: CTARenderer,
+};
+```
+
+Register them with the admin client or use them for frontend rendering.
+
+## Frontend Rendering
+
+Use block renderers on the public frontend to render page content:
+
+```tsx title="components/page-renderer.tsx"
+import { renderers } from "@/questpie/admin/blocks";
+
+function PageRenderer({ page }) {
+  return (
+    <div>
+      {page.content?.map((block, i) => {
+        const Renderer = renderers[block.type];
+        if (!Renderer) return null;
+        return <Renderer key={i} values={block.values} data={block.data} />;
+      })}
+    </div>
+  );
+}
+```
+
+## Related Pages
+
+- [Defining Blocks](/docs/workspace/blocks/defining-blocks) — Server-side definitions
+- [Prefetch](/docs/workspace/blocks/prefetch) — Loading relation data

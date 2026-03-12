@@ -1,7 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { sql } from "drizzle-orm";
-import { defaultFields } from "../../src/server/fields/builtin/defaults.js";
-import { questpie } from "../../src/server/index.js";
+import { collection } from "../../src/server/index.js";
 import { createPostgresSearchAdapter } from "../../src/server/integrated/search/adapters/postgres.js";
 import { extractFacetValues } from "../../src/server/integrated/search/facet-utils.js";
 import type { FacetsConfig } from "../../src/server/integrated/search/types.js";
@@ -9,24 +8,17 @@ import { buildMockApp } from "../utils/mocks/mock-app-builder";
 import { runTestDbMigrations } from "../utils/test-db";
 
 // ============================================================================
-// Create questpie builder with default fields
-// ============================================================================
-
-const q = questpie({ name: "facets-test" }).fields(defaultFields);
-
-// ============================================================================
 // Test Collections
 // ============================================================================
 
-const products = q
-	.collection("products")
-	.fields((f) => ({
-		name: f.text({ required: true, maxLength: 255 }),
+const products = collection("products")
+	.fields(({ f }) => ({
+		name: f.text(255).required(),
 		description: f.textarea(),
-		status: f.text({ maxLength: 50, default: "draft" }),
-		category: f.text({ maxLength: 100 }),
+		status: f.text(50).default("draft"),
+		category: f.text(100),
 		price: f.number(),
-		tags: f.json({ default: [] }),
+		tags: f.json().default([]),
 	}))
 	.title(({ f }) => f.name)
 	.searchable({
@@ -54,12 +46,11 @@ const products = q
 	})
 	.options({ timestamps: true });
 
-const articles = q
-	.collection("articles")
-	.fields((f) => ({
-		title: f.text({ required: true, maxLength: 255 }),
+const articles = collection("articles")
+	.fields(({ f }) => ({
+		title: f.text(255).required(),
 		content: f.textarea(),
-		categoryPath: f.text({ maxLength: 255 }),
+		categoryPath: f.text(255),
 	}))
 	.title(({ f }) => f.title)
 	.searchable({
@@ -72,11 +63,6 @@ const articles = q
 		},
 	})
 	.options({ timestamps: true });
-
-const testModule = q.collections({
-	products,
-	articles,
-});
 
 // ============================================================================
 // Unit Tests for extractFacetValues
@@ -172,14 +158,15 @@ describe("extractFacetValues", () => {
 // ============================================================================
 
 describe("PostgresSearchAdapter Facets", () => {
-	let setup: Awaited<ReturnType<typeof buildMockApp<typeof testModule>>>;
+	let setup: Awaited<ReturnType<typeof buildMockApp>>;
 
 	beforeEach(async () => {
 		const adapter = createPostgresSearchAdapter();
 
-		setup = await buildMockApp(testModule, {
-			search: adapter,
-		});
+		setup = await buildMockApp(
+			{ collections: { products, articles } },
+			{ search: adapter },
+		);
 
 		await runTestDbMigrations(setup.app);
 		await runSearchMigrations(setup.app.db);

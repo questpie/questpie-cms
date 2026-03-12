@@ -1,0 +1,5 @@
+{
+	"title": "Start Here",
+	"defaultOpen": true,
+	"pages": ["index", "installation", "first-app", "project-structure"]
+}

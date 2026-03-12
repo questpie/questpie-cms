@@ -148,7 +148,7 @@ export function BlockCanvas() {
 // Helpers
 // ============================================================================
 
-import type { BlockSchema } from "#questpie/admin/server";
+import type { BlockSchema } from "#questpie/admin/server/block/index.js";
 
 function getBlockLabel(
 	blockSchema: BlockSchema | null | undefined,

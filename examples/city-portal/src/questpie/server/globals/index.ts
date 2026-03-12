@@ -1,8 +1,6 @@
-/**
- * City Portal Globals Index
- *
- * Export all globals for use in the app configuration.
- */
-
-export type { FooterLink, NavItem, SocialLink } from "./site-settings";
-export { siteSettings } from "./site-settings";
+export {
+	default as siteSettings,
+	type FooterLink,
+	type NavItem,
+	type SocialLink,
+} from "./site-settings.js";

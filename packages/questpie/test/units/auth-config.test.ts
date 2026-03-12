@@ -3,7 +3,6 @@ import type { BetterAuthOptions } from "better-auth";
 import { admin, bearer } from "better-auth/plugins";
 import {
 	auth,
-	coreAuthCollections,
 	coreAuthOptions,
 	mergeAuthOptions,
 } from "../../src/server/integrated/auth/config.js";
@@ -84,42 +83,6 @@ describe("coreAuthOptions", () => {
 	test("should set useSecureCookies based on NODE_ENV", () => {
 		const isProduction = process.env.NODE_ENV === "production";
 		expect(coreAuthOptions.advanced?.useSecureCookies).toBe(isProduction);
-	});
-});
-
-describe("coreAuthCollections", () => {
-	test("should have user collection", () => {
-		expect(coreAuthCollections.user).toBeDefined();
-	});
-
-	test("should have session collection", () => {
-		expect(coreAuthCollections.session).toBeDefined();
-	});
-
-	test("should have account collection", () => {
-		expect(coreAuthCollections.account).toBeDefined();
-	});
-
-	test("should have verification collection", () => {
-		expect(coreAuthCollections.verification).toBeDefined();
-	});
-
-	test("should have apikey collection", () => {
-		expect(coreAuthCollections.apikey).toBeDefined();
-	});
-
-	test("should have exactly 5 collections", () => {
-		const collectionKeys = Object.keys(coreAuthCollections);
-		expect(collectionKeys.length).toBe(5);
-	});
-
-	test("should have correct collection keys", () => {
-		const collectionKeys = new Set(Object.keys(coreAuthCollections));
-		expect(collectionKeys.has("user")).toBe(true);
-		expect(collectionKeys.has("session")).toBe(true);
-		expect(collectionKeys.has("account")).toBe(true);
-		expect(collectionKeys.has("verification")).toBe(true);
-		expect(collectionKeys.has("apikey")).toBe(true);
 	});
 });
 

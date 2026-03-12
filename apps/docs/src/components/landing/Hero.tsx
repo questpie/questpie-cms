@@ -1,10 +1,4 @@
-import {
-	ArrowRight,
-	GithubLogo,
-	Lock,
-	Sparkle,
-	Terminal,
-} from "@phosphor-icons/react";
+import { Icon } from "@iconify/react";
 import { Link } from "@tanstack/react-router";
 import { motion, useReducedMotion } from "motion/react";
 import { useEffect, useState } from "react";
@@ -114,7 +108,7 @@ export function Hero() {
 							transition={{ duration: 0.5 }}
 						>
 							<span className="inline-flex items-center gap-2 border border-primary/20 bg-primary/[0.05] px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.22em] text-primary">
-								<Sparkle className="h-3 w-3" aria-hidden="true" />
+								<Icon icon="ph:sparkle" className="h-3 w-3" aria-hidden="true" />
 								Open Source
 							</span>
 						</motion.div>
@@ -143,8 +137,8 @@ export function Hero() {
 							animate={{ opacity: 1, y: 0 }}
 							transition={{ duration: 0.6, delay: 0.16 }}
 						>
-							Model in TypeScript. Ship REST, RPC, realtime, typed clients, and
-							optional admin UI.
+							Drop a file. Get an API. Ship REST, functions, realtime, typed
+							clients, and optional admin UI — all from one schema.
 						</motion.p>
 
 						<motion.div
@@ -154,9 +148,9 @@ export function Hero() {
 							transition={{ duration: 0.5, delay: 0.2 }}
 						>
 							{[
-								"Backend-first",
+								"File conventions",
 								"Types end-to-end",
-								"Admin is optional UI",
+								"Admin is optional",
 							].map((pill) => (
 								<span
 									key={pill}
@@ -175,11 +169,11 @@ export function Hero() {
 						>
 							<Link
 								to="/docs/$"
-								params={{ _splat: "getting-started/quickstart" }}
+								params={{ _splat: "start-here/first-app" }}
 								className="group relative inline-flex h-12 items-center justify-center overflow-hidden bg-primary px-8 text-sm font-medium text-primary-foreground transition-all hover:bg-primary/90"
 							>
 								<span className="relative z-10">Get Started</span>
-								<ArrowRight className="relative z-10 ml-2 h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+								<Icon icon="ph:arrow-right" className="relative z-10 ml-2 h-4 w-4 transition-transform group-hover:translate-x-0.5" />
 								<motion.div
 									className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent"
 									initial={{ x: "-100%" }}
@@ -193,10 +187,10 @@ export function Hero() {
 								rel="noreferrer"
 								className="group inline-flex h-12 items-center justify-center gap-2 border border-border bg-card/10 backdrop-blur-sm px-8 text-sm font-medium text-muted-foreground transition-all hover:text-foreground hover:border-primary/30 hover:bg-card/20"
 							>
-								<GithubLogo
+								<Icon icon="ph:github-logo"
 									className="h-4 w-4 transition-transform group-hover:scale-110"
 									aria-hidden="true"
-								/>
+								 />
 								GitHub
 							</a>
 						</motion.div>
@@ -210,7 +204,7 @@ export function Hero() {
 								navigator.clipboard.writeText("bun i questpie");
 							}}
 						>
-							<Terminal className="h-4 w-4 text-primary" aria-hidden="true" />
+							<Icon icon="ph:terminal" className="h-4 w-4 text-primary" aria-hidden="true" />
 							<span>
 								<span className="text-primary">$</span> bun i questpie
 							</span>
@@ -316,10 +310,10 @@ export function Hero() {
 													animate={{ scale: 1, opacity: 1 }}
 													className="inline-flex items-center gap-1"
 												>
-													<Lock
+													<Icon icon="ph:lock"
 														className="h-3 w-3 text-muted-foreground"
 														aria-hidden="true"
-													/>
+													 />
 													<span className="inline-flex h-4 w-4 items-center justify-center bg-primary/10 text-[7px] font-mono text-primary rounded-sm">
 														{row.lockedBy}
 													</span>

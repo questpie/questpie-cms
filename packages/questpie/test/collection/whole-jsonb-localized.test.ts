@@ -1,6 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
-import { defaultFields } from "../../src/server/fields/builtin/defaults.js";
-import { questpie } from "../../src/server/index.js";
+import { collection } from "../../src/server/index.js";
 import { buildMockApp } from "../utils/mocks/mock-app-builder";
 import { createTestContext } from "../utils/test-context";
 import { runTestDbMigrations } from "../utils/test-db";
@@ -24,27 +23,20 @@ type TipTapContent = {
 	}>;
 };
 
-const q = questpie({ name: "whole-jsonb-test" }).fields(defaultFields);
-
-const barbers = q
-	.collection("barbers")
-	.fields((f) => ({
-		name: f.text({ required: true, maxLength: 255, localized: true }),
-		bio: f.json({ localized: true }),
+const barbers = collection("barbers")
+	.fields(({ f }) => ({
+		name: f.text(255).required().localized(),
+		bio: f.json().localized(),
 	}))
 	.options({
 		timestamps: true,
 	});
 
-const testModule = questpie({ name: "whole-jsonb-test" }).collections({
-	barbers,
-});
-
 describe("whole JSONB localization", () => {
-	let setup: Awaited<ReturnType<typeof buildMockApp<typeof testModule>>>;
+	let setup: Awaited<ReturnType<typeof buildMockApp>>;
 
 	beforeEach(async () => {
-		setup = await buildMockApp(testModule);
+		setup = await buildMockApp({ collections: { barbers } });
 		await runTestDbMigrations(setup.app);
 	});
 

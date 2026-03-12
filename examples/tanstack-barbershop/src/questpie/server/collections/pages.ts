@@ -1,50 +1,41 @@
-import { uniqueIndex } from "drizzle-orm/pg-core";
-import { qb } from "@/questpie/server/builder";
+import { uniqueIndex } from "questpie/drizzle-pg-core";
+import { collection } from "#questpie/factories";
 import { slugify } from "@/questpie/server/utils";
 
-export const pages = qb
-	.collection("pages")
-	.fields((f) => ({
-		title: f.text({
-			label: { en: "Title", sk: "Názov" },
-			required: true,
-			maxLength: 255,
-			localized: true,
-		}),
-		slug: f.text({
-			label: { en: "Slug", sk: "Slug" },
-			required: true,
-			maxLength: 255,
+export const pages = collection("pages")
+	.fields(({ f }) => ({
+		title: f
+			.text(255)
+			.label({ en: "Title", sk: "Názov" })
+			.required()
+			.localized(),
+		slug: f
+			.text(255)
+			.label({ en: "Slug", sk: "Slug" })
+			.required()
 			// Allow user to provide slug manually, but auto-generate if empty
-			input: "optional",
-		}),
-		description: f.textarea({
-			label: { en: "Description", sk: "Popis" },
-			localized: true,
-		}),
-		content: f.blocks({
-			label: { en: "Content", sk: "Obsah" },
-			localized: true,
-		}),
+			.inputOptional(),
+		description: f
+			.textarea()
+			.label({ en: "Description", sk: "Popis" })
+			.localized(),
+		content: f.blocks().label({ en: "Content", sk: "Obsah" }).localized(),
 		// SEO fields - hidden until page is published
-		metaTitle: f.text({
-			label: { en: "Meta Title", sk: "Meta názov" },
-			maxLength: 255,
-			localized: true,
-		}),
-		metaDescription: f.textarea({
-			label: { en: "Meta Description", sk: "Meta popis" },
-			localized: true,
-		}),
-		isPublished: f.boolean({
-			label: { en: "Published", sk: "Publikované" },
-			default: false,
-			required: true,
-		}),
+		metaTitle: f
+			.text(255)
+			.label({ en: "Meta Title", sk: "Meta názov" })
+			.localized(),
+		metaDescription: f
+			.textarea()
+			.label({ en: "Meta Description", sk: "Meta popis" })
+			.localized(),
+		isPublished: f
+			.boolean()
+			.label({ en: "Published", sk: "Publikované" })
+			.default(false)
+			.required(),
 	}))
-	.indexes(({ table }) => [
-		uniqueIndex("pages_slug_unique").on(table.slug as any),
-	])
+	.indexes(({ table }) => [uniqueIndex("pages_slug_unique").on(table.slug)])
 	.title(({ f }) => f.title)
 	.admin(({ c }) => ({
 		label: { en: "Pages", sk: "Stránky" },

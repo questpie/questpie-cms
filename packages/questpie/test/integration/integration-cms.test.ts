@@ -1,7 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { z } from "zod";
-import { defaultFields } from "../../src/server/fields/builtin/defaults.js";
-import { job, questpie } from "../../src/server/index.js";
+import { collection, job } from "../../src/server/index.js";
 import { buildMockApp } from "../utils/mocks/mock-app-builder";
 import { createTestContext } from "../utils/test-context";
 import { runTestDbMigrations } from "../utils/test-db";
@@ -24,23 +23,19 @@ const articleDeletedJob = job({
 	handler: async () => {},
 });
 
-const createTestModule = () => {
-	const q = questpie({ name: "integration-test" }).fields(defaultFields);
-
-	const authors = q
-		.collection("authors")
-		.fields((f) => ({
-			name: f.textarea({ required: true }),
-			email: f.text({ required: true, maxLength: 255 }),
+const createTestDefinition = () => {
+	const authors = collection("authors")
+		.fields(({ f }) => ({
+			name: f.textarea().required(),
+			email: f.text(255).required(),
 			bio: f.textarea(),
 		}))
 		.title(({ f }) => f.name)
 		.hooks({
-			afterChange: async ({ data, operation, app: appInstance }) => {
+			afterChange: async ({ data, operation, email }) => {
 				if (operation !== "create") return;
-				const app = appInstance as any;
 				// Send welcome email when author is created
-				await app.email?.send({
+				await (email as any)?.send({
 					to: data.email,
 					subject: "Welcome to our platform!",
 					text: `Hi ${data.name}, welcome!`,
@@ -49,28 +44,17 @@ const createTestModule = () => {
 		});
 
 	// Define articles collection with relations
-	const articles = q
-		.collection("articles")
-		.fields((f) => ({
-			author: f.relation({
-				to: "authors",
-				required: true,
-				relationName: "author",
-			}),
-			title: f.textarea({ required: true }),
-			slug: f.text({ required: true, maxLength: 255 }),
+	const articles = collection("articles")
+		.fields(({ f }) => ({
+			author: f.relation("authors").required().relationName("author"),
+			title: f.textarea().required(),
+			slug: f.text(255).required(),
 			content: f.json(),
 			featuredImage: f.json(),
-			status: f.text({ maxLength: 50 }),
+			status: f.text(50),
 			viewCount: f.number(),
 			publishedAt: f.datetime(),
-			tags: f.relation({
-				to: "tags",
-				hasMany: true,
-				through: "article_tags",
-				sourceField: "article", // FK column key is field name with unified API
-				targetField: "tag",
-			}),
+			tags: f.relation("tags").manyToMany({ through: "article_tags", sourceField: "article", targetField: "tag" }),
 		}))
 		.title(({ f }) => f.title)
 		.options({
@@ -89,86 +73,67 @@ const createTestModule = () => {
 						.replace(/[^a-z0-9-]/g, "");
 				}
 			},
-			afterChange: async ({ data, original, operation, app: appInstance }) => {
-				const app = appInstance as any;
+			afterChange: async ({ data, original, operation, logger, queue }) => {
 				if (operation === "create") {
-					await app.logger?.info("Article created", {
+					await (logger as any)?.info("Article created", {
 						id: data.id,
 						title: data.title,
 					});
 				} else if (operation === "update" && original) {
 					// Track publication
 					if (original.status !== "published" && data.status === "published") {
-						await app.queue.articlePublished.publish({
+						await (queue as any).articlePublished.publish({
 							articleId: data.id,
 							title: data.title,
 							authorId: (data as any).author, // FK column key is field name with unified API
 						});
 
-						await app.logger?.info("Article published", {
+						await (logger as any)?.info("Article published", {
 							id: data.id,
 							title: data.title,
 						});
 					}
 				}
 			},
-			afterDelete: async ({ data, app: appInstance }) => {
-				const app = appInstance as any;
-				await app.queue.articleDeleted.publish({ articleId: data.id });
+			afterDelete: async ({ data, queue }) => {
+				await (queue as any).articleDeleted.publish({ articleId: data.id });
 			},
 		});
 
 	// Define tags collection
-	const tags = q
-		.collection("tags")
-		.fields((f) => ({
-			name: f.textarea({ required: true }),
-			articles: f.relation({
-				to: "articles",
-				hasMany: true,
-				through: "article_tags",
-				sourceField: "tag", // FK column key is field name with unified API
-				targetField: "article",
-			}),
+	const tags = collection("tags")
+		.fields(({ f }) => ({
+			name: f.textarea().required(),
+			articles: f.relation("articles").manyToMany({ through: "article_tags", sourceField: "tag", targetField: "article" }),
 		}))
 		.title(({ f }) => f.name);
 
 	// Define junction table
-	const articleTags = q.collection("article_tags").fields((f) => ({
-		article: f.relation({
-			to: "articles",
-			required: true,
-			onDelete: "cascade",
-		}),
-		tag: f.relation({
-			to: "tags",
-			required: true,
-			onDelete: "cascade",
-		}),
+	const articleTags = collection("article_tags").fields(({ f }) => ({
+		article: f.relation("articles").required().onDelete("cascade"),
+		tag: f.relation("tags").required().onDelete("cascade"),
 	}));
 
-	return q
-		.collections({
+	return {
+		collections: {
 			authors,
 			articles,
 			tags,
 			article_tags: articleTags,
-		})
-		.jobs({
+		},
+		jobs: {
 			articlePublished: articlePublishedJob,
 			articleDeleted: articleDeletedJob,
-		});
+		},
+	};
 };
 
 describe("integration: full app workflow", () => {
-	let setup: Awaited<
-		ReturnType<typeof buildMockApp<ReturnType<typeof createTestModule>>>
-	>;
+	let setup: Awaited<ReturnType<typeof buildMockApp>>;
 
 	beforeEach(async () => {
-		// Define authors collection
-		const testModule = createTestModule();
-		setup = (await buildMockApp(testModule)) as any;
+		const definition = createTestDefinition();
+		setup = (await buildMockApp(definition)) as any;
 		await runTestDbMigrations(setup.app);
 	});
 

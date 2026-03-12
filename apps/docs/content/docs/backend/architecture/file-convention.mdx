@@ -1,0 +1,141 @@
+---
+title: File Convention
+description: How QuestPie discovers your files and wires them into the runtime — naming rules, layouts, and discovery mechanics.
+---
+
+# File Convention
+
+QuestPie uses your file system as the source of truth. Drop a file in the right directory, run codegen, and it's part of your app. No manual registration.
+
+## Directory Categories
+
+Each directory maps to a category of entity:
+
+| Directory | Entity | Export Style | Key Derivation |
+|---|---|---|---|
+| `collections/` | Collections | Default or named | Filename → camelCase |
+| `globals/` | Globals | Default or named | Filename → camelCase |
+| `functions/` | Functions | Default | Filename → camelCase (nested: dot-separated) |
+| `jobs/` | Jobs | Default | Filename → camelCase |
+| `routes/` | Routes | Default | Filename → slash-separated path |
+| `services/` | Services | Default | Filename → camelCase |
+| `emails/` | Email templates | Default | Filename → camelCase |
+| `blocks/` | Blocks | Named exports | Export name |
+| `messages/` | i18n messages | Default | Filename → locale key |
+| `migrations/` | DB migrations | Default | Array (ordered) |
+| `seeds/` | DB seeds | Default | Array (ordered) |
+
+### Name derivation
+
+Filenames are converted from kebab-case to camelCase:
+
+```text
+blog-posts.ts      → blogPosts
+create-booking.ts  → createBooking
+site-settings.ts   → siteSettings
+```
+
+## Single-File Conventions
+
+Some configs are single files, not directories:
+
+| File | Factory | Purpose |
+|---|---|---|
+| `questpie.config.ts` | `runtimeConfig({...})` | DB, plugins, adapters |
+| `modules.ts` | `export default [...]` | Module dependencies |
+| `auth.ts` | `satisfies AuthConfig` | Auth configuration |
+| `locale.ts` | `locale({...})` | Content locales |
+| `hooks.ts` | `export default { collections, globals }` | Global lifecycle hooks (applied across all entities) |
+| `access.ts` | `export default { read, create, update, delete }` | Default access rules for all entities |
+| `context.ts` | `export default contextResolver(...)` | Custom context resolution (e.g., tenant scoping) |
+| `fields.ts` | `export default { ...customFields }` | Custom field type definitions |
+| `sidebar.ts` | `sidebar({...})` | Admin sidebar |
+| `dashboard.ts` | `dashboard({...})` | Admin dashboard |
+| `branding.ts` | `branding({...})` | Admin branding |
+| `admin-locale.ts` | `adminLocale({...})` | Admin UI locale |
+
+## Layouts
+
+### By-Type (default)
+
+Group files by entity type:
+
+```text
+src/questpie/server/
+├── collections/
+│   ├── posts.ts
+│   ├── categories.ts
+│   └── comments.ts
+├── functions/
+│   ├── create-booking.ts
+│   └── get-stats.ts
+├── jobs/
+│   └── send-email.ts
+└── services/
+    └── blog.ts
+```
+
+### By-Feature
+
+Group files by domain:
+
+```text
+src/questpie/server/
+├── features/
+│   ├── blog/
+│   │   ├── collections/
+│   │   │   └── posts.ts
+│   │   ├── functions/
+│   │   │   └── publish.ts
+│   │   └── jobs/
+│   │       └── notify-subscribers.ts
+│   └── booking/
+│       ├── collections/
+│       │   └── appointments.ts
+│       └── functions/
+│           └── create-booking.ts
+```
+
+### Mixed
+
+Both layouts can coexist. Codegen scans all configured paths.
+
+## Nested Namespacing
+
+Functions and routes support nested directories:
+
+```text
+functions/
+├── booking/
+│   ├── create.ts    → rpc.booking.create
+│   └── cancel.ts    → rpc.booking.cancel
+├── admin/
+│   └── stats.ts     → rpc.admin.stats
+└── get-barbers.ts   → rpc.getBarbers
+```
+
+## Discovery Process
+
+1. **Scan** — Codegen walks the configured directories
+2. **Match** — Files matching the category pattern are picked up
+3. **Import** — Each file is imported and its exports are read
+4. **Key derivation** — Filename → camelCase (or export name for named exports)
+5. **Merge** — Project entities + module entities are merged
+6. **Emit** — Generated types and runtime wiring in `.generated/`
+
+## The `#questpie` Import
+
+Collection and global files use `#questpie` as an import alias:
+
+```ts
+import { collection } from "#questpie";
+```
+
+This resolves to the generated app context, giving the builders access to field types and relation targets for autocompletion. It's configured via TypeScript path mapping.
+
+## Related Pages
+
+- [Codegen](/docs/backend/architecture/codegen) — What gets generated
+- [Modules](/docs/backend/architecture/modules) — Module composition
+- [Plugins](/docs/backend/architecture/plugins) — Plugin system
+- [Project Structure](/docs/start-here/project-structure) — Full layout reference

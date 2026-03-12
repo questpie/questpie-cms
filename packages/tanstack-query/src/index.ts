@@ -7,8 +7,7 @@ import {
 	type UseMutationOptions,
 	type UseQueryOptions,
 } from "@tanstack/react-query";
-import type { Questpie } from "questpie";
-import type { QuestpieClient } from "questpie/client";
+import type { QuestpieApp, QuestpieClient } from "questpie/client";
 
 // ============================================================================
 // Re-export types for convenience
@@ -82,71 +81,71 @@ type MutationBuilder<TVariables, TData> = () => UseMutationOptions<
 
 /** Extract collection keys from QuestpieClient */
 type CollectionKeys<
-	TApp extends Questpie<any>,
+	TApp extends QuestpieApp,
 	TRPC extends Record<string, any>,
 > = Extract<keyof QuestpieClient<TApp, TRPC>["collections"], string>;
 
 /** Extract global keys from QuestpieClient */
 type GlobalKeys<
-	TApp extends Questpie<any>,
+	TApp extends QuestpieApp,
 	TRPC extends Record<string, any>,
 > = Extract<keyof QuestpieClient<TApp, TRPC>["globals"], string>;
 
 // Collection method type extractors
 type CollectionFind<
-	TApp extends Questpie<any>,
+	TApp extends QuestpieApp,
 	TRPC extends Record<string, any>,
 	K extends CollectionKeys<TApp, TRPC>,
 > = QuestpieClient<TApp, TRPC>["collections"][K]["find"];
 type CollectionCount<
-	TApp extends Questpie<any>,
+	TApp extends QuestpieApp,
 	TRPC extends Record<string, any>,
 	K extends CollectionKeys<TApp, TRPC>,
 > = QuestpieClient<TApp, TRPC>["collections"][K]["count"];
 type CollectionFindOne<
-	TApp extends Questpie<any>,
+	TApp extends QuestpieApp,
 	TRPC extends Record<string, any>,
 	K extends CollectionKeys<TApp, TRPC>,
 > = QuestpieClient<TApp, TRPC>["collections"][K]["findOne"];
 type CollectionCreate<
-	TApp extends Questpie<any>,
+	TApp extends QuestpieApp,
 	TRPC extends Record<string, any>,
 	K extends CollectionKeys<TApp, TRPC>,
 > = QuestpieClient<TApp, TRPC>["collections"][K]["create"];
 type CollectionUpdate<
-	TApp extends Questpie<any>,
+	TApp extends QuestpieApp,
 	TRPC extends Record<string, any>,
 	K extends CollectionKeys<TApp, TRPC>,
 > = QuestpieClient<TApp, TRPC>["collections"][K]["update"];
 type CollectionDelete<
-	TApp extends Questpie<any>,
+	TApp extends QuestpieApp,
 	TRPC extends Record<string, any>,
 	K extends CollectionKeys<TApp, TRPC>,
 > = QuestpieClient<TApp, TRPC>["collections"][K]["delete"];
 type CollectionRestore<
-	TApp extends Questpie<any>,
+	TApp extends QuestpieApp,
 	TRPC extends Record<string, any>,
 	K extends CollectionKeys<TApp, TRPC>,
 > = QuestpieClient<TApp, TRPC>["collections"][K]["restore"];
 type CollectionFindVersions<
-	TApp extends Questpie<any>,
+	TApp extends QuestpieApp,
 	TRPC extends Record<string, any>,
 	K extends CollectionKeys<TApp, TRPC>,
 > = QuestpieClient<TApp, TRPC>["collections"][K]["findVersions"];
 type CollectionRevertToVersion<
-	TApp extends Questpie<any>,
+	TApp extends QuestpieApp,
 	TRPC extends Record<string, any>,
 	K extends CollectionKeys<TApp, TRPC>,
 > = QuestpieClient<TApp, TRPC>["collections"][K]["revertToVersion"];
 type CollectionTransitionStage<
-	TApp extends Questpie<any>,
+	TApp extends QuestpieApp,
 	TRPC extends Record<string, any>,
 	K extends CollectionKeys<TApp, TRPC>,
 > = QuestpieClient<TApp, TRPC>["collections"][K]["transitionStage"];
 
 // Global method type extractors
 type GlobalGet<
-	TApp extends Questpie<any>,
+	TApp extends QuestpieApp,
 	TRPC extends Record<string, any>,
 	K extends GlobalKeys<TApp, TRPC>,
 > = QuestpieClient<TApp, TRPC>["globals"][K] extends { get: infer TGet }
@@ -155,7 +154,7 @@ type GlobalGet<
 		: never
 	: never;
 type GlobalUpdate<
-	TApp extends Questpie<any>,
+	TApp extends QuestpieApp,
 	TRPC extends Record<string, any>,
 	K extends GlobalKeys<TApp, TRPC>,
 > = QuestpieClient<TApp, TRPC>["globals"][K] extends { update: infer TUpdate }
@@ -164,7 +163,7 @@ type GlobalUpdate<
 		: never
 	: never;
 type GlobalFindVersions<
-	TApp extends Questpie<any>,
+	TApp extends QuestpieApp,
 	TRPC extends Record<string, any>,
 	K extends GlobalKeys<TApp, TRPC>,
 > = QuestpieClient<TApp, TRPC>["globals"][K] extends {
@@ -175,7 +174,7 @@ type GlobalFindVersions<
 		: never
 	: never;
 type GlobalRevertToVersion<
-	TApp extends Questpie<any>,
+	TApp extends QuestpieApp,
 	TRPC extends Record<string, any>,
 	K extends GlobalKeys<TApp, TRPC>,
 > = QuestpieClient<TApp, TRPC>["globals"][K] extends {
@@ -186,7 +185,7 @@ type GlobalRevertToVersion<
 		: never
 	: never;
 type GlobalTransitionStage<
-	TApp extends Questpie<any>,
+	TApp extends QuestpieApp,
 	TRPC extends Record<string, any>,
 	K extends GlobalKeys<TApp, TRPC>,
 > = QuestpieClient<TApp, TRPC>["globals"][K] extends {
@@ -216,7 +215,7 @@ type RpcQueryOptionsAPI<TRpcNode> = TRpcNode extends AnyAsyncFn
 // ============================================================================
 
 type CollectionQueryOptionsAPI<
-	TApp extends Questpie<any>,
+	TApp extends QuestpieApp,
 	TRPC extends Record<string, any>,
 	K extends CollectionKeys<TApp, TRPC>,
 > = {
@@ -259,7 +258,7 @@ type CollectionQueryOptionsAPI<
 };
 
 type GlobalQueryOptionsAPI<
-	TApp extends Questpie<any>,
+	TApp extends QuestpieApp,
 	TRPC extends Record<string, any>,
 	K extends GlobalKeys<TApp, TRPC>,
 > = {
@@ -289,7 +288,7 @@ type GlobalQueryOptionsAPI<
 };
 
 export type QuestpieQueryOptionsProxy<
-	TApp extends Questpie<any>,
+	TApp extends QuestpieApp,
 	TRPC extends Record<string, any> = Record<string, never>,
 > = {
 	collections: {
@@ -400,7 +399,7 @@ const wrapMutationFn = <TVariables, TData>(
  * ```
  */
 export function createQuestpieQueryOptions<
-	TApp extends Questpie<any>,
+	TApp extends QuestpieApp,
 	TRPC extends Record<string, any> = Record<string, never>,
 >(
 	client: QuestpieClient<TApp, TRPC>,

@@ -1092,11 +1092,13 @@ export class PostgresSearchAdapter implements SearchAdapter {
  *
  * @example
  * ```ts
- * questpie({
+ * config({
  *   search: createPostgresSearchAdapter({
  *     trigramThreshold: 0.3,
  *     ftsWeight: 0.7,
  *   }),
+ *   db: { url: process.env.DATABASE_URL! },
+ *   app: { url: process.env.APP_URL! },
  * })
  * ```
  */

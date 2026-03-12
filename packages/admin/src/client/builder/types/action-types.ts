@@ -9,7 +9,7 @@
  */
 
 import type * as React from "react";
-import type { ComponentReference } from "#questpie/admin/server";
+import type { ComponentReference } from "#questpie/admin/server/augmentation.js";
 import type { I18nText } from "../../i18n/types";
 import type { FieldDefinition } from "../field/field";
 import type { IconComponent, MaybeLazyComponent } from "./common";

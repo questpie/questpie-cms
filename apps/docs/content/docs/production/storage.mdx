@@ -1,0 +1,67 @@
+---
+title: Storage
+description: File storage with Flydrive — S3, local filesystem, and upload configuration.
+---
+
+# Storage
+
+QuestPie uses [Flydrive](https://flydrive.dev/) for file storage. Supports S3, local filesystem, and other backends.
+
+## Configuration
+
+```ts title="questpie.config.ts"
+export default runtimeConfig({
+  storage: {
+    basePath: "/api",
+  },
+});
+```
+
+## Upload Fields
+
+Define upload fields on collections:
+
+```ts
+avatar: f.upload({
+  to: "assets",
+  mimeTypes: ["image/*"],
+  maxSize: 5_000_000,
+}),
+```
+
+## Storage Backends
+
+### Local (Development)
+
+Files stored on local filesystem. Default for development.
+
+### S3 (Production)
+
+```ts
+export default runtimeConfig({
+  storage: {
+    basePath: "/api",
+    driver: "s3",
+    s3: {
+      bucket: process.env.S3_BUCKET,
+      region: process.env.S3_REGION,
+      accessKeyId: process.env.S3_ACCESS_KEY,
+      secretAccessKey: process.env.S3_SECRET_KEY,
+    },
+  },
+});
+```
+
+## Client Upload
+
+```ts
+// Upload a file
+const asset = await client.collections.assets.upload(file, {
+  onProgress: (progress) => console.log(`${progress}%`),
+});
+```
+
+## Related Pages
+
+- [Media](/docs/workspace/media) — Admin media management
+- [Fields](/docs/backend/data-modeling/fields) — Upload field type

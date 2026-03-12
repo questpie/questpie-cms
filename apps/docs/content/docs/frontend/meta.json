@@ -1,0 +1,11 @@
+{
+	"title": "Integrate Frontend",
+	"pages": [
+		"index",
+		"tanstack-query",
+		"querying",
+		"realtime",
+		"type-inference",
+		"adapters"
+	]
+}

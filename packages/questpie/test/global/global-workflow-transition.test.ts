@@ -1,16 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
-import { defaultFields } from "../../src/server/fields/builtin/defaults.js";
-import { questpie } from "../../src/server/index.js";
+import { global } from "../../src/server/index.js";
 import { buildMockApp } from "../utils/mocks/mock-app-builder";
 import { createTestContext } from "../utils/test-context";
 import { runTestDbMigrations } from "../utils/test-db";
 
-const q = questpie({ name: "test-global-transition" }).fields(defaultFields);
-
-const site_settings = q
-	.global("site_settings")
-	.fields((f) => ({
-		siteName: f.text({ required: true }),
+const site_settings = global("site_settings")
+	.fields(({ f }) => ({
+		siteName: f.text().required(),
 	}))
 	.options({
 		versioning: {
@@ -21,10 +17,9 @@ const site_settings = q
 		},
 	});
 
-const guarded_settings = q
-	.global("guarded_settings")
-	.fields((f) => ({
-		siteName: f.text({ required: true }),
+const guarded_settings = global("guarded_settings")
+	.fields(({ f }) => ({
+		siteName: f.text().required(),
 	}))
 	.options({
 		versioning: {
@@ -39,26 +34,21 @@ const guarded_settings = q
 		},
 	});
 
-const no_workflow_global = q
-	.global("no_workflow_global")
-	.fields((f) => ({
-		siteName: f.text({ required: true }),
+const no_workflow_global = global("no_workflow_global")
+	.fields(({ f }) => ({
+		siteName: f.text().required(),
 	}))
 	.options({
 		timestamps: true,
 	});
 
-const testModule = q.globals({
-	site_settings,
-	guarded_settings,
-	no_workflow_global,
-});
-
 describe("global transitionStage", () => {
-	let setup: Awaited<ReturnType<typeof buildMockApp<typeof testModule>>>;
+	let setup: Awaited<ReturnType<typeof buildMockApp>>;
 
 	beforeEach(async () => {
-		setup = await buildMockApp(testModule);
+		setup = await buildMockApp({
+			globals: { site_settings, guarded_settings, no_workflow_global },
+		});
 		await runTestDbMigrations(setup.app);
 	});
 

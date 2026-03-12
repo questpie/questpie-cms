@@ -57,8 +57,9 @@ function DocumentsListing() {
 				{CATEGORIES.map((cat) => (
 					<Link
 						key={cat.value}
-						to={`/${citySlug}/documents`}
-						search={{ category: cat.value === "all" ? undefined : cat.value }}
+						to="/$citySlug/documents"
+						params={{ citySlug }}
+						search={{ category: cat.value }}
 						className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${
 							(category || "all") === cat.value
 								? "bg-primary text-primary-foreground"

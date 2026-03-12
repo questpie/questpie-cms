@@ -1,0 +1,35 @@
+---
+title: Elysia Adapter
+description: Serve QuestPie APIs with Elysia.
+---
+
+# Elysia Adapter
+
+The Elysia adapter connects QuestPie to the [Elysia](https://elysiajs.com) framework, optimized for Bun.
+
+## Install
+
+```bash
+bun add @questpie/elysia elysia
+```
+
+## Setup
+
+```ts title="src/index.ts"
+import { Elysia } from "elysia";
+import { createFetchHandler } from "questpie/adapters/elysia";
+import { app } from "@/questpie/server/.generated";
+
+const handler = createFetchHandler(app, { basePath: "/api" });
+
+const server = new Elysia()
+  .all("/api/*", ({ request }) => handler(request))
+  .listen(3000);
+
+console.log(`Running at ${server.server?.url}`);
+```
+
+## Related Pages
+
+- [Hono Adapter](/docs/frontend/adapters/hono)
+- [Next.js Adapter](/docs/frontend/adapters/nextjs)

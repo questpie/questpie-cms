@@ -1,0 +1,19 @@
+import { migration } from "questpie";
+import type { OperationSnapshot } from "questpie";
+import { sql } from "drizzle-orm";
+import snapshotJson from "./snapshots/20260218T235924_kind_crimson_falcon.json";
+
+const snapshot = snapshotJson as OperationSnapshot;
+
+export default migration({
+	id: "kindCrimsonFalcon20260218T235924",
+	async up({ db }) {
+		await db.execute(
+			sql`ALTER TABLE "admin_audit_log" ADD COLUMN "title" varchar(1000);`,
+		);
+	},
+	async down({ db }) {
+		await db.execute(sql`ALTER TABLE "admin_audit_log" DROP COLUMN "title";`);
+	},
+	snapshot,
+});

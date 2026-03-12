@@ -1,8 +1,7 @@
 import type { Hono } from "hono";
 import type { ClientRequestOptions } from "hono/client";
 import { hc } from "hono/client";
-import type { Questpie } from "questpie";
-import { createClient } from "questpie/client";
+import { createClient, type QuestpieApp } from "questpie/client";
 
 /**
  * Hono client configuration
@@ -60,7 +59,7 @@ export type HonoClientConfig = {
  */
 export function createClientFromHono<
 	THono extends Hono<any, any, any>,
-	TApp extends Questpie<any>,
+	TApp extends QuestpieApp,
 >(
 	config: HonoClientConfig,
 ): ReturnType<typeof hc<THono>> & ReturnType<typeof createClient<TApp>> {

@@ -1,0 +1,79 @@
+---
+title: Plugin API
+description: CodegenPlugin interface reference.
+---
+
+# Plugin API
+
+## `CodegenPlugin`
+
+```ts
+interface CodegenPlugin {
+  name: string;
+  categories?: Record<string, CategoryDeclaration>;
+  extensions?: {
+    collection?: ExtensionDeclaration;
+    global?: ExtensionDeclaration;
+  };
+  moduleRegistries?: Record<string, ModuleRegistryDeclaration>;
+  singletons?: Record<string, SingletonDeclaration>;
+  transform?: (ctx: CodegenContext) => void;
+}
+```
+
+## `CategoryDeclaration`
+
+```ts
+interface CategoryDeclaration {
+  pattern: string;              // Glob pattern
+  cardinality: "map" | "single";
+  recursive?: boolean;
+  featureLayout?: boolean;
+  mergeStrategy: "record" | "array" | "spread";
+  moduleContributionKey?: string;
+  registryKey?: string;
+}
+```
+
+| Property | Description |
+|---|---|
+| `pattern` | File glob (e.g., `"blocks/**/*.ts"`) |
+| `cardinality` | `"map"` = key-value, `"single"` = one value |
+| `recursive` | Support nested directories |
+| `featureLayout` | Scan `features/*/` paths |
+| `mergeStrategy` | How to merge module contributions |
+| `moduleContributionKey` | Property on module objects |
+| `registryKey` | Type in generated Registry |
+
+## `SingletonDeclaration`
+
+```ts
+interface SingletonDeclaration {
+  pattern: string;   // File pattern (e.g., "sidebar.ts")
+  factory: string;   // Factory function name
+}
+```
+
+## Creating a Plugin
+
+```ts
+export function myPlugin(): CodegenPlugin {
+  return {
+    name: "my-plugin",
+    categories: {
+      widgets: {
+        pattern: "widgets/**/*.ts",
+        cardinality: "map",
+        mergeStrategy: "record",
+        registryKey: "widgets",
+      },
+    },
+    singletons: {
+      widgetConfig: {
+        pattern: "widget-config.ts",
+        factory: "widgetConfig",
+      },
+    },
+  };
+}
+```

@@ -33,10 +33,10 @@ export type AdminTheme = "light" | "dark" | "system";
 
 /**
  * Layout mode for content area width
- * - default: max-w-6xl (forms, settings)
- * - wide: max-w-7xl (tables, cards)
- * - full: 100% with padding (kanban, calendar)
- * - immersive: 100% no padding (puck editor)
+ * - default: max-w-4xl centered (forms, settings)
+ * - wide: full width (tables, cards, grids)
+ * - full: full width reduced padding (kanban, calendar)
+ * - immersive: full width no padding (block editor, canvas)
  */
 export type LayoutMode = "default" | "wide" | "full" | "immersive";
 
@@ -237,9 +237,9 @@ export function AdminLayout({
 	return (
 		<BreadcrumbProvider>
 			<div
-				className={cn("min-h-screen bg-background bg-grid-quest", className)}
+				className={cn("min-h-screen bg-background ", className)}
 			>
-				{/* <div className="fixed inset-0 bg-grid-quest  pointer-events-none z-10" /> */}
+				{/* <div className="fixed inset-0 pointer-events-none z-10" /> */}
 				{isSearchOpen && (
 					<GlobalSearch
 						isOpen={isSearchOpen}
@@ -252,7 +252,7 @@ export function AdminLayout({
 				{/* Max-width container for ultrawide monitors - centered with subtle side borders */}
 				<SidebarProvider
 					defaultOpen={!sidebarCollapsedProp}
-					className="mx-auto max-w-[1920px] border-x border-border/40 h-svh overflow-hidden"
+					className="mx-auto max-w-[1600px] h-svh overflow-hidden"
 				>
 					{/* Sidebar */}
 					<AdminSidebar
@@ -280,11 +280,10 @@ export function AdminLayout({
 						<main className="flex-1 overflow-y-auto">
 							<div
 								className={cn(
-									"mx-auto",
-									layoutMode === "default" && "max-w-6xl p-5 md:p-8 lg:p-10",
-									layoutMode === "wide" && "max-w-7xl p-5 md:p-8 lg:p-10",
-									layoutMode === "full" && "max-w-full p-4 md:p-6",
-									layoutMode === "immersive" && "max-w-full p-0",
+									layoutMode === "default" && "max-w-4xl mx-auto p-3 md:p-4 lg:p-6",
+									layoutMode === "wide" && "p-3 md:p-4 lg:p-6",
+									layoutMode === "full" && "p-2 md:p-3",
+									layoutMode === "immersive" && "p-0",
 								)}
 							>
 								{children}

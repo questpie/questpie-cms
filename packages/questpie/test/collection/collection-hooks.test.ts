@@ -1,7 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { z } from "zod";
-import { defaultFields } from "../../src/server/fields/builtin/defaults.js";
-import { job, questpie } from "../../src/server/index.js";
+import { collection, job } from "../../src/server/index.js";
 import { isNullish } from "../../src/shared/utils/index.js";
 import { buildMockApp } from "../utils/mocks/mock-app-builder";
 import { createTestContext } from "../utils/test-context";
@@ -33,167 +32,151 @@ const articleEnrichedJob = job({
 	handler: async () => {},
 });
 
-const q = questpie({ name: "test-module" }).fields(defaultFields);
-
 // Module definitions at top level for stable types
-const createBeforeAfterModule = (hookCallOrder: string[]) =>
-	q
-		.collections({
-			articles: q
-				.collection("articles")
-				.fields((f) => ({
-					title: f.textarea({ required: true }),
-					slug: f.text({ maxLength: 255 }),
-					status: f.text({ maxLength: 50 }),
-				}))
-				.hooks({
-					beforeChange: async ({ data, operation }) => {
-						hookCallOrder.push(`before-${operation}`);
-						if (!data.slug && data.title) {
-							data.slug = data.title
-								.toLowerCase()
-								.replace(/\s+/g, "-")
-								.replace(/[^a-z0-9-]/g, "");
-						}
-					},
-					afterChange: async ({ data, operation, app }) => {
-						hookCallOrder.push(`after-${operation}`);
-						// Use app from context instead of getAppFromContext
-						await (app as any).queue.articleCreated.publish({
-							articleId: data.id,
-							title: data.title,
-						});
-					},
-				}),
-		})
-		.jobs({
-			articleCreated: articleCreatedJob,
-		});
-
-const testModuleBeforeAfter = createBeforeAfterModule([]);
-
-const testModuleUpdate = q.collections({
-	articles: q
-		.collection("articles")
-		.fields((f) => ({
-			title: f.textarea({ required: true }),
-			status: f.text({ maxLength: 50 }),
-			viewCount: f.text(),
-		}))
-		.hooks({
-			beforeChange: async ({ data, operation, app }) => {
-				// Use app from context
-				if (operation === "update" && data.status === "published") {
-					(app as any).logger.info("Article being published", {
-						title: data.title,
-					});
-				}
-			},
-			afterChange: async ({ data, original, operation, app }) => {
-				// Use app from context
-				if (
-					operation === "update" &&
-					original &&
-					original.status !== "published" &&
-					data.status === "published"
-				) {
-					(app as any).email?.send({
-						to: "admin@example.com",
-						subject: "Article Published",
-						text: `Article "${data.title}" has been published`,
-					});
-				}
-			},
-		}),
-});
-
-const testModuleDelete = q
-	.collections({
-		articles: q
-			.collection("articles")
-			.fields((f) => ({
-				title: f.textarea({ required: true }),
+const createBeforeAfterModule = (hookCallOrder: string[]) => ({
+	collections: {
+		articles: collection("articles")
+			.fields(({ f }) => ({
+				title: f.textarea().required(),
+				slug: f.text(255),
+				status: f.text(50),
 			}))
 			.hooks({
-				beforeDelete: async ({ data, app }) => {
-					// Use app from context
-					(app as any).logger?.warn("Article deletion requested", {
+				beforeChange: async ({ data, operation }) => {
+					hookCallOrder.push(`before-${operation}`);
+					if (!data.slug && data.title) {
+						data.slug = data.title
+							.toLowerCase()
+							.replace(/\s+/g, "-")
+							.replace(/[^a-z0-9-]/g, "");
+					}
+				},
+				afterChange: async ({ data, operation, queue }) => {
+					hookCallOrder.push(`after-${operation}`);
+					await (queue as any).articleCreated.publish({
+						articleId: data.id,
+						title: data.title,
+					});
+				},
+			}),
+	},
+	jobs: {
+		articleCreated: articleCreatedJob,
+	},
+});
+
+const testModuleUpdate = {
+	collections: {
+		articles: collection("articles")
+			.fields(({ f }) => ({
+				title: f.textarea().required(),
+				status: f.text(50),
+				viewCount: f.text(),
+			}))
+			.hooks({
+				beforeChange: async ({ data, operation, logger }) => {
+					if (operation === "update" && data.status === "published") {
+						(logger as any).info("Article being published", {
+							title: data.title,
+						});
+					}
+				},
+				afterChange: async ({ data, original, operation, email }) => {
+					if (
+						operation === "update" &&
+						original &&
+						original.status !== "published" &&
+						data.status === "published"
+					) {
+						(email as any)?.send({
+							to: "admin@example.com",
+							subject: "Article Published",
+							text: `Article "${data.title}" has been published`,
+						});
+					}
+				},
+			}),
+	},
+};
+
+const testModuleDelete = {
+	collections: {
+		articles: collection("articles")
+			.fields(({ f }) => ({
+				title: f.textarea().required(),
+			}))
+			.hooks({
+				beforeDelete: async ({ data, logger }) => {
+					(logger as any)?.warn("Article deletion requested", {
 						id: data.id,
 					});
 				},
-				afterDelete: async ({ data, app }) => {
-					// Use app from context
-					await (app as any).queue.articleCleanup.publish({
+				afterDelete: async ({ data, queue }) => {
+					await (queue as any).articleCleanup.publish({
 						articleId: data.id,
 					});
 				},
 			}),
-	})
-	.jobs({
+	},
+	jobs: {
 		articleCleanup: articleCleanupJob,
-	});
+	},
+};
 
-const testModuleError = q.collections({
-	articles: q
-		.collection("articles")
-		.fields((f) => ({
-			title: f.textarea({ required: true }),
-			status: f.text({ maxLength: 50 }),
-		}))
-		.hooks({
-			beforeChange: async ({ data }) => {
-				if (data.title === "forbidden") {
-					throw new Error("Forbidden title");
-				}
-			},
-		}),
+const testModuleError = {
+	collections: {
+		articles: collection("articles")
+			.fields(({ f }) => ({
+				title: f.textarea().required(),
+				status: f.text(50),
+			}))
+			.hooks({
+				beforeChange: async ({ data }) => {
+					if (data.title === "forbidden") {
+						throw new Error("Forbidden title");
+					}
+				},
+			}),
+	},
+};
+
+const createEnrichmentModule = (enrichmentData: Map<string, any>) => ({
+	collections: {
+		articles: collection("articles")
+			.fields(({ f }) => ({
+				title: f.textarea().required(),
+			}))
+			.hooks({
+				beforeChange: async ({ data }) => {
+					if (isNullish(data.id)) return;
+					enrichmentData.set(data.id, {
+						enriched: true,
+						timestamp: Date.now(),
+					});
+				},
+				afterChange: async ({ data, queue }) => {
+					const enrichment = enrichmentData.get(data.id);
+					await (queue as any).articleEnriched.publish({
+						articleId: data.id,
+						enrichment,
+					});
+				},
+			}),
+	},
+	jobs: {
+		articleEnriched: articleEnrichedJob,
+	},
 });
-
-const createEnrichmentModule = (enrichmentData: Map<string, any>) =>
-	q
-		.collections({
-			articles: q
-				.collection("articles")
-				.fields((f) => ({
-					title: f.textarea({ required: true }),
-				}))
-				.hooks({
-					beforeChange: async ({ data }) => {
-						if (isNullish(data.id)) return;
-						enrichmentData.set(data.id, {
-							enriched: true,
-							timestamp: Date.now(),
-						});
-					},
-					afterChange: async ({ data, app }) => {
-						// Use app from context
-						const enrichment = enrichmentData.get(data.id);
-						await (app as any).queue.articleEnriched.publish({
-							articleId: data.id,
-							enrichment,
-						});
-					},
-				}),
-		})
-		.jobs({
-			articleEnriched: articleEnrichedJob,
-		});
-
-const testModuleEnrichment = createEnrichmentModule(new Map());
 
 describe("collection-hooks", () => {
 	describe("beforeChange/afterChange hooks", () => {
-		let setup: Awaited<
-			ReturnType<
-				typeof buildMockApp<ReturnType<typeof createBeforeAfterModule>>
-			>
-		>;
+		let setup: Awaited<ReturnType<typeof buildMockApp>>;
 		let hookCallOrder: string[];
 
 		beforeEach(async () => {
 			hookCallOrder = [];
-			const module = createBeforeAfterModule(hookCallOrder);
-			setup = await buildMockApp(module);
+			const definition = createBeforeAfterModule(hookCallOrder);
+			setup = await buildMockApp(definition);
 			await runTestDbMigrations(setup.app);
 		});
 
@@ -242,9 +225,7 @@ describe("collection-hooks", () => {
 	});
 
 	describe("update hooks with original comparison", () => {
-		let setup: Awaited<
-			ReturnType<typeof buildMockApp<typeof testModuleUpdate>>
-		>;
+		let setup: Awaited<ReturnType<typeof buildMockApp>>;
 
 		beforeEach(async () => {
 			setup = await buildMockApp(testModuleUpdate);
@@ -273,9 +254,7 @@ describe("collection-hooks", () => {
 	});
 
 	describe("delete hooks", () => {
-		let setup: Awaited<
-			ReturnType<typeof buildMockApp<typeof testModuleDelete>>
-		>;
+		let setup: Awaited<ReturnType<typeof buildMockApp>>;
 
 		beforeEach(async () => {
 			setup = await buildMockApp(testModuleDelete);
@@ -304,7 +283,7 @@ describe("collection-hooks", () => {
 	});
 
 	describe("error handling in hooks", () => {
-		let setup: Awaited<ReturnType<typeof buildMockApp<typeof testModuleError>>>;
+		let setup: Awaited<ReturnType<typeof buildMockApp>>;
 
 		beforeEach(async () => {
 			setup = await buildMockApp(testModuleError);
@@ -333,15 +312,13 @@ describe("collection-hooks", () => {
 	});
 
 	describe("data enrichment across hooks", () => {
-		let setup: Awaited<
-			ReturnType<typeof buildMockApp<ReturnType<typeof createEnrichmentModule>>>
-		>;
+		let setup: Awaited<ReturnType<typeof buildMockApp>>;
 		let enrichmentData: Map<string, any>;
 
 		beforeEach(async () => {
 			enrichmentData = new Map();
-			const module = createEnrichmentModule(enrichmentData);
-			setup = await buildMockApp(module);
+			const definition = createEnrichmentModule(enrichmentData);
+			setup = await buildMockApp(definition);
 			await runTestDbMigrations(setup.app);
 		});
 

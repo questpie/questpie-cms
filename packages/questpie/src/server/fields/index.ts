@@ -9,29 +9,17 @@
  *
  * @example
  * ```ts
- * import { field, createFieldBuilder, builtinFields } from "questpie/server/fields";
+ * import { createFieldBuilder, builtinFields } from "questpie/server/fields";
  *
  * // Using built-in fields
- * const posts = collection("posts").fields((f) => ({
- *   title: f.text({ required: true, maxLength: 255 }),
- *   content: f.textarea({ required: true }),
- *   status: f.select({
- *     options: [
- *       { value: "draft", label: "Draft" },
- *       { value: "published", label: "Published" },
- *     ],
- *   }),
+ * const posts = collection("posts").fields(({ f }) => ({
+ *   title: f.text(255).required(),
+ *   content: f.textarea().localized(),
+ *   status: f.select([
+ *     { value: "draft", label: "Draft" },
+ *     { value: "published", label: "Published" },
+ *   ]),
  * }));
- *
- * // Creating custom fields
- * const slugField = field<SlugFieldConfig, string>()({
- *   type: "slug" as const,
- *   _value: undefined as unknown as string,
- *   toColumn: (name, config) => varchar({ length: 255 }),
- *   toZodSchema: (config) => z.string().regex(/^[a-z0-9-]+$/),
- *   getOperators: <TApp>(config) => ({ column: stringOperators, jsonb: stringJsonbOperators }),
- *   getMetadata: (config) => ({ type: "slug", ... }),
- * });
  * ```
  */
 
@@ -39,30 +27,30 @@
 export {
 	type BuiltinFields,
 	createFieldBuilder,
-	/** @deprecated Use `createFieldBuilder` instead */
-	createFieldBuilderFromDefs,
-	/** @deprecated Use `BuiltinFields` instead */
-	type DefaultFieldTypeMap,
+	createFieldsCallbackContext,
 	extractFieldDefinitions,
 	type FieldBuilderProxy,
 	type FieldInputs,
 	type FieldOutputs,
+	type FieldsCallbackContext,
 	type FieldValues,
 	type InferFieldsFromFactory,
 } from "./builder.js";
-// Built-in field types
-export * from "./builtin/index.js";
-// Define field helper
-export {
-	type BuildFieldState,
-	createFieldDefinition,
-	type ExtractConfigFromFieldDef,
-	type ExtractOpsFromFieldDef,
-	type ExtractTypeFromFieldDef,
-	type ExtractValueFromFieldDef,
-	type FieldDef,
-	field,
-} from "./field.js";
+// Built-in field factories
+export * from "./builtin-factories/index.js";
+// Field builder class
+export { Field, field } from "./field-class.js";
+// Field state types
+export type {
+	ArrayFieldState,
+	DefaultFieldState,
+	ExtractInputType,
+	ExtractSelectType,
+	ExtractWhereType,
+	FieldRuntimeState,
+	FieldState,
+} from "./field-class-types.js";
+
 // Reactive field system
 export {
 	extractDependencies,
@@ -86,23 +74,21 @@ export {
 	trackDependencies,
 	trackDepsFunction,
 } from "./reactive.js";
+
 // Core types
+// NOTE: FieldAccess is NOT re-exported here to avoid name collision with
+// collection-level FieldAccess in collection/builder/types.ts.
+// Import field-level FieldAccess directly from "#questpie/server/fields/types.js".
 export type {
-	AnyFieldDefinition,
-	BaseFieldConfig,
 	ContextualOperators,
 	FieldAccessContext,
-	FieldDefinition,
-	FieldDefinitionAccess,
-	FieldDefinitionState,
 	FieldHookContext,
 	FieldHooks,
 	FieldMetadata,
 	FieldMetadataBase,
 	FieldMetadataMeta,
-	InferColumnType,
-	InferInputType,
-	InferOutputType,
+	FieldType,
+	FieldTypeRegistry,
 	JoinBuilder,
 	NestedFieldMetadata,
 	OperatorFn,

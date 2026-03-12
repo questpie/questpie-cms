@@ -5,64 +5,33 @@
  */
 
 import { uniqueIndex } from "drizzle-orm/pg-core";
-import { qb } from "@/questpie/server/builder";
+import { collection } from "#questpie/factories";
 import { slugify } from "@/questpie/server/utils";
 
-export const pages = qb
-	.collection("pages")
-	.fields((f) => ({
-		city: f.relation({
-			label: "City",
-			to: "cities",
-			required: true,
-		}),
-		title: f.text({
-			label: "Title",
-			required: true,
-			maxLength: 255,
-		}),
-		slug: f.text({
-			label: "Slug",
-			required: true,
-			maxLength: 255,
-			input: "optional",
-		}),
-		content: f.blocks({
-			label: "Content",
-		}),
-		excerpt: f.textarea({
-			label: "Excerpt",
-			description: "Short description for listings and SEO",
-		}),
-		parent: f.relation({
-			label: "Parent Page",
-			to: "pages",
-			description: "For creating page hierarchy",
-		}),
-		order: f.number({
-			label: "Order",
-			default: 0,
-			description: "Display order in navigation",
-		}),
-		showInNav: f.boolean({
-			label: "Show in Navigation",
-			default: true,
-		}),
-		featuredImage: f.upload({
-			label: "Featured Image",
-			accept: ["image/*"],
-		}),
-		isPublished: f.boolean({
-			label: "Published",
-			default: false,
-		}),
-		metaTitle: f.text({
-			label: "Meta Title",
-			maxLength: 70,
-		}),
-		metaDescription: f.textarea({
-			label: "Meta Description",
-		}),
+export default collection("pages")
+	.fields(({ f }) => ({
+		city: f.relation("cities").label("City").required(),
+		title: f.text(255).label("Title").required(),
+		slug: f.text(255).label("Slug").required().inputOptional(),
+		content: f.blocks().label("Content"),
+		excerpt: f
+			.textarea()
+			.label("Excerpt")
+			.description("Short description for listings and SEO"),
+		parent: f
+			.relation("pages")
+			.label("Parent Page")
+			.description("For creating page hierarchy"),
+		order: f
+			.number()
+			.label("Order")
+			.default(0)
+			.description("Display order in navigation"),
+		showInNav: f.boolean().label("Show in Navigation").default(true),
+		featuredImage: f.upload({ mimeTypes: ["image/*"] }).label("Featured Image"),
+		isPublished: f.boolean().label("Published").default(false),
+		metaTitle: f.text(70).label("Meta Title"),
+		metaDescription: f.textarea().label("Meta Description"),
 	}))
 	.indexes(({ table }) => [
 		uniqueIndex("pages_city_slug_unique").on(
@@ -92,7 +61,7 @@ export const pages = qb
 							handler: ({ data, prev }) => {
 								const title = data.title;
 								const currentSlug = data.slug;
-								const prevTitle = prev.data.title;
+								const prevTitle = prev?.data?.title;
 
 								if (currentSlug && prevTitle === title) {
 									return undefined;

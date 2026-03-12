@@ -7,7 +7,7 @@
  * Uses string literals for collection references to avoid circular dependency issues.
  */
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
-import { collection, questpie } from "../../src/server/index.js";
+import { collection } from "../../src/server/index.js";
 import { buildMockApp } from "../utils/mocks/mock-app-builder";
 import { createTestContext } from "../utils/test-context";
 import { runTestDbMigrations } from "../utils/test-db";
@@ -17,9 +17,9 @@ import { runTestDbMigrations } from "../utils/test-db";
 // ==============================================================================
 
 // Users collection (referenced by profiles)
-const users = collection("users").fields((f) => ({
-	email: f.text({ required: true, maxLength: 255 }),
-	name: f.text({ required: true }),
+const users = collection("users").fields(({ f }) => ({
+	email: f.text(255).required(),
+	name: f.text().required(),
 }));
 
 // ==============================================================================
@@ -29,269 +29,194 @@ const users = collection("users").fields((f) => ({
 // Assets collection (for testing upload and string field format)
 const testAssets = collection("test_assets")
 	.options({ timestamps: true })
-	.fields((f) => ({
-		filename: f.text({ required: true, maxLength: 255 }),
-		mimeType: f.text({ maxLength: 100 }),
-		key: f.text({ maxLength: 500 }),
+	.fields(({ f }) => ({
+		filename: f.text(255).required(),
+		mimeType: f.text(100),
+		key: f.text(500),
 	}));
 
 // Services collection using relation field with string target
-const services = collection("services").fields((f) => ({
-	name: f.text({ required: true, maxLength: 255 }),
-	image: f.relation({
-		to: "test_assets",
-	}),
+const services = collection("services").fields(({ f }) => ({
+	name: f.text(255).required(),
+	image: f.relation("test_assets"),
 }));
 
 // Profiles collection (one-to-one with users via belongsTo)
-const profiles = collection("profiles").fields((f) => ({
-	user: f.relation({
-		to: "users",
-		required: true,
-		unique: true,
-		onDelete: "cascade",
-	}),
-	bio: f.text({ required: true }),
+const profiles = collection("profiles").fields(({ f }) => ({
+	user: f.relation("users").required().onDelete("cascade"),
+	bio: f.text().required(),
 	avatar: f.text(),
 }));
 
 // Authors with posts (one-to-many with cascade delete)
-const authors = collection("authors").fields((f) => ({
-	name: f.text({ required: true }),
+const authors = collection("authors").fields(({ f }) => ({
+	name: f.text().required(),
 	// HasMany relations - using string literals for circular refs
-	posts: f.relation({
-		to: "posts",
-		hasMany: true,
-		foreignKey: "author", // FK column on posts table
-		onDelete: "cascade",
-		relationName: "author",
-	}),
-	editedPosts: f.relation({
-		to: "posts",
-		hasMany: true,
-		foreignKey: "editor", // FK column on posts table
-		onDelete: "set null", // Application-level SET NULL when author is deleted
-		relationName: "editor",
-	}),
+	posts: f
+		.relation("posts")
+		.hasMany({
+			foreignKey: "author",
+			onDelete: "cascade",
+			relationName: "author",
+		}),
+	editedPosts: f
+		.relation("posts")
+		.hasMany({
+			foreignKey: "editor",
+			onDelete: "set null",
+			relationName: "editor",
+		}),
 }));
 
 // Posts with cascade/set null scenarios
-const posts = collection("posts").fields((f) => ({
-	title: f.text({ required: true }),
-	views: f.number({ default: 0 }),
+const posts = collection("posts").fields(({ f }) => ({
+	title: f.text().required(),
+	views: f.number().default(0),
 	// BelongsTo relations
-	author: f.relation({
-		to: "authors",
-		required: true,
-		onDelete: "cascade",
-		relationName: "author",
-	}),
-	editor: f.relation({
-		to: "authors",
-		onDelete: "set null",
-		relationName: "editor",
-	}),
+	author: f
+		.relation("authors")
+		.required()
+		.onDelete("cascade")
+		.relationName("author"),
+	editor: f.relation("authors").onDelete("set null").relationName("editor"),
 	// HasMany
-	comments: f.relation({
-		to: "comments",
-		hasMany: true,
-		foreignKey: "post", // FK column on comments table
-		onDelete: "cascade",
-		relationName: "post",
-	}),
+	comments: f
+		.relation("comments")
+		.hasMany({ foreignKey: "post", onDelete: "cascade", relationName: "post" }),
 }));
 
 // Comments for deep nesting tests (posts -> comments -> replies)
-const comments = collection("comments").fields((f) => ({
-	content: f.text({ required: true }),
+const comments = collection("comments").fields(({ f }) => ({
+	content: f.text().required(),
 	// BelongsTo post
-	post: f.relation({
-		to: "posts",
-		required: true,
-		onDelete: "cascade",
-		relationName: "post",
-	}),
+	post: f.relation("posts").required().onDelete("cascade").relationName("post"),
 	// Self-referential BelongsTo (parent comment)
-	parent: f.relation({
-		to: "comments",
-		onDelete: "cascade",
-		relationName: "parent",
-	}),
+	parent: f.relation("comments").onDelete("cascade").relationName("parent"),
 	// HasMany (replies)
-	replies: f.relation({
-		to: "comments",
-		hasMany: true,
-		foreignKey: "parent", // FK column on comments table
-		relationName: "parent",
-	}),
+	replies: f
+		.relation("comments")
+		.hasMany({ foreignKey: "parent", relationName: "parent" }),
 }));
 
 // Products with restricted delete
 // NOTE: Collection name must match the key used in .collections({}) for relation lookups to work
-const restrictedCategories = collection("restrictedCategories").fields((f) => ({
-	name: f.text({ required: true }),
-	// HasMany - RESTRICT delete when products exist
-	products: f.relation({
-		to: "restrictedProducts", // Must match the key in .collections({})
-		hasMany: true,
-		foreignKey: "category", // FK column on products table
-		onDelete: "restrict", // Application-level RESTRICT when category is deleted
-		relationName: "category",
+const restrictedCategories = collection("restrictedCategories").fields(
+	({ f }) => ({
+		name: f.text().required(),
+		// HasMany - RESTRICT delete when products exist
+		products: f
+			.relation("restrictedProducts")
+			.hasMany({
+				foreignKey: "category",
+				onDelete: "restrict",
+				relationName: "category",
+			}),
 	}),
-}));
+);
 
-const restrictedProducts = collection("restrictedProducts").fields((f) => ({
-	name: f.text({ required: true }),
+const restrictedProducts = collection("restrictedProducts").fields(({ f }) => ({
+	name: f.text().required(),
 	// BelongsTo with restrict
-	category: f.relation({
-		to: "restrictedCategories",
-		required: true,
-		onDelete: "restrict",
-		relationName: "category",
-	}),
+	category: f
+		.relation("restrictedCategories")
+		.required()
+		.onDelete("restrict")
+		.relationName("category"),
 }));
 
 // Many-to-many with extra fields in junction table
-const articles = collection("articles").fields((f) => ({
-	title: f.text({ required: true }),
+const articles = collection("articles").fields(({ f }) => ({
+	title: f.text().required(),
 	// ManyToMany
-	tags: f.relation({
-		to: "articleTags",
-		hasMany: true,
-		through: "articleTagJunction",
-		sourceField: "article", // FK column on junction table
-		targetField: "tag", // FK column on junction table
-	}),
+	tags: f
+		.relation("articleTags")
+		.manyToMany({
+			through: "articleTagJunction",
+			sourceField: "article",
+			targetField: "tag",
+		}),
 }));
 
-const articleTags = collection("articleTags").fields((f) => ({
-	name: f.text({ required: true }),
+const articleTags = collection("articleTags").fields(({ f }) => ({
+	name: f.text().required(),
 	// ManyToMany reverse
-	articles: f.relation({
-		to: "articles",
-		hasMany: true,
-		through: "articleTagJunction",
-		sourceField: "tag", // FK column on junction table
-		targetField: "article", // FK column on junction table
-	}),
+	articles: f
+		.relation("articles")
+		.manyToMany({
+			through: "articleTagJunction",
+			sourceField: "tag",
+			targetField: "article",
+		}),
 }));
 
 // Junction table - still uses belongsTo for FK columns
-const articleTagJunction = collection("articleTagJunction").fields((f) => ({
-	article: f.relation({
-		to: "articles",
-		required: true,
-		onDelete: "cascade",
-	}),
-	tag: f.relation({
-		to: "articleTags",
-		required: true,
-		onDelete: "cascade",
-	}),
-	order: f.number({ default: 0 }),
-	addedAt: f.datetime({ default: () => new Date() }),
+const articleTagJunction = collection("articleTagJunction").fields(({ f }) => ({
+	article: f.relation("articles").required().onDelete("cascade"),
+	tag: f.relation("articleTags").required().onDelete("cascade"),
+	order: f.number().default(0),
+	addedAt: f.datetime().default(() => new Date()),
 }));
 
 // Additional collections for filtering and quantifiers tests
-const categories = collection("categories").fields((f) => ({
-	name: f.text({ required: true }),
+const categories = collection("categories").fields(({ f }) => ({
+	name: f.text().required(),
 	// HasMany
-	products: f.relation({
-		to: "products",
-		hasMany: true,
-		foreignKey: "category", // FK column on products table
-		relationName: "category",
-	}),
+	products: f
+		.relation("products")
+		.hasMany({ foreignKey: "category", relationName: "category" }),
 	// ManyToMany
-	tags: f.relation({
-		to: "tags",
-		hasMany: true,
-		through: "categoryTags",
-		sourceField: "category", // FK column on junction table
-		targetField: "tag", // FK column on junction table
-	}),
+	tags: f
+		.relation("tags")
+		.manyToMany({
+			through: "categoryTags",
+			sourceField: "category",
+			targetField: "tag",
+		}),
 }));
 
-const products = collection("products").fields((f) => ({
-	name: f.text({ required: true }),
+const products = collection("products").fields(({ f }) => ({
+	name: f.text().required(),
 	// BelongsTo
-	category: f.relation({
-		to: "categories",
-		required: true,
-		relationName: "category",
-	}),
+	category: f.relation("categories").required().relationName("category"),
 	// ManyToMany
-	tags: f.relation({
-		to: "tags",
-		hasMany: true,
-		through: "productTags",
-		sourceField: "product", // FK column on junction table
-		targetField: "tag", // FK column on junction table
-	}),
+	tags: f
+		.relation("tags")
+		.manyToMany({
+			through: "productTags",
+			sourceField: "product",
+			targetField: "tag",
+		}),
 }));
 
-const tags = collection("tags").fields((f) => ({
-	name: f.text({ required: true }),
+const tags = collection("tags").fields(({ f }) => ({
+	name: f.text().required(),
 	// ManyToMany relations
-	products: f.relation({
-		to: "products",
-		hasMany: true,
-		through: "productTags",
-		sourceField: "tag", // FK column on junction table
-		targetField: "product", // FK column on junction table
-	}),
-	categories: f.relation({
-		to: "categories",
-		hasMany: true,
-		through: "categoryTags",
-		sourceField: "tag", // FK column on junction table
-		targetField: "category", // FK column on junction table
-	}),
+	products: f
+		.relation("products")
+		.manyToMany({
+			through: "productTags",
+			sourceField: "tag",
+			targetField: "product",
+		}),
+	categories: f
+		.relation("categories")
+		.manyToMany({
+			through: "categoryTags",
+			sourceField: "tag",
+			targetField: "category",
+		}),
 }));
 
 // Junction tables
-const categoryTags = collection("categoryTags").fields((f) => ({
-	category: f.relation({
-		to: "categories",
-		required: true,
-	}),
-	tag: f.relation({
-		to: "tags",
-		required: true,
-	}),
+const categoryTags = collection("categoryTags").fields(({ f }) => ({
+	category: f.relation("categories").required(),
+	tag: f.relation("tags").required(),
 }));
 
-const productTags = collection("productTags").fields((f) => ({
-	product: f.relation({
-		to: "products",
-		required: true,
-	}),
-	tag: f.relation({
-		to: "tags",
-		required: true,
-	}),
+const productTags = collection("productTags").fields(({ f }) => ({
+	product: f.relation("products").required(),
+	tag: f.relation("tags").required(),
 }));
-
-const testModule = questpie({ name: "test" }).collections({
-	users,
-	profiles,
-	authors,
-	posts,
-	comments,
-	restrictedCategories,
-	restrictedProducts,
-	articles,
-	articleTags,
-	articleTagJunction,
-	categories,
-	products,
-	tags,
-	categoryTags,
-	productTags,
-	// Collections for string field format test
-	test_assets: testAssets,
-	services,
-});
 
 // ==============================================================================
 // TESTS
@@ -299,11 +224,32 @@ const testModule = questpie({ name: "test" }).collections({
 // ==============================================================================
 
 describe("collection relations", () => {
-	let setup: Awaited<ReturnType<typeof buildMockApp<typeof testModule>>>;
-	let app: typeof testModule.$inferApp;
+	let setup: Awaited<ReturnType<typeof buildMockApp>>;
+	let app: (typeof setup)["app"];
 
 	beforeEach(async () => {
-		setup = await buildMockApp(testModule);
+		setup = await buildMockApp({
+			collections: {
+				users,
+				profiles,
+				authors,
+				posts,
+				comments,
+				restrictedCategories,
+				restrictedProducts,
+				articles,
+				articleTags,
+				articleTagJunction,
+				categories,
+				products,
+				tags,
+				categoryTags,
+				productTags,
+				// Collections for string field format test
+				test_assets: testAssets,
+				services,
+			},
+		});
 		app = setup.app;
 		await runTestDbMigrations(app);
 	});

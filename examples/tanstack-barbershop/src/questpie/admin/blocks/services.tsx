@@ -5,10 +5,10 @@
  * Supports both automatic fetch and manual selection modes.
  */
 
-import { ArrowRight, Clock } from "@phosphor-icons/react";
+import { Icon } from "@iconify/react";
 import { useTranslation } from "../../../lib/providers/locale-provider";
 import { cn } from "../../../lib/utils";
-import type { BlockProps } from "./types";
+import type { BlockProps } from "../.generated/client";
 
 type Service = {
 	id: string;
@@ -21,7 +21,7 @@ type Service = {
 
 export function ServicesRenderer({ values, data }: BlockProps<"services">) {
 	const { t, locale } = useTranslation();
-	const services = (data?.services ?? []) as Service[];
+	const services = (data?.services ?? []) as unknown as Service[];
 
 	const columnsClass = {
 		"2": "md:grid-cols-2",
@@ -89,7 +89,7 @@ export function ServicesRenderer({ values, data }: BlockProps<"services">) {
 									<div className="flex items-center gap-4 text-sm text-muted-foreground">
 										{values.showDuration && (
 											<span className="flex items-center gap-1.5">
-												<Clock className="size-4" weight="bold" />
+												<Icon icon="ph:clock-bold" className="size-4" />
 												{service.duration} min
 											</span>
 										)}
@@ -120,7 +120,7 @@ export function ServicesRenderer({ values, data }: BlockProps<"services">) {
 							className="inline-flex items-center gap-2 text-sm font-medium text-foreground hover:text-highlight transition-colors group"
 						>
 							{t("blocks.services.viewAll")}
-							<ArrowRight className="size-4 transition-transform group-hover:translate-x-1" />
+							<Icon icon="ph:arrow-right" className="size-4 transition-transform group-hover:translate-x-1" />
 						</a>
 					</div>
 				)}

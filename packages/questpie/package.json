@@ -22,8 +22,6 @@
 	},
 	"dependencies": {
 		"@drepkovsky/tinydi": "^2.3.0",
-		"@react-email/components": "^1.0.2",
-		"@react-email/render": "^2.0.0",
 		"better-auth": "^1.4.9",
 		"commander": "^14.0.2",
 		"drizzle-orm": "1.0.0-beta.6-4414a19",
@@ -51,6 +49,8 @@
 		"tsdown": "^0.18.3"
 	},
 	"peerDependencies": {
+		"@react-email/components": "^1.0.2",
+		"@react-email/render": "^2.0.0",
 		"drizzle-kit": "1.0.0-beta.6-4414a19",
 		"ioredis": "^5.4.2",
 		"nodemailer": "^7.0.12",
@@ -58,6 +58,12 @@
 		"pg-boss": "^12.5.4"
 	},
 	"peerDependenciesMeta": {
+		"@react-email/components": {
+			"optional": true
+		},
+		"@react-email/render": {
+			"optional": true
+		},
 		"drizzle-kit": {
 			"optional": true
 		},
@@ -92,6 +98,14 @@
 				"types": "./dist/client.d.mts",
 				"default": "./dist/client.mjs"
 			},
+			"./drizzle": {
+				"types": "./dist/drizzle.d.mts",
+				"default": "./dist/drizzle.mjs"
+			},
+			"./drizzle-pg-core": {
+				"types": "./dist/drizzle-pg-core.d.mts",
+				"default": "./dist/drizzle-pg-core.mjs"
+			},
 			"./shared": {
 				"types": "./dist/shared.d.mts",
 				"default": "./dist/shared.mjs"
@@ -114,6 +128,14 @@
 		"./client": {
 			"types": "./dist/client.d.mts",
 			"default": "./src/exports/client.ts"
+		},
+		"./drizzle": {
+			"types": "./dist/drizzle.d.mts",
+			"default": "./src/exports/drizzle.ts"
+		},
+		"./drizzle-pg-core": {
+			"types": "./dist/drizzle-pg-core.d.mts",
+			"default": "./src/exports/drizzle-pg-core.ts"
 		},
 		"./shared": {
 			"types": "./dist/shared.d.mts",

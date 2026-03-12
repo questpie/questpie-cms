@@ -1,10 +1,4 @@
 {
 	"title": "Examples",
-	"pages": [
-		"index",
-		"tanstack-barbershop-architecture-tour",
-		"tanstack-barbershop-server-tour",
-		"tanstack-barbershop-admin-tour",
-		"tanstack-barbershop-rpc-tour"
-	]
+	"pages": ["index", "barbershop"]
 }

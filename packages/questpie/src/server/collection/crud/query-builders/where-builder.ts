@@ -5,19 +5,34 @@
  * Supports field operators, logical operators (AND/OR/NOT), and relation filtering.
  */
 
-import { and, eq, inArray, not, or, type SQL, sql } from "drizzle-orm";
-import type { PgTable } from "drizzle-orm/pg-core";
+import {
+	and,
+	type Column,
+	eq,
+	inArray,
+	not,
+	or,
+	type SQL,
+	sql,
+} from "drizzle-orm";
+import type { AnyPgColumn, PgTable } from "drizzle-orm/pg-core";
 import type {
 	CollectionBuilderState,
 	RelationConfig,
 } from "#questpie/server/collection/builder/types.js";
-import { getDb } from "#questpie/server/collection/crud/shared/index.js";
+import {
+	getColumn,
+	getDb,
+} from "#questpie/server/collection/crud/shared/index.js";
 import type {
 	CRUDContext,
 	Where,
 } from "#questpie/server/collection/crud/types.js";
 import type { Questpie } from "#questpie/server/config/questpie.js";
 import { ApiError } from "#questpie/server/errors/base.js";
+import type { Field } from "#questpie/server/fields/field-class.js";
+import type { FieldState } from "#questpie/server/fields/field-class-types.js";
+import type { OperatorFn } from "#questpie/server/fields/types.js";
 
 /**
  * Options for building WHERE clause
@@ -60,7 +75,7 @@ export function buildLocalizedFieldRef(
 		i18nFallbackTable: PgTable | null;
 		useI18n?: boolean;
 	},
-): SQL | ReturnType<typeof sql.identifier> | undefined {
+): SQL | AnyPgColumn | ReturnType<typeof sql.identifier> | undefined {
 	const { table, state, i18nCurrentTable, i18nFallbackTable, useI18n } =
 		options;
 
@@ -70,33 +85,32 @@ export function buildLocalizedFieldRef(
 	}
 
 	const fieldDef = state.fieldDefinitions?.[field];
-	if (fieldDef?.state?.location === "virtual") {
+	if (fieldDef?.getLocation() === "virtual") {
 		return undefined;
 	}
 
 	// Check if field is localized and i18n is enabled
-	if (
-		!useI18n ||
-		!i18nCurrentTable ||
-		!state.localized.includes(field as any)
-	) {
+	if (!useI18n || !i18nCurrentTable || !state.localized.includes(field)) {
 		// Not localized - return direct table reference
-		const column = (table as any)[field];
+		const column = getColumn(table, field);
 		if (column) return column;
 		return sql.identifier(field);
 	}
 
-	const i18nCurrentTbl = i18nCurrentTable as any;
+	const currentCol = getColumn(i18nCurrentTable, field);
 
 	// If no fallback table, return current locale reference only
 	if (!i18nFallbackTable) {
-		return i18nCurrentTbl[field] ?? sql.identifier(field);
+		return currentCol ?? sql.identifier(field);
 	}
 
-	const i18nFallbackTbl = i18nFallbackTable as any;
+	const fallbackCol = getColumn(i18nFallbackTable, field);
 
 	// Return COALESCE(current, fallback)
-	return sql`COALESCE(${i18nCurrentTbl[field]}, ${i18nFallbackTbl[field]})`;
+	if (currentCol && fallbackCol) {
+		return sql`COALESCE(${currentCol}, ${fallbackCol})`;
+	}
+	return currentCol ?? fallbackCol ?? sql.identifier(field);
 }
 
 function isNonQueryableVirtualField(
@@ -104,7 +118,7 @@ function isNonQueryableVirtualField(
 	state: CollectionBuilderState,
 ): boolean {
 	const fieldDef = state.fieldDefinitions?.[field];
-	if (!fieldDef || fieldDef.state.location !== "virtual") {
+	if (!fieldDef || fieldDef.getLocation() !== "virtual") {
 		return false;
 	}
 
@@ -198,8 +212,18 @@ export function buildWhereClause(
 			value !== null &&
 			!Array.isArray(value)
 		) {
+			// Look up the field definition for field-driven operator dispatch
+			const fieldDef = state.fieldDefinitions?.[key] as
+				| Field<FieldState>
+				| undefined;
+			const fieldOps = fieldDef?.getOperators?.();
+			const fieldColumnOps = fieldOps?.column;
+
 			// Determine if value contains field operators or relation quantifiers
-			const fieldOperators = [
+			// Use the field's actual operator keys (if available) in addition to the
+			// standard hardcoded list, so custom operators (e.g., email.domain) are
+			// correctly recognized as field operators.
+			const standardFieldOperators = [
 				"eq",
 				"ne",
 				"not",
@@ -221,11 +245,28 @@ export function buildWhereClause(
 				"arrayOverlaps",
 				"arrayContained",
 				"arrayContains",
+				// JSONB structural ops (select multi, object, array)
+				"containsAll",
+				"containsAny",
+				"containedBy",
+				"hasKey",
+				"hasKeys",
+				"hasAnyKeys",
+				"pathEquals",
+				"jsonPath",
+				"isEmpty",
+				"isNotEmpty",
+				"length",
+				"count",
 			];
 			const relationQuantifiers = ["some", "none", "every", "is", "isNot"];
 			const valueKeys = Object.keys(value as Record<string, any>);
-			const hasFieldOperators = valueKeys.some((k) =>
-				fieldOperators.includes(k),
+
+			// A key is a field operator if it's in the standard list OR in the field's operator map
+			const hasFieldOperators = valueKeys.some(
+				(k) =>
+					standardFieldOperators.includes(k) ||
+					(fieldColumnOps && k in fieldColumnOps),
 			);
 			const hasRelationQuantifiers = valueKeys.some((k) =>
 				relationQuantifiers.includes(k),
@@ -253,7 +294,12 @@ export function buildWhereClause(
 				}
 
 				for (const [op, val] of Object.entries(value as Record<string, any>)) {
-					const condition = buildOperatorCondition(column, op, val);
+					const condition = resolveFieldOperatorCondition(
+						column,
+						op,
+						val,
+						fieldColumnOps,
+					);
 					if (condition) conditions.push(condition);
 				}
 			} else if (state.relations?.[key]) {
@@ -289,7 +335,12 @@ export function buildWhereClause(
 				}
 
 				for (const [op, val] of Object.entries(value as Record<string, any>)) {
-					const condition = buildOperatorCondition(column, op, val);
+					const condition = resolveFieldOperatorCondition(
+						column,
+						op,
+						val,
+						fieldColumnOps,
+					);
 					if (condition) conditions.push(condition);
 				}
 			}
@@ -315,12 +366,45 @@ export function buildWhereClause(
 			if (value === null) {
 				conditions.push(sql`${column} IS NULL`);
 			} else {
-				conditions.push(eq(column, value));
+				// Column ref may be AnyPgColumn | SQL | Name — eq() needs Column overload
+				conditions.push(eq(column as Column, value));
 			}
 		}
 	}
 
 	return conditions.length > 0 ? and(...conditions) : undefined;
+}
+
+/**
+ * Resolve a field operator condition.
+ *
+ * First checks the field's own operator map (if available) for field-driven
+ * dispatch. This enables custom operators like email's `domain` and url's
+ * `host` to work at runtime. Falls back to the standard hardcoded switch
+ * for built-in operators.
+ *
+ * @param column - The column to apply the operator to
+ * @param op - The operator name
+ * @param value - The value for the operator
+ * @param fieldOps - The field's column operator map (from getOperators().column)
+ * @returns SQL condition or undefined if operator not recognized
+ */
+export function resolveFieldOperatorCondition(
+	column: any,
+	op: string,
+	value: any,
+	fieldOps?: Record<string, OperatorFn<any, any> | undefined>,
+): SQL | undefined {
+	// Try field-driven dispatch first
+	if (fieldOps) {
+		const operatorFn = fieldOps[op];
+		if (operatorFn) {
+			return operatorFn(column, value, {});
+		}
+	}
+
+	// Fall back to standard hardcoded operators
+	return buildOperatorCondition(column, op, value);
 }
 
 /**
@@ -536,7 +620,7 @@ export function buildBelongsToExistsClause(
 
 	// Support both `field: string` (singular) and `fields: PgColumn[]` (array) formats
 	const hasFieldConfig =
-		(relation.fields && relation.fields.length > 0) || (relation as any).field;
+		(relation.fields && relation.fields.length > 0) || relation.field;
 
 	if (!app || !hasFieldConfig || !relation.references) {
 		return undefined;
@@ -549,15 +633,14 @@ export function buildBelongsToExistsClause(
 	// Build join conditions supporting both formats
 	let joinConditions: SQL[] = [];
 
-	if ((relation as any).field && typeof (relation as any).field === "string") {
+	if (relation.field && typeof relation.field === "string") {
 		// String field format: field: "image", references: "id"
-		const sourceFieldName = (relation as any).field;
-		const sourceColumn = (parentTable as any)[sourceFieldName];
+		const sourceColumn = getColumn(parentTable, relation.field);
 		const targetFieldName = Array.isArray(relation.references)
 			? relation.references[0]
 			: (relation.references as string);
 		const targetColumn = targetFieldName
-			? (relatedTable as any)[targetFieldName]
+			? getColumn(relatedTable, targetFieldName)
 			: undefined;
 
 		if (sourceColumn && targetColumn) {
@@ -571,13 +654,14 @@ export function buildBelongsToExistsClause(
 				const refs = relation.references as string[];
 				const targetFieldName = refs?.[index];
 				const targetColumn = targetFieldName
-					? (relatedTable as any)[targetFieldName]
+					? getColumn(relatedTable, targetFieldName)
 					: undefined;
 				// Get the actual column from the table by matching the name
 				const sourceFieldName =
-					(sourceField as any)?.name ?? (sourceField as any)?.config?.name;
+					(sourceField as { name?: string })?.name ??
+					(sourceField as { config?: { name?: string } })?.config?.name;
 				const sourceColumn = sourceFieldName
-					? (parentTable as any)[sourceFieldName]
+					? getColumn(parentTable, sourceFieldName)
 					: undefined;
 				return targetColumn && sourceColumn
 					? eq(targetColumn, sourceColumn)
@@ -607,7 +691,10 @@ export function buildBelongsToExistsClause(
 	}
 
 	if (relatedState.options?.softDelete) {
-		whereConditions.push(sql`${(relatedTable as any).deletedAt} IS NULL`);
+		const deletedAtCol = getColumn(relatedTable, "deletedAt");
+		if (deletedAtCol) {
+			whereConditions.push(sql`${deletedAtCol} IS NULL`);
+		}
 	}
 
 	const db = getDb(options.db, context);
@@ -645,15 +732,18 @@ export function buildHasManyExistsClause(
 
 	// Note: reverseRelation.fields may contain builders or columns - we need to resolve to actual table columns
 	const joinConditions = reverseRelation.fields
-		.map((foreignField: any, index: number) => {
+		.map((foreignField: unknown, index: number) => {
 			const parentFieldName = reverseRelation.references?.[index];
 			const parentColumn = parentFieldName
-				? (parentTable as any)[parentFieldName]
+				? getColumn(parentTable, parentFieldName)
 				: undefined;
 			// Get the actual column from the related table by matching the name
-			const foreignFieldName = foreignField?.name ?? foreignField?.config?.name;
+			const ff = foreignField as
+				| { name?: string; config?: { name?: string } }
+				| undefined;
+			const foreignFieldName = ff?.name ?? ff?.config?.name;
 			const foreignColumn = foreignFieldName
-				? (relatedTable as any)[foreignFieldName]
+				? getColumn(relatedTable, foreignFieldName)
 				: undefined;
 			return parentColumn && foreignColumn
 				? eq(foreignColumn, parentColumn)
@@ -681,7 +771,10 @@ export function buildHasManyExistsClause(
 	}
 
 	if (relatedState.options?.softDelete) {
-		whereConditions.push(sql`${(relatedTable as any).deletedAt} IS NULL`);
+		const deletedAtCol = getColumn(relatedTable, "deletedAt");
+		if (deletedAtCol) {
+			whereConditions.push(sql`${deletedAtCol} IS NULL`);
+		}
 	}
 
 	const db = getDb(options.db, context);
@@ -717,13 +810,13 @@ export function buildManyToManyExistsClause(
 	const sourceField = relation.sourceField;
 	const targetField = relation.targetField;
 
-	const parentColumn = (parentTable as any)[sourceKey];
-	const relatedColumn = (relatedTable as any)[targetKey];
+	const parentColumn = getColumn(parentTable, sourceKey);
+	const relatedColumn = getColumn(relatedTable, targetKey);
 	const junctionSourceColumn = sourceField
-		? (junctionTable as any)[sourceField]
+		? getColumn(junctionTable, sourceField)
 		: undefined;
 	const junctionTargetColumn = targetField
-		? (junctionTable as any)[targetField]
+		? getColumn(junctionTable, targetField)
 		: undefined;
 
 	if (
@@ -753,11 +846,17 @@ export function buildManyToManyExistsClause(
 	}
 
 	if (junctionState.options?.softDelete) {
-		whereConditions.push(sql`${(junctionTable as any).deletedAt} IS NULL`);
+		const junctionDeletedAt = getColumn(junctionTable, "deletedAt");
+		if (junctionDeletedAt) {
+			whereConditions.push(sql`${junctionDeletedAt} IS NULL`);
+		}
 	}
 
 	if (relatedState.options?.softDelete) {
-		whereConditions.push(sql`${(relatedTable as any).deletedAt} IS NULL`);
+		const relatedDeletedAt = getColumn(relatedTable, "deletedAt");
+		if (relatedDeletedAt) {
+			whereConditions.push(sql`${relatedDeletedAt} IS NULL`);
+		}
 	}
 
 	const db = getDb(options.db, context);

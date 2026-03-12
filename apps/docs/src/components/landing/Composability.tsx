@@ -9,29 +9,29 @@ const layers = [
 	{
 		icon: Box,
 		label: "Core",
-		api: "q()",
-		description: "Collections, globals, fields, jobs, auth — all type-safe.",
+		api: "collections/ functions/ jobs/",
+		description: "Drop files into convention directories. Collections, globals, functions, jobs — all discovered automatically.",
 	},
 	{
 		icon: Plug,
 		label: "Adapters",
-		api: ".build()",
+		api: "runtimeConfig()",
 		description:
-			"Storage, queue, email, search, realtime — swap providers, keep your schema.",
+			"Storage, queue, email, search, realtime — swap any provider. Your business logic never changes.",
 	},
 	{
 		icon: Layers,
 		label: "Modules",
-		api: ".use()",
+		api: "modules.ts",
 		description:
-			"Compose builders together. Admin module ships the full panel.",
+			"Compose pre-built modules. Admin ships a full panel. Audit adds logging. One array, unlimited capability.",
 	},
 	{
 		icon: Palette,
 		label: "Client",
-		api: "qa()",
+		api: ".generated/client",
 		description:
-			"Field renderers, views, widgets, components — all registries.",
+			"Admin config auto-generated from your server definitions. Field renderers, views, widgets — all from codegen.",
 	},
 ];
 
@@ -86,7 +86,7 @@ export function Composability() {
 					<div className="mt-8">
 						<Link
 							to="/docs/$"
-							params={{ _splat: "mentality" }}
+							params={{ _splat: "start-here" }}
 							className="inline-flex items-center gap-2 font-mono text-xs text-primary transition-colors hover:text-primary/80"
 						>
 							Read the architecture philosophy →
@@ -102,65 +102,62 @@ export function Composability() {
 					viewport={{ once: true, margin: "-80px" }}
 					transition={{ duration: 0.8, delay: 0.2 }}
 				>
-					{/* Flow / Nodes area — padding matches node center to line endpoints */}
+					{/* Pipeline nodes — grid guarantees equal columns so lines align exactly */}
 					<div
-						className="relative flex w-full items-center justify-between px-6 sm:px-10 md:px-16 mb-4"
+						className="relative grid grid-cols-4 w-full mb-4"
 						onMouseEnter={() => setIsAutoPlaying(false)}
 						onMouseLeave={() => setIsAutoPlaying(true)}
 						role="group"
 						aria-label="Layer pipeline"
 					>
-						{/* Background connecting line — from center of first to center of last node */}
-						<div className="absolute inset-x-[calc(1.5rem+1.5rem)] sm:inset-x-[calc(2.5rem+1.75rem)] md:inset-x-[calc(4rem+1.75rem)] top-6 md:top-7 h-[1px] bg-border/40" />
+						{/*
+						 * 4 equal grid columns → node centers at 12.5%, 37.5%, 62.5%, 87.5%
+						 * Line spans from first center (12.5%) to last center (87.5%)
+						 */}
 
-						{/* Active glowing connection lines */}
-						<div className="absolute inset-x-[calc(1.5rem+1.5rem)] sm:inset-x-[calc(2.5rem+1.75rem)] md:inset-x-[calc(4rem+1.75rem)] top-6 md:top-7 flex h-[1px] items-center z-0">
-							{/* Segment 1: Core -> Adapters */}
-							<motion.div
-								className="h-full bg-primary/70"
-								style={{ width: "33.33%" }}
-								initial={{ scaleX: 0, originX: 0 }}
-								animate={{ scaleX: activeLayer >= 1 ? 1 : 0 }}
-								transition={{ duration: 0.5, ease: "easeOut" }}
-							/>
-							{/* Segment 2: Adapters -> Modules */}
-							<motion.div
-								className="h-full bg-primary/70"
-								style={{ width: "33.33%" }}
-								initial={{ scaleX: 0, originX: 0 }}
-								animate={{ scaleX: activeLayer >= 2 ? 1 : 0 }}
-								transition={{ duration: 0.5, ease: "easeOut" }}
-							/>
-							{/* Segment 3: Modules -> Client */}
-							<motion.div
-								className="h-full bg-primary/70"
-								style={{ width: "33.33%" }}
-								initial={{ scaleX: 0, originX: 0 }}
-								animate={{ scaleX: activeLayer >= 3 ? 1 : 0 }}
-								transition={{ duration: 0.5, ease: "easeOut" }}
-							/>
+						{/* Background connecting line */}
+						<div className="absolute left-[12.5%] right-[12.5%] top-6 md:top-7 h-[1px] bg-border/40 z-0" />
+
+						{/* Active glowing connection segments */}
+						<div className="absolute left-[12.5%] right-[12.5%] top-6 md:top-7 flex h-[1px] z-[1]">
+							{[1, 2, 3].map((seg) => (
+								<motion.div
+									key={seg}
+									className="h-full bg-primary/70"
+									style={{ width: "33.33%" }}
+									initial={{ scaleX: 0, originX: 0 }}
+									animate={{
+										scaleX: activeLayer >= seg ? 1 : 0,
+									}}
+									transition={{ duration: 0.5, ease: "easeOut" }}
+								/>
+							))}
 						</div>
 
 						{/* Traveling light pulse */}
-						<div className="absolute inset-x-[calc(1.5rem+1.5rem)] sm:inset-x-[calc(2.5rem+1.75rem)] md:inset-x-[calc(4rem+1.75rem)] top-6 md:top-7 flex h-[1px] items-center z-10 pointer-events-none">
+						<div className="absolute left-[12.5%] right-[12.5%] top-6 md:top-7 h-[1px] z-[5] pointer-events-none">
 							<motion.div
 								className="absolute top-1/2 h-[2px] w-10 md:w-12 -translate-y-1/2 -translate-x-1/2 rounded-full bg-primary shadow-[0_0_20px_4px_rgba(183,0,255,0.7)]"
 								initial={{ left: "0%" }}
 								animate={{ left: `${activeLayer * 33.333}%` }}
-								transition={{ type: "spring", stiffness: 120, damping: 20 }}
+								transition={{
+									type: "spring",
+									stiffness: 120,
+									damping: 20,
+								}}
 							/>
 						</div>
 
-						{/* Nodes */}
+						{/* Nodes — one per grid column, centered */}
 						{layers.map((layer, i) => {
-							const isHovered = activeLayer === i;
+							const isActive = activeLayer === i;
 							const isPassed = i <= activeLayer;
 
 							return (
 								<button
 									key={layer.label}
 									type="button"
-									className="relative flex flex-col items-center group z-20 cursor-pointer bg-transparent border-0 p-0"
+									className="relative z-20 flex flex-col items-center cursor-pointer bg-transparent border-0 p-0 group"
 									onClick={() => {
 										setActiveLayer(i);
 										setIsAutoPlaying(false);
@@ -172,13 +169,10 @@ export function Composability() {
 										}
 									}}
 								>
-									{/* Interactive hit area */}
-									<div className="absolute inset-[-24px] md:inset-[-40px]" />
-
 									<motion.div
 										className={cn(
-											"relative flex h-12 w-12 md:h-14 md:w-14 items-center justify-center border border-border backdrop-blur-sm transition-all duration-300",
-											isHovered
+											"relative flex h-12 w-12 md:h-14 md:w-14 items-center justify-center border backdrop-blur-sm transition-all duration-300",
+											isActive
 												? "border-primary bg-primary/20 shadow-[0_0_30px_-5px_rgba(183,0,255,0.5)] scale-110"
 												: isPassed
 													? "border-primary/50 bg-primary/5 hover:border-primary/80"
@@ -188,7 +182,7 @@ export function Composability() {
 										<layer.icon
 											className={cn(
 												"h-5 w-5 md:h-6 md:w-6 transition-colors duration-300",
-												isHovered
+												isActive
 													? "text-primary"
 													: isPassed
 														? "text-primary/70"
@@ -198,23 +192,25 @@ export function Composability() {
 									</motion.div>
 
 									<motion.div
-										className="mt-3 flex flex-col items-center text-center w-16 sm:w-24 md:w-32"
+										className="mt-3 flex flex-col items-center text-center"
 										animate={{
-											opacity: isHovered ? 1 : isPassed ? 0.7 : 0.4,
+											opacity: isActive ? 1 : isPassed ? 0.7 : 0.4,
 										}}
 									>
 										<span
 											className={cn(
 												"font-mono text-[10px] md:text-sm font-bold uppercase transition-colors duration-300",
-												isHovered ? "text-primary" : "text-foreground",
+												isActive
+													? "text-primary"
+													: "text-foreground",
 											)}
 										>
 											{layer.label}
 										</span>
 										<span
 											className={cn(
-												"mt-1 font-mono text-[8px] md:text-[10px] rounded-sm px-1.5 py-0.5 transition-colors duration-300 border",
-												isHovered
+												"mt-1 font-mono text-[8px] md:text-[10px] rounded-sm px-1.5 py-0.5 transition-colors duration-300 border whitespace-nowrap",
+												isActive
 													? "bg-primary/10 text-primary border-primary/30"
 													: "bg-muted/30 text-muted-foreground border-transparent",
 											)}
@@ -227,7 +223,7 @@ export function Composability() {
 						})}
 					</div>
 
-					{/* Description Area below pipeline */}
+					{/* Description card below pipeline */}
 					<div className="w-full max-w-xl px-4 mt-8 sm:mt-6 md:mt-4">
 						<AnimatePresence mode="wait">
 							<motion.div
@@ -242,7 +238,9 @@ export function Composability() {
 									<div className="flex h-10 w-10 md:h-12 md:w-12 shrink-0 items-center justify-center border border-primary/20 bg-primary/10 text-primary transition-colors">
 										{(() => {
 											const Icon = layers[activeLayer].icon;
-											return <Icon className="h-5 w-5 md:h-6 md:w-6" />;
+											return (
+												<Icon className="h-5 w-5 md:h-6 md:w-6" />
+											);
 										})()}
 									</div>
 									<div>

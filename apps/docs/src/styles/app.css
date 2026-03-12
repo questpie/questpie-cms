@@ -48,7 +48,7 @@
 	--syntax-comment: var(--muted-foreground);
 	--syntax-variable: var(--foreground);
 	--syntax-punctuation: var(--muted-foreground);
-	--grid-line: oklch(0.5984 0.3015 310.74 / 0.04);
+	--grid-line: oklch(0.5984 0.3015 310.74 / 0.025);
 	--grid-size: 40px;
 	--glow-primary: oklch(0.5984 0.3015 310.74 / 0.35);
 	--ambient-primary: oklch(0.5984 0.3015 310.74 / 0.18);
@@ -93,7 +93,7 @@
 	--syntax-comment: var(--muted-foreground);
 	--syntax-variable: var(--foreground);
 	--syntax-punctuation: var(--muted-foreground);
-	--grid-line: oklch(1 0 0 / 0.015);
+	--grid-line: oklch(0.5984 0.3015 310.74 / 0.03);
 	--glow-primary: oklch(0.5984 0.3015 310.74 / 0.45);
 	--ambient-primary: oklch(0.5984 0.3015 310.74 / 0.24);
 	--ambient-secondary: oklch(0.5984 0.3015 310.74 / 0.12);
@@ -246,7 +246,8 @@
 			linear-gradient(to bottom, var(--grid-line) 1px, transparent 1px);
 		background-size: var(--grid-size) var(--grid-size);
 	}
-	body::before {
+	/* body::before gradient scoped to landing only — docs get no ambient glow */
+	body:has(.landing)::before {
 		content: "";
 		position: fixed;
 		inset: 0;
@@ -288,86 +289,470 @@
 	display: none;
 }
 
-/* Make theme switcher and all buttons square */
-button[aria-label*="theme" i],
-button[aria-label*="toggle" i],
-[role="button"],
-.fd-button,
-[data-theme-toggle] {
-	border-radius: 0;
+/* ============================================
+   BRUTALIST OVERRIDES — Fumadocs Docs Pages
+   Zero rounded corners, zero shadows, zero blur
+   Dense, structural, 1px borders as primary element
+   ============================================ */
+
+/* --- Nuclear radius/shadow/blur reset --- */
+*,
+*::before,
+*::after {
+	border-radius: 0 !important;
+	text-shadow: none !important;
 }
 
-/* Override Fumadocs UI button radius */
-nav button,
-header button {
-	border-radius: 0;
+#nd-docs-layout *,
+[role="dialog"] *,
+[data-radix-popper-content-wrapper] * {
+	box-shadow: none !important;
+	backdrop-filter: none !important;
+	-webkit-backdrop-filter: none !important;
 }
 
-/* Sidebar with transparent blur effect */
+/* --- Sidebar --- */
 #nd-sidebar {
-	background: oklch(0.9842 0.0034 247.86 / 0.1);
-	backdrop-filter: blur(2px);
-	-webkit-backdrop-filter: blur(12px);
-	border-right: 1px solid oklch(0.9219 0 89.88 / 0.5);
+	background: var(--background) !important;
+	backdrop-filter: none !important;
+	-webkit-backdrop-filter: none !important;
+	font-size: 13px;
+	line-height: 1.4;
 }
 
-.dark #nd-sidebar {
-	background: oklch(0.1776 0 89.88 / 0.1);
-	border-right: 1px solid oklch(0.3211 0 89.88 / 0.5);
+/* Sidebar active item — no background */
+#nd-sidebar [data-active="true"],
+#nd-sidebar a[aria-current="page"] {
+	background: transparent !important;
+	color: var(--primary) !important;
+	font-weight: 600;
 }
 
-/* Search Dialog - Square corners and blur effect */
+/* Sidebar hover — text only, no background */
+#nd-sidebar a:hover {
+	background: transparent !important;
+	color: var(--foreground) !important;
+}
+
+/* Sidebar section headers only — tiny uppercase */
+#nd-sidebar [data-sidebar-panel] > div > p {
+	font-size: 9px !important;
+	text-transform: uppercase;
+	letter-spacing: 2px;
+	opacity: 0.6;
+}
+
+/* --- Top Navigation / Navbar --- */
+#nd-subnav,
+nav[data-transparent] {
+	backdrop-filter: none !important;
+	-webkit-backdrop-filter: none !important;
+	background: var(--background) !important;
+	max-height: 48px;
+}
+
+/* Nav on scroll — no blur, just solid background */
+nav[data-transparent="false"],
+nav[data-transparent]:not([data-transparent="true"]) {
+	background: var(--background) !important;
+	backdrop-filter: none !important;
+}
+
+/* --- Breadcrumbs --- */
+#nd-subnav nav,
+#nd-subnav .breadcrumb,
+[aria-label="breadcrumb"] {
+	font-size: 11px !important;
+	color: var(--muted-foreground);
+}
+
+[aria-label="breadcrumb"] a:last-child,
+[aria-label="breadcrumb"] span:last-child {
+	color: var(--foreground);
+}
+
+/* --- Search trigger --- */
+#nd-docs-layout button[aria-label*="search" i],
+#nd-docs-layout [data-search-toggle] {
+	background: transparent !important;
+}
+
+/* --- Search Dialog --- */
 [cmdk-dialog],
 [data-radix-search-dialog],
 .nd-search-dialog,
 [role="dialog"] {
-	border-radius: 0;
-	background: oklch(1 0 0 / 0.95);
-	backdrop-filter: blur(12px);
-	-webkit-backdrop-filter: blur(12px);
-	border: 1px solid oklch(0.9219 0 89.88);
+	background: var(--background) !important;
+	backdrop-filter: none !important;
+	-webkit-backdrop-filter: none !important;
 }
 
-.dark [cmdk-dialog],
-.dark [data-radix-search-dialog],
-.dark .nd-search-dialog,
-.dark [role="dialog"] {
-	background: oklch(0.1448 0 89.88 / 0.95);
-	border: 1px solid oklch(0.3211 0 89.88);
+/* Search dialog overlay — no blur */
+[data-radix-search-dialog] + [data-overlay],
+[role="dialog"] ~ [data-state="open"] {
+	backdrop-filter: none !important;
+	-webkit-backdrop-filter: none !important;
 }
 
-/* Search Input */
+/* Search input */
 [cmdk-input],
 .nd-search-input {
-	border-radius: 0;
+	background: transparent !important;
 }
 
-/* Sidebar Trigger Button (Hamburger) */
-button[aria-label*="sidebar" i],
-button[aria-label*="menu" i],
-.fd-sidebar-trigger,
-[data-sidebar-trigger] {
-	border-radius: 0;
+/* Search results */
+[cmdk-item][data-selected="true"],
+[cmdk-item]:hover {
+	background: var(--card) !important;
 }
 
-/* Badges - Square design matching your system */
-.badge,
-[class*="badge"],
-span[class*="Badge"] {
-	border-radius: 0;
+/* --- Content Area / Prose --- */
+#nd-page {
+	font-size: 14px;
 }
 
-/* Override rounded-full from badge variants */
-.rounded-full {
-	border-radius: 0;
+/* Page title (DocsTitle) — Display-level, bigger than prose h1 */
+#nd-page > h1 {
+	font-size: 2.5rem !important;
+	font-weight: 700 !important;
+	font-family: var(--font-mono) !important;
+	color: var(--foreground) !important;
+	letter-spacing: -0.03em;
+	line-height: 1.1 !important;
+	border: none !important;
+	padding: 0 !important;
+	margin-top: 0 !important;
+	margin-bottom: 0.25rem !important;
 }
 
-/* Fumadocs specific badge/tag components */
-[data-tag],
-[data-badge],
-.fd-tag,
-.fd-badge {
-	border-radius: 0;
+/* Page description (DocsDescription) — Body Large */
+#nd-page > p.text-fd-muted-foreground,
+#nd-page > p.text-lg {
+	font-size: 1.125rem !important;
+	line-height: 1.6 !important;
+	color: var(--muted-foreground) !important;
+	margin-top: 0.25rem !important;
+	margin-bottom: 1.5rem !important;
+}
+
+/* Content h1 inside prose — same as h2 (frontmatter owns the real h1) */
+.prose h1,
+article h1 {
+	font-size: 1.5rem !important;
+	font-weight: 700 !important;
+	font-family: var(--font-mono) !important;
+	color: var(--foreground) !important;
+	letter-spacing: -0.01em;
+	line-height: 1.2 !important;
+	border: none !important;
+	padding: 0 !important;
+	margin-top: 0 !important;
+	margin-bottom: 0.5em !important;
+}
+
+.prose h2,
+article h2 {
+	font-size: 1.5rem !important;
+	font-weight: 700 !important;
+	font-family: var(--font-mono) !important;
+	color: var(--foreground) !important;
+	letter-spacing: -0.01em;
+	line-height: 1.2 !important;
+	border: none !important;
+	padding: 0 !important;
+	margin-top: 1.5em !important;
+	margin-bottom: 0.5em !important;
+}
+
+.prose h3,
+article h3 {
+	font-size: 1.125rem !important;
+	font-weight: 600 !important;
+	font-family: var(--font-mono) !important;
+	color: var(--foreground) !important;
+	line-height: 1.3 !important;
+	border: none !important;
+	padding: 0 !important;
+	margin-top: 1.25em !important;
+	margin-bottom: 0.375em !important;
+}
+
+.prose h4,
+.prose h5,
+.prose h6,
+article h4,
+article h5,
+article h6 {
+	font-family: var(--font-mono) !important;
+	font-weight: 600 !important;
+	border: none !important;
+	padding: 0 !important;
+	margin-top: 1em !important;
+	margin-bottom: 0.25em !important;
+}
+
+/* Heading anchors inherit heading color */
+.prose h1 a, .prose h2 a, .prose h3 a, .prose h4 a, .prose h5 a, .prose h6 a,
+article h1 a, article h2 a, article h3 a, article h4 a, article h5 a, article h6 a {
+	color: inherit !important;
+	text-decoration: none !important;
+}
+
+/* Tighter prose spacing for docs */
+.prose p,
+article p {
+	font-size: 1rem;
+	line-height: 1.7;
+	color: var(--foreground);
+	margin-top: 0.75em !important;
+	margin-bottom: 0.75em !important;
+}
+
+.prose ul, .prose ol,
+article ul, article ol {
+	margin-top: 0.5em !important;
+	margin-bottom: 0.5em !important;
+}
+
+.prose li,
+article li {
+	margin-top: 0.25em !important;
+	margin-bottom: 0.25em !important;
+}
+
+.prose hr,
+article hr {
+	border-color: var(--border) !important;
+	margin-top: 1.5em !important;
+	margin-bottom: 1.5em !important;
+}
+
+.prose img, .prose figure, .prose video, .prose picture,
+article img, article figure, article video, article picture {
+	margin-top: 1em !important;
+	margin-bottom: 1em !important;
+}
+
+.prose table,
+article table {
+	border-collapse: collapse !important;
+	width: 100%;
+	margin-top: 1em !important;
+	margin-bottom: 1em !important;
+}
+
+.prose blockquote,
+article blockquote {
+	margin-top: 1em !important;
+	margin-bottom: 1em !important;
+}
+
+/* Links — purple, underline on hover only (exclude heading anchors) */
+.prose a:not(:has(> h1, > h2, > h3, > h4, > h5, > h6)),
+article a:not(:has(> h1, > h2, > h3, > h4, > h5, > h6)) {
+	color: var(--primary) !important;
+	text-decoration: none !important;
+}
+
+.prose a:not(:has(> h1, > h2, > h3, > h4, > h5, > h6)):hover,
+article a:not(:has(> h1, > h2, > h3, > h4, > h5, > h6)):hover {
+	text-decoration: underline !important;
+}
+
+/* Inline code */
+.prose :not(pre) > code,
+article :not(pre) > code {
+	background: var(--card) !important;
+	color: var(--primary) !important;
+	padding: 1px 6px !important;
+	font-size: 13px !important;
+	font-family: var(--font-mono) !important;
+}
+
+/* --- Code Blocks --- */
+.prose pre,
+article pre,
+figure[data-rehype-pretty-code-figure] pre {
+	background: var(--card) !important;
+}
+
+/* Code block title / language badge */
+figure[data-rehype-pretty-code-figure] figcaption,
+[data-rehype-pretty-code-title] {
+	font-size: 9px !important;
+	text-transform: uppercase;
+	letter-spacing: 2px;
+	color: var(--muted-foreground) !important;
+	background: var(--card) !important;
+	padding: 4px 12px !important;
+}
+
+/* Copy button — subtle */
+figure button[aria-label*="copy" i],
+pre button[aria-label*="copy" i],
+[data-copy-button] {
+	opacity: 0;
+	transition: opacity 100ms;
+}
+
+figure:hover button[aria-label*="copy" i],
+pre:hover button[aria-label*="copy" i],
+*:hover > [data-copy-button] {
+	opacity: 0.6;
+}
+
+figure:hover button[aria-label*="copy" i]:hover,
+pre:hover button[aria-label*="copy" i]:hover {
+	opacity: 1;
+}
+
+/* Line numbers */
+.shiki [data-line-numbers] .line::after {
+	color: color-mix(in oklab, var(--muted-foreground) 40%, transparent) !important;
+}
+
+/* Remove fumadocs focus blur on code */
+.has-focused .line:not(.focused) {
+	filter: none !important;
+}
+
+/* --- Callouts / Admonitions --- */
+[data-callout],
+.fd-callout {
+	border: none !important;
+	border-left: 2px solid var(--color-fd-primary) !important;
+	background: var(--card) !important;
+	padding: 12px 16px !important;
+	font-size: 13px;
+}
+
+[data-callout="info"] { border-left-color: var(--color-fd-info) !important; }
+[data-callout="warn"],
+[data-callout="warning"] { border-left-color: var(--color-fd-warning) !important; }
+[data-callout="error"],
+[data-callout="danger"] { border-left-color: var(--color-fd-error) !important; }
+[data-callout="tip"],
+[data-callout="success"] { border-left-color: var(--color-fd-success) !important; }
+
+/* --- Tables --- */
+.prose th,
+article th {
+	background: var(--card) !important;
+	font-size: 10px !important;
+	text-transform: uppercase;
+	letter-spacing: 1px;
+	color: var(--muted-foreground) !important;
+	padding: 6px 12px !important;
+	font-weight: 500 !important;
+}
+
+.prose td,
+article td {
+	font-size: 0.875rem;
+	color: var(--foreground);
+	padding: 6px 12px !important;
+}
+
+/* --- Tabs --- */
+[data-tabs] [role="tablist"],
+.fd-tabs [role="tablist"] {
+	background: transparent !important;
+}
+
+[data-tabs] [role="tab"],
+.fd-tabs [role="tab"] {
+	background: transparent !important;
+	font-size: 12px !important;
+}
+
+[data-tabs] [role="tab"][data-state="active"],
+.fd-tabs [role="tab"][data-state="active"] {
+	color: var(--primary) !important;
+	background: transparent !important;
+}
+
+[data-tabs] [role="tab"]:not([data-state="active"]) {
+	color: var(--muted-foreground) !important;
+}
+
+[data-tabs] [role="tab"]:not([data-state="active"]):hover {
+	color: var(--foreground) !important;
+}
+
+/* --- Table of Contents (right sidebar) --- */
+#nd-toc {
+	font-size: 12px !important;
+	line-height: 1.4;
+}
+
+#nd-toc a {
+	color: var(--muted-foreground) !important;
+}
+
+#nd-toc a[data-active="true"],
+#nd-toc [aria-current="true"] a {
+	color: var(--primary) !important;
+}
+
+/* TOC popover (mobile) */
+[data-toc-popover-content] {
+	background: var(--background) !important;
+	backdrop-filter: none !important;
+}
+
+/* --- Steps Component --- */
+@utility fd-step {
+	&:before {
+		background-color: transparent !important;
+		color: var(--primary) !important;
+		font-size: 10px !important;
+		font-weight: 700;
+		width: 20px !important;
+		height: 20px !important;
+	}
+}
+
+/* --- File Tree --- */
+[data-file-tree],
+.fd-file-tree {
+	font-family: var(--font-mono) !important;
+	font-size: 12px !important;
+}
+
+/* --- Cards --- */
+[data-card] {
+	background: var(--background) !important;
+}
+
+[data-card]:hover {
+	border-color: var(--primary) !important;
+}
+
+/* --- Image zoom --- */
+[data-image-zoom],
+.fd-image-zoom,
+[data-rmiz-modal-overlay] {
+	backdrop-filter: none !important;
+}
+
+/* --- Banner --- */
+[data-banner],
+.fd-banner {
+	background: var(--card) !important;
+}
+
+/* --- Popover (nav menu, dropdowns) --- */
+[data-radix-popper-content-wrapper] > * {
+	background: var(--background) !important;
+}
+
+/* --- Page footer (prev/next links) --- */
+a[data-card] {
+	background: var(--background) !important;
+}
+
+a[data-card]:hover {
+	border-color: var(--primary) !important;
 }
 
 /* ============================================
@@ -430,118 +815,7 @@ section {
 	pointer-events: none;
 }
 
-/* ============================================
-   Fumadocs Specific Component Overrides
-   ============================================ */
-
-/* Callouts/Alerts */
-[data-callout],
-.fd-callout {
-	border-radius: 0 !important;
-	border-left-width: 2px;
-}
-
-/* Steps component */
-[data-step],
-.fd-step {
-	border-radius: 0 !important;
-}
-
-/* Tabs */
-[data-tabs],
-.fd-tabs {
-	border-radius: 0 !important;
-}
-
-[data-tabs] [role="tablist"],
-.fd-tabs [role="tablist"] {
-	border-radius: 0 !important;
-}
-
-[data-tabs] [role="tab"],
-.fd-tabs [role="tab"] {
-	border-radius: 0 !important;
-}
-
-[data-tabs] [role="tabpanel"],
-.fd-tabs [role="tabpanel"] {
-	border-radius: 0 !important;
-}
-
-/* Accordion */
-[data-accordion],
-.fd-accordion {
-	border-radius: 0 !important;
-}
-
-[data-accordion-item],
-.fd-accordion-item {
-	border-radius: 0 !important;
-}
-
-/* File tree */
-[data-file-tree],
-.fd-file-tree {
-	border-radius: 0 !important;
-}
-
-/* Banner */
-[data-banner],
-.fd-banner {
-	border-radius: 0 !important;
-}
-
-/* Image zoom */
-[data-image-zoom],
-.fd-image-zoom {
-	border-radius: 0 !important;
-}
-
-/* ============================================
-   Fumadocs Heading Overrides
-   ============================================ */
-
-/* Remove border and excessive padding from doc headings */
-.prose h1,
-.prose h2,
-.prose h3,
-.prose h4,
-.prose h5,
-.prose h6,
-article h1,
-article h2,
-article h3,
-article h4,
-article h5,
-article h6 {
-	border: none !important;
-	padding: 0 !important;
-}
-
-/* ============================================
-   Global All Rounded Override
-   ============================================ */
-
-/* Force square corners on all fumadocs components */
-[class*="fd-"],
-[data-fumadocs] *,
-.fumadocs * {
-	border-radius: 0 !important;
-}
-
-/* Specific overrides for common rounded classes in fumadocs context */
-.prose .rounded,
-.prose .rounded-md,
-.prose .rounded-lg,
-.prose .rounded-xl,
-.prose .rounded-2xl,
-article .rounded,
-article .rounded-md,
-article .rounded-lg,
-article .rounded-xl,
-article .rounded-2xl {
-	border-radius: 0 !important;
-}
+/* (Old fumadocs overrides consolidated into brutalist section above) */
 
 /* ============================================
    Brand Visual Animations

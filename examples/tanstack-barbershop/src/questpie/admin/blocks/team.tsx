@@ -5,11 +5,11 @@
  * Supports both automatic fetch and manual selection modes.
  */
 
-import { ArrowRight, User } from "@phosphor-icons/react";
+import { Icon } from "@iconify/react";
 import { RichTextRenderer, type TipTapDoc } from "@questpie/admin/client";
 import { useTranslation } from "../../../lib/providers/locale-provider";
 import { cn } from "../../../lib/utils";
-import type { BlockProps } from "./types";
+import type { BlockProps } from "../.generated/client";
 
 type Barber = {
 	id: string;
@@ -22,7 +22,7 @@ type Barber = {
 
 export function TeamRenderer({ values, data }: BlockProps<"team">) {
 	const { t } = useTranslation();
-	const barbers = (data?.barbers ?? []) as Barber[];
+	const barbers = (data?.barbers ?? []) as unknown as Barber[];
 	const showBio = values.showBio ?? false;
 
 	const columnsClass = {
@@ -72,7 +72,7 @@ export function TeamRenderer({ values, data }: BlockProps<"team">) {
 									/>
 								) : (
 									<div className="w-full h-full flex items-center justify-center bg-muted">
-										<User className="size-24 text-muted-foreground/30" />
+										<Icon icon="ph:user" className="size-24 text-muted-foreground/30" />
 									</div>
 								)}
 
@@ -138,7 +138,7 @@ export function TeamRenderer({ values, data }: BlockProps<"team">) {
 							className="inline-flex items-center gap-2 text-sm font-medium text-foreground hover:text-highlight transition-colors group"
 						>
 							{t("blocks.team.viewAll")}
-							<ArrowRight className="size-4 transition-transform group-hover:translate-x-1" />
+							<Icon icon="ph:arrow-right" className="size-4 transition-transform group-hover:translate-x-1" />
 						</a>
 					</div>
 				)}

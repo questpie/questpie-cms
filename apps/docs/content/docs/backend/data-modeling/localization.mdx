@@ -1,0 +1,136 @@
+---
+title: Localization
+description: Enable multi-language content with per-field localization and locale configuration.
+---
+
+# Localization
+
+QuestPie supports per-field content localization. Mark any field as `localized: true` and it stores separate values for each configured locale.
+
+## Locale Configuration
+
+Define content locales in the locale convention file:
+
+```ts title="locale.ts"
+import { locale } from "#questpie";
+
+export default locale({
+  locales: [
+    {
+      code: "en",
+      label: "English",
+      fallback: true,
+      flagCountryCode: "us",
+    },
+    { code: "sk", label: "Slovenčina" },
+    { code: "de", label: "Deutsch" },
+  ],
+  defaultLocale: "en",
+});
+```
+
+| Option | Type | Description |
+|---|---|---|
+| `code` | `string` | Locale identifier (e.g., `"en"`, `"sk"`) |
+| `label` | `string` | Display name |
+| `fallback` | `boolean` | Fallback locale when translation is missing |
+| `flagCountryCode` | `string` | ISO country code for flag icon |
+| `defaultLocale` | `string` | Default locale for new content |
+
+## Localizing Fields
+
+Chain `.localized()` on any field:
+
+```ts title="collections/services.ts"
+.fields(({ f }) => ({
+  name: f.text().required().localized(),
+  description: f.textarea().localized(),
+  price: f.number().required(),  // NOT localized — same in all locales
+}))
+```
+
+Localized fields create separate database columns per locale (e.g., `name_en`, `name_sk`) or a JSON structure, depending on the storage strategy.
+
+### Localizable Field Types
+
+Most field types support localization:
+
+- `f.text()`, `f.textarea()`
+- `f.select()`
+- `f.array()`
+- `f.blocks()`
+
+Numeric, boolean, date, and relation fields are typically **not** localized since their values are language-independent.
+
+## Labels and Descriptions
+
+Field labels and descriptions also support i18n — but this is for the **admin UI language**, not content localization:
+
+```ts
+name: f.text()
+  .label({ en: "Full Name", sk: "Celé meno" })
+  .description({
+    en: "The barber's full display name",
+    sk: "Celé zobrazovacie meno holiča",
+  })
+  .required()
+  .localized(),  // Content is also localized
+```
+
+## Admin UI Locale
+
+The admin panel has its own locale config for the interface language:
+
+```ts title="admin-locale.ts"
+import { adminLocale } from "#questpie";
+
+export default adminLocale({
+  locales: ["en", "sk"],
+  defaultLocale: "en",
+});
+```
+
+This controls the admin interface language, not the content locales.
+
+## Querying Localized Content
+
+### Server-side
+
+The locale is part of the request context:
+
+```ts
+// In functions/hooks — locale comes from the request
+const services = await collections.services.find({
+  where: { isActive: true },
+});
+// Returns localized `name` and `description` for the current locale
+```
+
+### Client-side
+
+Set the locale on the client:
+
+```ts
+client.setLocale("sk");
+
+const services = await client.collections.services.find({
+  where: { isActive: true },
+});
+// Returns Slovak translations
+```
+
+## Localized Arrays
+
+Arrays can be localized as a whole — each locale has its own array:
+
+```ts
+navigation: f.object({
+  label: f.text().required(),
+  href: f.text().required(),
+}).array().localized(),
+```
+
+## Related Pages
+
+- [Fields](/docs/backend/data-modeling/fields) — Field types and options
+- [Globals](/docs/backend/data-modeling/globals) — Site-wide settings with localization

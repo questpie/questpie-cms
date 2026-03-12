@@ -1,17 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
-import { defaultFields } from "../../src/server/fields/builtin/defaults.js";
-import { questpie } from "../../src/server/index.js";
+import { global } from "../../src/server/index.js";
 import { buildMockApp } from "../utils/mocks/mock-app-builder";
 import { createTestContext } from "../utils/test-context";
 import { runTestDbMigrations } from "../utils/test-db";
 
-const q = questpie({ name: "test-global-versioning-wf" }).fields(defaultFields);
-
 // Workflow shorthand
-const shorthand_config = q
-	.global("shorthand_config")
-	.fields((f) => ({
-		siteName: f.text({ required: true }),
+const shorthand_config = global("shorthand_config")
+	.fields(({ f }) => ({
+		siteName: f.text().required(),
 	}))
 	.options({
 		versioning: {
@@ -20,10 +16,9 @@ const shorthand_config = q
 	});
 
 // Full workflow config
-const workflow_config = q
-	.global("workflow_config")
-	.fields((f) => ({
-		siteName: f.text({ required: true }),
+const workflow_config = global("workflow_config")
+	.fields(({ f }) => ({
+		siteName: f.text().required(),
 	}))
 	.options({
 		versioning: {
@@ -35,26 +30,21 @@ const workflow_config = q
 	});
 
 // Plain versioning
-const plain_versioned = q
-	.global("plain_versioned")
-	.fields((f) => ({
-		siteName: f.text({ required: true }),
+const plain_versioned = global("plain_versioned")
+	.fields(({ f }) => ({
+		siteName: f.text().required(),
 	}))
 	.options({
 		versioning: true,
 	});
 
-const testModule = q.globals({
-	shorthand_config,
-	workflow_config,
-	plain_versioned,
-});
-
 describe("global versioning + workflow", () => {
-	let setup: Awaited<ReturnType<typeof buildMockApp<typeof testModule>>>;
+	let setup: Awaited<ReturnType<typeof buildMockApp>>;
 
 	beforeEach(async () => {
-		setup = await buildMockApp(testModule);
+		setup = await buildMockApp({
+			globals: { shorthand_config, workflow_config, plain_versioned },
+		});
 		await runTestDbMigrations(setup.app);
 	});
 

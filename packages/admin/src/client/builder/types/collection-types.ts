@@ -2,9 +2,9 @@
  * Collection Builder Types
  */
 
-import type { ComponentReference } from "#questpie/admin/server";
+import type { ComponentReference } from "#questpie/admin/server/augmentation.js";
 import type { I18nText } from "../../i18n/types.js";
-import type { AdminBuilder } from "../admin-builder";
+import type { Admin } from "../admin";
 import type { FieldDefinition } from "../field/field";
 import type { ActionsConfig } from "./action-types";
 import type { IconComponent, MaybeLazyComponent } from "./common";
@@ -310,7 +310,7 @@ export interface AutoSaveConfig {
  * Collection builder state - internal state during building
  */
 export interface CollectionBuilderState<
-	TAdminApp extends AdminBuilder<any> = AdminBuilder<any>,
+	TAdminApp extends Admin<any> = Admin<any>,
 > {
 	readonly name: string;
 	readonly "~adminApp": TAdminApp;
@@ -319,7 +319,7 @@ export interface CollectionBuilderState<
 	/** Description - supports inline translations */
 	readonly description?: I18nText;
 	readonly icon?: IconComponent | ComponentReference;
-	readonly fields?: Record<string, FieldDefinition<any, any>>;
+	readonly fields?: Record<string, FieldDefinition>;
 	readonly list?: any; // View result from .list() callback
 	readonly form?: any; // View result from .form() callback
 	readonly preview?: PreviewConfig; // Preview configuration

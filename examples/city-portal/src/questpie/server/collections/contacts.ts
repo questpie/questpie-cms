@@ -4,54 +4,29 @@
  * Contact information for city departments and services.
  */
 
-import { qb } from "@/questpie/server/builder";
+import { collection } from "#questpie/factories";
 
-export const contacts = qb
-	.collection("contacts")
-	.fields((f) => ({
-		city: f.relation({
-			label: "City",
-			to: "cities",
-			required: true,
-		}),
-		department: f.text({
-			label: "Department",
-			required: true,
-			maxLength: 255,
-		}),
-		description: f.textarea({
-			label: "Description",
-			description: "What this department handles",
-		}),
-		contactPerson: f.text({
-			label: "Contact Person",
-			maxLength: 255,
-		}),
-		position: f.text({
-			label: "Position",
-			maxLength: 255,
-		}),
-		email: f.text({
-			label: "Email",
-			maxLength: 255,
-		}),
-		phone: f.text({
-			label: "Phone",
-			maxLength: 50,
-		}),
-		address: f.textarea({
-			label: "Address",
-			description: "If different from main city address",
-		}),
-		officeHours: f.text({
-			label: "Office Hours",
-			maxLength: 255,
-			description: "e.g., Mon-Fri 9:00-17:00",
-		}),
-		order: f.number({
-			label: "Display Order",
-			default: 0,
-		}),
+export default collection("contacts")
+	.fields(({ f }) => ({
+		city: f.relation("cities").label("City").required(),
+		department: f.text(255).label("Department").required(),
+		description: f
+			.textarea()
+			.label("Description")
+			.description("What this department handles"),
+		contactPerson: f.text(255).label("Contact Person"),
+		position: f.text(255).label("Position"),
+		email: f.text(255).label("Email"),
+		phone: f.text(50).label("Phone"),
+		address: f
+			.textarea()
+			.label("Address")
+			.description("If different from main city address"),
+		officeHours: f
+			.text(255)
+			.label("Office Hours")
+			.description("e.g., Mon-Fri 9:00-17:00"),
+		order: f.number().label("Display Order").default(0),
 	}))
 	.title(({ f }) => f.department)
 	.admin(({ c }) => ({

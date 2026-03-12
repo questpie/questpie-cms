@@ -1,67 +1,45 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
-import { defaultFields } from "../../src/server/fields/builtin/defaults.js";
-import { questpie } from "../../src/server/index.js";
+import { collection, global } from "../../src/server/index.js";
 import { buildMockApp } from "../utils/mocks/mock-app-builder";
 import { createTestContext } from "../utils/test-context";
 import { runTestDbMigrations } from "../utils/test-db";
 
-const q = questpie({ name: "test-module" }).fields(defaultFields);
-
 // Assets collection (target of many-to-many)
-const assets = q.collection("assets").fields((f) => ({
-	filename: f.text({ required: true, maxLength: 255 }),
-	mimeType: f.text({ maxLength: 100 }),
+const assets = collection("assets").fields(({ f }) => ({
+	filename: f.text(255).required(),
+	mimeType: f.text(100),
 }));
 
 // Junction table for candle settings images
-const candleSettingsImages = q
-	.collection("candle_settings_images")
-	.fields((f) => ({
-		candleSettings: f.relation({
-			to: "candle_settings",
-			required: true,
-			onDelete: "cascade",
-		}),
-		asset: f.relation({
-			to: "assets",
-			required: true,
-			onDelete: "cascade",
-		}),
-		order: f.number({ default: 0 }),
-	}));
+const candleSettingsImages = collection("candle_settings_images").fields(
+	({ f }) => ({
+		candleSettings: f.relation("candle_settings").required().onDelete("cascade"),
+		asset: f.relation("assets").required().onDelete("cascade"),
+		order: f.number().default(0),
+	}),
+);
 
 // Candle settings global with many-to-many relation
-const candleSettings = q.global("candle_settings").fields((f) => ({
-	pageTitle: f.text({
-		required: true,
-		maxLength: 255,
-		default: "Zapal svíčku",
-	}),
-	pageDescription: f.textarea({ default: "Test description" }),
-	images: f.relation({
-		to: "assets",
-		hasMany: true,
-		through: "candle_settings_images",
-		sourceField: "candleSettings", // FK column key (field name with unified API)
-		targetField: "asset", // FK column key (field name with unified API)
-	}),
+const candleSettings = global("candle_settings").fields(({ f }) => ({
+	pageTitle: f.text(255).required().default("Zapal svíčku"),
+	pageDescription: f.textarea().default("Test description"),
+	images: f.relation("assets").manyToMany({ through: "candle_settings_images", sourceField: "candleSettings", targetField: "asset" }),
 }));
 
-const testModule = q
-	.collections({
-		assets,
-		candle_settings_images: candleSettingsImages,
-	})
-	.globals({
-		candle_settings: candleSettings,
-	});
-
 describe("global many-to-many relations", () => {
-	let setup: Awaited<ReturnType<typeof buildMockApp<typeof testModule>>>;
-	let app: typeof testModule.$inferApp;
+	let setup: Awaited<ReturnType<typeof buildMockApp>>;
+	let app: (typeof setup)["app"];
 
 	beforeEach(async () => {
-		setup = await buildMockApp(testModule);
+		setup = await buildMockApp({
+			collections: {
+				assets,
+				candle_settings_images: candleSettingsImages,
+			},
+			globals: {
+				candle_settings: candleSettings,
+			},
+		});
 		app = setup.app;
 		await runTestDbMigrations(app);
 	});

@@ -1,0 +1,65 @@
+---
+title: Custom Fields
+description: Create custom field types with custom storage, validation, and admin rendering.
+---
+
+# Custom Fields
+
+Create field types that don't exist in the core — color pickers, phone numbers, currencies, coordinates, or domain-specific types.
+
+## Field Registration
+
+Custom fields are registered through modules:
+
+```ts
+const myModule = module({
+  name: "custom-fields",
+  fields: {
+    color: colorField,
+    currency: currencyField,
+    phone: phoneField,
+  },
+});
+```
+
+Once registered and codegen runs, the field becomes available on the `f` builder:
+
+```ts
+.fields(({ f }) => ({
+  brandColor: f.color({ default: "#000000" }),
+  price: f.currency({ currency: "USD" }),
+}))
+```
+
+## Field Definition
+
+A custom field defines:
+- **Storage type** — How the value is stored in the database
+- **Validation** — Zod schema for the value
+- **Serialization** — How values are sent over the API
+- **Admin renderer** — React component for editing (optional)
+
+## Admin Renderer
+
+Register a React component to render the field in the admin panel:
+
+```tsx
+// Field renderer for the "color" field type
+function ColorFieldRenderer({ value, onChange }) {
+  return (
+    <input
+      type="color"
+      value={value || "#000000"}
+      onChange={(e) => onChange(e.target.value)}
+    />
+  );
+}
+```
+
+Register it in the admin client's field registry.
+
+## Related Pages
+
+- [Fields](/docs/backend/data-modeling/fields) — Built-in field types
+- [Registries](/docs/extend/registries) — Registry deep dive
+- [Building a Module](/docs/extend/building-a-module) — Package as a module

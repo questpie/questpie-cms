@@ -5,10 +5,6 @@ import type {
 	InferRelationConfigsFromFields,
 	RelationConfig,
 } from "#questpie/server/collection/builder/types.js";
-import type {
-	FieldDefinition,
-	FieldDefinitionState,
-} from "#questpie/server/fields/types.js";
 
 // ============================================================================
 // Opaque Types for Better Autocomplete
@@ -41,12 +37,10 @@ export type DateInput = (Date | string) & {
 	readonly [__dateInputBrand]?: never;
 };
 
-import type {
-	Collection,
-	CollectionBuilder,
-	Global,
-	GlobalBuilder,
-} from "#questpie/server/index.js";
+import type { Collection } from "#questpie/server/collection/builder/collection.js";
+import type { CollectionBuilder } from "#questpie/server/collection/builder/collection-builder.js";
+import type { Global } from "#questpie/server/global/builder/global.js";
+import type { GlobalBuilder } from "#questpie/server/global/builder/global-builder.js";
 
 // ============================================================================
 // Performance Type Utilities
@@ -56,33 +50,21 @@ import type {
  * Materialize computed types
  */
 export type Prettify<T> = {
-	[K in keyof T]: T[K];
+	[P in keyof T]: T[P];
 } & {};
 
 /**
- * Merge two types - U overrides T. Stays lazy.
+ * Lightweight override: replaces keys from R in T.
+ * Uses a mapped type so tsc emits `Override<T, R>` by name in .d.ts
+ * instead of expanding inline (which happens with `Omit<T, keyof R> & R`).
  */
-export type TypeMerge<T, U> = {
-	[K in keyof T | keyof U]: K extends keyof U
-		? U[K]
+export type Override<T, R> = {
+	[K in keyof T | keyof R]: K extends keyof R
+		? R[K]
 		: K extends keyof T
 			? T[K]
 			: never;
 };
-
-/**
- * Set a property in a type. Stays lazy.
- */
-export type SetProperty<T, K extends PropertyKey, V> = TypeMerge<
-	Omit<T, K>,
-	{ [P in K]: V }
->;
-
-/**
- * Remove a property from a type. Stays lazy.
- * Same as Omit<T, K>, keeping for consistency.
- */
-export type UnsetProperty<T, K extends PropertyKey> = Omit<T, K>;
 
 // ============================================================================
 // Base Type Helpers
@@ -131,18 +113,23 @@ type CollectionFieldAccess<T> =
 	}
 		? FieldDefinitions extends Record<string, any>
 			? {
-					[K in keyof FieldDefinitions as FieldDefinitions[K] extends {
-						state: { config?: { access?: any } };
-					}
-						? NonNullable<
-								FieldDefinitions[K]["state"]["config"]
-							>["access"] extends undefined
-							? never
-							: K
+					[K in keyof FieldDefinitions as FieldHasAccess<
+						FieldDefinitions[K]
+					> extends true
+						? K
 						: never]?: true;
 				}
 			: Record<never, never>
 		: Record<never, never>;
+
+/** Check if a field has access rules via phantom type. */
+type FieldHasAccess<TField> = TField extends { readonly _: infer TState }
+	? "access" extends keyof TState
+		? TState["access"] extends undefined
+			? false
+			: true
+		: false
+	: false;
 
 /**
  * Make fields optional if they have access rules defined
@@ -216,7 +203,7 @@ type HasSpecificKeys<T extends Record<string, any>> = string extends keyof T
  * Falls back to generic Record when fieldDefinitions doesn't have specific fields.
  */
 type InferRelationsFromFieldDefs<TFieldDefs> =
-	TFieldDefs extends Record<string, FieldDefinition<FieldDefinitionState>>
+	TFieldDefs extends Record<string, { $types: any; toColumn: any }>
 		? InferRelationConfigsFromFields<TFieldDefs> extends infer TInferred
 			? TInferred extends Record<string, RelationConfig>
 				? keyof TInferred extends never
@@ -230,7 +217,7 @@ type InferRelationsFromFieldDefs<TFieldDefs> =
  * Extract relations from a Collection or CollectionBuilder.
  *
  * Priority:
- * 1. state.relations when it has specific keys (from legacy .relations() API)
+ * 1. state.relations when it has specific keys (from .relations() API)
  * 2. Inferred from state.fieldDefinitions (from .fields() API with f.relation())
  * 3. Fallback: generic Record<string, RelationConfig>
  */
@@ -267,21 +254,18 @@ export type CollectionRelations<T> =
 export type GlobalInfer<T> = T extends { $infer: infer Infer } ? Infer : never;
 
 /**
- * Extract field access configuration from a Global state
+ * Extract field access configuration from a Global state.
+ * Uses Field phantom type dispatch.
  */
 type GlobalFieldAccess<T> = T extends {
 	state: { fieldDefinitions: infer FieldDefinitions };
 }
 	? FieldDefinitions extends Record<string, any>
 		? {
-				[K in keyof FieldDefinitions as FieldDefinitions[K] extends {
-					state: { config?: { access?: any } };
-				}
-					? NonNullable<
-							FieldDefinitions[K]["state"]["config"]
-						>["access"] extends undefined
-						? never
-						: K
+				[K in keyof FieldDefinitions as FieldHasAccess<
+					FieldDefinitions[K]
+				> extends true
+					? K
 					: never]?: true;
 			}
 		: {}
@@ -320,7 +304,7 @@ export type GlobalState<T> = T extends { state: infer State } ? State : never;
  * Extract relations from a Global or GlobalBuilder.
  *
  * Priority:
- * 1. state.relations when it has specific keys (from legacy .relations() API)
+ * 1. state.relations when it has specific keys (from .relations() API)
  * 2. Inferred from state.fieldDefinitions (from .fields() API with f.relation())
  * 3. Fallback: generic Record<string, RelationConfig>
  */

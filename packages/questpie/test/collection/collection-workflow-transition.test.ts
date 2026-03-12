@@ -1,16 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
-import { defaultFields } from "../../src/server/fields/builtin/defaults.js";
-import { questpie } from "../../src/server/index.js";
+import { collection } from "../../src/server/index.js";
 import { buildMockApp } from "../utils/mocks/mock-app-builder";
 import { createTestContext } from "../utils/test-context";
 import { runTestDbMigrations } from "../utils/test-db";
 
-const q = questpie({ name: "test-transition" }).fields(defaultFields);
-
-const workflow_posts = q
-	.collection("workflow_posts")
-	.fields((f) => ({
-		title: f.text({ required: true }),
+const workflow_posts = collection("workflow_posts")
+	.fields(({ f }) => ({
+		title: f.text().required(),
 	}))
 	.options({
 		versioning: {
@@ -21,10 +17,9 @@ const workflow_posts = q
 		},
 	});
 
-const guarded_posts = q
-	.collection("guarded_posts")
-	.fields((f) => ({
-		title: f.text({ required: true }),
+const guarded_posts = collection("guarded_posts")
+	.fields(({ f }) => ({
+		title: f.text().required(),
 	}))
 	.options({
 		versioning: {
@@ -39,20 +34,18 @@ const guarded_posts = q
 		},
 	});
 
-const no_workflow = q
-	.collection("no_workflow")
-	.fields((f) => ({
-		title: f.text({ required: true }),
+const no_workflow = collection("no_workflow")
+	.fields(({ f }) => ({
+		title: f.text().required(),
 	}))
 	.options({
 		timestamps: true,
 	});
 
 // Collection with transition-specific access: only admins can transition
-const transition_access_posts = q
-	.collection("transition_access_posts")
-	.fields((f) => ({
-		title: f.text({ required: true }),
+const transition_access_posts = collection("transition_access_posts")
+	.fields(({ f }) => ({
+		title: f.text().required(),
 	}))
 	.options({
 		versioning: {
@@ -73,10 +66,9 @@ const hookCalls: {
 	after: Array<{ fromStage: string; toStage: string }>;
 } = { before: [], after: [] };
 
-const hooked_posts = q
-	.collection("hooked_posts")
-	.fields((f) => ({
-		title: f.text({ required: true }),
+const hooked_posts = collection("hooked_posts")
+	.fields(({ f }) => ({
+		title: f.text().required(),
 	}))
 	.options({
 		versioning: {
@@ -101,10 +93,9 @@ const hooked_posts = q
 		},
 	});
 
-const blocking_hooks_posts = q
-	.collection("blocking_hooks_posts")
-	.fields((f) => ({
-		title: f.text({ required: true }),
+const blocking_hooks_posts = collection("blocking_hooks_posts")
+	.fields(({ f }) => ({
+		title: f.text().required(),
 	}))
 	.options({
 		versioning: {
@@ -120,20 +111,20 @@ const blocking_hooks_posts = q
 		},
 	});
 
-const testModule = q.collections({
-	workflow_posts,
-	guarded_posts,
-	no_workflow,
-	transition_access_posts,
-	hooked_posts,
-	blocking_hooks_posts,
-});
-
 describe("collection transitionStage", () => {
-	let setup: Awaited<ReturnType<typeof buildMockApp<typeof testModule>>>;
+	let setup: Awaited<ReturnType<typeof buildMockApp>>;
 
 	beforeEach(async () => {
-		setup = await buildMockApp(testModule);
+		setup = await buildMockApp({
+			collections: {
+				workflow_posts,
+				guarded_posts,
+				no_workflow,
+				transition_access_posts,
+				hooked_posts,
+				blocking_hooks_posts,
+			},
+		});
 		await runTestDbMigrations(setup.app);
 	});
 

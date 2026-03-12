@@ -10,7 +10,6 @@ import { useCallback, useMemo } from "react";
 import type { FieldErrors, FieldValues, Resolver } from "react-hook-form";
 import type { z } from "zod";
 import { createFormSchema } from "../builder/validation";
-import { selectAdmin, useAdminStore } from "../runtime";
 import { useCollectionFields } from "./use-collection-fields";
 import { useValidationErrorMap } from "./use-validation-error-map";
 
@@ -49,13 +48,11 @@ interface CollectionValidationResult {
 export function useCollectionValidation<
 	TFieldValues extends FieldValues = FieldValues,
 >(collection: string): Resolver<TFieldValues> | undefined {
-	const admin = useAdminStore(selectAdmin);
 	const { fields } = useCollectionFields(collection);
 	const schema = useMemo(() => {
-		if (!admin) return undefined;
 		if (!fields || Object.keys(fields).length === 0) return undefined;
-		return createFormSchema(fields, admin.getFields());
-	}, [admin, fields]);
+		return createFormSchema(fields);
+	}, [fields]);
 	const errorMap = useValidationErrorMap();
 
 	const resolver: Resolver<TFieldValues> = useCallback(

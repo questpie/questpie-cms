@@ -7,7 +7,7 @@
  * This enables:
  * - Single source of truth for all translations on server
  * - Dynamic locale switching without bundling all languages
- * - Custom messages via .messages() on QuestpieBuilder
+ * - Custom messages via config translations
  */
 
 import { fn, type Questpie } from "questpie";
@@ -26,7 +26,7 @@ import {
 /**
  * Helper to get typed app from handler context.
  */
-function getApp(ctx: { app: unknown }): Questpie<any> {
+function getApp(ctx: any): Questpie<any> {
 	return ctx.app as Questpie<any>;
 }
 
@@ -36,7 +36,7 @@ function getApp(ctx: { app: unknown }): Questpie<any> {
 function getAdminLocaleConfig(
 	app: Questpie<any>,
 ): AdminLocaleConfig | undefined {
-	return (app as any).state?.adminLocale;
+	return app.state?.adminLocale as AdminLocaleConfig | undefined;
 }
 
 // ============================================================================
@@ -80,7 +80,7 @@ const getAdminLocalesOutputSchema = z.object({
  *
  * Merges:
  * 1. Built-in admin messages for the locale
- * 2. Custom messages from .messages() on QuestpieBuilder
+ * 2. Custom messages from config translations
  *
  * Custom messages override built-in messages with the same key.
  *
@@ -121,7 +121,7 @@ const getAdminTranslations = fn({
 		const fallbackMessages =
 			locale !== defaultLocale ? getAdminMessagesForLocale(defaultLocale) : {};
 
-		// Get custom messages from .messages() on QuestpieBuilder
+		// Get custom messages from config translations
 		const customFallbackMessages =
 			locale !== defaultLocale
 				? (app.config.translations?.messages?.[defaultLocale] ?? {})

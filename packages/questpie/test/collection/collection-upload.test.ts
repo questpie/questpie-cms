@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
-import { collection, questpie } from "../../src/server/index.js";
+import { collection } from "../../src/server/index.js";
 import { buildMockApp } from "../utils/mocks/mock-app-builder";
 import { createTestContext } from "../utils/test-context";
 import { runTestDbMigrations } from "../utils/test-db";
@@ -11,8 +11,8 @@ import { runTestDbMigrations } from "../utils/test-db";
 // Assets collection with .upload() for URL generation testing
 const assets = collection("assets")
 	.options({ timestamps: true })
-	.fields((f) => ({
-		alt: f.text({ maxLength: 500 }),
+	.fields(({ f }) => ({
+		alt: f.text(500),
 		caption: f.textarea(),
 	}))
 	.upload({
@@ -20,29 +20,21 @@ const assets = collection("assets")
 	});
 
 // Services collection that references assets (using f.relation())
-const services = collection("services").fields((f) => ({
-	name: f.text({ required: true, maxLength: 255 }),
-	image: f.relation({
-		to: "assets",
-		relationName: "image",
-	}),
+const services = collection("services").fields(({ f }) => ({
+	name: f.text(255).required(),
+	image: f.relation("assets").relationName("image"),
 }));
-
-const testModule = questpie({ name: "upload-test" }).collections({
-	assets,
-	services,
-});
 
 // ==============================================================================
 // TESTS
 // ==============================================================================
 
 describe("collection upload URL generation", () => {
-	let setup: Awaited<ReturnType<typeof buildMockApp<typeof testModule>>>;
-	let app: typeof testModule.$inferApp;
+	let setup: Awaited<ReturnType<typeof buildMockApp>>;
+	let app: (typeof setup)["app"];
 
 	beforeEach(async () => {
-		setup = await buildMockApp(testModule);
+		setup = await buildMockApp({ collections: { assets, services } });
 		app = setup.app;
 		await runTestDbMigrations(app);
 	});

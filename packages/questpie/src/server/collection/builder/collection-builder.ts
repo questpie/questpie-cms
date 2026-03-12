@@ -8,7 +8,6 @@ import type {
 	CollectionUpdate,
 } from "#questpie/server/collection/builder/collection.js";
 import { Collection } from "#questpie/server/collection/builder/collection.js";
-import type { CollectionBuilderExtensions } from "#questpie/server/collection/builder/extensions.js";
 import type {
 	CollectionAccess,
 	CollectionBuilderIndexesFn,
@@ -27,32 +26,22 @@ import {
 } from "#questpie/server/collection/builder/validation-helpers.js";
 import type { StorageVisibility } from "#questpie/server/config/types.js";
 import {
-	createFieldBuilder,
-	type FieldBuilderProxy,
+	createFieldsCallbackContext,
+	type FieldsCallbackContext,
 } from "#questpie/server/fields/builder.js";
 import {
 	type BuiltinFields,
 	builtinFields,
 } from "#questpie/server/fields/builtin/defaults.js";
-import type {
-	FieldDefinition,
-	FieldDefinitionState,
-	RelationFieldMetadata,
-} from "#questpie/server/fields/types.js";
+import type { RelationFieldMetadata } from "#questpie/server/fields/types.js";
 import type { SearchableConfig } from "#questpie/server/integrated/search/index.js";
-import type {
-	SetProperty,
-	TypeMerge,
-	UnsetProperty,
-} from "#questpie/shared/type-utils.js";
+import type { Override } from "#questpie/shared/type-utils.js";
 
 /**
  * Extract Drizzle column types from field definitions.
  * Maps each field definition to its column type, excluding virtual fields.
  */
-type ExtractColumnsFromFieldDefinitions<
-	TFields extends Record<string, FieldDefinition<FieldDefinitionState>>,
-> = {
+type ExtractColumnsFromFieldDefinitions<TFields extends Record<string, any>> = {
 	[K in keyof TFields]: TFields[K]["$types"]["column"] extends null
 		? never
 		: TFields[K]["$types"]["column"];
@@ -60,26 +49,32 @@ type ExtractColumnsFromFieldDefinitions<
 
 /**
  * Extract field types from CollectionBuilderState.
- * Falls back to DefaultFieldTypeMap if not available.
+ * Falls back to BuiltinFields if not available.
  *
- * Uses ~fieldTypes phantom property which is set by EmptyCollectionState
- * based on the QuestpieBuilder's state.fields.
+ * Uses ~fieldTypes phantom property which is set by EmptyCollectionState.
  */
+
+/**
+ * Merge field definitions from two collection states without introducing
+ * a string index signature. When one side has no fields (keyof resolves to
+ * string from the CollectionBuilderState base), use the other side only.
+ */
+type MergeFieldDefinitions<A, B> = keyof A extends never
+	? B
+	: keyof B extends never
+		? A
+		: string extends keyof A
+			? B
+			: string extends keyof B
+				? A
+				: A & B;
+
 type ExtractFieldTypes<TState extends CollectionBuilderState> =
 	TState["~fieldTypes"] extends infer TFields
 		? TFields extends Record<string, any>
 			? TFields
 			: {} // No fields registered — f will be empty
 		: {};
-
-type InferAppFromBuilder<TBuilder> = TBuilder extends {
-	build: (...args: any[]) => infer TApp;
-}
-	? TApp
-	: any;
-
-type CollectionAppOf<TState extends CollectionBuilderState> =
-	InferAppFromBuilder<TState["~questpieApp"]>;
 
 /**
  * Main collection builder class.
@@ -107,23 +102,20 @@ export class CollectionBuilder<TState extends CollectionBuilderState> {
 	 *
 	 * @example
 	 * ```ts
-	 * collection("posts").fields((f) => ({
+	 * collection("posts").fields(({ f }) => ({
 	 *   title: f.text({ required: true }),
 	 *   content: f.text({ localized: true }),
 	 *   views: f.number({ default: 0 }),
 	 * }))
 	 * ```
 	 */
-	fields<
-		const TNewFields extends Record<
-			string,
-			FieldDefinition<FieldDefinitionState>
-		>,
-	>(
-		factory: (f: FieldBuilderProxy<ExtractFieldTypes<TState>>) => TNewFields,
+	fields<const TNewFields extends Record<string, any>>(
+		factory: (
+			ctx: FieldsCallbackContext<ExtractFieldTypes<TState>>,
+		) => TNewFields,
 	): CollectionBuilder<
-		TypeMerge<
-			UnsetProperty<TState, "fields" | "localized" | "fieldDefinitions">,
+		Override<
+			TState,
 			{
 				fields: ExtractColumnsFromFieldDefinitions<TNewFields>;
 				localized: readonly string[];
@@ -133,7 +125,7 @@ export class CollectionBuilder<TState extends CollectionBuilderState> {
 	>;
 	/**
 	 * Legacy overload: Define fields using raw Drizzle columns.
-	 * @deprecated Use the field builder pattern instead: `.fields((f) => ({ ... }))`
+	 * @deprecated Use the field builder pattern instead: `.fields(({ f }) => ({ ... }))`
 	 *
 	 * This overload is kept for backwards compatibility with tests that need
 	 * raw Drizzle column features like `.references()` for FK constraints.
@@ -141,8 +133,8 @@ export class CollectionBuilder<TState extends CollectionBuilderState> {
 	fields<TNewFields extends Record<string, AnyPgColumn>>(
 		columns: TNewFields,
 	): CollectionBuilder<
-		TypeMerge<
-			UnsetProperty<TState, "fields" | "localized" | "fieldDefinitions">,
+		Override<
+			TState,
 			{
 				fields: TNewFields;
 				localized: readonly string[];
@@ -152,22 +144,21 @@ export class CollectionBuilder<TState extends CollectionBuilderState> {
 	>;
 	fields<TNewFields>(
 		factoryOrColumns:
-			| ((f: FieldBuilderProxy<ExtractFieldTypes<TState>>) => TNewFields)
+			| ((ctx: FieldsCallbackContext<ExtractFieldTypes<TState>>) => TNewFields)
 			| TNewFields,
 	): CollectionBuilder<any> {
 		// Check if argument is a function (new pattern) or object (legacy pattern)
 		if (typeof factoryOrColumns === "function") {
-			// New field builder pattern
+			// New field builder pattern — V2 factories return Field<TState>
 			const factory = factoryOrColumns as (
-				f: FieldBuilderProxy<ExtractFieldTypes<TState>>,
-			) => Record<string, FieldDefinition<FieldDefinitionState>>;
+				ctx: FieldsCallbackContext<ExtractFieldTypes<TState>>,
+			) => Record<string, any>;
 
-			// Use field defs from ~questpieApp, or fall back to builtinFields for standalone collection()
-			const questpieFields =
-				this.state["~questpieApp"]?.state?.fields ?? builtinFields;
-			const builderProxy = createFieldBuilder(questpieFields);
+			const contextProxy = createFieldsCallbackContext(
+				builtinFields,
+			) as unknown as FieldsCallbackContext<ExtractFieldTypes<TState>>;
 
-			const fieldDefs = factory(builderProxy);
+			const fieldDefs = factory(contextProxy);
 
 			// Extract Drizzle columns and localized field names from field definitions
 			// Phase 1: Create all columns first
@@ -181,13 +172,12 @@ export class CollectionBuilder<TState extends CollectionBuilderState> {
 
 			for (const [name, fieldDef] of Object.entries(fieldDefs)) {
 				// Check if field is localized (location === "i18n")
-				if (fieldDef.state?.location === "i18n") {
+				if (fieldDef.getLocation?.() === "i18n") {
 					localizedFields.push(name);
 				}
 
-				if (fieldDef.state?.location === "virtual") {
-					const virtualValue = (fieldDef.state.config as { virtual?: unknown })
-						?.virtual;
+				if (fieldDef.getLocation?.() === "virtual") {
+					const virtualValue = fieldDef._state?.virtual;
 					if (virtualValue && virtualValue !== true) {
 						sqlVirtuals[name] = virtualValue as SQL;
 					}
@@ -383,7 +373,7 @@ export class CollectionBuilder<TState extends CollectionBuilderState> {
 	 * @example
 	 * ```ts
 	 * collection("posts")
-	 *   .fields((f) => ({ ... }))
+	 *   .fields(({ f }) => ({ ... }))
 	 *   .indexes(({ table }) => [
 	 *     uniqueIndex().on(table.slug),
 	 *     index().on(table.createdAt),
@@ -392,7 +382,7 @@ export class CollectionBuilder<TState extends CollectionBuilderState> {
 	 */
 	indexes<TNewIndexes extends PgTableExtraConfigValue[]>(
 		fn: CollectionBuilderIndexesFn<TState, TNewIndexes>,
-	): CollectionBuilder<SetProperty<TState, "indexes", TNewIndexes>> {
+	): CollectionBuilder<Override<TState, { indexes: TNewIndexes }>> {
 		const newState = {
 			...this.state,
 			indexes: {} as TNewIndexes,
@@ -413,13 +403,13 @@ export class CollectionBuilder<TState extends CollectionBuilderState> {
 	 * @example
 	 * ```ts
 	 * collection("posts")
-	 *   .fields((f) => ({ title: f.text({ required: true }) }))
+	 *   .fields(({ f }) => ({ title: f.text({ required: true }) }))
 	 *   .title(({ f }) => f.title)
 	 * ```
 	 */
 	title<TNewTitle extends TitleExpression>(
 		fn: CollectionBuilderTitleFn<TState, TNewTitle>,
-	): CollectionBuilder<SetProperty<TState, "title", TNewTitle>> {
+	): CollectionBuilder<Override<TState, { title: TNewTitle }>> {
 		// Create field proxy that returns key name as string
 		const fieldProxy = new Proxy({} as any, {
 			get: (_target, prop) => prop as string,
@@ -447,7 +437,7 @@ export class CollectionBuilder<TState extends CollectionBuilderState> {
 	 * @example
 	 * ```ts
 	 * collection("posts")
-	 *   .fields((f) => ({ ... }))
+	 *   .fields(({ f }) => ({ ... }))
 	 *   .options({
 	 *     timestamps: true,
 	 *     softDelete: true,
@@ -457,7 +447,7 @@ export class CollectionBuilder<TState extends CollectionBuilderState> {
 	 */
 	options<TNewOptions extends CollectionOptions>(
 		options: TNewOptions,
-	): CollectionBuilder<SetProperty<TState, "options", TNewOptions>> {
+	): CollectionBuilder<Override<TState, { options: TNewOptions }>> {
 		const newState = {
 			...this.state,
 			options,
@@ -477,7 +467,7 @@ export class CollectionBuilder<TState extends CollectionBuilderState> {
 	 * @example
 	 * ```ts
 	 * collection("posts")
-	 *   .fields((f) => ({ ... }))
+	 *   .fields(({ f }) => ({ ... }))
 	 *   .hooks({
 	 *     beforeChange: async ({ data, operation }) => {
 	 *       if (operation === "create") {
@@ -495,7 +485,7 @@ export class CollectionBuilder<TState extends CollectionBuilderState> {
 		>,
 	>(
 		hooks: TNewHooks,
-	): CollectionBuilder<SetProperty<TState, "hooks", TNewHooks>> {
+	): CollectionBuilder<Override<TState, { hooks: TNewHooks }>> {
 		const existingHooks = this.state.hooks;
 		const mergedHooks: Record<string, any> = { ...(existingHooks || {}) };
 
@@ -530,7 +520,7 @@ export class CollectionBuilder<TState extends CollectionBuilderState> {
 	 * @example
 	 * ```ts
 	 * collection("posts")
-	 *   .fields((f) => ({ ... }))
+	 *   .fields(({ f }) => ({ ... }))
 	 *   .access({
 	 *     read: true,
 	 *     create: ({ user }) => user?.role === "admin",
@@ -541,7 +531,7 @@ export class CollectionBuilder<TState extends CollectionBuilderState> {
 	 */
 	access<TNewAccess extends CollectionAccess<CollectionSelect<TState>>>(
 		access: TNewAccess,
-	): CollectionBuilder<SetProperty<TState, "access", TNewAccess>> {
+	): CollectionBuilder<Override<TState, { access: TNewAccess }>> {
 		const newState = {
 			...this.state,
 			access,
@@ -562,7 +552,7 @@ export class CollectionBuilder<TState extends CollectionBuilderState> {
 	 * @example
 	 * ```ts
 	 * collection("posts")
-	 *   .fields((f) => ({ ... }))
+	 *   .fields(({ f }) => ({ ... }))
 	 *   .searchable({
 	 *     content: (record) => extractTextFromJson(record.content),
 	 *     metadata: (record) => ({ status: record.status }),
@@ -572,7 +562,7 @@ export class CollectionBuilder<TState extends CollectionBuilderState> {
 	 */
 	searchable<TNewSearchable extends SearchableConfig>(
 		searchable: TNewSearchable,
-	): CollectionBuilder<SetProperty<TState, "searchable", TNewSearchable>> {
+	): CollectionBuilder<Override<TState, { searchable: TNewSearchable }>> {
 		const newState = {
 			...this.state,
 			searchable,
@@ -593,7 +583,7 @@ export class CollectionBuilder<TState extends CollectionBuilderState> {
 	 * @example
 	 * ```ts
 	 * collection("posts")
-	 *   .fields((f) => ({ ... }))
+	 *   .fields(({ f }) => ({ ... }))
 	 *   .validation({
 	 *     exclude: { id: true, createdAt: true, updatedAt: true },
 	 *     refine: {
@@ -608,7 +598,7 @@ export class CollectionBuilder<TState extends CollectionBuilderState> {
 		exclude?: Record<string, true>;
 		/** Custom refinements per field */
 		refine?: Record<string, (schema: z.ZodTypeAny) => z.ZodTypeAny>;
-	}): CollectionBuilder<SetProperty<TState, "validation", ValidationSchemas>> {
+	}): CollectionBuilder<Override<TState, { validation: ValidationSchemas }>> {
 		// Extract main and localized fields from field definitions
 		const mainFields: Record<string, any> = {};
 		const localizedFields: Record<string, any> = {};
@@ -620,7 +610,7 @@ export class CollectionBuilder<TState extends CollectionBuilderState> {
 				const column = this.state.fields[key];
 				if (!column) continue;
 
-				if (fieldDef.state?.location === "i18n") {
+				if (fieldDef.getLocation?.() === "i18n") {
 					localizedFields[key] = column;
 				} else {
 					mainFields[key] = column;
@@ -661,7 +651,7 @@ export class CollectionBuilder<TState extends CollectionBuilderState> {
 	 * @example
 	 * ```ts
 	 * collection("media")
-	 *   .fields((f) => ({
+	 *   .fields(({ f }) => ({
 	 *     alt: f.text(),
 	 *     folder: f.text(),
 	 *   }))
@@ -673,14 +663,13 @@ export class CollectionBuilder<TState extends CollectionBuilderState> {
 	 * ```
 	 */
 	upload(options: UploadOptions = {}): CollectionBuilder<
-		TypeMerge<
-			UnsetProperty<TState, "fields" | "output" | "hooks" | "upload">,
+		Override<
+			TState,
 			{
 				fields: TState["fields"] & ReturnType<typeof Collection.uploadCols>;
-				output: TypeMerge<
-					TState["output"] extends Record<string, any> ? TState["output"] : {},
-					{ url: string }
-				>;
+				output: (TState["output"] extends Record<string, any>
+					? TState["output"]
+					: {}) & { url: string };
 				hooks: TState["hooks"];
 				upload: UploadOptions;
 			}
@@ -755,6 +744,31 @@ export class CollectionBuilder<TState extends CollectionBuilderState> {
 		// Copy callback functions
 		newBuilder._indexesFn = this._indexesFn;
 
+		return newBuilder;
+	}
+
+	/**
+	 * Generic extension point for plugins.
+	 * Stores an arbitrary key-value pair in the builder state.
+	 * Used by codegen-generated factories to attach admin config, preview config, etc.
+	 * without monkey-patching.
+	 *
+	 * @example
+	 * ```ts
+	 * // In codegen-generated factory:
+	 * collection("posts")
+	 *   .fields(({ f }) => ({ title: f.text() }))
+	 *   .set("admin", { icon: { type: "icon", props: { name: "ph:article" } } })
+	 *   .set("adminList", { view: "table", columns: ["title"] })
+	 * ```
+	 */
+	set<TKey extends string, V>(
+		key: TKey,
+		value: V,
+	): CollectionBuilder<TState & Record<TKey, V>> {
+		const newState = { ...this.state, [key]: value } as any;
+		const newBuilder = new CollectionBuilder(newState);
+		newBuilder._indexesFn = this._indexesFn;
 		return newBuilder;
 	}
 
@@ -846,17 +860,8 @@ export class CollectionBuilder<TState extends CollectionBuilderState> {
 	merge<TOtherState extends CollectionBuilderState & { name: TState["name"] }>(
 		other: CollectionBuilder<TOtherState>,
 	): CollectionBuilder<
-		TypeMerge<
-			UnsetProperty<
-				TState,
-				| "fields"
-				| "indexes"
-				| "title"
-				| "options"
-				| "hooks"
-				| "access"
-				| "searchable"
-			>,
+		Override<
+			TState,
 			{
 				name: TState["name"];
 				fields: TState["fields"] & TOtherState["fields"];
@@ -870,6 +875,19 @@ export class CollectionBuilder<TState extends CollectionBuilderState> {
 				hooks: CollectionHooks;
 				access: CollectionAccess;
 				searchable: TState["searchable"] | TOtherState["searchable"];
+				fieldDefinitions: MergeFieldDefinitions<
+					TState["fieldDefinitions"],
+					TOtherState["fieldDefinitions"]
+				>;
+				upload: TOtherState["upload"] extends UploadOptions
+					? TOtherState["upload"]
+					: TState["upload"];
+				output: (TState["output"] extends Record<string, any>
+					? TState["output"]
+					: {}) &
+					(TOtherState["output"] extends Record<string, any>
+						? TOtherState["output"]
+						: {});
 			}
 		>
 	> {
@@ -889,6 +907,14 @@ export class CollectionBuilder<TState extends CollectionBuilderState> {
 		const mergedState = {
 			name: this.state.name,
 			fields: { ...this.state.fields, ...other.state.fields },
+			virtuals: {
+				...(this.state.virtuals || {}),
+				...(other.state.virtuals || {}),
+			},
+			relations: {
+				...(this.state.relations || {}),
+				...(other.state.relations || {}),
+			},
 			indexes: { ...this.state.indexes, ...other.state.indexes },
 			title:
 				other.state.title !== undefined ? other.state.title : this.state.title,
@@ -900,6 +926,16 @@ export class CollectionBuilder<TState extends CollectionBuilderState> {
 				...(this.state.fieldDefinitions || {}),
 				...(other.state.fieldDefinitions || {}),
 			},
+			upload: other.state.upload ?? this.state.upload,
+			output: {
+				...(this.state.output || {}),
+				...(other.state.output || {}),
+			},
+			localized: [
+				...(this.state.localized || []),
+				...(other.state.localized || []),
+			],
+			validation: other.state.validation ?? this.state.validation,
 		} as any;
 
 		const newBuilder = new CollectionBuilder(mergedState);
@@ -947,44 +983,12 @@ export class CollectionBuilder<TState extends CollectionBuilderState> {
 	}
 }
 
-// =============================================================================
-// Declaration Merging for Extensions
-// =============================================================================
-
-/**
- * Declaration merging: CollectionBuilder implements CollectionBuilderExtensions.
- *
- * This allows packages to augment CollectionBuilderExtensions and have those
- * methods appear on CollectionBuilder instances. The key benefit is that
- * extension methods use `FieldsOf<this>` which is evaluated lazily, avoiding
- * type explosion when combining many collections.
- *
- * @example
- * ```typescript
- * // In @questpie/admin augmentation:
- * declare module "questpie" {
- *   interface CollectionBuilderExtensions {
- *     admin(config: AdminConfig): this;
- *     list(fn: (ctx: { f: FieldsOf<this> }) => ListConfig): this;
- *   }
- * }
- *
- * // Now available on all CollectionBuilder instances:
- * collection("posts")
- *   .fields((f) => ({ title: f.text() }))
- *   .admin({ label: "Posts" })
- *   .list(({ f }) => ({ columns: [f.title] }))
- * ```
- */
-export interface CollectionBuilder<TState extends CollectionBuilderState>
-	extends CollectionBuilderExtensions {}
-
 /**
  * Factory function to create a new collection builder.
  *
  * @example
  * ```ts
- * const posts = collection("posts").fields((f) => ({
+ * const posts = collection("posts").fields(({ f }) => ({
  *   title: f.text({ required: true }),
  *   content: f.text({ localized: true }),
  * }));
@@ -1009,6 +1013,5 @@ export function collection<TName extends string>(
 		output: undefined,
 		upload: undefined,
 		fieldDefinitions: {},
-		"~questpieApp": undefined,
 	}) as any;
 }

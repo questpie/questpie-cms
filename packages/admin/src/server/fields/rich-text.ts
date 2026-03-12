@@ -4,13 +4,14 @@
  * TipTap-based WYSIWYG editor field stored as JSONB.
  * Provides structured rich text editing with configurable features.
  *
- * This field type is only available when using adminModule.
+ * This field type is only available when using the `adminModule`.
  */
 
+import type { PgJsonbBuilder } from "drizzle-orm/pg-core";
 import {
-	type BaseFieldConfig,
 	type ContextualOperators,
-	type FieldMetadataBase,
+	type DefaultFieldState,
+	type Field,
 	field,
 	isNotNull,
 	isNull,
@@ -71,10 +72,6 @@ export interface RichTextFieldMeta {
 	_?: never;
 }
 
-// ============================================================================
-// Rich Text Field Configuration
-// ============================================================================
-
 /**
  * Available rich text editor features.
  */
@@ -100,55 +97,6 @@ export type RichTextFeature =
 	| "textColor"
 	| "highlight"
 	| "mention";
-
-/**
- * Rich text field configuration options.
- */
-export interface RichTextFieldConfig extends BaseFieldConfig {
-	/** Field-specific metadata, augmentable by external packages. */
-	meta?: RichTextFieldMeta;
-
-	/**
-	 * Maximum character count (excluding formatting).
-	 * When set, shows character counter in editor.
-	 */
-	maxCharacters?: number;
-
-	/**
-	 * Minimum character count (excluding formatting).
-	 */
-	minCharacters?: number;
-
-	/**
-	 * Enabled editor features.
-	 * If not specified, uses a sensible default set.
-	 * @default ["bold", "italic", "link", "heading", "bulletList", "orderedList"]
-	 */
-	features?: RichTextFeature[];
-
-	/**
-	 * Allowed heading levels when heading feature is enabled.
-	 * @default [1, 2, 3]
-	 */
-	headingLevels?: (1 | 2 | 3 | 4 | 5 | 6)[];
-
-	/**
-	 * Placeholder text shown when editor is empty.
-	 */
-	placeholder?: string;
-
-	/**
-	 * Allow uploading/embedding images.
-	 * Requires storage configuration.
-	 */
-	allowImages?: boolean;
-
-	/**
-	 * Collection to use for image uploads.
-	 * Defaults to "assets" if storage is configured.
-	 */
-	imageCollection?: string;
-}
 
 // ============================================================================
 // Rich Text Field Operators
@@ -236,25 +184,8 @@ function getRichTextOperators(): ContextualOperators {
 }
 
 // ============================================================================
-// Rich Text Field Definition
+// Rich Text Field Factory
 // ============================================================================
-
-/**
- * Default features for rich text editor.
- */
-const DEFAULT_FEATURES: RichTextFeature[] = [
-	"bold",
-	"italic",
-	"link",
-	"heading",
-	"bulletList",
-	"orderedList",
-];
-
-/**
- * Default heading levels.
- */
-const DEFAULT_HEADING_LEVELS: (1 | 2 | 3 | 4 | 5 | 6)[] = [1, 2, 3];
 
 /**
  * Rich text field factory.
@@ -262,112 +193,74 @@ const DEFAULT_HEADING_LEVELS: (1 | 2 | 3 | 4 | 5 | 6)[] = [1, 2, 3];
  *
  * @example
  * ```ts
- * // Basic rich text
- * const content = richTextField({ label: "Content" });
- *
- * // With all features
- * const richContent = richTextField({
- *   label: "Article Content",
- *   features: ["bold", "italic", "underline", "heading", "bulletList", "orderedList", "link", "image", "blockquote", "codeBlock"],
- *   maxCharacters: 50000,
- *   allowImages: true,
- * });
- *
- * // Minimal editor
- * const bio = richTextField({
- *   label: "Bio",
- *   features: ["bold", "italic", "link"],
- *   maxCharacters: 500,
- * });
+ * // In collection fields callback:
+ * content: f.richText().required().localized()
  * ```
  */
-export const richTextField = field<RichTextFieldConfig, TipTapDocument>()({
-	type: "richText" as const,
-	_value: undefined as unknown as TipTapDocument,
+// ============================================================================
+// Rich Text Field State & Factory
+// ============================================================================
 
-	toColumn(_name: string, config: RichTextFieldConfig) {
-		// Rich text is always stored as JSONB
-		let column: any = jsonb();
+export type RichTextFieldState = DefaultFieldState & {
+	type: "richText";
+	data: TipTapDocument;
+	column: PgJsonbBuilder;
+};
 
-		// Apply constraints
-		if (config.required && config.nullable !== true) {
-			column = column.notNull();
-		}
-		if (config.default !== undefined) {
-			const defaultValue =
-				typeof config.default === "function"
-					? config.default()
-					: config.default;
-			column = column.default(defaultValue);
-		}
-
-		return column;
-	},
-
-	toZodSchema(config: RichTextFieldConfig) {
-		// TipTap document structure validation
-		// We use a loose schema that validates the basic structure
-		// but allows any valid TipTap content
-		const nodeSchema: z.ZodType<TipTapNode> = z.lazy(() =>
-			z.object({
-				type: z.string(),
-				attrs: z.record(z.string(), z.any()).optional(),
+/**
+ * Create a rich text field.
+ *
+ * @example
+ * ```ts
+ * content: f.richText().required().localized()
+ * ```
+ */
+export function richText(): Field<RichTextFieldState> {
+	return field<RichTextFieldState>({
+		type: "richText",
+		columnFactory: (name) => jsonb(name) as any,
+		schemaFactory: () => {
+			const nodeSchema: z.ZodType<TipTapNode> = z.lazy(() =>
+				z.object({
+					type: z.string(),
+					attrs: z.record(z.string(), z.any()).optional(),
+					content: z.array(nodeSchema).optional(),
+					marks: z
+						.array(
+							z.object({
+								type: z.string(),
+								attrs: z.record(z.string(), z.any()).optional(),
+							}),
+						)
+						.optional(),
+					text: z.string().optional(),
+				}),
+			);
+			return z.object({
+				type: z.literal("doc"),
 				content: z.array(nodeSchema).optional(),
-				marks: z
-					.array(
-						z.object({
-							type: z.string(),
-							attrs: z.record(z.string(), z.any()).optional(),
-						}),
-					)
-					.optional(),
-				text: z.string().optional(),
-			}),
-		);
-
-		const docSchema = z.object({
-			type: z.literal("doc"),
-			content: z.array(nodeSchema).optional(),
-		});
-
-		// Nullability
-		if (!config.required && config.nullable !== false) {
-			return docSchema.nullish() as any;
-		}
-
-		return docSchema as any;
-	},
-
-	getOperators<TApp>() {
-		return getRichTextOperators();
-	},
-
-	getMetadata(config: RichTextFieldConfig): FieldMetadataBase & {
-		maxCharacters?: number;
-		minCharacters?: number;
-		features: RichTextFeature[];
-		headingLevels: (1 | 2 | 3 | 4 | 5 | 6)[];
-		placeholder?: string;
-		allowImages?: boolean;
-		imageCollection?: string;
-	} {
-		return {
-			type: "richText",
-			label: config.label,
-			description: config.description,
-			required: config.required ?? false,
-			localized: config.localized ?? false,
-			readOnly: config.input === false,
-			writeOnly: config.output === false,
-			meta: config.meta,
-			// Rich text specific
-			maxCharacters: config.maxCharacters,
-			minCharacters: config.minCharacters,
-			features: config.features ?? DEFAULT_FEATURES,
-			headingLevels: config.headingLevels ?? DEFAULT_HEADING_LEVELS,
-			placeholder: config.placeholder,
-			allowImages: config.allowImages,
-			imageCollection: config.imageCollection,
-		};
-	},
-});
+			});
+		},
+		operatorSet: {
+			jsonbCast: null,
+			column: getRichTextOperators().column,
+		} as any,
+		metadataFactory: (state) => ({
+			type: "richText" as const,
+			label: state.label,
+			description: state.description,
+			required: state.notNull ?? false,
+			localized: state.localized ?? false,
+			readOnly: state.input === false ? true : undefined,
+			writeOnly: state.output === false ? true : undefined,
+			meta: state.admin as any,
+		}),
+		notNull: false,
+		hasDefault: false,
+		localized: false,
+		virtual: false,
+		input: true,
+		output: true,
+		isArray: false,
+	});
+}

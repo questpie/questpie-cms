@@ -1,18 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
-import { defaultFields } from "../../src/server/fields/builtin/defaults.js";
-import { questpie } from "../../src/server/index.js";
+import { collection } from "../../src/server/index.js";
 import { buildMockApp } from "../utils/mocks/mock-app-builder";
 import { createTestContext } from "../utils/test-context";
 import { runTestDbMigrations } from "../utils/test-db";
 
-const q = questpie({ name: "test-module" }).fields(defaultFields);
-
-const users = q
-	.collection("users")
-	.fields((f) => ({
-		email: f.text({ required: true, maxLength: 255 }),
-		name: f.textarea({ required: true }),
-		ssn: f.text({ maxLength: 20 }), // Restricted field - defined in .access()
+const users = collection("users")
+	.fields(({ f }) => ({
+		email: f.text(255).required(),
+		name: f.textarea().required(),
+		ssn: f.text(20), // Restricted field - defined in .access()
 		salary: f.textarea(), // Restricted field - defined in .access()
 		bio: f.textarea(), // Unrestricted field
 	}))
@@ -36,11 +32,10 @@ const users = q
 		},
 	});
 
-const publicPosts = q
-	.collection("public_posts")
-	.fields((f) => ({
-		title: f.textarea({ required: true }),
-		content: f.textarea({ required: true }),
+const publicPosts = collection("public_posts")
+	.fields(({ f }) => ({
+		title: f.textarea().required(),
+		content: f.textarea().required(),
 		draft: f.textarea(), // No access rules
 	}))
 	.title(({ f }) => f.title)
@@ -48,16 +43,13 @@ const publicPosts = q
 		timestamps: true,
 	});
 
-const testModule = q.collections({
-	users,
-	public_posts: publicPosts,
-});
-
 describe("field-level access control", () => {
-	let setup: Awaited<ReturnType<typeof buildMockApp<typeof testModule>>>;
+	let setup: Awaited<ReturnType<typeof buildMockApp>>;
 
 	beforeEach(async () => {
-		setup = await buildMockApp(testModule);
+		setup = await buildMockApp({
+			collections: { users, public_posts: publicPosts },
+		});
 		await runTestDbMigrations(setup.app);
 	});
 

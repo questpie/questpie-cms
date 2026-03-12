@@ -1,257 +1,334 @@
 /**
  * Client-side Validation Schema Builder
  *
- * Generates Zod schemas from admin field configurations.
- * Uses createZod from field definitions for automatic schema generation.
- * Supports nested fields (object, array) via recursive schema building.
+ * Centralized Zod schema generation from server field metadata.
+ * Server JSON Schema + AJV is the primary validation; this is the Zod fallback
+ * used for react-hook-form integration.
+ *
+ * Three resolution tiers:
+ * 1. FIELD_VALIDATORS registry (10 special-case field types)
+ * 2. Generic: resolveBaseType() + applyConstraints() (simple field types)
  */
 
 import { z } from "zod";
-import type { FieldDefinition, ZodBuildContext } from "./field/field";
+import type { FieldInstance } from "./field/field";
 import type { FieldValidationConfig } from "./types/field-types";
 
 // ============================================================================
 // Types
 // ============================================================================
 
-/**
- * Collection fields map (from admin config)
- */
-type FieldsMap = Record<string, FieldDefinition>;
+type FieldsMap = Record<string, FieldInstance>;
 
-/**
- * Field registry type
- */
-type FieldRegistry = Record<string, any>;
-
-// ============================================================================
-// Fallback Schema Builders (for fields without createZod)
-// ============================================================================
-
-/**
- * Build a string schema with validations (fallback)
- */
-function buildStringSchema(validation?: FieldValidationConfig): z.ZodString {
-	let schema = z.string();
-
-	if (validation) {
-		if (validation.minLength !== undefined) {
-			schema = schema.min(
-				validation.minLength,
-				`Must be at least ${validation.minLength} characters`,
-			);
-		}
-		if (validation.maxLength !== undefined) {
-			schema = schema.max(
-				validation.maxLength,
-				`Must be at most ${validation.maxLength} characters`,
-			);
-		}
-		if (validation.email) {
-			schema = schema.email("Invalid email address");
-		}
-		if (validation.url) {
-			schema = schema.url("Invalid URL");
-		}
-		if (validation.pattern) {
-			const regex =
-				typeof validation.pattern === "string"
-					? new RegExp(validation.pattern)
-					: validation.pattern;
-			schema = schema.regex(
-				regex,
-				validation.patternMessage || "Invalid format",
-			);
-		}
-	}
-
-	return schema;
+interface BuildContext {
+	buildSchema: (fieldDef: FieldInstance) => z.ZodTypeAny;
 }
 
-/**
- * Build a number schema with validations (fallback)
- */
-function buildNumberSchema(validation?: FieldValidationConfig): z.ZodNumber {
-	let schema = z.number();
+// ============================================================================
+// Helpers
+// ============================================================================
 
-	if (validation) {
-		if (validation.min !== undefined) {
-			schema = schema.min(validation.min, `Must be at least ${validation.min}`);
-		}
-		if (validation.max !== undefined) {
-			schema = schema.max(validation.max, `Must be at most ${validation.max}`);
-		}
-	}
-
-	return schema;
+function wrapOptional(schema: z.ZodTypeAny, required?: boolean): z.ZodTypeAny {
+	if (required) return schema;
+	return schema.optional().nullable();
 }
 
-/**
- * Fallback schema builder for fields without createZod
- */
-function buildFallbackSchema(
-	fieldType: string,
-	required?: boolean,
-	validation?: FieldValidationConfig,
-): z.ZodTypeAny {
-	let schema: z.ZodTypeAny;
+// ============================================================================
+// Special-Case Field Validators (Tier 1)
+// ============================================================================
 
+const FIELD_VALIDATORS: Record<
+	string,
+	(opts: Record<string, any>, ctx: BuildContext) => z.ZodTypeAny
+> = {
+	email: (opts) => {
+		let schema = z.email("Invalid email address");
+		if (opts.maxLength) {
+			schema = schema.max(opts.maxLength, `Must be at most ${opts.maxLength} characters`);
+		}
+		return wrapOptional(schema, opts.required);
+	},
+
+	select: (opts) => {
+		if (opts.options && opts.options.length > 0) {
+			const values = opts.options.map((o: any) => o.value);
+			const schema = z
+				.union([z.string(), z.number()])
+				.refine((val) => values.includes(val), { message: "Invalid selection" });
+			return wrapOptional(schema, opts.required);
+		}
+		return wrapOptional(z.union([z.string(), z.number()]), opts.required);
+	},
+
+	date: (opts) => {
+		const schema = z
+			.union([z.date(), z.string().datetime()])
+			.transform((val) => (typeof val === "string" ? new Date(val) : val));
+		return wrapOptional(schema, opts.required);
+	},
+
+	datetime: (opts) => {
+		const schema = z
+			.union([z.date(), z.string().datetime()])
+			.transform((val) => (typeof val === "string" ? new Date(val) : val));
+		return wrapOptional(schema, opts.required);
+	},
+
+	time: (opts) => {
+		const schema = z
+			.string()
+			.regex(
+				/^([01]?[0-9]|2[0-3]):[0-5][0-9](:[0-5][0-9])?$/,
+				"Invalid time format",
+			);
+		return wrapOptional(schema, opts.required);
+	},
+
+	relation: (opts) => {
+		if (opts.type === "multiple") {
+			let schema = z.array(z.string());
+			if (opts.maxItems) {
+				schema = schema.max(opts.maxItems, `Maximum ${opts.maxItems} items allowed`);
+			}
+			return wrapOptional(schema, opts.required);
+		}
+		return wrapOptional(z.string(), opts.required);
+	},
+
+	upload: (opts) => {
+		if (opts.multiple) {
+			let schema = z.array(z.string());
+			if (opts.maxItems) {
+				schema = schema.max(opts.maxItems, `Maximum ${opts.maxItems} files allowed`);
+			}
+			return wrapOptional(schema, opts.required);
+		}
+		return wrapOptional(z.string(), opts.required);
+	},
+
+	object: (opts, ctx) => {
+		if (!opts.fields) {
+			return wrapOptional(z.record(z.string(), z.any()), opts.required);
+		}
+		const nestedFields =
+			typeof opts.fields === "function" ? opts.fields({}) : opts.fields;
+		const shape: Record<string, z.ZodTypeAny> = {};
+		for (const [name, fieldDef] of Object.entries(nestedFields as Record<string, any>)) {
+			shape[name] = ctx.buildSchema(fieldDef);
+		}
+		return wrapOptional(z.object(shape), opts.required);
+	},
+
+	array: (opts, ctx) => {
+		let itemSchema: z.ZodTypeAny;
+
+		if (opts.item) {
+			const itemFields =
+				typeof opts.item === "function" ? opts.item({}) : opts.item;
+			const shape: Record<string, z.ZodTypeAny> = {};
+			for (const [name, fieldDef] of Object.entries(itemFields as Record<string, any>)) {
+				shape[name] = ctx.buildSchema(fieldDef);
+			}
+			itemSchema = z.object(shape);
+		} else {
+			switch (opts.itemType) {
+				case "text":
+				case "textarea":
+					itemSchema = z.string();
+					break;
+				case "number":
+					itemSchema = z.number();
+					break;
+				case "email":
+					itemSchema = z.string().email("Invalid email");
+					break;
+				case "select":
+					if (opts.options?.length > 0) {
+						const values = opts.options.map((o: any) => o.value);
+						itemSchema = z
+							.union([z.string(), z.number()])
+							.refine((val) => values.includes(val), { message: "Invalid selection" });
+					} else {
+						itemSchema = z.union([z.string(), z.number()]);
+					}
+					break;
+				default:
+					itemSchema = z.any();
+			}
+		}
+
+		let schema = z.array(itemSchema);
+		if (opts.minItems !== undefined) {
+			schema = schema.min(opts.minItems, `Minimum ${opts.minItems} items required`);
+		}
+		if (opts.maxItems !== undefined) {
+			schema = schema.max(opts.maxItems, `Maximum ${opts.maxItems} items allowed`);
+		}
+		return wrapOptional(schema, opts.required);
+	},
+
+	blocks: (opts) => {
+		const blockNodeSchema: z.ZodType<any> = z.lazy(() =>
+			z.object({
+				id: z.string(),
+				type: z.string(),
+				children: z.array(blockNodeSchema),
+			}),
+		);
+
+		let schema = z.object({
+			_tree: z.array(blockNodeSchema),
+			_values: z.record(z.string(), z.record(z.string(), z.any())),
+		});
+
+		if (opts.minBlocks !== undefined || opts.maxBlocks !== undefined) {
+			schema = schema.refine(
+				(data) => {
+					const count = countBlocks(data._tree);
+					if (opts.minBlocks !== undefined && count < opts.minBlocks) return false;
+					if (opts.maxBlocks !== undefined && count > opts.maxBlocks) return false;
+					return true;
+				},
+				{
+					message:
+						opts.minBlocks !== undefined && opts.maxBlocks !== undefined
+							? `Must have between ${opts.minBlocks} and ${opts.maxBlocks} blocks`
+							: opts.minBlocks !== undefined
+								? `Minimum ${opts.minBlocks} blocks required`
+								: `Maximum ${opts.maxBlocks} blocks allowed`,
+				},
+			) as any;
+		}
+
+		return wrapOptional(schema, opts.required);
+	},
+};
+
+function countBlocks(tree: Array<{ children: Array<any> }>): number {
+	let count = 0;
+	for (const node of tree) {
+		count += 1;
+		count += countBlocks(node.children);
+	}
+	return count;
+}
+
+// ============================================================================
+// Generic Type Resolution (Tier 2)
+// ============================================================================
+
+function resolveBaseType(fieldType: string): z.ZodTypeAny {
 	switch (fieldType) {
 		case "text":
 		case "textarea":
-		case "email":
-		case "password":
-		case "slug":
-		case "code":
-		case "time":
-			schema = buildStringSchema(validation);
-			break;
-
+		case "url":
+			return z.string();
 		case "number":
-		case "currency":
-			schema = buildNumberSchema(validation);
-			break;
-
-		case "switch":
-		case "checkbox":
-			schema = z.boolean();
-			break;
-
-		case "date":
-		case "datetime":
-			schema = z.date().or(z.string());
-			break;
-
-		case "select":
-			schema = z.string().or(z.number());
-			break;
-
-		case "relation":
-			schema = z.string().or(z.array(z.string()));
-			break;
-
-		case "upload":
-			schema = z.string();
-			break;
-
-		case "uploadMany":
-			schema = z.array(z.string());
-			break;
-
-		case "array":
-			schema = z.array(z.any());
-			break;
-
-		case "object":
-			schema = z.record(z.string(), z.any());
-			break;
-
+			return z.number();
+		case "boolean":
+			return z.boolean();
 		case "json":
 		case "richText":
-			schema = z.any();
-			break;
-
+		case "assetPreview":
+			return z.any();
 		default:
-			schema = z.any();
+			return z.any();
+	}
+}
+
+function applyConstraints(
+	schema: z.ZodTypeAny,
+	opts: Record<string, any>,
+): z.ZodTypeAny {
+	if (schema instanceof z.ZodString) {
+		let s = schema;
+		if (opts.minLength) {
+			s = s.min(opts.minLength, `Must be at least ${opts.minLength} characters`);
+		}
+		if (opts.maxLength) {
+			s = s.max(opts.maxLength, `Must be at most ${opts.maxLength} characters`);
+		}
+		if (opts.pattern) {
+			const regex =
+				typeof opts.pattern === "string" ? new RegExp(opts.pattern) : opts.pattern;
+			s = s.regex(regex, "Invalid format");
+		}
+		return s;
 	}
 
-	// Apply custom refinement from validation config
-	if (validation?.refine) {
-		schema = validation.refine(schema);
-	}
-
-	// Handle required/optional
-	if (!required) {
-		schema = schema.optional().nullable();
+	if (schema instanceof z.ZodNumber) {
+		let n = schema;
+		if (opts.min !== undefined) {
+			n = n.min(opts.min, `Must be at least ${opts.min}`);
+		}
+		if (opts.max !== undefined) {
+			n = n.max(opts.max, `Must be at most ${opts.max}`);
+		}
+		return n;
 	}
 
 	return schema;
 }
 
 // ============================================================================
-// Main Schema Builder
+// Main Entry Point
 // ============================================================================
 
 /**
- * Creates the ZodBuildContext for recursive schema building
+ * Build a Zod schema from a single field's metadata.
+ *
+ * Resolution order:
+ * 1. FIELD_VALIDATORS[type] — special-case fields (email, select, date, relation, etc.)
+ * 2. Generic — resolveBaseType() + applyConstraints() (text, number, boolean, etc.)
  */
-function createBuildContext(registry: FieldRegistry): ZodBuildContext {
-	const ctx: ZodBuildContext = {
-		registry,
-		buildSchema: (fieldDef: FieldDefinition): z.ZodTypeAny => {
-			const opts = fieldDef["~options"] || {};
+export function buildZodFromIntrospection(
+	fieldDef: FieldInstance,
+	ctx: BuildContext,
+): z.ZodTypeAny {
+	const opts = (fieldDef["~options"] || {}) as Record<string, any>;
 
-			// If field has createZod, use it
-			if (fieldDef.createZod) {
-				return fieldDef.createZod(opts, ctx);
-			}
+	// Tier 1: Special-case validator
+	const validator = FIELD_VALIDATORS[fieldDef.name];
+	if (validator) {
+		return validator(opts, ctx);
+	}
 
-			// Fallback to generic schema based on field type name
-			return buildFallbackSchema(fieldDef.name, opts.required, opts.validation);
-		},
-	};
-
-	return ctx;
+	// Tier 2: Generic type + constraints
+	const base = resolveBaseType(fieldDef.name);
+	const constrained = applyConstraints(base, opts);
+	return wrapOptional(constrained, opts.required);
 }
 
 /**
- * Build a Zod schema from admin field definitions
- *
- * Uses createZod from each field definition if available,
- * otherwise falls back to generic schema based on field type.
- *
- * @param fields - Field definitions from admin collection config
- * @param registry - Field registry from admin builder
- * @returns Zod object schema for the collection
- *
- * @example
- * ```ts
- * const schema = buildValidationSchema(collectionConfig.fields, admin.getFields());
- *
- * // Use with react-hook-form
- * const form = useForm({
- *   resolver: zodResolver(schema),
- * });
- * ```
+ * Build a Zod object schema from a map of field instances.
  */
 export function buildValidationSchema(
 	fields: FieldsMap,
-	registry: FieldRegistry,
 ): z.ZodObject<Record<string, z.ZodTypeAny>> {
-	const ctx = createBuildContext(registry);
-	const shape: Record<string, z.ZodTypeAny> = {};
+	const ctx: BuildContext = {
+		buildSchema: (fieldDef) => buildZodFromIntrospection(fieldDef, ctx),
+	};
 
+	const shape: Record<string, z.ZodTypeAny> = {};
 	for (const [name, fieldDef] of Object.entries(fields)) {
 		shape[name] = ctx.buildSchema(fieldDef);
 	}
-
 	return z.object(shape);
 }
 
 /**
- * Build validation schema with custom validation functions
- *
- * This version supports the `validate` callback in FieldValidationConfig
- * which receives form values for cross-field validation.
- *
- * @param fields - Field definitions from admin collection config
- * @param registry - Field registry from admin builder
- * @returns Zod schema with superRefine for custom validators
+ * Build validation schema with custom cross-field validators.
  */
-function buildValidationSchemaWithCustom(
-	fields: FieldsMap,
-	registry: FieldRegistry,
-): z.ZodTypeAny {
-	const baseSchema = buildValidationSchema(fields, registry);
+function buildValidationSchemaWithCustom(fields: FieldsMap): z.ZodTypeAny {
+	const baseSchema = buildValidationSchema(fields);
 
-	// Collect fields with custom validate functions
 	const customValidators: Array<{
 		name: string;
 		validate: NonNullable<FieldValidationConfig["validate"]>;
 	}> = [];
 
 	for (const [name, fieldDef] of Object.entries(fields)) {
-		const options = fieldDef["~options"] || {};
+		const options = (fieldDef["~options"] || {}) as Record<string, any>;
 		if (options.validation?.validate) {
 			customValidators.push({
 				name,
@@ -260,12 +337,10 @@ function buildValidationSchemaWithCustom(
 		}
 	}
 
-	// If no custom validators, return base schema
 	if (customValidators.length === 0) {
 		return baseSchema;
 	}
 
-	// Apply custom validators via superRefine
 	return baseSchema.superRefine((data, ctx) => {
 		for (const { name, validate } of customValidators) {
 			const error = validate(data[name], data);
@@ -281,47 +356,14 @@ function buildValidationSchemaWithCustom(
 }
 
 /**
- * Create a Zod validation schema from admin field config
- *
- * Use with @hookform/resolvers/zod for react-hook-form integration.
- *
- * @param fields - Field definitions from admin collection config
- * @param registry - Field registry from admin builder
- * @returns Zod schema for form validation
+ * Create a Zod validation schema from admin field config.
  *
  * @example
  * ```tsx
- * import { zodResolver } from "@hookform/resolvers/zod";
- * import { createFormSchema } from "@questpie/admin/builder";
- *
- * // From collection config
- * const schema = createFormSchema(collectionConfig.fields, admin.getFields());
- *
- * function MyForm() {
- *   const form = useForm({
- *     resolver: zodResolver(schema),
- *   });
- *   // ...
- * }
- *
- * // Or use the hook
- * import { useCollectionValidation } from "@questpie/admin/hooks";
- *
- * function MyCollectionForm() {
- *   const schema = useCollectionValidation("posts");
- *   const form = useForm({
- *     resolver: schema ? zodResolver(schema) : undefined,
- *   });
- * }
+ * const schema = createFormSchema(fieldInstances);
+ * const form = useForm({ resolver: zodResolver(schema) });
  * ```
  */
-export function createFormSchema(
-	fields: FieldsMap,
-	registry: FieldRegistry,
-): z.ZodTypeAny {
-	return buildValidationSchemaWithCustom(fields, registry);
+export function createFormSchema(fields: FieldsMap): z.ZodTypeAny {
+	return buildValidationSchemaWithCustom(fields);
 }
-
-// ============================================================================
-// Re-exports for convenience
-// ============================================================================

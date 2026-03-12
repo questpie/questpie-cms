@@ -176,9 +176,9 @@ const FormFieldsContent = React.memo(function FormFieldsContent({
 		<RenderProfiler id={`form.fields.${collection}`} minDurationMs={10}>
 			<AutoFormFields
 				collection={collection as any}
-				config={config}
+				config={config as any}
 				registry={registry}
-				allCollectionsConfig={allCollectionsConfig}
+				allCollectionsConfig={allCollectionsConfig as any}
 			/>
 		</RenderProfiler>
 	);
