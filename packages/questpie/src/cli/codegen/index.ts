@@ -105,9 +105,6 @@ export function coreCodegenPlugin(): CodegenPlugin {
 						dirs: ["services"],
 						prefix: "svc",
 						typeEmit: "services",
-						extraTypeImports: [
-							'import type { ServiceInstanceOf } from "questpie";',
-						],
 						registryKey: true,
 						includeInAppState: true,
 						extractFromModules: true,

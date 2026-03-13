@@ -123,6 +123,7 @@ export function extractAppServices(
 		app,
 		db: overrides?.db ?? app.db,
 		session: overrides?.session ?? null,
+		services: {},
 		queue: app.queue,
 		email: app.email,
 		storage: app.storage,
@@ -139,7 +140,9 @@ export function extractAppServices(
 	if (serviceDefs) {
 		const services: Record<string, unknown> = {};
 
-		for (const [name, input] of Object.entries(serviceDefs as Record<string, any>)) {
+		for (const [name, input] of Object.entries(
+			serviceDefs as Record<string, any>,
+		)) {
 			const instance = app.resolveService(name, {
 				db: result.db,
 				session: result.session,
@@ -169,9 +172,7 @@ export function extractAppServices(
 			(result[namespace] as Record<string, unknown>)[name] = instance;
 		}
 
-		if (Object.keys(services).length > 0) {
-			result.services = services;
-		}
+		result.services = services;
 	}
 
 	return result;

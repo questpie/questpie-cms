@@ -202,7 +202,9 @@ export function generateTemplate(options: TemplateOptions): string {
 	lines.push("// ════════════════════════════════════════════════════════════");
 	lines.push("");
 
-	lines.push('import type { UnionToIntersection } from "questpie";');
+	lines.push(
+		'import type { ServiceCustomNamespaceInstances, ServiceInstanceOf, ServiceInstancesInNamespace, ServiceTopLevelInstances, UnionToIntersection } from "questpie";',
+	);
 	lines.push(`type _Module = (typeof ${modulesFile.varName})[number];`);
 	lines.push(
 		"type _MPRaw<K extends string> = UnionToIntersection<_Module extends infer M ? M extends Record<K, infer V> ? V : never : never>;",
@@ -314,19 +316,35 @@ export function generateTemplate(options: TemplateOptions): string {
 			case "services": {
 				const hasUser = fileMap.size > 0;
 				lines.push(
-					"/** All services in the app (modules + user, user overrides). Values are service instances. */",
+					"/** All service definitions in the app (modules + user, user overrides). */",
 				);
 				if (hasUser) {
-					lines.push(`export type ${appTypeName} = ${moduleTypeName} & {`);
+					lines.push(`type _AppServiceDefinitions = ${moduleTypeName} & {`);
 					for (const file of sortedValues(fileMap)) {
-						lines.push(
-							`\t${safeKey(file.key)}: ServiceInstanceOf<typeof ${file.varName}>;`,
-						);
+						lines.push(`\t${safeKey(file.key)}: typeof ${file.varName};`);
 					}
 					lines.push("};");
 				} else {
-					lines.push(`export type ${appTypeName} = ${moduleTypeName};`);
+					lines.push(`type _AppServiceDefinitions = ${moduleTypeName};`);
 				}
+				lines.push("");
+				lines.push(
+					"/** All services in the app as resolved service instances. */",
+				);
+				lines.push(`export type ${appTypeName} = {`);
+				lines.push(
+					"\t[K in keyof _AppServiceDefinitions]: ServiceInstanceOf<_AppServiceDefinitions[K]>;",
+				);
+				lines.push("};");
+				lines.push(
+					'type _AppDefaultServices = ServiceInstancesInNamespace<_AppServiceDefinitions, "services">;',
+				);
+				lines.push(
+					"type _AppTopLevelServices = ServiceTopLevelInstances<_AppServiceDefinitions>;",
+				);
+				lines.push(
+					"type _AppCustomServiceNamespaces = ServiceCustomNamespaceInstances<_AppServiceDefinitions>;",
+				);
 				lines.push("");
 				break;
 			}
@@ -414,14 +432,20 @@ export function generateTemplate(options: TemplateOptions): string {
 		const hasMessages = messagesCat && messagesCat.size > 0;
 
 		const servicesCat = discovered.categories.get("services");
-		const hasServices = servicesCat && servicesCat.size > 0;
+		const hasServices = !!servicesCat;
 
 		lines.push(
 			"// ── AppContext augmentation — auto-types ALL handlers ──────",
 		);
 		lines.push("declare global {");
 		lines.push("\tnamespace Questpie {");
-		lines.push("\t\tinterface AppContext {");
+		if (hasServices) {
+			lines.push(
+				"\t\tinterface AppContext extends _AppTopLevelServices, _AppCustomServiceNamespaces {",
+			);
+		} else {
+			lines.push("\t\tinterface AppContext {");
+		}
 		lines.push("\t\t\t// Infrastructure");
 		lines.push("\t\t\tdb: _AppInternal['db'];");
 		if (hasEmails) {
@@ -459,7 +483,7 @@ export function generateTemplate(options: TemplateOptions): string {
 		if (hasServices) {
 			lines.push("");
 			lines.push("\t\t\t// User services");
-			lines.push("\t\t\tservices: AppServices;");
+			lines.push("\t\t\tservices: _AppDefaultServices;");
 		}
 
 		lines.push("\t\t}");

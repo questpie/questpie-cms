@@ -52,6 +52,16 @@ export {
 	CLOUD_ENV,
 	isQuestpieCloud,
 } from "#questpie/server/config/cloud-env.js";
+export type {
+	ExtractModuleProp,
+	ExtractModulePropArr,
+	RegistryProp,
+	ServiceCustomNamespaceInstances,
+	ServiceDefinitionsInNamespace,
+	ServiceInstancesInNamespace,
+	ServiceTopLevelInstances,
+	UnionToIntersection,
+} from "#questpie/server/config/codegen-type-utils.js";
 // Re-export type safety helpers (getContext, etc. exported via context.js)
 export type {
 	InferAppFromApp,
@@ -66,6 +76,7 @@ export {
 	module,
 	runtimeConfig,
 } from "#questpie/server/config/create-app.js";
+export { createContextFactory } from "#questpie/server/config/create-context-factory.js";
 export * from "#questpie/server/config/global-hooks-types.js";
 export * from "#questpie/server/config/module-types.js";
 export * from "#questpie/server/config/questpie.js";
@@ -100,13 +111,6 @@ export { service } from "#questpie/server/services/define-service.js";
 export * from "#questpie/server/utils/builder-extensions.js";
 export * from "#questpie/server/utils/callback-proxies.js";
 export * from "#questpie/server/utils/drizzle-to-zod.js";
-export type {
-	ExtractModuleProp,
-	ExtractModulePropArr,
-	RegistryProp,
-	UnionToIntersection,
-} from "#questpie/server/config/codegen-type-utils.js";
-export { createContextFactory } from "#questpie/server/config/create-context-factory.js";
 export type {
 	CollectionInfer,
 	CollectionInsert,

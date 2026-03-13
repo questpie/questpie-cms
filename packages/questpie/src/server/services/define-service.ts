@@ -3,6 +3,8 @@
  */
 export type ServiceLifecycle = "singleton" | "request";
 
+export type ServiceNamespace = string | null | undefined;
+
 declare global {
 	namespace Questpie {
 		interface ServiceCreateContext {
@@ -11,49 +13,67 @@ declare global {
 	}
 }
 
-export interface ServiceBuilderState<TInstance = unknown> {
-	lifecycle?: ServiceLifecycle;
+export interface ServiceBuilderState<
+	TInstance = unknown,
+	TNamespace extends ServiceNamespace = undefined,
+	TLifecycle extends ServiceLifecycle | undefined = undefined,
+> {
+	lifecycle?: TLifecycle;
 	create?: (
 		ctx: Questpie.ServiceCreateContext,
 	) => TInstance | Promise<TInstance>;
 	dispose?: (instance: TInstance) => void | Promise<void>;
-	namespace?: string | null;
+	namespace?: TNamespace;
 }
 
-export class ServiceBuilder<TInstance = unknown> {
-	readonly state: ServiceBuilderState<TInstance>;
+export class ServiceBuilder<
+	TInstance = unknown,
+	TNamespace extends ServiceNamespace = undefined,
+	TLifecycle extends ServiceLifecycle | undefined = undefined,
+> {
+	readonly state: ServiceBuilderState<TInstance, TNamespace, TLifecycle>;
 
-	constructor(state: ServiceBuilderState<TInstance> = {}) {
+	constructor(
+		state: ServiceBuilderState<TInstance, TNamespace, TLifecycle> = {},
+	) {
 		this.state = state;
 	}
 
 	create<T>(
 		factory: (ctx: Questpie.ServiceCreateContext) => T | Promise<T>,
-	): ServiceBuilder<T> {
-		return new ServiceBuilder<T>({
-			...(this.state as unknown as ServiceBuilderState<T>),
+	): ServiceBuilder<T, TNamespace, TLifecycle> {
+		return new ServiceBuilder<T, TNamespace, TLifecycle>({
+			...(this.state as unknown as ServiceBuilderState<
+				T,
+				TNamespace,
+				TLifecycle
+			>),
 			create: factory,
 		});
 	}
 
 	dispose(
 		fn: (instance: TInstance) => void | Promise<void>,
-	): ServiceBuilder<TInstance> {
-		return new ServiceBuilder<TInstance>({
+	): ServiceBuilder<TInstance, TNamespace, TLifecycle> {
+		return new ServiceBuilder<TInstance, TNamespace, TLifecycle>({
 			...this.state,
 			dispose: fn,
 		});
 	}
 
-	lifecycle(lifecycle: ServiceLifecycle): ServiceBuilder<TInstance> {
-		return new ServiceBuilder<TInstance>({
+	lifecycle<TNextLifecycle extends ServiceLifecycle>(
+		lifecycle: TNextLifecycle,
+	): ServiceBuilder<TInstance, TNamespace, TNextLifecycle> {
+		return new ServiceBuilder<TInstance, TNamespace, TNextLifecycle>({
 			...this.state,
 			lifecycle,
 		});
 	}
 
-	namespace(namespace: string | null): ServiceBuilder<TInstance> {
-		return new ServiceBuilder<TInstance>({
+	namespace<TNextNamespace extends string | null>(
+		namespace: TNextNamespace,
+	): ServiceBuilder<TInstance, TNextNamespace, TLifecycle> {
+		return new ServiceBuilder<TInstance, TNextNamespace, TLifecycle>({
 			...this.state,
 			namespace,
 		});
@@ -61,21 +81,25 @@ export class ServiceBuilder<TInstance = unknown> {
 }
 
 export function service(): ServiceBuilder<unknown>;
-export function service<TInstance>(state: {
+export function service<
+	TInstance,
+	TNamespace extends ServiceNamespace,
+	TLifecycle extends ServiceLifecycle,
+>(state: {
 	create: (
 		ctx: Questpie.ServiceCreateContext,
 	) => TInstance | Promise<TInstance>;
-	lifecycle?: ServiceLifecycle;
+	lifecycle?: TLifecycle;
 	dispose?: (instance: TInstance) => void | Promise<void>;
-	namespace?: string | null;
-}): ServiceBuilder<TInstance>;
+	namespace?: TNamespace;
+}): ServiceBuilder<TInstance, TNamespace, TLifecycle>;
 export function service<TInstance>(state?: {
 	create?: (
 		ctx: Questpie.ServiceCreateContext,
 	) => TInstance | Promise<TInstance>;
 	lifecycle?: ServiceLifecycle;
 	dispose?: (instance: TInstance) => void | Promise<void>;
-	namespace?: string | null;
+	namespace?: ServiceNamespace;
 }): ServiceBuilder<TInstance | unknown> {
 	return new ServiceBuilder<TInstance | unknown>(
 		(state ?? {}) as ServiceBuilderState<TInstance | unknown>,
@@ -83,8 +107,17 @@ export function service<TInstance>(state?: {
 }
 
 export type ServiceInstanceOf<T> =
-	T extends ServiceBuilder<infer I>
+	T extends ServiceBuilder<infer I, any, any>
 		? I
 		: T extends { create: (...args: any[]) => infer I }
 			? I
 			: unknown;
+
+export type ServiceNamespaceOf<T> =
+	T extends ServiceBuilder<any, infer TNamespace, any>
+		? TNamespace
+		: T extends { state: { namespace?: infer TNamespace } }
+			? TNamespace
+			: T extends { namespace?: infer TNamespace }
+				? TNamespace
+				: undefined;

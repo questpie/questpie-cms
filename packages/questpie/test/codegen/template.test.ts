@@ -206,7 +206,9 @@ describe("generateTemplate — minimal (modules.ts only)", () => {
 	});
 
 	it("emits createContext helper", () => {
-		expect(code).toContain("export const createContext = createContextFactory(app);");
+		expect(code).toContain(
+			"export const createContext = createContextFactory(app);",
+		);
 	});
 
 	it("emits factory comment", () => {
@@ -469,7 +471,7 @@ describe("generateTemplate — seeds", () => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe("generateTemplate — services", () => {
-	it("emits ServiceInstanceOf import when services exist", () => {
+	it("imports ServiceInstanceOf type utility", () => {
 		const result = minimalResult();
 		cat(result, "services").set(
 			"stripe",
@@ -487,7 +489,7 @@ describe("generateTemplate — services", () => {
 			singletonFactories: coreSingletonFactories(),
 		});
 
-		expect(code).toContain('import type { ServiceInstanceOf } from "questpie"');
+		expect(code).toContain("ServiceInstanceOf");
 	});
 
 	it("emits services in AppServices type", () => {
@@ -508,10 +510,14 @@ describe("generateTemplate — services", () => {
 			singletonFactories: coreSingletonFactories(),
 		});
 
-		expect(code).toContain("stripe: ServiceInstanceOf<typeof _svc_stripe>;");
+		expect(code).toContain("type _AppServiceDefinitions = _ModuleServices & {");
+		expect(code).toContain("stripe: typeof _svc_stripe;");
+		expect(code).toContain(
+			"[K in keyof _AppServiceDefinitions]: ServiceInstanceOf<_AppServiceDefinitions[K]>;",
+		);
 	});
 
-	it("exposes services flat on AppContext", () => {
+	it("emits namespace-aware service context helpers", () => {
 		const result = minimalResult();
 		cat(result, "services").set(
 			"stripe",
@@ -529,8 +535,19 @@ describe("generateTemplate — services", () => {
 			singletonFactories: coreSingletonFactories(),
 		});
 
-		// Should appear inside declare module "questpie" { interface AppContext
-		expect(code).toContain("stripe: ServiceInstanceOf<typeof _svc_stripe>;");
+		expect(code).toContain(
+			"type _AppTopLevelServices = ServiceTopLevelInstances<_AppServiceDefinitions>;",
+		);
+		expect(code).toContain(
+			"type _AppCustomServiceNamespaces = ServiceCustomNamespaceInstances<_AppServiceDefinitions>;",
+		);
+		expect(code).toContain(
+			"interface AppContext extends _AppTopLevelServices, _AppCustomServiceNamespaces {",
+		);
+		expect(code).toContain("services: _AppDefaultServices;");
+		expect(code).toContain(
+			"interface ServiceCreateContext extends AppContext {}",
+		);
 	});
 });
 
