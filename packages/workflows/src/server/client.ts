@@ -1,0 +1,267 @@
+/**
+ * Workflow Client
+ *
+ * Public API for triggering and managing workflow instances.
+ *
+ * Created by the workflow service factory — available at `ctx.workflows` in
+ * handlers, jobs, and functions.
+ *
+ * @example
+ * ```ts
+ * // In a function handler:
+ * const { instanceId } = await ctx.workflows.trigger("user-onboarding", {
+ *   userId: "abc",
+ * });
+ * ```
+ */
+
+import { parseDuration } from "./engine/duration.js";
+import type {
+	WorkflowDefinition,
+	WorkflowInstance,
+	WorkflowStepRecord,
+} from "./workflow/types.js";
+
+// ============================================================================
+// Types
+// ============================================================================
+
+/**
+ * A collection API compatible interface.
+ *
+ * This abstracts the QUESTPIE collection CRUD so the client doesn't
+ * directly depend on the core package types.
+ */
+export interface CollectionCrud {
+	create(input: any, context?: any): Promise<any>;
+	findOne(options?: any, context?: any): Promise<any | null>;
+	find(options?: any, context?: any): Promise<{ docs: any[] }>;
+	updateById(params: any, context?: any): Promise<any>;
+}
+
+/**
+ * Queue publish interface — matches the QUESTPIE QueueClient per-job API.
+ */
+export interface QueuePublish {
+	publish(payload: any, options?: any): Promise<any>;
+}
+
+/**
+ * Dependencies injected into the workflow client.
+ */
+export interface WorkflowClientDeps {
+	/** wf_instance collection CRUD. */
+	instances: CollectionCrud;
+	/** wf_step collection CRUD. */
+	steps: CollectionCrud;
+	/** wf_event collection CRUD. */
+	events: CollectionCrud;
+	/** Queue publish for the execute job. */
+	publishExecute: QueuePublish;
+}
+
+/**
+ * Result from triggering a workflow.
+ */
+export interface TriggerResult {
+	/** ID of the created workflow instance. */
+	instanceId: string;
+	/** Whether an existing instance was returned (idempotency). */
+	existing: boolean;
+}
+
+/**
+ * Typed workflow client — available at `ctx.workflows`.
+ *
+ * @template TWorkflows - Record of workflow name → definition
+ */
+export interface WorkflowClient<
+	TWorkflows extends Record<string, WorkflowDefinition> = Record<
+		string,
+		WorkflowDefinition
+	>,
+> {
+	/**
+	 * Trigger a new workflow instance.
+	 */
+	trigger<K extends keyof TWorkflows & string>(
+		name: K,
+		input: TWorkflows[K] extends WorkflowDefinition<infer I, any, any>
+			? I
+			: unknown,
+		options?: {
+			idempotencyKey?: string;
+			delay?: string;
+			startAt?: Date;
+			parentInstanceId?: string;
+			parentStepName?: string;
+		},
+	): Promise<TriggerResult>;
+
+	/**
+	 * Cancel a running or suspended workflow instance.
+	 * Uses CAS (Compare-And-Swap) — only cancels if currently active.
+	 */
+	cancel(instanceId: string): Promise<{ success: boolean }>;
+
+	/**
+	 * Get a workflow instance by ID.
+	 */
+	getInstance(instanceId: string): Promise<WorkflowInstance | null>;
+
+	/**
+	 * Get step history for a workflow instance.
+	 */
+	getHistory(instanceId: string): Promise<WorkflowStepRecord[]>;
+
+	/**
+	 * Send an event to be matched against waiting workflows.
+	 * (Placeholder — full implementation in Phase 1)
+	 */
+	sendEvent(
+		event: string,
+		data?: unknown,
+		match?: Record<string, any>,
+	): Promise<void>;
+}
+
+// ============================================================================
+// Implementation
+// ============================================================================
+
+/**
+ * Create a WorkflowClient backed by collection CRUD and queue operations.
+ *
+ * @param definitions - All registered workflow definitions
+ * @param deps - Collection CRUD and queue publish interfaces
+ */
+export function createWorkflowClient<
+	TWorkflows extends Record<string, WorkflowDefinition>,
+>(
+	definitions: TWorkflows,
+	deps: WorkflowClientDeps,
+): WorkflowClient<TWorkflows> {
+	return {
+		async trigger(name, input, options) {
+			const def = definitions[name];
+			if (!def) {
+				throw new Error(`Unknown workflow: "${name}"`);
+			}
+
+			// Validate input against schema
+			const validated = def.schema.parse(input);
+
+			// Check idempotency
+			if (options?.idempotencyKey) {
+				const existing = await deps.instances.findOne(
+					{
+						where: {
+							name,
+							idempotencyKey: options.idempotencyKey,
+						},
+					},
+					{ accessMode: "system" },
+				);
+				if (existing) {
+					return { instanceId: existing.id, existing: true };
+				}
+			}
+
+			// Calculate timeout
+			let timeoutAt: Date | undefined;
+			if (def.timeout) {
+				timeoutAt = new Date(Date.now() + parseDuration(def.timeout));
+			}
+
+			// Calculate start delay
+			let startAfter: Date | undefined;
+			if (options?.startAt) {
+				startAfter = options.startAt;
+			} else if (options?.delay) {
+				startAfter = new Date(Date.now() + parseDuration(options.delay));
+			}
+
+			// Create instance
+			const instance = await deps.instances.create(
+				{
+					name,
+					status: "pending",
+					input: validated,
+					output: null,
+					error: null,
+					attempt: 0,
+					parentInstanceId: options?.parentInstanceId ?? null,
+					parentStepName: options?.parentStepName ?? null,
+					idempotencyKey: options?.idempotencyKey ?? null,
+					timeoutAt: timeoutAt ?? null,
+					startedAt: null,
+					suspendedAt: null,
+					completedAt: null,
+				},
+				{ accessMode: "system" },
+			);
+
+			// Publish execute job
+			await deps.publishExecute.publish(
+				{ instanceId: instance.id, workflowName: name },
+				startAfter ? { startAfter } : undefined,
+			);
+
+			return { instanceId: instance.id, existing: false };
+		},
+
+		async cancel(instanceId) {
+			const instance = await deps.instances.findOne(
+				{ where: { id: instanceId } },
+				{ accessMode: "system" },
+			);
+
+			if (!instance) {
+				return { success: false };
+			}
+
+			// CAS: only cancel if currently active
+			const activeStatuses = ["pending", "running", "suspended"];
+			if (!activeStatuses.includes(instance.status)) {
+				return { success: false };
+			}
+
+			await deps.instances.updateById(
+				{
+					id: instanceId,
+					data: {
+						status: "cancelled",
+						completedAt: new Date(),
+					},
+				},
+				{ accessMode: "system" },
+			);
+
+			return { success: true };
+		},
+
+		async getInstance(instanceId) {
+			return deps.instances.findOne(
+				{ where: { id: instanceId } },
+				{ accessMode: "system" },
+			);
+		},
+
+		async getHistory(instanceId) {
+			const result = await deps.steps.find(
+				{
+					where: { instanceId },
+					sort: { createdAt: "asc" },
+					limit: 1000,
+				},
+				{ accessMode: "system" },
+			);
+			return result.docs;
+		},
+
+		async sendEvent(_event, _data, _match) {
+			// Placeholder — full implementation in Phase 1 (commit 1.1)
+			throw new Error("sendEvent() is not yet implemented. Coming in Phase 1.");
+		},
+	};
+}
