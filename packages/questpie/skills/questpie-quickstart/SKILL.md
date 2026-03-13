@@ -278,7 +278,7 @@ bun add @questpie/admin
 
 ```ts
 // src/questpie/server/questpie.config.ts
-import { adminPlugin } from "@questpie/admin/server";
+import { adminPlugin } from "@questpie/admin/plugin";
 import { runtimeConfig } from "questpie";
 
 export default runtimeConfig({

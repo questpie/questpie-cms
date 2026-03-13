@@ -41,7 +41,7 @@ Both server and admin are fully code-generated from file conventions. No manual 
 ```typescript
 // questpie.config.ts
 import { runtimeConfig } from "questpie";
-import { adminPlugin } from "@questpie/admin/server";
+import { adminPlugin } from "@questpie/admin/plugin";
 
 export default runtimeConfig({
   plugins: [adminPlugin()],
@@ -160,7 +160,7 @@ Server configuration uses the top-level `runtimeConfig()` factory. Modules are r
 ```typescript
 // questpie.config.ts
 import { runtimeConfig } from "questpie";
-import { adminPlugin } from "@questpie/admin/server";
+import { adminPlugin } from "@questpie/admin/plugin";
 
 export default runtimeConfig({
   plugins: [adminPlugin()],
@@ -279,7 +279,7 @@ Admin UI translations are configured server-side via `.adminLocale()` and fetche
 ```typescript
 // questpie.config.ts
 import { runtimeConfig } from "questpie";
-import { adminPlugin } from "@questpie/admin/server";
+import { adminPlugin } from "@questpie/admin/plugin";
 
 export default runtimeConfig({
   plugins: [adminPlugin()],

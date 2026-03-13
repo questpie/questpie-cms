@@ -98,7 +98,7 @@ export default runtimeConfig({
 
 ### Real-World Example: Admin Plugin
 
-The `adminPlugin()` from `@questpie/admin/server` contributes to both `"server"` and `"admin-client"` targets -- declaring categories (`blocks`), discover patterns (`sidebar`, `dashboard`, `branding`, `adminLocale`), collection extensions (`admin`, `list`, `form` with callback context params `v`, `f`, `a`), and singleton factories (`branding`, `sidebar`).
+The `adminPlugin()` from `@questpie/admin/plugin` contributes to both `"server"` and `"admin-client"` targets -- declaring categories (`blocks`), discover patterns (`sidebar`, `dashboard`, `branding`, `adminLocale`), collection extensions (`admin`, `list`, `form` with callback context params `v`, `f`, `a`), and singleton factories (`branding`, `sidebar`).
 
 ## Building a Module
 

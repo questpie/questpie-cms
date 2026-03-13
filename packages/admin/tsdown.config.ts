@@ -3,7 +3,7 @@ import { glob } from "tinyglobby";
 import { defineConfig } from "tsdown";
 
 export default defineConfig({
-	// Clean entry points from exports folder
+	// Clean entry points from exports folder + lightweight plugin entry
 	entry: ["src/exports/*.ts"],
 	outDir: "dist",
 	format: ["esm"],
@@ -57,7 +57,6 @@ export default defineConfig({
 					...exports,
 					...cssExports,
 				};
-
 
 				return {
 					...mergedExports,

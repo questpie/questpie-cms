@@ -24,7 +24,7 @@ The admin plugin is registered in `questpie.config.ts`, and the admin module is 
 ```ts
 // questpie.config.ts
 import { runtimeConfig } from "questpie";
-import { adminPlugin } from "@questpie/admin/server";
+import { adminPlugin } from "@questpie/admin/plugin";
 
 export default runtimeConfig({
   plugins: [adminPlugin()],
@@ -306,7 +306,8 @@ Legacy params (`history`, `viewOptions`, and `sidebar=preview`) are still read f
 import { qa, adminModule, AdminRouter, createTypedHooks, BlockRenderer, createBlockRegistry } from "@questpie/admin/client";
 
 // Server (admin module + plugin for QUESTPIE config)
-import { adminModule, auditModule, adminPlugin } from "@questpie/admin/server";
+import { adminModule, auditModule } from "@questpie/admin/server";
+import { adminPlugin } from "@questpie/admin/plugin";
 
 // Styles
 import "@questpie/admin/styles/index.css";

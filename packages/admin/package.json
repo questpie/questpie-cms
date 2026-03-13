@@ -21,6 +21,7 @@
 		"./client": "./src/exports/client.ts",
 		"./client-module": "./src/exports/client-module.ts",
 		"./server": "./src/exports/server.ts",
+		"./plugin": "./src/exports/plugin.ts",
 		"./shared": "./src/exports/shared.ts",
 		"./*": "./*",
 		"./client/styles/index.css": "./src/client/styles/index.css"
@@ -117,6 +118,7 @@
 			"./client": "./dist/client.mjs",
 			"./client-module": "./dist/client-module.mjs",
 			"./server": "./dist/server.mjs",
+			"./plugin": "./dist/plugin.mjs",
 			"./shared": "./dist/shared.mjs",
 			"./*": "./*",
 			"./client/styles/index.css": "./dist/client/styles/index.css"

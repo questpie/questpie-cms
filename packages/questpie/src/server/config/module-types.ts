@@ -57,7 +57,6 @@ import type {
 	LocaleConfig,
 	StorageConfig,
 } from "#questpie/server/config/types.js";
-import type { RouteDefinition } from "#questpie/server/routes/types.js";
 import type { TranslationsConfig } from "#questpie/server/i18n/types.js";
 import type { KVConfig } from "#questpie/server/integrated/kv/index.js";
 import type { LoggerConfig } from "#questpie/server/integrated/logger/index.js";
@@ -69,6 +68,7 @@ import type {
 import type { RealtimeConfig } from "#questpie/server/integrated/realtime/index.js";
 import type { SearchAdapter } from "#questpie/server/integrated/search/index.js";
 import type { Migration } from "#questpie/server/migration/types.js";
+import type { RouteDefinition } from "#questpie/server/routes/types.js";
 import type { Seed, SeedCategory } from "#questpie/server/seed/types.js";
 
 // ============================================================================
@@ -159,7 +159,7 @@ export interface ModuleDefinition {
  * ```ts
  * // questpie.config.ts
  * import { runtimeConfig } from "questpie";
- * import { adminPlugin } from "@questpie/admin/server";
+ * import { adminPlugin } from "@questpie/admin/plugin";
  *
  * export default runtimeConfig({
  *   plugins: [adminPlugin()],

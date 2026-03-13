@@ -80,7 +80,7 @@ export const posts = collection("posts")
 ```typescript
 // src/questpie/server/questpie.config.ts
 import { runtimeConfig } from "questpie";
-import { adminPlugin } from "@questpie/admin/server";
+import { adminPlugin } from "@questpie/admin/plugin";
 
 export default runtimeConfig({
   plugins: [adminPlugin()],
@@ -159,7 +159,7 @@ The `adminModule` includes the starter module (auth collections, assets, file up
 ```typescript
 // src/questpie/server/questpie.config.ts
 import { runtimeConfig } from "questpie";
-import { adminPlugin } from "@questpie/admin/server";
+import { adminPlugin } from "@questpie/admin/plugin";
 
 export default runtimeConfig({
   plugins: [adminPlugin()],
