@@ -26,6 +26,7 @@ import { parseDuration, resolveDate } from "./duration.js";
 import { NonDeterministicError, StepSuspendError } from "./errors.js";
 import type { EventPersistence, ResumeWaiterFn } from "./events.js";
 import { checkRetroactiveMatch, dispatchEvent } from "./events.js";
+import { computeMatchHash } from "./match-hash.js";
 
 // ============================================================================
 // Types
@@ -84,6 +85,8 @@ export interface StepPersistence {
 		scheduledAt?: Date;
 		eventName?: string;
 		matchCriteria?: unknown;
+		/** Deterministic hash of matchCriteria for O(1) event lookup. */
+		matchHash?: string;
 		childInstanceId?: string;
 		hasCompensation: boolean;
 		maxAttempts: number;
@@ -340,6 +343,9 @@ export class StepExecutionContext implements WorkflowStepContext {
 			return cached.result as T | null;
 		}
 
+		// Compute match hash for O(1) event lookup
+		const matchHash = computeMatchHash(opts.match);
+
 		// Retroactive check — see if a matching event was already sent
 		if (this.eventPersistence && !cached) {
 			const retroMatch = await checkRetroactiveMatch(
@@ -357,6 +363,7 @@ export class StepExecutionContext implements WorkflowStepContext {
 					result: retroMatch.data,
 					eventName: opts.event,
 					matchCriteria: opts.match,
+					matchHash,
 					hasCompensation: false,
 					maxAttempts: 1,
 				});
@@ -377,6 +384,7 @@ export class StepExecutionContext implements WorkflowStepContext {
 				scheduledAt,
 				eventName: opts.event,
 				matchCriteria: opts.match,
+				matchHash,
 				hasCompensation: false,
 				maxAttempts: 1,
 			});

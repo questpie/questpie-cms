@@ -19,6 +19,40 @@ import type { z } from "zod";
 export type Duration = string;
 
 // ============================================================================
+// Cron Overlap Policy
+// ============================================================================
+
+/**
+ * Strategy for handling overlapping cron-triggered instances.
+ *
+ * - `"skip"` — Skip the new trigger if there's already a running instance (default).
+ * - `"allow"` — Always create a new instance, even if one is running.
+ * - `"cancel-previous"` — Cancel the existing running instance and start a new one.
+ */
+export type CronOverlapPolicy = "skip" | "allow" | "cancel-previous";
+
+// ============================================================================
+// Retention Policy
+// ============================================================================
+
+/**
+ * Retention configuration for automatic cleanup of old workflow data.
+ *
+ * After the specified duration, completed/failed/cancelled/timed_out instances
+ * and their associated steps, events, and logs are permanently deleted.
+ */
+export interface RetentionPolicy {
+	/** Duration after which completed instances are deleted. Default: "30d". */
+	completedAfter?: Duration;
+	/** Duration after which failed instances are deleted. Default: no cleanup. */
+	failedAfter?: Duration;
+	/** Duration after which cancelled instances are deleted. Default: no cleanup. */
+	cancelledAfter?: Duration;
+	/** Duration after which unconsumed events are deleted. Default: "7d". */
+	eventsAfter?: Duration;
+}
+
+// ============================================================================
 // Retry Policy
 // ============================================================================
 
@@ -68,6 +102,10 @@ export interface WorkflowDefinition<
 	retryPolicy?: StepRetryPolicy;
 	/** Cron expression for recurring execution. */
 	cron?: string;
+	/** Strategy for handling overlapping cron-triggered instances. Default: "skip". */
+	cronOverlap?: CronOverlapPolicy;
+	/** Retention policy for automatic cleanup of old instances. */
+	retention?: RetentionPolicy;
 	/** Called when the handler throws (after step retries are exhausted). */
 	onFailure?: (args: WorkflowFailureArgs<TInput>) => Promise<void>;
 	/** Main workflow handler. */

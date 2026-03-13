@@ -21,6 +21,13 @@ export {
 	runCompensations,
 } from "../server/engine/compensation.js";
 
+// Engine — cron
+export {
+	cronFiredInWindow,
+	cronMatches,
+	parseCron,
+} from "../server/engine/cron.js";
+
 // Engine — duration
 export { parseDuration, resolveDate } from "../server/engine/duration.js";
 
@@ -62,6 +69,13 @@ export type {
 	LogLevel,
 } from "../server/engine/logger.js";
 export { WorkflowLoggerImpl } from "../server/engine/logger.js";
+
+// Engine — match hash
+export {
+	computeMatchHash,
+	getMatchHashesForDispatch,
+	WILDCARD_HASH,
+} from "../server/engine/match-hash.js";
 
 // Engine — step context
 export type {

@@ -120,13 +120,24 @@ export interface WorkflowClient<
 
 	/**
 	 * Send an event to be matched against waiting workflows.
-	 * (Placeholder — full implementation in Phase 1)
 	 */
 	sendEvent(
 		event: string,
 		data?: unknown,
 		match?: Record<string, any>,
 	): Promise<void>;
+
+	/**
+	 * Cancel all active instances of a given workflow name.
+	 * Returns the number of instances cancelled.
+	 */
+	cancelAll(workflowName: string): Promise<{ cancelledCount: number }>;
+
+	/**
+	 * Retry all failed/timed_out instances of a given workflow name.
+	 * Returns the number of instances re-queued.
+	 */
+	retryAll(workflowName: string): Promise<{ retriedCount: number }>;
 }
 
 // ============================================================================
@@ -263,6 +274,83 @@ export function createWorkflowClient<
 			return result.docs;
 		},
 
+		async cancelAll(workflowName) {
+			const activeStatuses = ["pending", "running", "suspended"];
+			const result = await deps.instances.find(
+				{
+					where: {
+						name: workflowName,
+						status: { in: activeStatuses },
+					},
+					limit: 1000,
+				},
+				{ accessMode: "system" },
+			);
+
+			let cancelledCount = 0;
+			const now = new Date();
+			for (const instance of result.docs) {
+				try {
+					await deps.instances.updateById(
+						{
+							id: instance.id,
+							data: {
+								status: "cancelled",
+								completedAt: now,
+							},
+						},
+						{ accessMode: "system" },
+					);
+					cancelledCount++;
+				} catch {
+					// Best-effort — skip on error
+				}
+			}
+
+			return { cancelledCount };
+		},
+
+		async retryAll(workflowName) {
+			const result = await deps.instances.find(
+				{
+					where: {
+						name: workflowName,
+						status: { in: ["failed", "timed_out"] },
+					},
+					limit: 1000,
+				},
+				{ accessMode: "system" },
+			);
+
+			let retriedCount = 0;
+			for (const instance of result.docs) {
+				try {
+					await deps.instances.updateById(
+						{
+							id: instance.id,
+							data: {
+								status: "pending",
+								error: null,
+								completedAt: null,
+							},
+						},
+						{ accessMode: "system" },
+					);
+
+					await deps.publishExecute.publish({
+						instanceId: instance.id,
+						workflowName: instance.name,
+					});
+
+					retriedCount++;
+				} catch {
+					// Best-effort — skip on error
+				}
+			}
+
+			return { retriedCount };
+		},
+
 		async sendEvent(event, data, match) {
 			// Build EventPersistence from collection CRUD
 			const eventPersistence: EventPersistence = {
@@ -285,7 +373,7 @@ export function createWorkflowClient<
 					// Not needed for sendEvent dispatch
 					return null;
 				},
-				async findWaitingSteps(eventName, matchData) {
+				async findWaitingSteps(eventName, _matchData) {
 					const result = await deps.steps.find(
 						{
 							where: {

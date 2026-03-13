@@ -4,10 +4,12 @@
 export { workflow } from "../server/workflow/define-workflow.js";
 export type {
 	CompletedStepsMap,
+	CronOverlapPolicy,
 	Duration,
 	InferWorkflowInput,
 	InferWorkflowOutput,
 	InvokeOptions,
+	RetentionPolicy,
 	SendEventOptions,
 	StepRetryPolicy,
 	StepRunOptions,

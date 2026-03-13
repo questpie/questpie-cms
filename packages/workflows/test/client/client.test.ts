@@ -10,6 +10,19 @@ import type { WorkflowDefinition } from "../../src/server/workflow/types.js";
 
 // ── Mock helpers ────────────────────────────────────────────
 
+function matchesWhere(record: any, key: string, value: any): boolean {
+	if (value && typeof value === "object" && !Array.isArray(value)) {
+		// Handle operator-style queries: { in: [...] }, { lte: ... }, etc.
+		if ("in" in value) {
+			return (value.in as any[]).includes(record[key]);
+		}
+		if ("lte" in value) {
+			return record[key] <= value.lte;
+		}
+	}
+	return record[key] === value;
+}
+
 function createMockCrud(store: Map<string, any> = new Map()): CollectionCrud {
 	let idCounter = 0;
 	return {
@@ -24,7 +37,7 @@ function createMockCrud(store: Map<string, any> = new Map()): CollectionCrud {
 			for (const [, record] of store) {
 				let match = true;
 				for (const [key, value] of Object.entries(where)) {
-					if (record[key] !== value) {
+					if (!matchesWhere(record, key, value)) {
 						match = false;
 						break;
 					}
@@ -39,7 +52,7 @@ function createMockCrud(store: Map<string, any> = new Map()): CollectionCrud {
 			for (const [, record] of store) {
 				let match = true;
 				for (const [key, value] of Object.entries(where)) {
-					if (record[key] !== value) {
+					if (!matchesWhere(record, key, value)) {
 						match = false;
 						break;
 					}
@@ -373,6 +386,80 @@ describe("createWorkflowClient", () => {
 
 			const history = await client.getHistory("non-existent");
 			expect(history).toHaveLength(0);
+		});
+	});
+
+	describe("cancelAll()", () => {
+		it("cancels all active instances of a workflow", async () => {
+			const instanceStore = new Map<string, any>();
+			const { deps } = createDeps({
+				instances: createMockCrud(instanceStore),
+			});
+			const client = createWorkflowClient({ "test-wf": testWorkflow }, deps);
+
+			// Trigger 3 instances
+			const r1 = await client.trigger("test-wf", { userId: "u1" });
+			const r2 = await client.trigger("test-wf", { userId: "u2" });
+			const r3 = await client.trigger("test-wf", { userId: "u3" });
+
+			// Set different statuses
+			instanceStore.get(r1.instanceId)!.status = "running";
+			instanceStore.get(r2.instanceId)!.status = "suspended";
+			instanceStore.get(r3.instanceId)!.status = "completed"; // already done
+
+			const result = await client.cancelAll("test-wf");
+			expect(result.cancelledCount).toBe(2); // only running + suspended
+			expect(instanceStore.get(r1.instanceId)!.status).toBe("cancelled");
+			expect(instanceStore.get(r2.instanceId)!.status).toBe("cancelled");
+			expect(instanceStore.get(r3.instanceId)!.status).toBe("completed");
+		});
+
+		it("returns 0 when no active instances exist", async () => {
+			const { deps } = createDeps();
+			const client = createWorkflowClient({ "test-wf": testWorkflow }, deps);
+
+			const result = await client.cancelAll("test-wf");
+			expect(result.cancelledCount).toBe(0);
+		});
+	});
+
+	describe("retryAll()", () => {
+		it("retries all failed/timed_out instances of a workflow", async () => {
+			const instanceStore = new Map<string, any>();
+			const queue = createMockQueue();
+			const { deps } = createDeps({
+				instances: createMockCrud(instanceStore),
+				publishExecute: queue,
+			});
+			const client = createWorkflowClient({ "test-wf": testWorkflow }, deps);
+
+			// Trigger 3 instances
+			const r1 = await client.trigger("test-wf", { userId: "u1" });
+			const r2 = await client.trigger("test-wf", { userId: "u2" });
+			const r3 = await client.trigger("test-wf", { userId: "u3" });
+
+			// Set different statuses
+			instanceStore.get(r1.instanceId)!.status = "failed";
+			instanceStore.get(r2.instanceId)!.status = "timed_out";
+			instanceStore.get(r3.instanceId)!.status = "running";
+
+			// Clear the queue from trigger calls
+			queue.calls.length = 0;
+
+			const result = await client.retryAll("test-wf");
+			expect(result.retriedCount).toBe(2); // only failed + timed_out
+			expect(instanceStore.get(r1.instanceId)!.status).toBe("pending");
+			expect(instanceStore.get(r2.instanceId)!.status).toBe("pending");
+			expect(instanceStore.get(r3.instanceId)!.status).toBe("running");
+			expect(queue.calls).toHaveLength(2);
+		});
+
+		it("returns 0 when no failed instances exist", async () => {
+			const { deps } = createDeps();
+			const client = createWorkflowClient({ "test-wf": testWorkflow }, deps);
+
+			const result = await client.retryAll("test-wf");
+			expect(result.retriedCount).toBe(0);
 		});
 	});
 

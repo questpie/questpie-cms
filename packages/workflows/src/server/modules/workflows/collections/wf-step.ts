@@ -33,6 +33,8 @@ export const wfStepCollection = collection("wf_step")
 		eventName: f.text(255),
 		/** JSONB match criteria for event matching. */
 		matchCriteria: f.json(),
+		/** Deterministic hash of matchCriteria for O(1) event lookup. */
+		matchHash: f.text(50),
 		/** Child workflow instance ID (invoke). */
 		childInstanceId: f.text(255),
 		/** Whether this step has an inline compensate callback. */
@@ -57,6 +59,7 @@ export const wfStepCollection = collection("wf_step")
 			table.eventName as any,
 			table.status as any,
 		),
+		index("idx_wfs_match_hash").on(table.matchHash as any, table.status as any),
 	])
 	.access({
 		create: false,

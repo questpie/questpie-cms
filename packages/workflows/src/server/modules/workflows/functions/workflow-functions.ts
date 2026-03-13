@@ -231,8 +231,10 @@ const listDefinitions = fn({
 					name,
 					timeout: def.timeout ?? null,
 					cron: def.cron ?? null,
+					cronOverlap: def.cronOverlap ?? null,
 					hasOnFailure: !!def.onFailure,
 					logLevel: def.logLevel ?? "info",
+					retention: def.retention ?? null,
 				}),
 			),
 		};
@@ -397,6 +399,106 @@ const sendEvent = fn({
 	},
 });
 
+/**
+ * Cancel all active instances of a given workflow.
+ */
+const cancelAll = fn({
+	type: "mutation",
+	schema: z.object({
+		name: z.string(),
+	}),
+	handler: async ({ input, ...ctx }) => {
+		const { instances } = getCollections(ctx);
+
+		const activeStatuses = ["pending", "running", "suspended"];
+		const result = await instances.find(
+			{
+				where: {
+					name: input.name,
+					status: { in: activeStatuses },
+				},
+				limit: 1000,
+			},
+			{ accessMode: "system" },
+		);
+
+		const now = new Date();
+		let cancelledCount = 0;
+		for (const instance of result.docs) {
+			try {
+				await instances.updateById(
+					{
+						id: instance.id,
+						data: {
+							status: "cancelled",
+							completedAt: now,
+						},
+					},
+					{ accessMode: "system" },
+				);
+				cancelledCount++;
+			} catch {
+				// Best-effort
+			}
+		}
+
+		return { cancelledCount };
+	},
+});
+
+/**
+ * Retry all failed/timed_out instances of a given workflow.
+ */
+const retryAll = fn({
+	type: "mutation",
+	schema: z.object({
+		name: z.string(),
+	}),
+	handler: async ({ input, ...ctx }) => {
+		const { instances } = getCollections(ctx);
+		const queue = (ctx as any).queue as any;
+
+		const result = await instances.find(
+			{
+				where: {
+					name: input.name,
+					status: { in: ["failed", "timed_out"] },
+				},
+				limit: 1000,
+			},
+			{ accessMode: "system" },
+		);
+
+		let retriedCount = 0;
+		for (const instance of result.docs) {
+			try {
+				await instances.updateById(
+					{
+						id: instance.id,
+						data: {
+							status: "pending",
+							error: null,
+							completedAt: null,
+						},
+					},
+					{ accessMode: "system" },
+				);
+
+				await queue["questpie-wf-execute"].publish({
+					instanceId: instance.id,
+					workflowName: instance.name,
+				});
+
+				retriedCount++;
+			} catch {
+				// Best-effort
+			}
+		}
+
+		return { retriedCount };
+	},
+});
+
 // ── Exports ────────────────────────────────────────────────
 
 export const workflowFunctions = {
@@ -407,4 +509,6 @@ export const workflowFunctions = {
 	listWorkflowDefinitions: listDefinitions,
 	triggerWorkflow,
 	sendWorkflowEvent: sendEvent,
+	cancelAllWorkflowInstances: cancelAll,
+	retryAllWorkflowInstances: retryAll,
 } as const;
