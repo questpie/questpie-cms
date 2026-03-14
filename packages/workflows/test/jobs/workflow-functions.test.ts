@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import { z } from "zod";
-import { workflowFunctions } from "../../src/server/modules/workflows/functions/workflow-functions.js";
+import { workflowFunctions } from "../../src/server/modules/workflows/routes/workflow-functions.js";
 import type { WorkflowDefinition } from "../../src/server/workflow/types.js";
 import { createFnContext, createMockStores } from "./helpers.js";
 

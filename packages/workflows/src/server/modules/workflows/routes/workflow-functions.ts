@@ -1,11 +1,11 @@
 /**
- * Workflow API Functions
+ * Workflow API Routes
  *
- * RPC functions for managing workflow instances, definitions, and events.
- * Registered in the module definition, accessible at /api/rpc/workflows/*.
+ * Route handlers for managing workflow instances, definitions, and events.
+ * Registered in the module definition, accessible at /api/workflows/*.
  */
 
-import { fn } from "questpie";
+import { route } from "questpie";
 import { z } from "zod";
 import type { CollectionCrud } from "../../../client.js";
 
@@ -29,20 +29,22 @@ function getCollections(ctx: any) {
 	return { instances, steps, events, logs };
 }
 
-// ── Functions ──────────────────────────────────────────────
+// ── Routes ─────────────────────────────────────────────────
 
 /**
  * List workflow instances with filters and pagination.
  */
-const listInstances = fn({
-	type: "query",
-	schema: z.object({
-		status: z.string().optional(),
-		name: z.string().optional(),
-		limit: z.number().min(1).max(250).default(50),
-		page: z.number().min(1).default(1),
-	}),
-	handler: async ({ input, ...ctx }) => {
+const listInstances = route()
+	.post()
+	.schema(
+		z.object({
+			status: z.string().optional(),
+			name: z.string().optional(),
+			limit: z.number().min(1).max(250).default(50),
+			page: z.number().min(1).default(1),
+		}),
+	)
+	.handler(async ({ input, ...ctx }) => {
 		const { instances } = getCollections(ctx);
 
 		const where: Record<string, any> = {};
@@ -65,20 +67,21 @@ const listInstances = fn({
 			page: input.page,
 			limit: input.limit,
 		};
-	},
-});
+	});
 
 /**
  * Get a workflow instance with its steps and logs.
  */
-const getInstance = fn({
-	type: "query",
-	schema: z.object({
-		id: z.string(),
-		includeSteps: z.boolean().default(true),
-		includeLogs: z.boolean().default(false),
-	}),
-	handler: async ({ input, ...ctx }) => {
+const getInstance = route()
+	.post()
+	.schema(
+		z.object({
+			id: z.string(),
+			includeSteps: z.boolean().default(true),
+			includeLogs: z.boolean().default(false),
+		}),
+	)
+	.handler(async ({ input, ...ctx }) => {
 		const { instances, steps, logs } = getCollections(ctx);
 
 		const instance = await instances.findOne(
@@ -121,18 +124,15 @@ const getInstance = fn({
 			steps: stepDocs,
 			logs: logDocs,
 		};
-	},
-});
+	});
 
 /**
  * Cancel a running or suspended workflow instance.
  */
-const cancelInstance = fn({
-	type: "mutation",
-	schema: z.object({
-		id: z.string(),
-	}),
-	handler: async ({ input, ...ctx }) => {
+const cancelInstance = route()
+	.post()
+	.schema(z.object({ id: z.string() }))
+	.handler(async ({ input, ...ctx }) => {
 		const { instances } = getCollections(ctx);
 
 		const instance = await instances.findOne(
@@ -161,18 +161,15 @@ const cancelInstance = fn({
 		);
 
 		return { success: true };
-	},
-});
+	});
 
 /**
  * Retry a failed workflow instance by resetting and re-queuing.
  */
-const retryInstance = fn({
-	type: "mutation",
-	schema: z.object({
-		id: z.string(),
-	}),
-	handler: async ({ input, ...ctx }) => {
+const retryInstance = route()
+	.post()
+	.schema(z.object({ id: z.string() }))
+	.handler(async ({ input, ...ctx }) => {
 		const { instances } = getCollections(ctx);
 		const queue = (ctx as any).queue as any;
 
@@ -212,16 +209,15 @@ const retryInstance = fn({
 		});
 
 		return { success: true };
-	},
-});
+	});
 
 /**
  * List registered workflow definitions.
  */
-const listDefinitions = fn({
-	type: "query",
-	schema: z.object({}),
-	handler: async ({ ...ctx }) => {
+const listDefinitions = route()
+	.post()
+	.schema(z.object({}))
+	.handler(async ({ input, ...ctx }) => {
 		const app = (ctx as any).app as any;
 		const workflows = (app?.state?.workflows ?? {}) as Record<string, any>;
 
@@ -238,20 +234,21 @@ const listDefinitions = fn({
 				}),
 			),
 		};
-	},
-});
+	});
 
 /**
  * Trigger a new workflow instance.
  */
-const triggerWorkflow = fn({
-	type: "mutation",
-	schema: z.object({
-		name: z.string(),
-		input: z.unknown().default({}),
-		idempotencyKey: z.string().optional(),
-	}),
-	handler: async ({ input, ...ctx }) => {
+const triggerWorkflow = route()
+	.post()
+	.schema(
+		z.object({
+			name: z.string(),
+			input: z.unknown().default({}),
+			idempotencyKey: z.string().optional(),
+		}),
+	)
+	.handler(async ({ input, ...ctx }) => {
 		const app = (ctx as any).app as any;
 		const workflows = (app?.state?.workflows ?? {}) as Record<string, any>;
 		const definition = workflows[input.name];
@@ -316,20 +313,21 @@ const triggerWorkflow = fn({
 		});
 
 		return { instanceId: instance.id, existing: false };
-	},
-});
+	});
 
 /**
  * Send an event to match against waiting workflows.
  */
-const sendEvent = fn({
-	type: "mutation",
-	schema: z.object({
-		event: z.string(),
-		data: z.unknown().optional(),
-		match: z.record(z.string(), z.unknown()).optional(),
-	}),
-	handler: async ({ input, ...ctx }) => {
+const sendEvent = route()
+	.post()
+	.schema(
+		z.object({
+			event: z.string(),
+			data: z.unknown().optional(),
+			match: z.record(z.string(), z.unknown()).optional(),
+		}),
+	)
+	.handler(async ({ input, ...ctx }) => {
 		const { events, steps } = getCollections(ctx);
 		const queue = (ctx as any).queue as any;
 
@@ -396,18 +394,15 @@ const sendEvent = fn({
 		);
 
 		return { matchedCount: result.matchedCount };
-	},
-});
+	});
 
 /**
  * Cancel all active instances of a given workflow.
  */
-const cancelAll = fn({
-	type: "mutation",
-	schema: z.object({
-		name: z.string(),
-	}),
-	handler: async ({ input, ...ctx }) => {
+const cancelAll = route()
+	.post()
+	.schema(z.object({ name: z.string() }))
+	.handler(async ({ input, ...ctx }) => {
 		const { instances } = getCollections(ctx);
 
 		const activeStatuses = ["pending", "running", "suspended"];
@@ -443,18 +438,15 @@ const cancelAll = fn({
 		}
 
 		return { cancelledCount };
-	},
-});
+	});
 
 /**
  * Retry all failed/timed_out instances of a given workflow.
  */
-const retryAll = fn({
-	type: "mutation",
-	schema: z.object({
-		name: z.string(),
-	}),
-	handler: async ({ input, ...ctx }) => {
+const retryAll = route()
+	.post()
+	.schema(z.object({ name: z.string() }))
+	.handler(async ({ input, ...ctx }) => {
 		const { instances } = getCollections(ctx);
 		const queue = (ctx as any).queue as any;
 
@@ -496,8 +488,7 @@ const retryAll = fn({
 		}
 
 		return { retriedCount };
-	},
-});
+	});
 
 // ── Exports ────────────────────────────────────────────────
 

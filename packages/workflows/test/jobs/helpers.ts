@@ -221,10 +221,10 @@ export function createJobContext(
 }
 
 /**
- * Create a mock function handler context simulating the QUESTPIE runtime shape.
+ * Create a mock route handler context simulating the QUESTPIE runtime shape.
  *
  * The context has: input, collections, queue, app (with state.workflows).
- * RPC fn handlers destructure `{ input, ...ctx }`, so spread the rest as top-level.
+ * Route handlers destructure `{ input, ...ctx }`, so spread the rest as top-level.
  */
 export function createFnContext(
 	input: any,

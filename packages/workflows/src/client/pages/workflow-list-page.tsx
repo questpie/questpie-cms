@@ -95,7 +95,7 @@ export function WorkflowListPage() {
 	const { data, isLoading, error, refetch } = useQuery({
 		queryKey: ["workflows", "instances", statusFilter, page, limit],
 		queryFn: () =>
-			(client as any).rpc.listWorkflowInstances({
+			(client as any).routes.listWorkflowInstances({
 				status: statusFilter || undefined,
 				limit,
 				page,

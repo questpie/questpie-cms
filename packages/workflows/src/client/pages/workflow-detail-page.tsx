@@ -247,7 +247,7 @@ export function WorkflowDetailPage({ instanceId }: { instanceId: string }) {
 	const { data, isLoading, error, refetch } = useQuery({
 		queryKey: ["workflows", "instance", instanceId, showLogs],
 		queryFn: () =>
-			(client as any).rpc.getWorkflowInstance({
+			(client as any).routes.getWorkflowInstance({
 				id: instanceId,
 				includeSteps: true,
 				includeLogs: showLogs,
@@ -257,7 +257,7 @@ export function WorkflowDetailPage({ instanceId }: { instanceId: string }) {
 
 	const cancelMutation = useMutation({
 		mutationFn: () =>
-			(client as any).rpc.cancelWorkflowInstance({ id: instanceId }),
+			(client as any).routes.cancelWorkflowInstance({ id: instanceId }),
 		onSuccess: () => {
 			queryClient.invalidateQueries({
 				queryKey: ["workflows"],
@@ -267,7 +267,7 @@ export function WorkflowDetailPage({ instanceId }: { instanceId: string }) {
 
 	const retryMutation = useMutation({
 		mutationFn: () =>
-			(client as any).rpc.retryWorkflowInstance({ id: instanceId }),
+			(client as any).routes.retryWorkflowInstance({ id: instanceId }),
 		onSuccess: () => {
 			queryClient.invalidateQueries({
 				queryKey: ["workflows"],
